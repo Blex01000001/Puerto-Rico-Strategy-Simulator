@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；程式碼目前只有可建置的專案骨架（Engine/Runner/Tests）。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -14,13 +14,14 @@
 | `rules.md` | 遊戲規則唯一依據 | 資料齊備，仍有待確認項目（見 TODO） |
 | `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable、TreatWarningsAsErrors） | 已有 |
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
-| `Engine/Game/` | 狀態、動作、規則（GetLegalActions/Apply）、Setup、計分、靜態表 | 目前只有 `EngineInfo.cs` |
-| `Engine/Strategies/` | `IStrategy`、隨機玩家、策略註冊（預留 RuleBased/、Mcts/） | 規劃中 |
-| `Engine/Simulation/` | 設定/結果模型、單局執行器、批次模擬器、種子衍生 | 規劃中 |
-| `Engine/Events/` | 事件記錄（大量模擬用 NullSink，回放用 ListSink） | 規劃中 |
-| `Runner/` | 主控台入口：命令列、Ctrl+C、進度、寫結果檔 | 佔位 `Program.cs` |
+| `config.example.json` | 設定檔範例（Runner 與 Dashboard 共用格式） | 已有 |
+| `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
+| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（預留 RuleBased/、Mcts/） | 隨機玩家已有 |
+| `Engine/Simulation/` | `SimulationConfig`、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
+| `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
+| `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay` | 已有 |
+| `Tests/` | xUnit：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
 | `Dashboard/` | Blazor Web App (Interactive Server)：設定、檢視、圖表 | 第一階段不做 |
-| `Tests/` | xUnit | 已有（1 個煙霧測試） |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
@@ -40,7 +41,10 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 ## 常見任務怎麼改
 常做的修改照這裡的步驟走，不用重新調查。格式：任務 → 改哪些檔案／函式 → 注意事項 → 怎麼驗證。做完一種新類型的修改，若之後可能重複，就補一條進來。
 
-（尚無；程式碼建立後補上，例如「新增建築」「新增職業」「新增策略」「改設定/結果 JSON 欄位」。）
+- **改／加規則**：先改 `rules.md` → 改 `Engine/Game/Rules.<階段>.cs` 的 `Fill*`（列合法動作）與 `Apply*`（執行）；靜態數字改 `Buildings.cs`／`GameConstants.cs` → 在對應 `Tests/*Tests.cs` 加情境測試並註明 rules.md 節次 → `dotnet test -c Release`（fuzz 測試會檢查不變量）。新增動作種類時同步改 `ActionType`、`GameAction.ToString`。
+- **加策略**：新檔 `Engine/Strategies/XStrategy.cs` 實作 `IStrategy`（座位 = `state.Actor`，亂數只用工廠給的 seed，不得讀對手 `VpChips`）→ 在 `StrategyRegistry.Factories` 註冊名稱 → 設定檔 `seats[].strategy` 填該名稱，參數放 `params` → 加測試（至少能跑完 100 局且不丟例外）。
+- **改設定／結果 JSON 欄位**（先問使用者）：`SimulationConfig.cs`／`SimulationResult.cs`；新增欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`（續跑比對的欄位）。
+- **跑模擬**：`dotnet run -c Release --project Runner -- --config config.example.json --games 100000 --out result.json`；Ctrl+C 會寫出 `cancelled` 結果，`--resume` 續跑（需 `perGameRecords: true`）；`--replay N` 輸出第 N 局的決策記錄。
 
 ## 架構決策（不要改回去）
 已討論過、刻意選擇的設計。真的認為該推翻，先提出來討論（標【先討論】），不要直接改。格式：決策 — 原因 — 不要做什麼。
@@ -51,6 +55,9 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 - 每個決策點 = 目前狀態 + 合法動作清單；引擎提供 Clone / GetLegalActions / Apply / IsOver / Score — 不要讓策略直接改狀態。
 - GameState 只含數值與固定長度陣列（無 List/Dictionary/字串）— Clone 要快（MCTS）— 不要在狀態中放參考型別集合。
 - 平行用 `Parallel.For`；大量模擬關閉事件記錄 — 效能 — 不要在批次模擬中開 event log。
+- 狀態推進：`Apply` 之後自動推進到下一個真正的決策——沒有動作或只剩 `Pass` 的人直接略過 — 策略不會被問無意義的問題 — 不要在策略端重做略過邏輯。唯一合法動作（非 Pass）由 `GameRunner` 依 `options.autoAdvanceForced` 直接套用。
+- Mayor 放置採「依 slot 非遞減順序逐一放置」，並剪掉無法放滿的選項 — 每種分配只對應一條動作序列，避免排列重複 — 不要改成任意順序。
+- 牌疊以各種類張數＋`RngState` 表示，不存牌序 — Clone 小、洗牌可重現 — 不要在狀態內存洗好的牌陣列。
 - 第一階段範圍：3 人基礎版、無擴充；策略與 Dashboard 之後再做 — 不要提前實作。
 - 每局種子由 (masterSeed, gameIndex) 衍生 — 結果與執行緒數、分工方式無關，且 `--resume` 容易 — 不要改成「每執行緒一個 Random」。
 - 設定 `seatOrder` 預設 `rotate`（策略座位依局數輪換） — 3 人局有座位優勢，輪換才公平；統計以「策略」而非座位歸類 — 不要預設固定座位。
@@ -73,7 +80,9 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 
 - 環境 — 容器是暫時的，dotnet 靠 SessionStart hook 安裝 — hook 只在合併到預設分支後才對新 session 生效，在那之前新 session 需手動 apt 安裝（見上）。
 - 專案檔 — `Directory.Build.props` 已設 net8.0／Nullable／TreatWarningsAsErrors，csproj 內不要重複設 — 警告即錯誤，新增程式碼要零警告。
-- 種植園牌堆（規劃）— 洗好後存在 GameState，抽牌是確定性的；牌疊用完會洗棄牌堆，故 GameState 需帶可複製的亂數狀態 — MCTS 會偷看牌序，之後做 MCTS 時須在策略層對未翻開的牌重洗（determinization）。
+- `GameState.RngState` — 抽種植園時才推進亂數 — 複製後兩份狀態會抽到相同的牌；MCTS 的每次 rollout 必須先 `ReseedRng(新種子)`，否則所有 rollout 看到同一個未來。
+- `Rules.Apply` 之後的狀態一定停在下一個真實決策 — 不要自己迴圈略過 Pass；測試用 `Sc.Start`（`Tests/Sc.cs`）直接指定總督與職業來建情境。
+- 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以預設 `seatOrder: rotate`，統計看策略而非座位。
 
 ## 使用者的工作習慣
 - 回覆用繁體中文；commit 訊息用英文。
