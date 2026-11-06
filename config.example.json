@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "name": "baseline-3p-random",
+  "players": 3,
+  "games": 100000,
+  "seed": 12345,
+  "seatOrder": "rotate",
+  "seats": [
+    { "id": "A", "strategy": "random", "params": {} },
+    { "id": "B", "strategy": "random", "params": {} },
+    { "id": "C", "strategy": "random", "params": {} }
+  ],
+  "limits": { "maxRounds": 150, "maxDecisionsPerGame": 20000 },
+  "options": { "autoAdvanceForced": true, "eventLog": false },
+  "output": { "perGameRecords": true, "checkpointEverySeconds": 60, "checkpointEveryGames": 5000 },
+  "parallelism": { "maxDegree": 0 }
+}
