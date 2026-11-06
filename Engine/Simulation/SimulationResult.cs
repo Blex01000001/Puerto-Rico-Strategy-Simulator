@@ -14,6 +14,19 @@ public sealed class PlayerRecord
     public int BonusPoints { get; set; }
     public int Tiebreak { get; set; }
     public int Rank { get; set; }
+
+    // ---- added later: null/0 in result files written by older versions ----
+
+    /// <summary>Building ids (see <c>BuildingId</c>) in the order they were bought; null if the file predates this field.</summary>
+    public List<int>? Buildings { get; set; }
+    /// <summary>Round in which each building of <see cref="Buildings"/> was bought (same order).</summary>
+    public List<int>? BuiltRounds { get; set; }
+    /// <summary>Tiles at the end: corn, indigo, sugar, tobacco, coffee, quarry.</summary>
+    public List<int>? Tiles { get; set; }
+    /// <summary>Coins at the end of the game.</summary>
+    public int Coins { get; set; }
+    /// <summary>Number of shipments (public ship or Wharf) made during the game.</summary>
+    public int Shipments { get; set; }
 }
 
 public sealed class GameRecord

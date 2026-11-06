@@ -31,6 +31,8 @@ public static class BatchSimulator
         if (options.ResumeFrom != null)
         {
             EnsureCompatible(cfg, options.ResumeFrom.Config);
+            if (options.ResumeFrom.Games.Any(g => g.Players.Any(p => p.Buildings == null)))
+                throw new InvalidDataException("The result file was written by an older version (no per-player building data); cannot resume it.");
             started = options.ResumeFrom.StartedUtc;
             foreach (var g in options.ResumeFrom.Games)
                 if (g.Index >= 0 && g.Index < total && records[g.Index] == null) { records[g.Index] = g; done++; }

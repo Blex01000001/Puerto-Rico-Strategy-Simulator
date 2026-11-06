@@ -21,6 +21,32 @@ public sealed class StrategyAnalysis
     /// <summary>Share of games finished with rank &lt;= players/2 (top 2 of 4 players; first place only with 3 players).</summary>
     public double TopHalfShare { get; set; }
     public double LastPlaceShare { get; set; }
+
+    // ---- need the per-player building data (files from older versions leave these at 0) ----
+    public double AvgBuildings { get; set; }
+    public double AvgLargeBuildings { get; set; }
+    public double AvgShipments { get; set; }
+    public double AvgCoins { get; set; }
+    /// <summary>Share of this strategy's games in which it owned a Harbor, and the mean round it was bought.</summary>
+    public double HarborShare { get; set; }
+    public double AvgHarborRound { get; set; }
+    /// <summary>Mean tiles at the end: corn, indigo, sugar, tobacco, coffee, quarry.</summary>
+    public List<double> AvgTiles { get; set; } = new();
+}
+
+/// <summary>Ownership and results per building over all players of all strategies.</summary>
+public sealed class BuildingStat
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    /// <summary>Per strategy (same order as <see cref="ResultAnalysis.Strategies"/>): share of its games owning this building.</summary>
+    public List<double> OwnedShare { get; set; } = new();
+    public int OwnerPlayers { get; set; }
+    /// <summary>Win share (ties split) of players who owned the building at the end, and of those who did not.</summary>
+    public double WinShareOwned { get; set; }
+    public double WinShareNotOwned { get; set; }
+    /// <summary>Mean round in which the building was bought.</summary>
+    public double AvgBuiltRound { get; set; }
 }
 
 /// <summary>Counts per score bin, one series per strategy (in the same order as <see cref="ResultAnalysis.Strategies"/>).</summary>
@@ -51,6 +77,9 @@ public sealed class ResultAnalysis
     public Dictionary<string, int> EndReasons { get; set; } = new();
     /// <summary>Pairwise[i][j] = share of games (not tied on rank) where strategy i ranked above strategy j; NaN on the diagonal.</summary>
     public List<List<double>> Pairwise { get; set; } = new();
+    /// <summary>True when every player record carries building data (files written by this version or newer).</summary>
+    public bool HasBuildingRecords { get; set; }
+    public List<BuildingStat> Buildings { get; set; } = new();
 
     public static ResultAnalysis From(SimulationResult result)
     {
@@ -121,6 +150,9 @@ public sealed class ResultAnalysis
             });
         }
 
+        a.HasBuildingRecords = games.All(g => g.Players.All(p => p.Buildings != null && p.BuiltRounds != null));
+        if (a.HasBuildingRecords) AddBuildingStats(a, games, seats);
+
         // score histogram
         var all = scoresById.Values.SelectMany(v => v).ToList();
         int min = all.Count == 0 ? 0 : all.Min();
@@ -157,6 +189,57 @@ public sealed class ResultAnalysis
             a.Pairwise.Add(row);
         }
         return a;
+    }
+
+    private static void AddBuildingStats(ResultAnalysis a, List<GameRecord> games, List<SeatConfig> seats)
+    {
+        for (int k = 0; k < seats.Count; k++)
+        {
+            var rows = new List<PlayerRecord>();
+            foreach (var g in games) rows.AddRange(g.Players.Where(p => p.SeatId == seats[k].Id));
+            int n = Math.Max(1, rows.Count);
+            var st = a.Strategies[k];
+            st.AvgBuildings = rows.Average(p => (double)p.Buildings!.Count);
+            st.AvgLargeBuildings = rows.Average(p => (double)p.Buildings!.Count(id => Game.Buildings.All[id].Large));
+            st.AvgShipments = rows.Average(p => (double)p.Shipments);
+            st.AvgCoins = rows.Average(p => (double)p.Coins);
+            int harbor = (int)Game.BuildingId.Harbor;
+            var harborRows = rows.Where(p => p.Buildings!.Contains(harbor)).ToList();
+            st.HarborShare = harborRows.Count / (double)n;
+            st.AvgHarborRound = harborRows.Count == 0 ? 0 : harborRows.Average(p => (double)p.BuiltRounds![p.Buildings!.IndexOf(harbor)]);
+            int tileKinds = Game.GameConstants.TileTypes;
+            st.AvgTiles = Enumerable.Range(0, tileKinds).Select(t => rows.Average(p => p.Tiles != null && p.Tiles.Count > t ? (double)p.Tiles[t] : 0)).ToList();
+        }
+
+        for (int b = 0; b < Game.GameConstants.BuildingCount; b++)
+        {
+            var stat = new BuildingStat { Id = b, Name = Game.Buildings.All[b].Name };
+            double ownedWin = 0, otherWin = 0; int owners = 0, others = 0; double roundSum = 0;
+            var ownedByStrategy = new int[seats.Count];
+            var gamesByStrategy = new int[seats.Count];
+            foreach (var g in games)
+            {
+                foreach (var p in g.Players)
+                {
+                    int k = seats.FindIndex(s => s.Id == p.SeatId);
+                    if (k >= 0) gamesByStrategy[k]++;
+                    double credit = g.Winners.Contains(p.Seat) ? 1.0 / g.Winners.Count : 0;
+                    int at = p.Buildings!.IndexOf(b);
+                    if (at >= 0)
+                    {
+                        owners++; ownedWin += credit; roundSum += p.BuiltRounds![at];
+                        if (k >= 0) ownedByStrategy[k]++;
+                    }
+                    else { others++; otherWin += credit; }
+                }
+            }
+            stat.OwnerPlayers = owners;
+            stat.WinShareOwned = owners == 0 ? 0 : ownedWin / owners;
+            stat.WinShareNotOwned = others == 0 ? 0 : otherWin / others;
+            stat.AvgBuiltRound = owners == 0 ? 0 : roundSum / owners;
+            stat.OwnedShare = Enumerable.Range(0, seats.Count).Select(k => gamesByStrategy[k] == 0 ? 0 : ownedByStrategy[k] / (double)gamesByStrategy[k]).ToList();
+            a.Buildings.Add(stat);
+        }
     }
 
     public static double Ci(double p, int n) => n <= 0 ? 0 : 1.96 * Math.Sqrt(Math.Max(p * (1 - p), 0) / n);
