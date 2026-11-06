@@ -19,6 +19,7 @@ public static class Program
           --out <file>         result file (default: result.json); checkpoints are written here too
           --resume             continue from an existing --out file of the same config
           --replay <index>     play one game with the event log on and write the events to --out
+          --sweep              parameter sweep from config.sweep (see config.sweep.example.json); result in --out (default sweep.json)
           --help
         """;
 
@@ -40,7 +41,7 @@ public static class Program
         string? configPath = null, outPath = null;
         int? games = null, threads = null, replay = null;
         ulong? seed = null;
-        bool resume = false;
+        bool resume = false, sweep = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -54,6 +55,7 @@ public static class Program
                 case "--out": outPath = Next(); break;
                 case "--resume": resume = true; break;
                 case "--replay": replay = int.Parse(Next()); break;
+                case "--sweep": sweep = true; break;
                 case "--help" or "-h": Console.WriteLine(Usage); return 0;
                 default: throw new ArgumentException($"unknown argument '{args[i]}'\n\n{Usage}");
             }
@@ -64,9 +66,10 @@ public static class Program
         if (seed != null) cfg.Seed = seed.Value;
         if (threads != null) cfg.Parallelism.MaxDegree = threads.Value;
         cfg.Validate();
-        outPath ??= Path.Combine(Directory.GetCurrentDirectory(), replay != null ? "replay.json" : "result.json");
+        outPath ??= Path.Combine(Directory.GetCurrentDirectory(), replay != null ? "replay.json" : sweep ? "sweep.json" : "result.json");
 
         if (replay != null) return Replay(cfg, replay.Value, outPath);
+        if (sweep) return Sweep(cfg, outPath);
 
         var options = new BatchOptions { OutPath = outPath };
         if (resume)
@@ -91,6 +94,23 @@ public static class Program
         Console.WriteLine($"{result.Status}: {result.GamesCompleted}/{result.GamesRequested} games -> {outPath}");
         foreach (var s in result.Summary)
             Console.WriteLine($"  {s.SeatId} ({s.Strategy}): win share {s.WinShare:P1}, avg score {s.AvgScore:F1} ± {s.StdScore:F1}");
+        return result.Status == "completed" ? 0 : 130;
+    }
+
+    private static int Sweep(SimulationConfig cfg, string outPath)
+    {
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            Console.Error.WriteLine("\ncancelling after the current point...");
+            cts.Cancel();
+        };
+        var log = new Progress<string>(m => Console.Error.WriteLine(m));
+        var result = SweepRunner.Run(cfg, outPath, log, cts.Token);
+        Console.WriteLine($"{result.Status}: {result.Points.Count}/{result.PointsPlanned} points -> {outPath}");
+        foreach (var p in result.Points.OrderByDescending(p => p.WinShare))
+            Console.WriteLine($"  {p.WinShare,6:P1} ± {p.WinShareCi95:P1}  avg {p.AvgScore,5:F1}  {SweepRunner.Describe(p.Params)}");
         return result.Status == "completed" ? 0 : 130;
     }
 
