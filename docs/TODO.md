@@ -6,9 +6,8 @@
 
 1. 【先討論】策略調參與下一批原型：四個手寫原型（`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，在 `Engine/Strategies/RuleBased/`，共用 `HeuristicStrategy`）已互打並分析（`docs/strategy-analysis.md`）。建議下一輪：用最強的 `build-first` 當固定對手再調其他三個（交替調參）、3 人局另外調一輪、重做「先有出貨量再蓋港口」的港口流與改進菸草／咖啡變現路徑。
 2. 【先討論】MCTS 策略：模擬次數放設定 `params.simulations`；每次 rollout 用 `Clone()` ＋ `ReseedRng`；隱藏資訊不遮罩（約定不讀對手 VP）；rollout 策略可用隨機或手寫策略。
-3. 【先討論】結果檔加入每位玩家的建築清單與關鍵統計（例如港口取得回合、種植園數）：這是結果 JSON 欄位變動（`PlayerRecord`），目前分析策略行為要另外跑額外程式；加了之後 Dashboard 可直接畫「贏家有什麼建築」。
-4. 【直接做】Dashboard 擴充：兩個結果檔並排比較（A/B）、讀多個結果檔的「對戰總覽」頁（像 `docs/strategy-analysis.md` 的組合表）、單局回放檢視（讀 `--replay` 輸出）。
-5. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
+3. 【直接做】Dashboard 擴充：兩個結果檔並排比較（A/B）、讀多個結果檔的「對戰總覽」頁（像 `docs/strategy-analysis.md` 的組合表）、單局回放檢視（讀 `--replay` 輸出）。
+4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
 
 ## 已知問題／限制
 
@@ -19,8 +18,9 @@
   - 倉庫保留：玩家一律完整保留 min(倉庫可保留種類數, 持有種類數) 種（保留更多不會變差），再選 1 桶；引擎不提供「少保留」的選項。
   - Hacienda 盲抽時牌疊已空：先把棄牌洗回再抽（規則只寫了翻牌時的洗牌）。
   - 市長階段是逐位玩家把全部殖民者拔起再放（先輪到的人先放）；結果與同時放置相同。
+- 結果記錄不含「各職業被選次數」（Prospector 偏好等要另外統計）與「每個建築是否有派殖民者」。
 - 規則：隱藏資訊（對手 VP）只靠約定，沒有機制阻止策略讀取。
-- 續跑（`--resume`）需要 `output.perGameRecords: true`；結果檔約 430 bytes／局（10 萬局約 43 MB）。
+- 續跑（`--resume`）需要 `output.perGameRecords: true`；結果檔約 700～900 bytes／局（10 萬局：3 人局約 70 MB、4 人局約 89 MB）；舊版本（沒有建築清單）的結果檔仍可在 Dashboard 檢視，但不能 `--resume`。
 - 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人結果差很多（建築優先流 4 人局 46%、3 人局只有 17～42%），而參數只用 4 人局調。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
 - 引擎玩家數 3 或 4（`players`）；5 人局與擴充不支援。4 人局職業 Prospector 在手寫策略裡的估值很簡單（約等於 1 枚金幣）。
 - 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）。Dashboard 沒有自動化測試（Tests 只參考 Engine）；以 Playwright 截圖驗證過三個頁面（淺色／深色）。分析邏輯在 `Engine/Simulation/ResultAnalysis.cs`，有單元測試。

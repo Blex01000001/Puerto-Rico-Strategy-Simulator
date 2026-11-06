@@ -65,6 +65,9 @@ public static class GameRunner
         var legal = new List<GameAction>(32);
         bool auto = cfg.Options.AutoAdvanceForced;
         int decisions = 0;
+        var built = new List<(int Id, int Round)>[cfg.Players];
+        var shipments = new int[cfg.Players];
+        for (int i = 0; i < cfg.Players; i++) built[i] = new List<(int, int)>(8);
 
         while (!state.IsOver)
         {
@@ -72,6 +75,9 @@ public static class GameRunner
             if (legal.Count == 0) throw new InvalidOperationException($"No legal action in phase {state.Phase} (game {gameIndex})");
             var action = auto && legal.Count == 1 ? legal[0] : strategies[state.Actor].ChooseAction(state, legal);
             if (sink.Enabled) sink.OnDecision(state, action);
+            // statistics for the result file (read before Apply: actor and round are those of the decision)
+            if (action.Type == ActionType.Build) built[state.Actor].Add((action.A, state.Round));
+            else if (action.Type == ActionType.LoadShip || action.Type == ActionType.LoadWharf) shipments[state.Actor]++;
             Rules.Apply(state, action);
             if (++decisions >= cfg.Limits.MaxDecisionsPerGame && !state.IsOver)
                 Rules.ForceEnd(state, EndFlags.DecisionLimit);
@@ -99,6 +105,11 @@ public static class GameRunner
                 BonusPoints = p.BonusPoints,
                 Tiebreak = p.Tiebreak,
                 Rank = p.Rank,
+                Buildings = built[p.Seat].Select(b => b.Id).ToList(),
+                BuiltRounds = built[p.Seat].Select(b => b.Round).ToList(),
+                Tiles = Enumerable.Range(0, GameConstants.TileTypes).Select(t => state.Tiles[p.Seat * GameConstants.TileTypes + t]).ToList(),
+                Coins = state.Coins[p.Seat],
+                Shipments = shipments[p.Seat],
             });
         }
         finalState = state;

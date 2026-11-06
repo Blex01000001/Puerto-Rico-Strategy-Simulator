@@ -74,6 +74,69 @@ else if (State.Result != null && State.Analysis != null)
         </div>
     </div>
 
+    @if (a.HasGameRecords && a.HasBuildingRecords)
+    {
+        <h2>策略行為</h2>
+        <p class="note">每局平均。港口取得率 = 該策略的局中有蓋到港口的比例，回合 = 蓋到港口的平均回合；出貨次數含 Wharf。</p>
+        <div class="tablewrap">
+            <table class="data">
+                <thead>
+                    <tr><th>策略</th><th>港口取得率</th><th>港口回合</th><th>建築數</th><th>大型建築</th><th>出貨次數</th>
+                        <th>玉米園</th><th>染料園</th><th>糖園</th><th>菸草園</th><th>咖啡園</th><th>採石場</th><th>終局金幣</th></tr>
+                </thead>
+                <tbody>
+                @for (int i = 0; i < strategies.Count; i++)
+                {
+                    var s = strategies[i];
+                    <tr>
+                        <td><span class="swatch" style="background:@Color(i)"></span>@Name(i)</td>
+                        <td>@Pct(s.HarborShare)</td><td>@(s.HarborShare > 0 ? s.AvgHarborRound.ToString("0.0") : "—")</td>
+                        <td>@s.AvgBuildings.ToString("0.0")</td><td>@s.AvgLargeBuildings.ToString("0.00")</td><td>@s.AvgShipments.ToString("0.0")</td>
+                        @foreach (var t in s.AvgTiles) { <td>@t.ToString("0.0")</td> }
+                        <td>@s.AvgCoins.ToString("0.0")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <h2>建築與勝率</h2>
+        <p class="note">擁有該建築的玩家的勝率（所有策略合計），基準 = @((1.0 / r.Config.Players).ToString("P1"))。擁有人數少於 300 的建築不畫（樣本太少）。</p>
+        <figure class="chartbox">
+            <BarChart Title="擁有該建築的玩家勝率" LabelWidth="200" Format="@(v => v.ToString("P1"))"
+                      Items="@(a.Buildings.Where(b => b.OwnerPlayers >= 300).OrderByDescending(b => b.WinShareOwned).Take(15)
+                           .Select(b => new BarChart.BarItem(b.Name, b.WinShareOwned, PuertoRico.Engine.Simulation.ResultAnalysis.Ci(b.WinShareOwned, b.OwnerPlayers), "var(--accent)",
+                               $"{b.Name}　擁有者 {b.OwnerPlayers:N0} 人，勝率 {Pct(b.WinShareOwned)}（未擁有 {Pct(b.WinShareNotOwned)}），平均第 {b.AvgBuiltRound:0.0} 回合購買")).ToList())" />
+        </figure>
+        <details>
+            <summary>全部建築（取得率、購買回合、勝率）</summary>
+            <div class="tablewrap">
+                <table class="data heat">
+                    <thead>
+                        <tr><th>建築</th>@for (int j = 0; j < strategies.Count; j++) { <th>@Name(j)</th> }<th>擁有人數</th><th>平均購買回合</th><th>擁有者勝率</th><th>未擁有者勝率</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var b in a.Buildings)
+                    {
+                        <tr>
+                            <td>@b.Name</td>
+                            @foreach (var share in b.OwnedShare) { <td class="cell" style="@ShareStyle(share)">@Pct(share)</td> }
+                            <td>@b.OwnerPlayers.ToString("N0")</td>
+                            <td>@(b.OwnerPlayers > 0 ? b.AvgBuiltRound.ToString("0.0") : "—")</td>
+                            <td>@(b.OwnerPlayers > 0 ? Pct(b.WinShareOwned) : "—")</td>
+                            <td>@Pct(b.WinShareNotOwned)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    }
+    else if (a.HasGameRecords)
+    {
+        <div class="ok">這份結果檔是舊版本寫的，沒有建築清單與行為統計；用新版 Runner 重跑就會有「策略行為」與「建築與勝率」。</div>
+    }
+
     @if (a.HasGameRecords)
     {
         <h2>分數分佈</h2>
@@ -188,6 +251,9 @@ else if (State.Result != null && State.Analysis != null)
         });
         return string.Join(" ＋ ", names);
     }
+
+    private static string ShareStyle(double share) =>
+        FormattableString.Invariant($"background:color-mix(in srgb, var(--series-1) {Math.Clamp(share, 0, 1) * 70:0}%, var(--neutral))");
 
     private static string HeatStyle(double v)
     {
