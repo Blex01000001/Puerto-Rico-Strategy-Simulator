@@ -1,0 +1,58 @@
+@* Distribution lines: one series per strategy over shared x bins (fraction of games). *@
+<svg class="chart" viewBox="0 0 @Width @Height" role="img" aria-label="@Title">
+    @for (int t = 0; t <= 4; t++)
+    {
+        double v = yMax * t / 4;
+        double y = PlotBottom - (PlotBottom - PlotTop) * t / 4;
+        <line class="gridline" x1="@F(PlotLeft)" x2="@F(PlotRight)" y1="@F(y)" y2="@F(y)" />
+        <g><text x="@F(PlotLeft - 6)" y="@F(y + 4)" text-anchor="end">@YFormat(v)</text></g>
+    }
+    @for (int i = 0; i < XLabels.Count; i += XStep)
+    {
+        <g><text x="@F(X(i))" y="@F(Height - 6)" text-anchor="middle">@XLabels[i]</text></g>
+    }
+    <line class="axis" x1="@F(PlotLeft)" x2="@F(PlotRight)" y1="@F(PlotBottom)" y2="@F(PlotBottom)" />
+    @foreach (var s in Series)
+    {
+        <polyline fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" style="stroke:@s.Color" points="@Points(s)" />
+        @for (int i = 0; i < s.Values.Count; i++)
+        {
+            if (s.Values[i] <= 0) continue;
+            <circle cx="@F(X(i))" cy="@F(Y(s.Values[i]))" r="6" fill="transparent" class="mark">
+                <title>@s.Name　@XLabels[i]：@YFormat(s.Values[i])</title>
+            </circle>
+        }
+    }
+</svg>
+<div class="legend">
+    @foreach (var s in Series)
+    {
+        <span><span class="sw line" style="background:@s.Color"></span>@s.Name</span>
+    }
+</div>
+
+@code {
+    public sealed record LineSeries(string Name, string Color, IReadOnlyList<double> Values);
+
+    [Parameter, EditorRequired] public IReadOnlyList<LineSeries> Series { get; set; } = Array.Empty<LineSeries>();
+    [Parameter, EditorRequired] public IReadOnlyList<string> XLabels { get; set; } = Array.Empty<string>();
+    [Parameter] public Func<double, string> YFormat { get; set; } = v => v.ToString("P0");
+    [Parameter] public string Title { get; set; } = "";
+
+    [Parameter] public double Width { get; set; } = 760;
+    private const double Height = 280, PlotLeft = 52, PlotTop = 10, PlotBottom = 250;
+    private double PlotRight => Width - 20;
+    private int XStep => Math.Max(1, (int)Math.Ceiling(XLabels.Count / 12.0));
+    private double yMax
+    {
+        get
+        {
+            double m = Series.Count == 0 ? 0.1 : Series.Max(s => s.Values.Count == 0 ? 0 : s.Values.Max());
+            return Math.Max(0.02, Math.Ceiling(m * 100 / 2.0) * 2 / 100.0 * 1.0);
+        }
+    }
+    private double X(int i) => XLabels.Count <= 1 ? PlotLeft : PlotLeft + (PlotRight - PlotLeft) * i / (XLabels.Count - 1);
+    private double Y(double v) => PlotBottom - (PlotBottom - PlotTop) * v / yMax;
+    private string Points(LineSeries s) => string.Join(" ", s.Values.Select((v, i) => F(X(i)) + "," + F(Y(v))));
+    private static string F(double d) => d.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

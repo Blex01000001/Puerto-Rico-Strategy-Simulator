@@ -9,6 +9,6 @@ public class EngineInfoTests
     public void Version_And_RulesVersion_AreSet()
     {
         Assert.False(string.IsNullOrWhiteSpace(EngineInfo.Version));
-        Assert.Equal("base-3p", EngineInfo.RulesVersion);
+        Assert.Equal("base", EngineInfo.RulesVersion);
     }
 }

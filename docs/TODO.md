@@ -4,18 +4,11 @@
 
 ## 待辦
 
-1. 【先討論】策略調參與下一批原型：現有三個手寫原型（`corn-shipper`、`corn-to-premium`、`harbor-rush`，都在 `Engine/Strategies/RuleBased/`，共用 `HeuristicStrategy` 的打分掛鉤）數值皆未調整。建議先做參數掃描（`buildThreshold`、`switchRound`、`cornTarget`、`quarryTarget`），再決定是否加新原型（建築優先、Wharf 流…）。
-2. 【先討論】MCTS 策略：模擬次數放設定 `params.simulations`；每次 rollout 用 `Clone()` ＋ `ReseedRng`；隱藏資訊不遮罩（約定不讀對手 VP）；rollout 策略可用隨機或 `corn-shipper`。
-3. 【直接做】Dashboard（Blazor Interactive Server，`Dashboard/`，只參考 Engine）：匯入 `result.json`，編輯／產生設定檔，顯示下列已定案的圖表（資料欄位見 `SimulationResult`）：
-   - 策略勝率：長條圖，`summary[].winShare`，附 95% 信賴區間（用 `games` 局數算 √(p(1-p)/n)）。
-   - 平均分數：長條圖加標準差誤差線，`summary[].avgScore/stdScore`。
-   - 分數構成：堆疊長條，各策略平均 `chips`／`buildingPoints`／`bonusPoints`（看分數從哪來）。
-   - 分數分佈：各策略 `games[].players[].vp` 的直方圖或箱型圖（需 `perGameRecords`）。
-   - 座位優勢：`tableSeats[]` 的勝率與平均分（驗證輪換是否抵消座位差）。
-   - 終局原因：`endReasons` 長條圖。
-   - 局長：`games[].rounds` 與 `decisions` 分佈。
-   - 之後再加：兩個結果檔並排比較（A/B）。
-4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
+1. 【先討論】策略調參與下一批原型：四個手寫原型（`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，在 `Engine/Strategies/RuleBased/`，共用 `HeuristicStrategy`）已互打並分析（`docs/strategy-analysis.md`）。建議下一輪：用最強的 `build-first` 當固定對手再調其他三個（交替調參）、3 人局另外調一輪、重做「先有出貨量再蓋港口」的港口流與改進菸草／咖啡變現路徑。
+2. 【先討論】MCTS 策略：模擬次數放設定 `params.simulations`；每次 rollout 用 `Clone()` ＋ `ReseedRng`；隱藏資訊不遮罩（約定不讀對手 VP）；rollout 策略可用隨機或手寫策略。
+3. 【先討論】結果檔加入每位玩家的建築清單與關鍵統計（例如港口取得回合、種植園數）：這是結果 JSON 欄位變動（`PlayerRecord`），目前分析策略行為要另外跑額外程式；加了之後 Dashboard 可直接畫「贏家有什麼建築」。
+4. 【直接做】Dashboard 擴充：兩個結果檔並排比較（A/B）、讀多個結果檔的「對戰總覽」頁（像 `docs/strategy-analysis.md` 的組合表）、單局回放檢視（讀 `--replay` 輸出）。
+5. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
 
 ## 已知問題／限制
 
@@ -28,17 +21,18 @@
   - 市長階段是逐位玩家把全部殖民者拔起再放（先輪到的人先放）；結果與同時放置相同。
 - 規則：隱藏資訊（對手 VP）只靠約定，沒有機制阻止策略讀取。
 - 續跑（`--resume`）需要 `output.perGameRecords: true`；結果檔約 430 bytes／局（10 萬局約 43 MB）。
+- 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人結果差很多（建築優先流 4 人局 46%、3 人局只有 17～42%），而參數只用 4 人局調。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
+- 引擎玩家數 3 或 4（`players`）；5 人局與擴充不支援。4 人局職業 Prospector 在手寫策略裡的估值很簡單（約等於 1 枚金幣）。
+- 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）。Dashboard 沒有自動化測試（Tests 只參考 Engine）；以 Playwright 截圖驗證過三個頁面（淺色／深色）。分析邏輯在 `Engine/Simulation/ResultAnalysis.cs`，有單元測試。
+- Dashboard 會把整份結果檔讀進記憶體（10 萬局約 50 MB 沒問題，百萬局以上要改成只讀摘要），並可讀取伺服器上任意路徑：只在本機執行（預設綁 localhost:5080），不要對外開放。
 - 效能：4 核心約 21,000 局／秒（約 5,000 局／秒／核心，隨機玩家，一局約 500 個決策）。
-- 三個手寫原型互打（30,000 局、座位輪換）：corn-shipper 勝率 33.8%（平均 35.2 分）、corn-to-premium 30.4%（36.2 分）、harbor-rush 35.7%（35.3 分），標準誤約 0.3%；分數幾乎都來自出貨籌碼（26～28 分）加建築分（7～10 分），終局幾乎全是 VP 籌碼耗盡、平均 17 局。三者對兩個隨機玩家都約 99.5%。harbor-rush 100% 蓋到港口（平均第 6 回合）；corn-to-premium 81% 蓋菸草貯存室、63% 蓋咖啡烘焙廠，但只有 30% 蓋到港口；平均只有 3 張玉米種植園（玉米總共只有 10 張）。
-- 座位輪換下仍可見座位差：座位 1／2／3 勝率約 22%／33%／45%（座位 3 玉米起手，座位 1 是起始總督）。
-- `corn-shipper` 對兩個隨機玩家勝率約 99.6%（平均 66 分對 24 分）；三家都用 corn-shipper 時座位 1／2／3 勝率約 45%／25%／30%（此處座位 1 指設定檔順序），所以比較策略時要用 `seatOrder: rotate`。
 - 隨機玩家下座位 3（玉米起手）勝率約 49%，座位 1、2 各約 24%；已驗證不是引擎不對稱（三家都改染料起手後各 33%）。
-- 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）；Dashboard 尚未建立。
 - SessionStart hook 只有合併到預設分支後，新 session 才會自動套用；hook 的「dotnet 不存在時 apt 安裝」分支在已安裝的容器中無法重測。
 - `builds.dotnet.microsoft.com` 被網路代理擋住，`dotnet-install.sh` 不可用，只能用 apt 安裝 .NET。
 
 ## 想法
 
+- Dashboard：策略顏色目前依策略名稱固定對應前 5 個色票（藍、橘、青、黃、洋紅），超過要定義更多色票或改用小倍數圖。
 - 參數掃描目前是網格搜尋、對手固定；可考慮多目標座位同時掃、或交替調參（調 A 對固定 B，再調 B 對新 A）。
 
 - 結果檔過大時，`games` 另寫 JSONL，主檔只放 summary。
