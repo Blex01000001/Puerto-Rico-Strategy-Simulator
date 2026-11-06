@@ -57,7 +57,9 @@ public class DeterminismTests
 {
     private static SimulationConfig Cfg(int games = 200, int degree = 1) => new()
     {
-        Games = games, Seed = 777, Parallelism = new ParallelismConfig { MaxDegree = degree },
+        Games = games,
+        Seed = 777,
+        Parallelism = new ParallelismConfig { MaxDegree = degree },
     };
 
     private static string Json(object o) => JsonSerializer.Serialize(o, SimulationConfig.JsonOptions);

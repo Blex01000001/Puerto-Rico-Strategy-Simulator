@@ -81,9 +81,13 @@ public static class ResultSummarizer
             double std = rows.Count == 0 ? 0 : Math.Sqrt(rows.Average(r => Math.Pow(r.p.Vp - avg, 2)));
             return new SeatSummary
             {
-                SeatId = cs.Id, Strategy = cs.Strategy, Games = rows.Count,
+                SeatId = cs.Id,
+                Strategy = cs.Strategy,
+                Games = rows.Count,
                 Wins = rows.Count(r => r.g.Winners.Contains(r.p.Seat)),
-                WinShare = rows.Count == 0 ? 0 : share / rows.Count, AvgScore = avg, StdScore = std,
+                WinShare = rows.Count == 0 ? 0 : share / rows.Count,
+                AvgScore = avg,
+                StdScore = std,
             };
         }).ToList();
 
@@ -92,7 +96,8 @@ public static class ResultSummarizer
             var rows = records.Select(g => (g, p: g.Players.First(p => p.Seat == seat))).ToList();
             return new TableSeatSummary
             {
-                Seat = seat, Games = rows.Count,
+                Seat = seat,
+                Games = rows.Count,
                 WinShare = rows.Count == 0 ? 0 : rows.Sum(r => r.g.Winners.Contains(seat) ? 1.0 / r.g.Winners.Count : 0.0) / rows.Count,
                 AvgScore = rows.Count == 0 ? 0 : rows.Average(r => (double)r.p.Vp),
             };

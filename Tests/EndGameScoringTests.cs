@@ -100,7 +100,11 @@ public class ScoringTests
     }
 
     [Theory]
-    [InlineData(3, 4)] [InlineData(9, 4)] [InlineData(10, 5)] [InlineData(11, 6)] [InlineData(12, 7)]
+    [InlineData(3, 4)]
+    [InlineData(9, 4)]
+    [InlineData(10, 5)]
+    [InlineData(11, 6)]
+    [InlineData(12, 7)]
     public void Residence_Counts_All_Tiles_Occupied_Or_Not(int tiles, int vp)
     {
         var s = New();
