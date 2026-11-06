@@ -4,12 +4,13 @@
 
 ## 待辦
 
-1. 【使用者】補齊 `rules.md`：已有「初始設置」（起始金幣／種植園、貨物、VP、殖民者、貨船、採石場、交易所、牌疊張數）；「職業」已補（3 人局無 Prospector，共 6 職業）；「建築」49 張已補；仍缺終局條件、計分與平手、Mayor／Captain／Trader 詳細流程。
-2. 【使用者】回答 `rules.md` 第 1 節「待確認（設置）」5 項（種植園各種類張數、起始種植園是否取自牌疊、採石場是否獨立且不佔翻開名額、未拿走牌的棄置與洗回、金幣是否無限），`rules.md` 第 2 節「待確認（職業）」5 項、第 3 節「待確認（建築）」8 項，以及規劃中的規則歧義清單（對話中第六節，共 15 項：Mayor 配置與必須放滿、Captain 強制裝船／Wharf／倉庫保留、Trader 清空時機與價格表、終局時機、平手、VP 耗盡、隱藏資訊、起始總督、卡死處理）。
+1. 【使用者】補齊 `rules.md` 缺的資料：Trader 貨物價格表、市長階段結束時殖民船補充數量（見第 6 節 1、4）。其餘設置／職業／建築／階段細節／終局計分已有。
+2. 【使用者】回答 `rules.md` 各節「待確認」共 25 項：第 1 節設置 5、第 2 節職業 2、第 3 節建築 8、第 6 節階段與終局 10。其中第 6 節 1、2、4、5 會直接影響狀態與動作設計，建議優先。
 3. 【先討論】確認兩項與原需求略有不同的建議：每局種子 = SplitMix64(masterSeed, gameIndex)（結果與執行緒數無關）、`seatOrder` 預設 `rotate`；確認後寫入 CLAUDE.md「架構決策」。
-4. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
-5. 【直接做】（步驟 1，待 1～3 確認後）建 `PuertoRico.sln`、Engine/Runner/Tests（Dashboard 先放空殼或不建）、`Directory.Build.props`、`.gitignore`；相依方向 Runner/Tests → Engine。驗收：`dotnet build`、`dotnet test` 通過。
-6. 【直接做】後續實作依序：靜態表＋GameState＋Clone → Setup → 決策流程骨架 → 各職業（Settler→Builder→Craftsman→Trader→Captain→Mayor→Prospector）→ 終局計分 → 隨機玩家＋單局執行器 → 批次模擬（Parallel.For／checkpoint／Ctrl+C／`--resume`）→ Runner CLI 與結果 JSON → 效能基準。每步驗收標準見對話規劃第八節。
+4. 【先討論】隱藏資訊：VP 籌碼對手不可見，但原策略介面為 `ChooseAction(GameState, ...)`。選項：(a) 傳完整狀態，約定策略不得讀對手 VP；(b) 傳遮罩後的視角（`GameState` 副本，對手 VP 清空）；MCTS 內部模擬仍需完整狀態。涉及策略介面與 Clone 成本，確認後寫入 CLAUDE.md「架構決策」。
+5. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
+6. 【直接做】（步驟 1，待 1～4 確認後）建 `PuertoRico.sln`、Engine/Runner/Tests（Dashboard 先放空殼或不建）、`Directory.Build.props`、`.gitignore`；相依方向 Runner/Tests → Engine。驗收：`dotnet build`、`dotnet test` 通過。
+7. 【直接做】後續實作依序：靜態表＋GameState＋Clone → Setup → 決策流程骨架 → 各職業（Settler→Builder→Craftsman→Trader→Captain→Mayor→Prospector）→ 終局計分 → 隨機玩家＋單局執行器 → 批次模擬（Parallel.For／checkpoint／Ctrl+C／`--resume`）→ Runner CLI 與結果 JSON → 效能基準。每步驗收標準見對話規劃第八節。
 
 ## 已知問題／限制
 
