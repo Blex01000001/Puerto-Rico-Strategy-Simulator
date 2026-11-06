@@ -67,6 +67,8 @@ public sealed class SimulationConfig
     public OptionsConfig Options { get; set; } = new();
     public OutputConfig Output { get; set; } = new();
     public ParallelismConfig Parallelism { get; set; } = new();
+    /// <summary>Optional parameter sweep (Runner <c>--sweep</c>); ignored by a normal run.</summary>
+    public SweepConfig? Sweep { get; set; }
 
     public static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
@@ -83,6 +85,9 @@ public sealed class SimulationConfig
         o.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return o;
     }
+
+    public static SimulationConfig Clone(SimulationConfig c) =>
+        JsonSerializer.Deserialize<SimulationConfig>(JsonSerializer.Serialize(c, JsonOptions), JsonOptions)!;
 
     public static SimulationConfig Load(string path) =>
         JsonSerializer.Deserialize<SimulationConfig>(File.ReadAllText(path), JsonOptions)

@@ -14,12 +14,12 @@
 | `rules.md` | 遊戲規則唯一依據（第 1～6 節 3 人局，第 7 節 4 人局差異） | 資料齊備，仍有待確認項目（見 TODO） |
 | `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable、TreatWarningsAsErrors） | 已有 |
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
-| `config.example.json`、`config.4p.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
+| `config.example.json`、`config.4p.example.json`、`config.sweep.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
 | `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）；預留 Mcts/ | 隨機與四個手寫原型已有 |
-| `Engine/Simulation/` | `SimulationConfig`、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
+| `Engine/Simulation/` | `SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
-| `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay` | 已有 |
+| `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
 | `Dashboard/` | Blazor Web App (Interactive Server)：設定、檢視、圖表 | 第一階段不做 |
 
@@ -45,6 +45,7 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 - **加手寫策略**：新類別繼承 `RuleBased/HeuristicStrategy.cs`，只覆寫要改的掛鉤（`TileValue`、`BuildingWanted`、`SlotValue`、各角色價值…），在 `StrategyRegistry` 註冊並加進 `rule-based` 的 profile 清單，參考 `HarborRushStrategy.cs`；測試放 `Tests/StrategyTests.cs`（用 `Sc.Start` 建情境，檢查它選的動作）。
 - **加其他策略**：新檔 `Engine/Strategies/XStrategy.cs` 實作 `IStrategy`（座位 = `state.Actor`，亂數只用工廠給的 seed，不得讀對手 `VpChips`）→ 在 `StrategyRegistry.Factories` 註冊名稱 → 設定檔 `seats[].strategy` 填該名稱，參數放 `params` → 加測試（至少能跑完 100 局且不丟例外）。
 - **改設定／結果 JSON 欄位**（先問使用者）：`SimulationConfig.cs`／`SimulationResult.cs`；新增欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`（續跑比對的欄位）。
+- **參數掃描**：設定檔加 `sweep: { target: "<seat id>", gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值型 `params`，格點為笛卡兒積），`dotnet run -c Release --project Runner -- --config config.sweep.example.json --sweep --out sweep.json`；每個格點用同一個主種子（共用隨機抽牌，差異雜訊較小），只比較 target 座位的勝率（附 95% 信賴區間）與平均分，對手固定。新增可掃參數 = 在策略建構子用 `StrategyRegistry.GetDouble` 讀 `params`。
 - **跑模擬**：`dotnet run -c Release --project Runner -- --config config.example.json --games 100000 --out result.json`；Ctrl+C 會寫出 `cancelled` 結果，`--resume` 續跑（需 `perGameRecords: true`）；`--replay N` 輸出第 N 局的決策記錄。
 
 ## 架構決策（不要改回去）
