@@ -293,11 +293,86 @@ public class PrototypeStrategyTests
     [Fact]
     public void Registry_Knows_All_Profiles()
     {
-        foreach (var name in new[] { "corn-shipper", "corn-to-premium", "harbor-rush" })
+        foreach (var name in new[] { "corn-shipper", "corn-to-premium", "harbor-rush", "build-first" })
         {
             Assert.True(StrategyRegistry.IsKnown(name));
             var p = new Dictionary<string, JsonElement> { ["profile"] = JsonDocument.Parse($"\"{name}\"").RootElement.Clone() };
             Assert.NotNull(StrategyRegistry.Create("rule-based", p, 1, 0));
         }
+    }
+}
+
+public class BuildFirstTests
+{
+    private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
+    private static GameAction Choose(GameState s) => StrategyRegistry.Create("build-first", NoParams, 1, 0).ChooseAction(s, Legal(s));
+
+    [Fact]
+    public void Takes_Quarries_Then_Buys_Cheap_Useful_Buildings()
+    {
+        var s = New();
+        Start(s, 0, Role.Settler);
+        Assert.Equal(ActionType.TakeQuarry, Choose(s).Type);
+
+        var b = New();
+        b.Coins[0] = 5;
+        Start(b, 0, Role.Builder);
+        var buy = Choose(b);
+        Assert.Equal(ActionType.Build, buy.Type); // low threshold: it spends coins
+    }
+
+    [Fact]
+    public void Buys_Residence_When_The_Island_Is_Full_And_It_Can_Pay()
+    {
+        var s = New();
+        Own(s, 0, BuildingId.SmallMarket, 1);
+        SetTiles(s, 0, (int)Good.Corn, 4);
+        SetTiles(s, 0, (int)Good.Indigo, 4);
+        SetTiles(s, 0, (int)Good.Sugar, 4);
+        s.Coins[0] = 9; // Residence costs 10 - 1 (Builder privilege)
+        Start(s, 0, Role.Builder);
+        Assert.Equal(A(ActionType.Build, (int)BuildingId.Residence), Choose(s));
+    }
+
+    [Fact]
+    public void Mans_Production_Building_Before_Plain_Plantation()
+    {
+        var s = New();
+        SetTiles(s, 0, (int)Good.Sugar, 1);
+        Own(s, 0, BuildingId.SmallSugarMill);
+        s.ShipColonists = 0; // only the privilege colonist
+        Start(s, 0, Role.Mayor);
+        // two circles are candidates with sugar tile + mill; with one colonist the mill (9) beats the lone tile (8 via mill)
+        Assert.Equal(ActionType.PlaceColonist, Choose(s).Type);
+    }
+
+    [Fact]
+    public void Beats_Random_Players_And_Buys_Many_Buildings()
+    {
+        var cfg = new SimulationConfig { Games = 300, Seed = 6 };
+        cfg.Seats[0].Strategy = "build-first";
+        var r = BatchSimulator.Run(cfg, new BatchOptions(), CancellationToken.None);
+        Assert.True(r.Summary[0].WinShare > 0.8, $"win share {r.Summary[0].WinShare}");
+        Assert.True(r.Games.Average(g => g.Players.First(p => p.SeatId == "A").BuildingPoints) > 8);
+    }
+
+    [Fact]
+    public void Plays_Only_Legal_Actions_In_3_And_4_Player_Games()
+    {
+        foreach (int players in new[] { 3, 4 })
+            for (int game = 0; game < 30; game++)
+            {
+                var strategies = Enumerable.Range(0, players)
+                    .Select(i => i == 0 ? StrategyRegistry.Create("build-first", NoParams, 1, 0) : new RandomStrategy((ulong)(game * 7 + i))).ToArray();
+                var s = Setup.NewGame((ulong)game + 3, players: players);
+                var legal = new List<GameAction>();
+                while (!s.IsOver)
+                {
+                    Rules.GetLegalActions(s, legal);
+                    var a = strategies[s.Actor].ChooseAction(s, legal);
+                    Assert.Contains(a, legal);
+                    Rules.Apply(s, a);
+                }
+            }
     }
 }

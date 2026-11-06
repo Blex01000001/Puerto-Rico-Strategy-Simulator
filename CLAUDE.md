@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -16,7 +16,7 @@
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
 | `config.example.json`、`config.4p.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
-| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨）；預留 Mcts/ | 隨機與三個手寫原型已有 |
+| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）；預留 Mcts/ | 隨機與四個手寫原型已有 |
 | `Engine/Simulation/` | `SimulationConfig`、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay` | 已有 |
