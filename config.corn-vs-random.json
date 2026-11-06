@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "corn-shipper-vs-random",
+  "players": 3,
+  "games": 100000,
+  "seed": 1,
+  "seatOrder": "rotate",
+  "seats": [
+    { "id": "corn", "strategy": "rule-based", "params": { "profile": "corn-shipper", "buildThreshold": 5.0 } },
+    { "id": "random1", "strategy": "random", "params": {} },
+    { "id": "random2", "strategy": "random", "params": {} }
+  ]
+}

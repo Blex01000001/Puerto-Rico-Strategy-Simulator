@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -14,13 +14,13 @@
 | `rules.md` | 遊戲規則唯一依據 | 資料齊備，仍有待確認項目（見 TODO） |
 | `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable、TreatWarningsAsErrors） | 已有 |
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
-| `config.example.json` | 設定檔範例（Runner 與 Dashboard 共用格式） | 已有 |
+| `config.example.json`, `config.corn-vs-random.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；後者為 corn-shipper 對兩個隨機玩家 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
-| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（預留 RuleBased/、Mcts/） | 隨機玩家已有 |
+| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`rule-based`＋`params.profile`）；`RuleBased/CornShipperStrategy.cs`（玉米出貨流，每個選擇打分數取最高）；預留 Mcts/ | 隨機、玉米出貨流已有 |
 | `Engine/Simulation/` | `SimulationConfig`、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay` | 已有 |
-| `Tests/` | xUnit：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
+| `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
 | `Dashboard/` | Blazor Web App (Interactive Server)：設定、檢視、圖表 | 第一階段不做 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
@@ -42,7 +42,7 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 常做的修改照這裡的步驟走，不用重新調查。格式：任務 → 改哪些檔案／函式 → 注意事項 → 怎麼驗證。做完一種新類型的修改，若之後可能重複，就補一條進來。
 
 - **改／加規則**：先改 `rules.md` → 改 `Engine/Game/Rules.<階段>.cs` 的 `Fill*`（列合法動作）與 `Apply*`（執行）；靜態數字改 `Buildings.cs`／`GameConstants.cs` → 在對應 `Tests/*Tests.cs` 加情境測試並註明 rules.md 節次 → `dotnet test -c Release`（fuzz 測試會檢查不變量）。新增動作種類時同步改 `ActionType`、`GameAction.ToString`。
-- **加策略**：新檔 `Engine/Strategies/XStrategy.cs` 實作 `IStrategy`（座位 = `state.Actor`，亂數只用工廠給的 seed，不得讀對手 `VpChips`）→ 在 `StrategyRegistry.Factories` 註冊名稱 → 設定檔 `seats[].strategy` 填該名稱，參數放 `params` → 加測試（至少能跑完 100 局且不丟例外）。
+- **加策略**（範例：`RuleBased/CornShipperStrategy.cs`）：新檔 `Engine/Strategies/XStrategy.cs` 實作 `IStrategy`（座位 = `state.Actor`，亂數只用工廠給的 seed，不得讀對手 `VpChips`）→ 在 `StrategyRegistry.Factories` 註冊名稱 → 設定檔 `seats[].strategy` 填該名稱，參數放 `params` → 加測試（至少能跑完 100 局且不丟例外）。
 - **改設定／結果 JSON 欄位**（先問使用者）：`SimulationConfig.cs`／`SimulationResult.cs`；新增欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`（續跑比對的欄位）。
 - **跑模擬**：`dotnet run -c Release --project Runner -- --config config.example.json --games 100000 --out result.json`；Ctrl+C 會寫出 `cancelled` 結果，`--resume` 續跑（需 `perGameRecords: true`）；`--replay N` 輸出第 N 局的決策記錄。
 
