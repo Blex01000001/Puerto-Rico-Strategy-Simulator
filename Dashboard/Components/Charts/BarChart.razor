@@ -1,0 +1,68 @@
+@* Horizontal bar chart: one row per item, optional 95% interval whisker, value printed at the bar end. *@
+<svg class="chart" viewBox="0 0 @Width @Height" role="img" aria-label="@Title">
+    @for (int t = 0; t <= 4; t++)
+    {
+        double v = max * t / 4;
+        double x = PlotLeft + (PlotRight - PlotLeft) * t / 4;
+        <line class="gridline" x1="@F(x)" x2="@F(x)" y1="4" y2="@F(Height - 22)" />
+        <g><text x="@F(x)" y="@F(Height - 6)" text-anchor="middle">@Format(v)</text></g>
+    }
+    @for (int i = 0; i < Items.Count; i++)
+    {
+        var it = Items[i];
+        double cy = 4 + RowHeight * i + RowHeight / 2;
+        double w = Math.Max(0, (PlotRight - PlotLeft) * it.Value / max);
+        <g><text x="@F(PlotLeft - 10)" y="@F(cy + 4)" text-anchor="end" class="strong">@it.Label</text></g>
+        <path class="mark" d="@BarPath(PlotLeft, cy - BarThickness / 2, w, BarThickness)" style="fill:@it.Color">
+            <title>@it.Tooltip</title>
+        </path>
+        @if (it.Ci > 0)
+        {
+            double x1 = PlotLeft + (PlotRight - PlotLeft) * Math.Max(0, it.Value - it.Ci) / max;
+            double x2 = PlotLeft + (PlotRight - PlotLeft) * Math.Min(max, it.Value + it.Ci) / max;
+            <line class="whisker" x1="@F(x1)" x2="@F(x2)" y1="@F(cy)" y2="@F(cy)" />
+            <line class="whisker" x1="@F(x1)" x2="@F(x1)" y1="@F(cy - 5)" y2="@F(cy + 5)" />
+            <line class="whisker" x1="@F(x2)" x2="@F(x2)" y1="@F(cy - 5)" y2="@F(cy + 5)" />
+        }
+        <g><text x="@F(PlotLeft + w + (it.Ci > 0 ? (PlotRight - PlotLeft) * it.Ci / max : 0) + 8)" y="@F(cy + 4)" class="strong">@Format(it.Value)</text></g>
+    }
+    <line class="axis" x1="@F(PlotLeft)" x2="@F(PlotLeft)" y1="4" y2="@F(Height - 22)" />
+</svg>
+
+@code {
+    public sealed record BarItem(string Label, double Value, double Ci, string Color, string Tooltip);
+
+    [Parameter, EditorRequired] public IReadOnlyList<BarItem> Items { get; set; } = Array.Empty<BarItem>();
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public Func<double, string> Format { get; set; } = v => v.ToString("0.0");
+    /// <summary>Right end of the axis; default = the largest value plus its interval, rounded up.</summary>
+    [Parameter] public double? Max { get; set; }
+    [Parameter] public double LabelWidth { get; set; } = 210;
+
+    [Parameter] public double Width { get; set; } = 760;
+    private const double RowHeight = 40, BarThickness = 18;
+    private double PlotLeft => LabelWidth;
+    private double PlotRight => Width - 70;
+    private double Height => 4 + RowHeight * Items.Count + 26;
+
+    private double max => Max ?? Nice(Items.Count == 0 ? 1 : Items.Max(i => i.Value + i.Ci));
+
+    private static double Nice(double v)
+    {
+        if (v <= 0) return 1;
+        double mag = Math.Pow(10, Math.Floor(Math.Log10(v)));
+        foreach (double m in new[] { 1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10 })
+            if (v <= m * mag) return m * mag;
+        return 10 * mag;
+    }
+
+    private static string F(double d) => d.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Rect with a 4px rounded data end and a square baseline end.</summary>
+    private static string BarPath(double x, double y, double w, double h)
+    {
+        if (w <= 0) return "";
+        double r = Math.Min(4, Math.Min(w, h / 2));
+        return FormattableString.Invariant($"M{x:0.##},{y:0.##} h{w - r:0.##} a{r:0.##},{r:0.##} 0 0 1 {r:0.##},{r:0.##} v{h - 2 * r:0.##} a{r:0.##},{r:0.##} 0 0 1 {-r:0.##},{r:0.##} h{-(w - r):0.##} z");
+    }
+}

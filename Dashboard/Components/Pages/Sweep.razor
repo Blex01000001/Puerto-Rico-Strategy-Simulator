@@ -1,0 +1,102 @@
+@page "/sweep"
+@implements IDisposable
+@inject AppState State
+
+<PageTitle>參數掃描 · 波多黎各策略模擬器</PageTitle>
+<h1>參數掃描</h1>
+<p class="note">載入 <code>Runner --sweep</code> 輸出的 sweep.json。每個格點用同一個主種子與同樣的對手，只改目標策略的參數，所以格點之間可以直接比較。</p>
+
+<FilePicker />
+
+@if (State.Result != null)
+{
+    <div class="ok">目前載入的是一般模擬結果，請到「結果」頁檢視。</div>
+}
+else if (State.Sweep != null)
+{
+    var sw = State.Sweep;
+    var target = sw.Config.Seats.FirstOrDefault(s => s.Id == sw.Target);
+    string color = Palette.Color(target?.Strategy ?? "", 0);
+    var ordered = sw.Points.Select((p, i) => (p, i)).OrderByDescending(x => x.p.WinShare).ToList();
+    var names = sw.Points.SelectMany(p => p.Params.Keys).Distinct().OrderBy(k => k, StringComparer.Ordinal).ToList();
+    var best = sw.BestIndex >= 0 && sw.BestIndex < sw.Points.Count ? sw.Points[sw.BestIndex] : null;
+
+    <div class="kpis">
+        <div class="kpi"><div class="v">@sw.Points.Count / @sw.PointsPlanned</div><div class="l">格點（@sw.Status）</div></div>
+        <div class="kpi"><div class="v">@Palette.Label(sw.Target, target?.Strategy ?? "")</div><div class="l">目標策略</div></div>
+        <div class="kpi"><div class="v">@(sw.Points.Count == 0 ? 0 : sw.Points[0].Games.ToString("N0"))</div><div class="l">每格局數</div></div>
+        <div class="kpi"><div class="v">@sw.Config.Players</div><div class="l">玩家數</div></div>
+        @if (best != null)
+        {
+            <div class="kpi"><div class="v">@best.WinShare.ToString("P1")</div><div class="l">最佳勝率：@Describe(best)</div></div>
+        }
+    </div>
+
+    <h2>各格點勝率</h2>
+    <p class="note">由高到低；誤差線 = 95% 信賴區間。信賴區間重疊的格點差異不顯著。</p>
+    <figure class="chartbox">
+        <BarChart Title="各格點勝率" LabelWidth="260" Format="@(v => v.ToString("P1"))"
+                  Items="@(ordered.Take(40).Select(x => new BarChart.BarItem(Describe(x.p), x.p.WinShare, x.p.WinShareCi95, color,
+                       $"{Describe(x.p)}　勝率 {x.p.WinShare:P1} ± {x.p.WinShareCi95:P1}，平均 {x.p.AvgScore:0.0} 分")).ToList())" />
+    </figure>
+    @if (ordered.Count > 40) { <p class="note">只畫前 40 個格點，完整資料在下方表格。</p> }
+
+    @if (names.Count == 2)
+    {
+        string rowName = names[0], colName = names[1];
+        var rowVals = sw.Points.Select(p => p.Params[rowName]).Distinct().OrderBy(v => v).ToList();
+        var colVals = sw.Points.Select(p => p.Params[colName]).Distinct().OrderBy(v => v).ToList();
+        double lo = sw.Points.Min(p => p.WinShare), hi = sw.Points.Max(p => p.WinShare);
+        <h2>雙參數熱圖</h2>
+        <p class="note">列 = @rowName，欄 = @colName；顏色越深勝率越高。</p>
+        <div class="tablewrap">
+            <table class="data heat">
+                <thead><tr><th>@rowName ＼ @colName</th>@foreach (var c in colVals) { <th>@c.ToString("0.##")</th> }</tr></thead>
+                <tbody>
+                @foreach (var rv in rowVals)
+                {
+                    <tr>
+                        <td>@rv.ToString("0.##")</td>
+                        @foreach (var cv in colVals)
+                        {
+                            var p = sw.Points.FirstOrDefault(q => q.Params[rowName] == rv && q.Params[colName] == cv);
+                            double t = p == null || hi <= lo ? 0 : (p.WinShare - lo) / (hi - lo);
+                            <td class="cell" style="@HeatStyle(t)">@(p == null ? "—" : p.WinShare.ToString("P1"))</td>
+                        }
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <h2>數據表</h2>
+    <details open>
+        <summary>所有格點</summary>
+        <div class="tablewrap">
+            <table class="data">
+                <thead><tr><th>參數</th><th>局數</th><th>勝率</th><th>±95%</th><th>平均分</th><th>標準差</th></tr></thead>
+                <tbody>
+                @foreach (var x in ordered)
+                {
+                    <tr>
+                        <td>@Describe(x.p)</td><td>@x.p.Games.ToString("N0")</td><td>@x.p.WinShare.ToString("P1")</td>
+                        <td>@x.p.WinShareCi95.ToString("P1")</td><td>@x.p.AvgScore.ToString("0.0")</td><td>@x.p.StdScore.ToString("0.0")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </details>
+}
+
+@code {
+    protected override void OnInitialized() => State.Changed += OnChanged;
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => State.Changed -= OnChanged;
+
+    private static string Describe(SweepPoint p) => SweepRunner.Describe(p.Params);
+
+    private static string HeatStyle(double t) =>
+        FormattableString.Invariant($"background:color-mix(in srgb, var(--series-1) {Math.Clamp(t, 0, 1) * 80:0}%, var(--neutral))");
+}

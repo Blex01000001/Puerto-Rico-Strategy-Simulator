@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "name": "three-prototypes",
+  "players": 3,
+  "games": 100000,
+  "seed": 11,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "corn",
+      "strategy": "rule-based",
+      "params": {
+        "profile": "corn-shipper"
+      }
+    },
+    {
+      "id": "premium",
+      "strategy": "rule-based",
+      "params": {
+        "profile": "corn-to-premium",
+        "switchRound": 6,
+        "cornTarget": 5
+      }
+    },
+    {
+      "id": "harbor",
+      "strategy": "rule-based",
+      "params": {
+        "profile": "harbor-rush",
+        "quarryTarget": 3
+      }
+    }
+  ]
+}

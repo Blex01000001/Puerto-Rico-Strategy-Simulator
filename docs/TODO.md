@@ -4,25 +4,36 @@
 
 ## 待辦
 
-1. 【使用者】提供 `rules.md`（3 人基礎版）：設置數字（起始金幣／種植園、貨物與 VP 籌碼數、殖民者、貨船容量、採石場、種植園牌、交易所格數）、7 個職業與特權（3 人局是否含 Prospector）、全部建築表與效果原文、終局條件、計分與平手、Mayor／Captain／Trader 詳細流程。
-2. 【使用者】回答規劃中的規則歧義清單（對話中第六節，共 15 項：Mayor 配置與必須放滿、Captain 強制裝船／Wharf／倉庫保留、Trader 同貨與清空、Builder 折價與 University、Settler Hacienda／Hospice、Craftsman 特權、Prospector、終局時機、大型建築計分、平手、VP 耗盡、隱藏資訊、起始總督、卡死處理）。
-3. 【先討論】確認兩項與原需求略有不同的建議：每局種子 = SplitMix64(masterSeed, gameIndex)（結果與執行緒數無關）、`seatOrder` 預設 `rotate`；確認後寫入 CLAUDE.md「架構決策」。
-4. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
-5. 【直接做】（步驟 1，待 1～3 確認後）建 `PuertoRico.sln`、Engine/Runner/Tests（Dashboard 先放空殼或不建）、`Directory.Build.props`、`.gitignore`；相依方向 Runner/Tests → Engine。驗收：`dotnet build`、`dotnet test` 通過。
-6. 【直接做】後續實作依序：靜態表＋GameState＋Clone → Setup → 決策流程骨架 → 各職業（Settler→Builder→Craftsman→Trader→Captain→Mayor→Prospector）→ 終局計分 → 隨機玩家＋單局執行器 → 批次模擬（Parallel.For／checkpoint／Ctrl+C／`--resume`）→ Runner CLI 與結果 JSON → 效能基準。每步驗收標準見對話規劃第八節。
+1. 【先討論】策略調參與下一批原型：四個手寫原型（`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，在 `Engine/Strategies/RuleBased/`，共用 `HeuristicStrategy`）已互打並分析（`docs/strategy-analysis.md`）。建議下一輪：用最強的 `build-first` 當固定對手再調其他三個（交替調參）、3 人局另外調一輪、重做「先有出貨量再蓋港口」的港口流與改進菸草／咖啡變現路徑。
+2. 【先討論】MCTS 策略：模擬次數放設定 `params.simulations`；每次 rollout 用 `Clone()` ＋ `ReseedRng`；隱藏資訊不遮罩（約定不讀對手 VP）；rollout 策略可用隨機或手寫策略。
+3. 【直接做】Dashboard 擴充：兩個結果檔並排比較（A/B）、讀多個結果檔的「對戰總覽」頁（像 `docs/strategy-analysis.md` 的組合表）、單局回放檢視（讀 `--replay` 輸出）。
+4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
 
 ## 已知問題／限制
 
-- repo 目前只有 README.md 與本文件、CLAUDE.md，沒有任何程式碼或測試，快速檢查（build/test）尚無法執行。
-- 雲端容器的 dotnet 為手動 apt 安裝，容器重建後消失（待辦 4）。
-- `builds.dotnet.microsoft.com` 被網路代理擋住，`dotnet-install.sh` 不可用。
-- Dashboard 範本（`dotnet new blazor`）存在，但尚未實際建置驗證。
-- 開發分支依 session 指定為 `claude/cool-cerf-xsrphb`；你提供的 Git 規則原文寫的是 `claude/trusting-hopper-wk15uy`，我已改成本 repo 的分支，請確認。
+- 規則中未明說、引擎採用的詮釋（請使用者確認，或提供反例）：
+  - Factory 的金幣依「公式產量 > 0 的貨種數」計算，不看實際領到多少（供應不足時也照給）。
+  - Guild Hall／City Hall 計算的建築不要求有殖民者（只有大型建築本身要）；可由 `Scoring.CountedBuildingsNeedColonist` 切換。
+  - Craftsman 特權可選的貨種 = 公式產量 > 0 的貨種（即使供應區已空，那時只是拿不到）。
+  - 倉庫保留：玩家一律完整保留 min(倉庫可保留種類數, 持有種類數) 種（保留更多不會變差），再選 1 桶；引擎不提供「少保留」的選項。
+  - Hacienda 盲抽時牌疊已空：先把棄牌洗回再抽（規則只寫了翻牌時的洗牌）。
+  - 市長階段是逐位玩家把全部殖民者拔起再放（先輪到的人先放）；結果與同時放置相同。
+- 結果記錄不含「各職業被選次數」（Prospector 偏好等要另外統計）與「每個建築是否有派殖民者」。
+- 規則：隱藏資訊（對手 VP）只靠約定，沒有機制阻止策略讀取。
+- 續跑（`--resume`）需要 `output.perGameRecords: true`；結果檔約 700～900 bytes／局（10 萬局：3 人局約 70 MB、4 人局約 89 MB）；舊版本（沒有建築清單）的結果檔仍可在 Dashboard 檢視，但不能 `--resume`。
+- 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人結果差很多（建築優先流 4 人局 46%、3 人局只有 17～42%），而參數只用 4 人局調。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
+- 引擎玩家數 3 或 4（`players`）；5 人局與擴充不支援。4 人局職業 Prospector 在手寫策略裡的估值很簡單（約等於 1 枚金幣）。
+- 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）。Dashboard 沒有自動化測試（Tests 只參考 Engine）；以 Playwright 截圖驗證過三個頁面（淺色／深色）。分析邏輯在 `Engine/Simulation/ResultAnalysis.cs`，有單元測試。
+- Dashboard 會把整份結果檔讀進記憶體（10 萬局約 50 MB 沒問題，百萬局以上要改成只讀摘要），並可讀取伺服器上任意路徑：只在本機執行（預設綁 localhost:5080），不要對外開放。
+- 效能：4 核心約 21,000 局／秒（約 5,000 局／秒／核心，隨機玩家，一局約 500 個決策）。
+- 隨機玩家下座位 3（玉米起手）勝率約 49%，座位 1、2 各約 24%；已驗證不是引擎不對稱（三家都改染料起手後各 33%）。
+- SessionStart hook 只有合併到預設分支後，新 session 才會自動套用；hook 的「dotnet 不存在時 apt 安裝」分支在已安裝的容器中無法重測。
+- `builds.dotnet.microsoft.com` 被網路代理擋住，`dotnet-install.sh` 不可用，只能用 apt 安裝 .NET。
 
 ## 想法
 
-- 種植園牌堆預先洗好存入狀態；MCTS 階段用 determinization 重洗未翻開牌。
-- Mayor 放置用「逐一放置＋正規化」避免動作空間爆炸。
-- 引擎只有單一合法動作時自動套用（設定可關）。
+- Dashboard：策略顏色目前依策略名稱固定對應前 5 個色票（藍、橘、青、黃、洋紅），超過要定義更多色票或改用小倍數圖。
+- 參數掃描目前是網格搜尋、對手固定；可考慮多目標座位同時掃、或交替調參（調 A 對固定 B，再調 B 對新 A）。
+
 - 結果檔過大時，`games` 另寫 JSONL，主檔只放 summary。
-- 單局回放（開事件記錄）供 Dashboard 檢視。
+- Dashboard 內建單局回放檢視（Runner 的 `--replay N` 已能輸出決策記錄）。
