@@ -13,6 +13,7 @@ public static class StrategyRegistry
         ["corn-shipper"] = (p, _, _) => new RuleBased.CornShipperStrategy(p),
         ["corn-to-premium"] = (p, _, _) => new RuleBased.CornToPremiumStrategy(p),
         ["harbor-rush"] = (p, _, _) => new RuleBased.HarborRushStrategy(p),
+        ["build-first"] = (p, _, _) => new RuleBased.BuildFirstStrategy(p),
         // "rule-based" selects a hand-written profile by params.profile (default corn-shipper).
         ["rule-based"] = (p, seed, seat) =>
         {
@@ -22,7 +23,8 @@ public static class StrategyRegistry
                 "corn-shipper" => new RuleBased.CornShipperStrategy(p),
                 "corn-to-premium" => new RuleBased.CornToPremiumStrategy(p),
                 "harbor-rush" => new RuleBased.HarborRushStrategy(p),
-                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush"),
+                "build-first" => new RuleBased.BuildFirstStrategy(p),
+                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first"),
             };
         },
         // Reserved: "mcts".
