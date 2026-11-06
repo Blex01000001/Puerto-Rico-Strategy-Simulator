@@ -9,7 +9,7 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// and the Captain role as often as possible.
 /// Before the Harbor it spends nothing on anything else and collects coins (role coins, selling goods) and
 /// Harbor discounts (manned quarries, the Builder privilege), choosing Builder the moment the Harbor is affordable.
-/// Parameters: <c>quarryTarget</c> (default 3, the most quarries worth taking, since the tier-3 discount caps at 3).
+/// Parameters: <c>quarryTarget</c> (default 0 = take no quarries; the 4-player sweep found quarries not worth a turn; the tier-3 Harbor discount would cap at 3), <c>buildThreshold</c> (default 4).
 /// </summary>
 public sealed class HarborRushStrategy : HeuristicStrategy
 {
@@ -19,9 +19,9 @@ public sealed class HarborRushStrategy : HeuristicStrategy
 
     private readonly int _quarryTarget;
 
-    public HarborRushStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters)
+    public HarborRushStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0)
     {
-        _quarryTarget = (int)StrategyRegistry.GetDouble(parameters, "quarryTarget", 3);
+        _quarryTarget = (int)StrategyRegistry.GetDouble(parameters, "quarryTarget", 0);
     }
 
     /// <summary>True while the Harbor is still the goal: not owned and still available.</summary>

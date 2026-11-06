@@ -164,6 +164,9 @@ public abstract class HeuristicStrategy : IStrategy
         return 3 + loadable * 1.2 + 1 + (s.HasOccupied(me, BuildingId.Harbor) ? 2 : 0);
     }
 
+    /// <summary>Prospector (4 players only): one coin and nothing else.</summary>
+    protected virtual double ProspectorRoleValue(GameState s, int me) => 1.0 * RoleCoinWeight(s, me);
+
     /// <summary>Extra weight on the coins lying on a role card.</summary>
     protected virtual double RoleCoinWeight(GameState s, int me) => 1.0;
 
@@ -179,6 +182,7 @@ public abstract class HeuristicStrategy : IStrategy
             case Role.Settler: v = SettlerRoleValue(s, me); break;
             case Role.Mayor: v = MayorRoleValue(s, me); break;
             case Role.Builder: v = BuilderRoleValue(s, me); break;
+            case Role.Prospector: v = ProspectorRoleValue(s, me); break;
             default: v = TraderRoleValue(s, me); break;
         }
         return v + s.RoleCoins[(int)role] * RoleCoinWeight(s, me);

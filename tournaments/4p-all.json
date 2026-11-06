@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "tournament-4p-all",
+  "players": 4,
+  "games": 100000,
+  "seed": 777,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}
