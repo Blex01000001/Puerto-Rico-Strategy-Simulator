@@ -4,5 +4,5 @@ namespace PuertoRico.Engine.Game;
 public static class EngineInfo
 {
     public const string Version = "0.1.0";
-    public const string RulesVersion = "base-3p";
+    public const string RulesVersion = "base";
 }

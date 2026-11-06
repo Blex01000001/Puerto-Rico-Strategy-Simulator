@@ -1,0 +1,17 @@
+@inherits LayoutComponentBase
+
+<div class="topbar">
+    <span class="brand">波多黎各策略模擬器</span>
+    <NavLink href="" Match="NavLinkMatch.All" ActiveClass="active">結果</NavLink>
+    <NavLink href="sweep" ActiveClass="active">參數掃描</NavLink>
+    <NavLink href="config" ActiveClass="active">設定檔</NavLink>
+</div>
+<main>
+    @Body
+</main>
+
+<div id="blazor-error-ui">
+    發生未處理的錯誤。
+    <a href="" class="reload">重新載入</a>
+    <a class="dismiss">🗙</a>
+</div>

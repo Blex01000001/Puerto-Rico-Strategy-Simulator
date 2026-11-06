@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援；Dashboard 已有結果、參數掃描、設定檔三頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -17,23 +17,25 @@
 | `config.example.json`、`config.4p.example.json`、`config.sweep.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
 | `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）；預留 Mcts/ | 隨機與四個手寫原型已有 |
-| `Engine/Simulation/` | `SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
+| `Engine/Simulation/` | `ResultAnalysis.cs`（Dashboard 用的統計：勝率與信賴區間、分數構成與分佈、名次矩陣）、`SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server)：設定、檢視、圖表 | 第一階段不做 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
 - Runner、Dashboard、Tests 只參考 Engine。Engine 不得引用 Blazor、任何 UI 或 Windows 專用 API。
 - 不使用 EF Core；存資料用 JSON 檔，或 SQLite + Dapper。
 - 路徑一律用 `Path.Combine`，不寫死 Windows 路徑。
+- 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`。
 
 ## 建置、測試、Runner
 ```bash
 dotnet build -c Release
 dotnet test -c Release
 dotnet run -c Release --project Runner -- --config config.json --games 100000 --out result.json
+dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 results/ 資料夾（見 appsettings Dashboard:ResultsDirectory）
 ```
 - 雲端 session 由 SessionStart hook 自動安裝 .NET 8 並 restore（只在 `CLAUDE_CODE_REMOTE=true` 時執行；hook 需合併進預設分支後新 session 才會生效）。手動安裝：用 `apt-get update && apt-get install -y dotnet-sdk-8.0`（8.0.133 已驗證可 build/test/NuGet restore）。`builds.dotnet.microsoft.com` 被擋，`dotnet-install.sh` 不可用。
 - Runner 長時間執行定期寫中間結果、回報進度、Ctrl+C 後寫出目前結果再結束。
@@ -46,6 +48,7 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 - **加其他策略**：新檔 `Engine/Strategies/XStrategy.cs` 實作 `IStrategy`（座位 = `state.Actor`，亂數只用工廠給的 seed，不得讀對手 `VpChips`）→ 在 `StrategyRegistry.Factories` 註冊名稱 → 設定檔 `seats[].strategy` 填該名稱，參數放 `params` → 加測試（至少能跑完 100 局且不丟例外）。
 - **改設定／結果 JSON 欄位**（先問使用者）：`SimulationConfig.cs`／`SimulationResult.cs`；新增欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`（續跑比對的欄位）。
 - **參數掃描**：設定檔加 `sweep: { target: "<seat id>", gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值型 `params`，格點為笛卡兒積），`dotnet run -c Release --project Runner -- --config config.sweep.example.json --sweep --out sweep.json`；每個格點用同一個主種子（共用隨機抽牌，差異雜訊較小），只比較 target 座位的勝率（附 95% 信賴區間）與平均分，對手固定。新增可掃參數 = 在策略建構子用 `StrategyRegistry.GetDouble` 讀 `params`。
+- **改 Dashboard 圖表**：統計放 `Engine/Simulation/ResultAnalysis.cs`（加單元測試），畫圖用 `Components/Charts/` 的元件（純 SVG，不引入 JS 套件）；顏色一律用 CSS 變數（`app.css` 的 `--series-N`，策略顏色走 `Palette.Color`，顏色跟策略不跟排名）；每張圖附表格檢視；在 Razor 的 `@for` 裡寫 SVG `<text>` 要包在 `<g>` 裡（Razor 的 `<text>` 是保留標籤）；改完用 Playwright 截圖看（淺色與深色）。
 - **跑模擬**：`dotnet run -c Release --project Runner -- --config config.example.json --games 100000 --out result.json`；Ctrl+C 會寫出 `cancelled` 結果，`--resume` 續跑（需 `perGameRecords: true`）；`--replay N` 輸出第 N 局的決策記錄。
 
 ## 架構決策（不要改回去）

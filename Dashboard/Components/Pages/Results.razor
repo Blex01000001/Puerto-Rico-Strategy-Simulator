@@ -1,0 +1,199 @@
+@page "/"
+@implements IDisposable
+@inject AppState State
+
+<PageTitle>結果 · 波多黎各策略模擬器</PageTitle>
+<h1>模擬結果</h1>
+<p class="note">載入 Runner 輸出的 result.json（<code>--out</code>），檢視策略勝率、分數與終局。策略顏色固定對應策略，不隨排名改變。</p>
+
+<FilePicker />
+
+@if (State.Sweep != null)
+{
+    <div class="ok">目前載入的是參數掃描結果，請到「參數掃描」頁檢視。</div>
+}
+else if (State.Result != null && State.Analysis != null)
+{
+    var r = State.Result;
+    var a = State.Analysis;
+    var strategies = a.Strategies;
+    string Pct(double v) => v.ToString("P1");
+    string Color(int i) => Palette.Color(strategies[i].Strategy, i);
+    string Name(int i) => Palette.Label(strategies[i].SeatId, strategies[i].Strategy);
+
+    <div class="kpis">
+        <div class="kpi"><div class="v">@a.GamesCompleted.ToString("N0")</div><div class="l">局數（@r.Status）</div></div>
+        <div class="kpi"><div class="v">@r.Config.Players</div><div class="l">玩家數</div></div>
+        <div class="kpi"><div class="v">@r.Config.Seed</div><div class="l">主種子</div></div>
+        <div class="kpi"><div class="v">@r.Config.SeatOrder</div><div class="l">座位順序</div></div>
+        @if (a.HasGameRecords)
+        {
+            <div class="kpi"><div class="v">@a.AvgRounds.ToString("0.0")</div><div class="l">平均回合數</div></div>
+            <div class="kpi"><div class="v">@a.AvgDecisions.ToString("0")</div><div class="l">平均決策數／局</div></div>
+        }
+        <div class="kpi"><div class="v">@r.EngineVersion</div><div class="l">引擎 · @r.RulesVersion</div></div>
+    </div>
+    @if (r.Status != "completed")
+    {
+        <div class="error">這份結果狀態是「@r.Status」，只含已跑完的 @a.GamesCompleted 局 / 預定 @r.GamesRequested 局。</div>
+    }
+
+    <h2>策略勝率</h2>
+    <p class="note">勝率 = 贏的局數比例（並列第一者平分）；誤差線 = 95% 信賴區間。隨機基準 = @((1.0 / r.Config.Players).ToString("P1"))。</p>
+    <figure class="chartbox">
+        <BarChart Title="策略勝率" Format="@(v => v.ToString("P1"))"
+                  Items="@(strategies.Select((s, i) => new BarChart.BarItem(Name(i), s.WinShare, s.WinShareCi95, Color(i),
+                       $"{Name(i)}　勝率 {Pct(s.WinShare)} ± {Pct(s.WinShareCi95)}（{s.Games:N0} 局）")).ToList())" />
+    </figure>
+
+    <h2>平均分數</h2>
+    <p class="note">長條 = 平均總分；線段 = ±1 個標準差（分數的離散程度，越短越穩定）。</p>
+    <figure class="chartbox">
+        <BarChart Title="平均分數" Format="@(v => v.ToString("0.0"))"
+                  Items="@(strategies.Select((s, i) => new BarChart.BarItem(Name(i), s.AvgScore, s.StdScore, Color(i),
+                       $"{Name(i)}　平均 {s.AvgScore:0.0}，標準差 {s.StdScore:0.0}")).ToList())" />
+    </figure>
+
+    <div class="grid2">
+        <div>
+            <h2>分數構成</h2>
+            <p class="note">平均每局：出貨籌碼／建築分／大型建築加成。</p>
+            <figure class="chartbox">
+                <StackedBars Title="分數構成" Width="440" LabelWidth="150" Segments="@(new[] { "出貨籌碼（含額外 VP）", "建築分", "大型建築加成" })"
+                             Rows="@(strategies.Select((s, i) => new StackedBars.StackRow(Name(i), new[] { s.AvgChips, s.AvgBuildingPoints, s.AvgBonusPoints })).ToList())" />
+            </figure>
+        </div>
+        <div>
+            <h2>座位優勢</h2>
+            <p class="note">各桌位（座位 1 = 起始總督）的勝率。策略座位已輪換，這裡只反映桌位本身的優勢。</p>
+            <figure class="chartbox">
+                <BarChart Title="座位優勢" Width="440" LabelWidth="70" Format="@(v => v.ToString("P1"))"
+                          Items="@(a.TableSeats.Select(t => new BarChart.BarItem($"座位 {t.Seat + 1}", t.WinShare, 0, "var(--accent)",
+                               $"座位 {t.Seat + 1}　勝率 {Pct(t.WinShare)}，平均 {t.AvgScore:0.0} 分")).ToList())" />
+            </figure>
+        </div>
+    </div>
+
+    @if (a.HasGameRecords)
+    {
+        <h2>分數分佈</h2>
+        <p class="note">各策略的總分落在每 @a.Scores.BinWidth 分一格的比例（曲線越靠右越高分、越窄越穩定）。</p>
+        <figure class="chartbox">
+            <LineChart Title="分數分佈" YFormat="@(v => v.ToString("P0"))"
+                       XLabels="@(Enumerable.Range(0, a.Scores.BinCount).Select(b => (a.Scores.MinScore + b * a.Scores.BinWidth).ToString()).ToList())"
+                       Series="@(strategies.Select((s, i) => new LineChart.LineSeries(Name(i), Color(i), a.Scores.Series[i])).ToList())" />
+        </figure>
+
+        <div class="grid2">
+            <div>
+                <h2>局長（回合數）</h2>
+                <figure class="chartbox">
+                    <LineChart Title="局長" Width="440" YFormat="@(v => v.ToString("P0"))"
+                               XLabels="@(Enumerable.Range(0, a.RoundCounts.Count).Select(n => n.ToString()).ToList())"
+                               Series="@(new[] { new LineChart.LineSeries("局數比例", "var(--accent)", a.RoundCounts.Select(c => c / (double)Math.Max(1, a.GamesCompleted)).ToList()) })" />
+                </figure>
+            </div>
+            <div>
+                <h2>終局原因</h2>
+                <figure class="chartbox">
+                    <BarChart Title="終局原因" Width="440" LabelWidth="150" Format="@(v => v.ToString("P1"))"
+                              Items="@(a.EndReasons.OrderByDescending(e => e.Value).Select(e => new BarChart.BarItem(ReasonName(e.Key), e.Value / (double)Math.Max(1, a.GamesCompleted), 0, "var(--accent)",
+                                   $"{ReasonName(e.Key)}　{e.Value:N0} 局")).ToList())" />
+                </figure>
+            </div>
+        </div>
+
+        <h2>兩兩名次比較</h2>
+        <p class="note">列策略的名次比欄策略高的機率（排除名次相同的局）。藍 = 列較強，紅 = 欄較強，灰 = 勢均力敵。</p>
+        <div class="tablewrap">
+            <table class="data heat">
+                <thead><tr><th></th>@for (int j = 0; j < strategies.Count; j++) { <th>@Name(j)</th> }</tr></thead>
+                <tbody>
+                @for (int i = 0; i < strategies.Count; i++)
+                {
+                    <tr>
+                        <td><span class="swatch" style="background:@Color(i)"></span>@Name(i)</td>
+                        @for (int j = 0; j < strategies.Count; j++)
+                        {
+                            double v = a.Pairwise[i][j];
+                            <td class="cell" style="@HeatStyle(v)">@(double.IsNaN(v) ? "—" : v.ToString("P1"))</td>
+                        }
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="ok">這份結果沒有逐局記錄（<code>output.perGameRecords: false</code>），所以沒有分數分佈、局長、終局原因與名次比較。</div>
+    }
+
+    <h2>數據表</h2>
+    <details open>
+        <summary>各策略統計</summary>
+        <div class="tablewrap">
+            <table class="data">
+                <thead>
+                    <tr><th>策略</th><th>局數</th><th>勝率</th><th>±95%</th><th>平均分</th><th>標準差</th>
+                    @if (a.HasGameRecords) { <th>P10</th><th>P50</th><th>P90</th><th>籌碼</th><th>建築</th><th>加成</th><th>平均名次</th><th>前半名</th><th>墊底</th> }</tr>
+                </thead>
+                <tbody>
+                @for (int i = 0; i < strategies.Count; i++)
+                {
+                    var s = strategies[i];
+                    <tr>
+                        <td><span class="swatch" style="background:@Color(i)"></span>@Name(i)</td>
+                        <td>@s.Games.ToString("N0")</td><td>@Pct(s.WinShare)</td><td>@Pct(s.WinShareCi95)</td>
+                        <td>@s.AvgScore.ToString("0.0")</td><td>@s.StdScore.ToString("0.0")</td>
+                        @if (a.HasGameRecords)
+                        {
+                            <td>@s.P10</td><td>@s.P50</td><td>@s.P90</td>
+                            <td>@s.AvgChips.ToString("0.0")</td><td>@s.AvgBuildingPoints.ToString("0.0")</td><td>@s.AvgBonusPoints.ToString("0.0")</td>
+                            <td>@s.MeanRank.ToString("0.00")</td><td>@Pct(s.TopHalfShare)</td><td>@Pct(s.LastPlaceShare)</td>
+                        }
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </details>
+    <details>
+        <summary>座位優勢</summary>
+        <div class="tablewrap">
+            <table class="data">
+                <thead><tr><th>座位</th><th>勝率</th><th>平均分</th></tr></thead>
+                <tbody>@foreach (var t in a.TableSeats) { <tr><td>座位 @(t.Seat + 1)</td><td>@Pct(t.WinShare)</td><td>@t.AvgScore.ToString("0.0")</td></tr> }</tbody>
+            </table>
+        </div>
+    </details>
+}
+
+@code {
+    protected override void OnInitialized() => State.Changed += OnChanged;
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => State.Changed -= OnChanged;
+
+    private static string ReasonName(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return "（無）";
+        var names = key.Split('+').Select(k => k switch
+        {
+            "vpExhausted" => "VP 籌碼耗盡",
+            "colonistsShort" => "殖民者不足",
+            "cityFull" => "城市蓋滿",
+            "roundLimit" => "回合上限",
+            "decisionLimit" => "決策上限",
+            _ => k,
+        });
+        return string.Join(" ＋ ", names);
+    }
+
+    private static string HeatStyle(double v)
+    {
+        if (double.IsNaN(v)) return "";
+        double strength = Math.Abs(v - 0.5) * 2 * 85;
+        string pole = v >= 0.5 ? "var(--pos)" : "var(--neg)";
+        return FormattableString.Invariant($"background:color-mix(in srgb, {pole} {strength:0}%, var(--neutral))");
+    }
+}

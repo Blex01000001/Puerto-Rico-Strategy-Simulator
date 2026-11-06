@@ -1,0 +1,84 @@
+@page "/config"
+@using System.Text.Json
+@implements IDisposable
+@inject AppState State
+
+<PageTitle>設定檔 · 波多黎各策略模擬器</PageTitle>
+<h1>設定檔</h1>
+<p class="note">編輯 Runner 與 Dashboard 共用的模擬設定（JSON），驗證後下載，再用 Runner 執行。</p>
+
+<div class="panel">
+    <div class="row">
+        <button class="secondary" @onclick="@(() => Set(Template(3)))">3 人範例</button>
+        <button class="secondary" @onclick="@(() => Set(Template(4)))">4 人範例</button>
+        <button class="secondary" @onclick="UseLoaded" disabled="@(State.Result == null)">使用目前結果的設定</button>
+        <span class="muted">策略名稱：@string.Join("、", KnownStrategies)</span>
+    </div>
+</div>
+
+<textarea spellcheck="false" @bind="text" @bind:event="oninput"></textarea>
+
+<div class="row" style="margin-top:.6rem">
+    <button @onclick="Validate">驗證</button>
+    <a class="btn secondary" href="data:application/json;charset=utf-8,@Uri.EscapeDataString(text)" download="config.json">下載 config.json</a>
+</div>
+
+@if (error != null) { <div class="error">@error</div> }
+@if (message != null) { <div class="ok">@message</div> }
+
+<h2>執行方式</h2>
+<pre class="panel"><code>dotnet run -c Release --project Runner -- --config config.json --out results/result.json
+dotnet run -c Release --project Runner -- --config config.json --sweep --out results/sweep.json   # 設定檔含 "sweep" 區塊時</code></pre>
+
+@code {
+    private static readonly string[] KnownStrategies = { "random", "corn-shipper", "corn-to-premium", "harbor-rush", "build-first", "rule-based" };
+    private string text = "";
+    private string? error;
+    private string? message;
+
+    protected override void OnInitialized()
+    {
+        State.Changed += OnChanged;
+        text = Template(3);
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => State.Changed -= OnChanged;
+
+    private void Set(string json) { text = json; error = null; message = null; }
+
+    private void UseLoaded()
+    {
+        if (State.Result != null) Set(JsonSerializer.Serialize(State.Result.Config, Pretty));
+    }
+
+    private static readonly JsonSerializerOptions Pretty = new(SimulationConfig.JsonOptions) { WriteIndented = true };
+
+    private static string Template(int players)
+    {
+        var cfg = new SimulationConfig
+        {
+            Name = $"{players}p-comparison", Players = players, Games = 100000, Seed = 12345,
+            Seats = new[] { ("corn", "corn-shipper"), ("premium", "corn-to-premium"), ("harbor", "harbor-rush"), ("build", "build-first") }
+                .Take(players).Select(s => new SeatConfig { Id = s.Item1, Strategy = s.Item2 }).ToList(),
+        };
+        return JsonSerializer.Serialize(cfg, Pretty);
+    }
+
+    private void Validate()
+    {
+        error = message = null;
+        try
+        {
+            var cfg = JsonSerializer.Deserialize<SimulationConfig>(text, SimulationConfig.JsonOptions)
+                      ?? throw new InvalidDataException("空的設定");
+            cfg.Validate();
+            message = $"設定有效：{cfg.Players} 人局、{cfg.Games:N0} 局、座位順序 {cfg.SeatOrder}，策略 " +
+                      string.Join("、", cfg.Seats.Select(s => $"{s.Id}={s.Strategy}")) + (cfg.Sweep != null ? "；含參數掃描區塊" : "");
+        }
+        catch (Exception e) when (e is JsonException or InvalidDataException)
+        {
+            error = e.Message;
+        }
+    }
+}

@@ -102,7 +102,7 @@ public static class SweepRunner
                 Params = values,
                 Games = run.GamesCompleted,
                 WinShare = mine.WinShare,
-                WinShareCi95 = 1.96 * Math.Sqrt(Math.Max(mine.WinShare * (1 - mine.WinShare), 0) / Math.Max(1, mine.Games)),
+                WinShareCi95 = ResultAnalysis.Ci(mine.WinShare, mine.Games),
                 AvgScore = mine.AvgScore,
                 StdScore = mine.StdScore,
                 Seats = run.Summary,
