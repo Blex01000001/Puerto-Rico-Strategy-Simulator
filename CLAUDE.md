@@ -68,7 +68,7 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 看起來像錯誤或可簡化、但其實是刻意或改了會壞的地方。修改相關檔案前先看這節。格式：位置 — 現象 — 為什麼不能動／該怎麼處理。
 
 - 環境 — 新 session 沒有 dotnet — 需先 apt 安裝（見上）；容器是暫時的。
-- 種植園牌堆（規劃）— 洗好後存在 GameState，抽牌是確定性的 — MCTS 會偷看牌序，之後做 MCTS 時須在策略層對未翻開的牌重洗（determinization）。
+- 種植園牌堆（規劃）— 洗好後存在 GameState，抽牌是確定性的；牌疊用完會洗棄牌堆，故 GameState 需帶可複製的亂數狀態 — MCTS 會偷看牌序，之後做 MCTS 時須在策略層對未翻開的牌重洗（determinization）。
 
 ## 使用者的工作習慣
 - 回覆用繁體中文；commit 訊息用英文。
