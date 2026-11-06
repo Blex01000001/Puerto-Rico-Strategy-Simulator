@@ -4,7 +4,7 @@
 
 ## 待辦
 
-1. 【使用者】回答 `rules.md` 各節「待確認」共 17 項：第 1 節設置 1、第 2 節職業 2、第 3 節建築 7、第 6 節階段與終局 7。規則資料已齊備；會影響合法動作清單的（第 6 節 1、4 的 Pass 規則，第 2 節金幣與 Mayor）建議優先，其餘可先以保守預設寫進靜態表並在測試註明。
+1. 【使用者】回答 `rules.md` 各節「待確認」共 13 項：第 1 節設置 1（金幣供應是否無限）、第 3 節建築 7、第 6 節階段與終局 5。合法動作清單相關的已定案；其餘為邊界情況，可先以保守預設寫進靜態表並在測試註明。
 2. 【先討論】確認兩項與原需求略有不同的建議：每局種子 = SplitMix64(masterSeed, gameIndex)（結果與執行緒數無關）、`seatOrder` 預設 `rotate`；確認後寫入 CLAUDE.md「架構決策」。
 3. 【先討論】隱藏資訊：VP 籌碼對手不可見，但原策略介面為 `ChooseAction(GameState, ...)`。選項：(a) 傳完整狀態，約定策略不得讀對手 VP；(b) 傳遮罩後的視角（`GameState` 副本，對手 VP 清空）；MCTS 內部模擬仍需完整狀態。涉及策略介面與 Clone 成本，確認後寫入 CLAUDE.md「架構決策」。
 4. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
