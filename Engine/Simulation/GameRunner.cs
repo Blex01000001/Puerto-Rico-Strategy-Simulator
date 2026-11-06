@@ -9,7 +9,7 @@ public static class GameRunner
     /// <summary>Table seat -> config seat index for this game.</summary>
     public static int[] SeatAssignment(SimulationConfig cfg, int gameIndex, ulong gameSeed)
     {
-        int n = GameConstants.Players;
+        int n = cfg.Players;
         var map = new int[n];
         switch (cfg.SeatOrder)
         {
@@ -53,7 +53,7 @@ public static class GameRunner
         ulong gameSeed = SeedDeriver.GameSeed(cfg.Seed, gameIndex);
         int[] seatToConfig = SeatAssignment(cfg, gameIndex, gameSeed);
 
-        var strategies = new IStrategy[GameConstants.Players];
+        var strategies = new IStrategy[cfg.Players];
         for (int seat = 0; seat < strategies.Length; seat++)
         {
             int ci = seatToConfig[seat];
@@ -61,7 +61,7 @@ public static class GameRunner
             strategies[seat] = StrategyRegistry.Create(sc.Strategy, sc.Params, SeedDeriver.StrategySeed(gameSeed, ci), seat);
         }
 
-        var state = Setup.NewGame(gameSeed, cfg.Limits.MaxRounds);
+        var state = Setup.NewGame(gameSeed, cfg.Limits.MaxRounds, cfg.Players);
         var legal = new List<GameAction>(32);
         bool auto = cfg.Options.AutoAdvanceForced;
         int decisions = 0;

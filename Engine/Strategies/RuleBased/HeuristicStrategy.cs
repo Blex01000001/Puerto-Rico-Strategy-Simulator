@@ -82,9 +82,9 @@ public abstract class HeuristicStrategy : IStrategy
             case ActionType.Sell: return SellValue(s, me, a.A);
             case ActionType.LoadShip:
                 {
-                    int room = GameConstants.ShipCapacity[a.B] - s.ShipLoad[a.B];
+                    int room = s.ShipCap[a.B] - s.ShipLoad[a.B];
                     int vp = Math.Min(s.Goods[me * G + a.A], room);
-                    return vp * 10 + (a.A == Corn ? 1 : 0) - GameConstants.ShipCapacity[a.B] * 0.01;
+                    return vp * 10 + (a.A == Corn ? 1 : 0) - s.ShipCap[a.B] * 0.01;
                 }
             case ActionType.LoadWharf:
                 return s.Goods[me * G + a.A] * 10 + (a.A == Corn ? 1 : 0) - 0.5;
@@ -140,7 +140,7 @@ public abstract class HeuristicStrategy : IStrategy
 
     protected virtual double MayorRoleValue(GameState s, int me)
     {
-        int gain = Math.Min(EmptyCircles(s, me), s.SanJuan[me] + 1 + s.ShipColonists / GameConstants.Players);
+        int gain = Math.Min(EmptyCircles(s, me), s.SanJuan[me] + 1 + s.ShipColonists / s.PlayerCount);
         return 1 + 1.6 * gain;
     }
 
@@ -201,7 +201,7 @@ public abstract class HeuristicStrategy : IStrategy
     private double CraftsmanRoleValue(GameState s, int me)
     {
         double mine = 0, theirs = 0;
-        for (int p = 0; p < GameConstants.Players; p++)
+        for (int p = 0; p < s.PlayerCount; p++)
         {
             for (int g = 0; g < G; g++)
             {
@@ -229,10 +229,10 @@ public abstract class HeuristicStrategy : IStrategy
     protected static int ShipRoom(GameState s, int good)
     {
         for (int i = 0; i < GameConstants.ShipCount; i++)
-            if (s.ShipLoad[i] > 0 && s.ShipGood[i] == good) return GameConstants.ShipCapacity[i] - s.ShipLoad[i];
+            if (s.ShipLoad[i] > 0 && s.ShipGood[i] == good) return s.ShipCap[i] - s.ShipLoad[i];
         int room = 0;
         for (int i = 0; i < GameConstants.ShipCount; i++)
-            if (s.ShipLoad[i] == 0) room = Math.Max(room, GameConstants.ShipCapacity[i]);
+            if (s.ShipLoad[i] == 0) room = Math.Max(room, s.ShipCap[i]);
         return room;
     }
 

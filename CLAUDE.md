@@ -11,10 +11,10 @@
 | 路徑 | 用途 | 狀態 |
 |---|---|---|
 | `docs/TODO.md` | 目前狀態：待辦、已知問題、想法；每次 commit 時同步更新 | 已有 |
-| `rules.md` | 遊戲規則唯一依據 | 資料齊備，仍有待確認項目（見 TODO） |
+| `rules.md` | 遊戲規則唯一依據（第 1～6 節 3 人局，第 7 節 4 人局差異） | 資料齊備，仍有待確認項目（見 TODO） |
 | `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable、TreatWarningsAsErrors） | 已有 |
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
-| `config.example.json`, `config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
+| `config.example.json`、`config.4p.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
 | `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨）；預留 Mcts/ | 隨機與三個手寫原型已有 |
 | `Engine/Simulation/` | `SimulationConfig`、`SimulationResult`（含摘要）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
@@ -59,7 +59,7 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 - 狀態推進：`Apply` 之後自動推進到下一個真正的決策——沒有動作或只剩 `Pass` 的人直接略過 — 策略不會被問無意義的問題 — 不要在策略端重做略過邏輯。唯一合法動作（非 Pass）由 `GameRunner` 依 `options.autoAdvanceForced` 直接套用。
 - Mayor 放置採「依 slot 非遞減順序逐一放置」，並剪掉無法放滿的選項 — 每種分配只對應一條動作序列，避免排列重複 — 不要改成任意順序。
 - 牌疊以各種類張數＋`RngState` 表示，不存牌序 — Clone 小、洗牌可重現 — 不要在狀態內存洗好的牌陣列。
-- 第一階段範圍：3 人基礎版、無擴充；策略與 Dashboard 之後再做 — 不要提前實作。
+- 範圍：3 人與 4 人基礎版（`players: 3|4`，4 人局多一個 Prospector 職業），無擴充、不做 5 人局 — 不要加擴充內容。
 - 每局種子由 (masterSeed, gameIndex) 衍生 — 結果與執行緒數、分工方式無關，且 `--resume` 容易 — 不要改成「每執行緒一個 Random」。
 - 設定 `seatOrder` 預設 `rotate`（策略座位依局數輪換） — 3 人局有座位優勢，輪換才公平；統計以「策略」而非座位歸類 — 不要預設固定座位。
 - 隱藏資訊（對手 VP 籌碼）：策略介面照傳完整 `GameState`，約定策略**不得讀取對手 VP**；MCTS 內部需要完整狀態 — 簡單且不增加 Clone 成本 — 不要為此另做遮罩副本或另開介面。
@@ -74,7 +74,7 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 - 規則數字（張數、費用、VP 等）集中在靜態表，不散落在邏輯裡；每條規則的測試註明 rules.md 出處。
 - 測試：每條規則一個情境測試；隨機局不變量檢查（貨物／殖民者守恆、金幣不為負、格數上限、合法動作不為空）；Clone 一致性；同種子重現；golden file 回歸。
 - 規則有歧義時先問使用者，不自行假設。
-- 座位 ID（固定 1～3，起始種植園綁座位）與「當前總督」指標分開追蹤；金幣無上限，貨物與殖民者有嚴格數量上限。
+- 座位 ID（固定 1～3 或 1～4，起始種植園綁座位）與「當前總督」指標分開追蹤；金幣無上限，貨物與殖民者有嚴格數量上限。
 
 ## 容易踩的雷
 看起來像錯誤或可簡化、但其實是刻意或改了會壞的地方。修改相關檔案前先看這節。格式：位置 — 現象 — 為什麼不能動／該怎麼處理。
@@ -84,6 +84,8 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 - `GameState.RngState` — 抽種植園時才推進亂數 — 複製後兩份狀態會抽到相同的牌；MCTS 的每次 rollout 必須先 `ReseedRng(新種子)`，否則所有 rollout 看到同一個未來。
 - `Rules.Apply` 之後的狀態一定停在下一個真實決策 — 不要自己迴圈略過 Pass；測試用 `Sc.Start`（`Tests/Sc.cs`）直接指定總督與職業來建情境。
 - 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以預設 `seatOrder: rotate`，統計看策略而非座位。
+
+- 玩家數 — 每位玩家的陣列固定開 4 個座位的大小，3 人局第 4 座位全是 0 — 迴圈、模數一律用 `s.PlayerCount`、`s.RoleCount`、`s.ShipCap`，不要用 `GameConstants` 的固定值；`GameConstants.XXX(players)` 是依人數查的函式。
 
 ## 使用者的工作習慣
 - 回覆用繁體中文；commit 訊息用英文。

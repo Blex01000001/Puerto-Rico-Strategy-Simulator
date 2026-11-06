@@ -16,7 +16,7 @@ public static partial class Rules
 
     private static void StartCraftsman(GameState s)
     {
-        for (int p = 0; p < P; p++)
+        for (int p = 0; p < s.PlayerCount; p++)
             for (int g = 0; g < G; g++)
                 s.Production[p * G + g] = ProductionOf(s, p, g);
 
@@ -43,9 +43,9 @@ public static partial class Rules
     /// </summary>
     private static void ResolveCraftsman(GameState s, int bonusGood)
     {
-        for (int i = 0; i < P; i++)
+        for (int i = 0; i < s.PlayerCount; i++)
         {
-            int p = (s.CurrentOwner + i) % P;
+            int p = (s.CurrentOwner + i) % s.PlayerCount;
             int kinds = 0;
             for (int g = 0; g < G; g++)
             {

@@ -168,10 +168,10 @@ public sealed class HarborRushStrategy : HeuristicStrategy
     {
         for (int i = 0; i < GameConstants.ShipCount; i++)
             if (s.ShipLoad[i] > 0 && s.ShipGood[i] == good)
-                return used[i] ? 0 : GameConstants.ShipCapacity[i] - s.ShipLoad[i];
+                return used[i] ? 0 : s.ShipCap[i] - s.ShipLoad[i];
         int room = 0;
         for (int i = 0; i < GameConstants.ShipCount; i++)
-            if (s.ShipLoad[i] == 0 && !used[i]) room = Math.Max(room, GameConstants.ShipCapacity[i]);
+            if (s.ShipLoad[i] == 0 && !used[i]) room = Math.Max(room, s.ShipCap[i]);
         return room;
     }
 
@@ -181,7 +181,7 @@ public sealed class HarborRushStrategy : HeuristicStrategy
             if (s.ShipLoad[i] > 0 && s.ShipGood[i] == good) { used[i] = true; return; }
         int best = -1;
         for (int i = 0; i < GameConstants.ShipCount; i++)
-            if (s.ShipLoad[i] == 0 && !used[i] && (best < 0 || GameConstants.ShipCapacity[i] > GameConstants.ShipCapacity[best])) best = i;
+            if (s.ShipLoad[i] == 0 && !used[i] && (best < 0 || s.ShipCap[i] > s.ShipCap[best])) best = i;
         if (best >= 0) used[best] = true;
     }
 }

@@ -7,10 +7,19 @@ namespace PuertoRico.Engine.Game;
 /// </summary>
 public sealed class GameState
 {
-    private const int P = GameConstants.Players;
+    private const int P = GameConstants.MaxPlayers;
     private const int G = GameConstants.GoodCount;
     private const int T = GameConstants.TileTypes;
     private const int B = GameConstants.BuildingCount;
+
+    /// <summary>Number of players (3 or 4). Per-player arrays are sized for 4; unused seats stay zero.</summary>
+    public int PlayerCount = 3;
+    public int RoleCount => GameConstants.RoleCount(PlayerCount);
+    /// <summary>Public ship capacities for this game (copied at setup).</summary>
+    public int[] ShipCap = new int[GameConstants.ShipCount];
+    /// <summary>Total VP chips / colonists in this game (75 and 58 for 3 players, 100 and 79 for 4).</summary>
+    public int VpChipTotal;
+    public int ColonistTotal;
 
     // ---- per player ----
     public int[] Coins = new int[P];
@@ -38,9 +47,9 @@ public sealed class GameState
     public int BankColonists;
     public int ShipColonists;
     public int VpSupply;
-    public int[] RoleCoins = new int[GameConstants.RoleCount];
+    public int[] RoleCoins = new int[GameConstants.MaxRoleCount];
     /// <summary>Seat that chose each role this round, or -1.</summary>
-    public int[] RoleOwner = new int[GameConstants.RoleCount];
+    public int[] RoleOwner = new int[GameConstants.MaxRoleCount];
 
     // ---- ships and trading house ----
     public int[] ShipGood = new int[GameConstants.ShipCount];
@@ -106,6 +115,7 @@ public sealed class GameState
         c.TradeHouse = (int[])TradeHouse.Clone();
         c.Production = (int[])Production.Clone();
         c.WharfUsed = (int[])WharfUsed.Clone();
+        c.ShipCap = (int[])ShipCap.Clone();
         return c;
     }
 

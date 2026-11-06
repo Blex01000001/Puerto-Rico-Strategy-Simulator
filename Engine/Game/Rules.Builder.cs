@@ -46,7 +46,7 @@ public static partial class Rules
 
     private static void CheckCityFull(GameState s)
     {
-        for (int p = 0; p < P; p++)
+        for (int p = 0; p < s.PlayerCount; p++)
             if (s.CitySpacesUsed(p) >= GameConstants.CitySpaces) s.EndFlags |= EndFlags.CityFull;
     }
 }
