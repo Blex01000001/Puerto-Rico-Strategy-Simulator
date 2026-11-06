@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援；Dashboard 已有結果、參數掃描、設定檔三頁。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援；Dashboard 已有結果、參數掃描、設定檔三頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -11,7 +11,7 @@
 | 路徑 | 用途 | 狀態 |
 |---|---|---|
 | `docs/TODO.md` | 目前狀態：待辦、已知問題、想法；每次 commit 時同步更新 | 已有 |
-| `rules.md` | 遊戲規則唯一依據（第 1～6 節 3 人局，第 7 節 4 人局差異） | 資料齊備，仍有待確認項目（見 TODO） |
+| `rules.md` | 遊戲規則唯一依據（第 1～6 節 3 人局，第 7 節 4 人局差異） | 資料齊備，沒有待確認的規則問題 |
 | `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable、TreatWarningsAsErrors） | 已有 |
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
 | `config.example.json`、`config.4p.example.json`、`config.sweep.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
@@ -83,12 +83,13 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 ## 容易踩的雷
 看起來像錯誤或可簡化、但其實是刻意或改了會壞的地方。修改相關檔案前先看這節。格式：位置 — 現象 — 為什麼不能動／該怎麼處理。
 
-- 環境 — 容器是暫時的，dotnet 靠 SessionStart hook 安裝 — hook 只在合併到預設分支後才對新 session 生效，在那之前新 session 需手動 apt 安裝（見上）。
+- 環境 — 容器是暫時的，dotnet 靠 SessionStart hook 安裝（hook 已在 main）— 若新 session 沒有 `dotnet`，手動 apt 安裝（見上）。
 - 專案檔 — `Directory.Build.props` 已設 net8.0／Nullable／TreatWarningsAsErrors，csproj 內不要重複設 — 警告即錯誤，新增程式碼要零警告。
 - `GameState.RngState` — 抽種植園時才推進亂數 — 複製後兩份狀態會抽到相同的牌；MCTS 的每次 rollout 必須先 `ReseedRng(新種子)`，否則所有 rollout 看到同一個未來。
 - `Rules.Apply` 之後的狀態一定停在下一個真實決策 — 不要自己迴圈略過 Pass；測試用 `Sc.Start`（`Tests/Sc.cs`）直接指定總督與職業來建情境。
 - 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以預設 `seatOrder: rotate`，統計看策略而非座位。
 
+- `results/` — 模擬輸出（10 萬局 70～90 MB）已被 `.gitignore` 忽略 — 絕對不要 `git add -f`；`git add -A` 之前先看 `git status`（曾誤把 390 MB 結果檔 commit 進 main，後來改寫歷史才清掉）。
 - 玩家數 — 每位玩家的陣列固定開 4 個座位的大小，3 人局第 4 座位全是 0 — 迴圈、模數一律用 `s.PlayerCount`、`s.RoleCount`、`s.ShipCap`，不要用 `GameConstants` 的固定值；`GameConstants.XXX(players)` 是依人數查的函式。
 
 ## 使用者的工作習慣
@@ -100,6 +101,8 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 開發分支 `claude/cool-cerf-xsrphb`。它的 PR 合併後，新工作先從最新 `main` 重開：
   `git fetch origin main && git checkout -B claude/cool-cerf-xsrphb origin/main`（推送用 `--force-with-lease`）。
 - 使用者說「合併到 main」時：用 GitHub MCP 工具建立 PR 再 merge（`expectedHeadSha` 用完整 40 字元 SHA）。
+- GitHub MCP 的 `create_pull_request` 可能回 502 但其實已建立 PR：重試前先 `list_pull_requests`（`state: open`）查有沒有，有就直接用那個 PR 編號合併。
+- 改寫共用分支的歷史（force push main）只有使用者明確說「改寫 main 歷史」才做；做之前先備份分支、驗證最終檔案樹不變，用 `--force-with-lease=<分支>:<舊SHA>` 推送。
 - 每完成一個獨立的修改就 commit。commit 訊息第一行簡述改了什麼，需要時空一行補充原因。
 - 需要了解過去的修改時，用 `git log` 查詢。
 
