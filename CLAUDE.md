@@ -51,13 +51,15 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 - GameState 只含數值與固定長度陣列（無 List/Dictionary/字串）— Clone 要快（MCTS）— 不要在狀態中放參考型別集合。
 - 平行用 `Parallel.For`；大量模擬關閉事件記錄 — 效能 — 不要在批次模擬中開 event log。
 - 第一階段範圍：3 人基礎版、無擴充；策略與 Dashboard 之後再做 — 不要提前實作。
-- 以下為規劃建議，**待使用者確認前不算定案**（見 TODO）：每局種子由 (masterSeed, gameIndex) 衍生、座位預設輪換。
+- 每局種子由 (masterSeed, gameIndex) 衍生 — 結果與執行緒數、分工方式無關，且 `--resume` 容易 — 不要改成「每執行緒一個 Random」。
+- 設定 `seatOrder` 預設 `rotate`（策略座位依局數輪換） — 3 人局有座位優勢，輪換才公平；統計以「策略」而非座位歸類 — 不要預設固定座位。
+- 隱藏資訊（對手 VP 籌碼）：策略介面照傳完整 `GameState`，約定策略**不得讀取對手 VP**；MCTS 內部需要完整狀態 — 簡單且不增加 Clone 成本 — 不要為此另做遮罩副本或另開介面。
 
 ## 亂數種子規則
 - 同一份設定與種子，結果必須可完整重現。
 - 每個執行緒／每局使用獨立的 Random；禁止共享或靜態 Random、`Random.Shared`、以時間當亂數來源。
 - MCTS 只用模擬次數，不用時間限制（時間限制會破壞重現性）。
-- 建議（待確認）：gameSeed = SplitMix64(masterSeed, gameIndex)，使結果與執行緒數無關。
+- gameSeed = SplitMix64(masterSeed, gameIndex)；策略（含 MCTS）的亂數由 (gameSeed, seat) 衍生，結果與執行緒數無關。
 
 ## 設計規範
 - 規則數字（張數、費用、VP 等）集中在靜態表，不散落在邏輯裡；每條規則的測試註明 rules.md 出處。

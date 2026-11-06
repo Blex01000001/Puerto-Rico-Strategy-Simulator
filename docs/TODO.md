@@ -4,11 +4,9 @@
 
 ## 待辦
 
-1. 【先討論】確認兩項與原需求略有不同的建議：每局種子 = SplitMix64(masterSeed, gameIndex)（結果與執行緒數無關）、`seatOrder` 預設 `rotate`（座位固定、總督輪轉；起始總督 = Player 1 的隨機化可由 seatOrder 的策略座位排列達成）；確認後寫入 CLAUDE.md「架構決策」。
-2. 【先討論】隱藏資訊：VP 籌碼對手不可見，但原策略介面為 `ChooseAction(GameState, ...)`。選項：(a) 傳完整狀態，約定策略不得讀對手 VP；(b) 傳遮罩後的視角（`GameState` 副本，對手 VP 清空）；MCTS 內部模擬仍需完整狀態。涉及策略介面與 Clone 成本，確認後寫入 CLAUDE.md「架構決策」。
-3. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
-4. 【直接做】（步驟 1，待 1～2 確認後）建 `PuertoRico.sln`、Engine/Runner/Tests（Dashboard 先放空殼或不建）、`Directory.Build.props`、`.gitignore`；相依方向 Runner/Tests → Engine。驗收：`dotnet build`、`dotnet test` 通過。
-5. 【直接做】後續實作依序：靜態表＋GameState＋Clone → Setup → 決策流程骨架 → 各職業（Settler→Builder→Craftsman→Trader→Captain→Mayor→Prospector）→ 終局計分 → 隨機玩家＋單局執行器 → 批次模擬（Parallel.For／checkpoint／Ctrl+C／`--resume`）→ Runner CLI 與結果 JSON → 效能基準。每步驗收標準見對話規劃第八節。
+1. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
+2. 【直接做】（步驟 1）建 `PuertoRico.sln`、Engine/Runner/Tests（Dashboard 先放空殼或不建）、`Directory.Build.props`、`.gitignore`；相依方向 Runner/Tests → Engine。驗收：`dotnet build`、`dotnet test` 通過。
+3. 【直接做】後續實作依序：靜態表＋GameState＋Clone → Setup → 決策流程骨架 → 各職業（Settler→Builder→Craftsman→Trader→Captain→Mayor→Prospector）→ 終局計分 → 隨機玩家＋單局執行器 → 批次模擬（Parallel.For／checkpoint／Ctrl+C／`--resume`）→ Runner CLI 與結果 JSON → 效能基準。每步驗收標準見對話規劃第八節。
 
 ## 已知問題／限制
 
