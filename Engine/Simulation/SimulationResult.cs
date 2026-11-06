@@ -91,7 +91,7 @@ public static class ResultSummarizer
             };
         }).ToList();
 
-        result.TableSeats = Enumerable.Range(0, GameConstants.Players).Select(seat =>
+        result.TableSeats = Enumerable.Range(0, result.Config.Players).Select(seat =>
         {
             var rows = records.Select(g => (g, p: g.Players.First(p => p.Seat == seat))).ToList();
             return new TableSeatSummary

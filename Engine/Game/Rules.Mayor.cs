@@ -22,7 +22,7 @@ public static partial class Rules
         int i = 0;
         while (s.ShipColonists > 0)
         {
-            s.SanJuan[(owner + i) % P]++;
+            s.SanJuan[(owner + i) % s.PlayerCount]++;
             s.ShipColonists--;
             i++;
         }
@@ -86,11 +86,11 @@ public static partial class Rules
     private static void RefillShip(GameState s)
     {
         int empty = 0;
-        for (int p = 0; p < P; p++)
+        for (int p = 0; p < s.PlayerCount; p++)
             for (int b = 0; b < B; b++)
                 if (s.BuildingOwned[p * B + b] != 0) empty += Buildings.Capacity[b] - s.BuildingOcc[p * B + b];
 
-        int need = Math.Max(empty, P);
+        int need = Math.Max(empty, s.PlayerCount);
         if (s.BankColonists < need)
         {
             s.ShipColonists += s.BankColonists;

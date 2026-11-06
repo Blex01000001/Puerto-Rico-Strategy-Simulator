@@ -23,8 +23,9 @@ public class SetupTests
     public void Setup_Matches_Rules_Table()
     {
         var s = Setup.NewGame(7);
-        Assert.Equal(new[] { 2, 2, 2 }, s.Coins);
-        Assert.Equal(58, GameConstants.TotalColonists);
+        Assert.Equal(new[] { 2, 2, 2 }, s.Coins.Take(3));
+        Assert.Equal(0, s.Coins[3]); // no fourth seat
+        Assert.Equal(58, GameConstants.TotalColonists(3));
         Assert.Equal(55, s.BankColonists);
         Assert.Equal(3, s.ShipColonists);
         Assert.Equal(75, s.VpSupply);
@@ -33,8 +34,8 @@ public class SetupTests
         Assert.Equal(8, s.QuarrySupply);
         Assert.Equal(4, s.FaceUp.Sum());
         Assert.Equal(47, s.Deck.Sum() + s.FaceUp.Sum());
-        Assert.Equal(new[] { 9, 10, 11, 9, 8 }, GameConstants.DeckStart);
-        Assert.Equal(new[] { 4, 5, 6 }, GameConstants.ShipCapacity);
+        Assert.Equal(new[] { 9, 10, 11, 9, 8 }, GameConstants.DeckStart(3));
+        Assert.Equal(new[] { 4, 5, 6 }, GameConstants.ShipCapacity(3));
         Assert.Equal(Phase.ChooseRole, s.Phase);
         Assert.Equal(0, s.Governor);
         Assert.Null(Invariants.Check(s));

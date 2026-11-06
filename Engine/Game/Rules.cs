@@ -7,7 +7,6 @@ namespace PuertoRico.Engine.Game;
 /// </summary>
 public static partial class Rules
 {
-    private const int P = GameConstants.Players;
     private const int G = GameConstants.GoodCount;
     private const int T = GameConstants.TileTypes;
     private const int B = GameConstants.BuildingCount;
@@ -122,7 +121,7 @@ public static partial class Rules
 
     private static void FillChooseRole(GameState s, List<GameAction> a)
     {
-        for (int r = 0; r < GameConstants.RoleCount; r++)
+        for (int r = 0; r < s.RoleCount; r++)
             if (s.RoleOwner[r] < 0) a.Add(new GameAction(ActionType.ChooseRole, r));
     }
 
@@ -145,6 +144,10 @@ public static partial class Rules
             case Role.Craftsman: StartCraftsman(s); break;
             case Role.Trader: s.Phase = Phase.Trader; BeginActor(s); break;
             case Role.Captain: StartCaptain(s); break;
+            case Role.Prospector: // privilege only: 1 coin, no phase
+                s.Coins[owner]++;
+                EndRolePhase(s);
+                break;
         }
     }
 
@@ -162,12 +165,12 @@ public static partial class Rules
     private static void NextActor(GameState s)
     {
         s.ActorsDone++;
-        if (s.ActorsDone >= P)
+        if (s.ActorsDone >= s.PlayerCount)
         {
             EndRolePhase(s);
             return;
         }
-        s.Actor = (s.Actor + 1) % P;
+        s.Actor = (s.Actor + 1) % s.PlayerCount;
         BeginActor(s);
     }
 
@@ -183,24 +186,24 @@ public static partial class Rules
         }
 
         s.ChosenCount++;
-        if (s.ChosenCount >= P)
+        if (s.ChosenCount >= s.PlayerCount)
         {
             EndRound(s);
             return;
         }
         s.Phase = Phase.ChooseRole;
-        s.Actor = (s.Governor + s.ChosenCount) % P;
+        s.Actor = (s.Governor + s.ChosenCount) % s.PlayerCount;
     }
 
     private static void EndRound(GameState s)
     {
-        for (int r = 0; r < GameConstants.RoleCount; r++)
+        for (int r = 0; r < s.RoleCount; r++)
         {
             if (s.RoleOwner[r] < 0) s.RoleCoins[r]++;
             s.RoleOwner[r] = -1;
         }
         s.ChosenCount = 0;
-        s.Governor = (s.Governor + 1) % P;
+        s.Governor = (s.Governor + 1) % s.PlayerCount;
         s.Round++;
         s.Actor = s.Governor;
         s.Phase = Phase.ChooseRole;

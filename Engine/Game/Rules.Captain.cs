@@ -32,7 +32,7 @@ public static partial class Rules
             if (holding >= 0)
             {
                 // The good is already on a ship: it must go there, until that ship is full.
-                if (s.ShipLoad[holding] < GameConstants.ShipCapacity[holding])
+                if (s.ShipLoad[holding] < s.ShipCap[holding])
                     a.Add(new GameAction(ActionType.LoadShip, g, holding));
             }
             else
@@ -52,7 +52,7 @@ public static partial class Rules
         if (a.Type == ActionType.LoadShip)
         {
             int ship = a.B;
-            amount = Math.Min(s.Goods[p * G + g], GameConstants.ShipCapacity[ship] - s.ShipLoad[ship]);
+            amount = Math.Min(s.Goods[p * G + g], s.ShipCap[ship] - s.ShipLoad[ship]);
             s.Goods[p * G + g] -= amount;
             s.ShipLoad[ship] += amount;
             s.ShipGood[ship] = g;
@@ -73,14 +73,14 @@ public static partial class Rules
         AwardVp(s, p, vp);
 
         s.CaptainSkips = 0;
-        s.Actor = (s.Actor + 1) % P;
+        s.Actor = (s.Actor + 1) % s.PlayerCount;
     }
 
     /// <summary>This actor cannot load; once all three in a row cannot, the shipping part is over.</summary>
     private static void CaptainSkip(GameState s)
     {
         s.CaptainSkips++;
-        if (s.CaptainSkips >= P)
+        if (s.CaptainSkips >= s.PlayerCount)
         {
             s.Phase = Phase.CaptainStorage;
             s.ActorsDone = 0;
@@ -88,7 +88,7 @@ public static partial class Rules
             BeginActor(s);
             return;
         }
-        s.Actor = (s.Actor + 1) % P;
+        s.Actor = (s.Actor + 1) % s.PlayerCount;
     }
 
     // ---- storage: keep whole kinds with warehouses, plus one free barrel ----
@@ -165,7 +165,7 @@ public static partial class Rules
     {
         for (int i = 0; i < GameConstants.ShipCount; i++)
         {
-            if (s.ShipLoad[i] < GameConstants.ShipCapacity[i]) continue;
+            if (s.ShipLoad[i] < s.ShipCap[i]) continue;
             s.GoodsSupply[s.ShipGood[i]] += s.ShipLoad[i];
             s.ShipLoad[i] = 0;
             s.ShipGood[i] = -1;

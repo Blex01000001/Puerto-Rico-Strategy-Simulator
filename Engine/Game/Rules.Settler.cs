@@ -28,12 +28,12 @@ public static partial class Rules
         throw new InvalidOperationException("unreachable");
     }
 
-    /// <summary>Turns up plantations until <see cref="GameConstants.FaceUpTiles"/> are showing (or no tiles remain).</summary>
+    /// <summary>Turns up plantations until players + 1 are showing (or no tiles remain).</summary>
     internal static void FlipFaceUp(GameState s)
     {
         int showing = 0;
         for (int g = 0; g < G; g++) showing += s.FaceUp[g];
-        while (showing < GameConstants.FaceUpTiles)
+        while (showing < GameConstants.FaceUpTiles(s.PlayerCount))
         {
             int g = DrawPlantation(s);
             if (g < 0) break;

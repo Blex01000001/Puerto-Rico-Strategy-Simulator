@@ -5,11 +5,12 @@ public static class Invariants
 {
     public static string? Check(GameState s)
     {
-        const int P = GameConstants.Players, G = GameConstants.GoodCount, T = GameConstants.TileTypes, B = GameConstants.BuildingCount;
+        int P = s.PlayerCount;
+        const int G = GameConstants.GoodCount, T = GameConstants.TileTypes, B = GameConstants.BuildingCount;
 
         int colonists = s.BankColonists + s.ShipColonists;
         for (int p = 0; p < P; p++) colonists += s.ColonistsOnBoard(p);
-        if (colonists != GameConstants.TotalColonists) return $"colonists {colonists} != {GameConstants.TotalColonists}";
+        if (colonists != s.ColonistTotal) return $"colonists {colonists} != {s.ColonistTotal}";
 
         for (int g = 0; g < G; g++)
         {
@@ -20,7 +21,7 @@ public static class Invariants
 
             int tiles = s.Deck[g] + s.Discard[g] + s.FaceUp[g];
             for (int p = 0; p < P; p++) tiles += s.Tiles[p * T + g];
-            int expected = GameConstants.DeckStart[g] + (GameConstants.StartPlantation.Count(x => x == g));
+            int expected = GameConstants.DeckStart(P)[g] + (GameConstants.StartPlantation(P).Count(x => x == g));
             if (tiles != expected) return $"plantation {(Good)g}: {tiles} != {expected}";
         }
 
@@ -37,7 +38,7 @@ public static class Invariants
 
         int chips = s.VpSupply;
         for (int p = 0; p < P; p++) chips += s.VpChips[p];
-        if (s.VpSupply > 0 && chips != GameConstants.VpChips) return $"vp chips {chips}";
+        if (s.VpSupply > 0 && chips != s.VpChipTotal) return $"vp chips {chips}";
         if (s.VpSupply < 0) return "negative vp supply";
 
         for (int p = 0; p < P; p++)
@@ -55,7 +56,7 @@ public static class Invariants
             if (s.SanJuan[p] < 0) return $"seat {p} negative San Juan";
         }
         for (int i = 0; i < GameConstants.ShipCount; i++)
-            if (s.ShipLoad[i] > GameConstants.ShipCapacity[i]) return $"ship {i} overfull";
+            if (s.ShipLoad[i] > s.ShipCap[i]) return $"ship {i} overfull";
         if (s.TradeCount > GameConstants.TradeSlots) return "trading house overfull";
         return null;
     }

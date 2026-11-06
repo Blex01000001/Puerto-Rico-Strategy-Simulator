@@ -17,8 +17,9 @@ public static class Scoring
 
     public static GameScore Score(GameState s)
     {
-        var rows = new (int Seat, int Chips, int Building, int Bonus, int Total, int Tie)[GameConstants.Players];
-        for (int p = 0; p < GameConstants.Players; p++)
+        int players = s.PlayerCount;
+        var rows = new (int Seat, int Chips, int Building, int Bonus, int Total, int Tie)[players];
+        for (int p = 0; p < players; p++)
         {
             int chips = s.VpChips[p];
             int building = 0;
@@ -33,14 +34,14 @@ public static class Scoring
         int bestTie = rows.Where(r => r.Total == bestTotal).Max(r => r.Tie);
         var winners = rows.Where(r => r.Total == bestTotal && r.Tie == bestTie).Select(r => r.Seat).ToArray();
 
-        var players = new PlayerScore[GameConstants.Players];
+        var scores = new PlayerScore[players];
         foreach (var r in rows)
         {
             // Rank = 1 + number of players strictly ahead (by total, then tiebreak).
             int rank = 1 + rows.Count(o => o.Total > r.Total || (o.Total == r.Total && o.Tie > r.Tie));
-            players[r.Seat] = new PlayerScore(r.Seat, r.Chips, r.Building, r.Bonus, r.Total, r.Tie, rank);
+            scores[r.Seat] = new PlayerScore(r.Seat, r.Chips, r.Building, r.Bonus, r.Total, r.Tie, rank);
         }
-        return new GameScore(players, winners);
+        return new GameScore(scores, winners);
     }
 
     private static bool Counts(GameState s, int seat, int b) =>

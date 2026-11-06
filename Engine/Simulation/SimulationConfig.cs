@@ -52,6 +52,7 @@ public sealed class SimulationConfig
 {
     public int SchemaVersion { get; set; } = 1;
     public string Name { get; set; } = "";
+    /// <summary>3 or 4; the number of seats must match.</summary>
     public int Players { get; set; } = 3;
     public int Games { get; set; } = 1000;
     public ulong Seed { get; set; } = 12345;
@@ -89,7 +90,7 @@ public sealed class SimulationConfig
 
     public void Validate()
     {
-        if (Players != 3) throw new InvalidDataException("Only 3-player games are supported.");
+        if (Players < 3 || Players > 4) throw new InvalidDataException("Only 3- and 4-player games are supported.");
         if (Seats.Count != Players) throw new InvalidDataException($"Expected {Players} seats, got {Seats.Count}.");
         if (Games < 0) throw new InvalidDataException("games must be >= 0");
         if (Seats.Select(s => s.Id).Distinct().Count() != Seats.Count || Seats.Any(s => string.IsNullOrWhiteSpace(s.Id)))
