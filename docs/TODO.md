@@ -4,7 +4,7 @@
 
 ## 待辦
 
-1. 【使用者】回答 `rules.md` 各節「待確認」共 24 項：第 1 節設置 5、第 2 節職業 2、第 3 節建築 7、第 6 節階段與終局 10。規則資料已齊備；其中第 6 節 9（終局時機）、1（Captain 選船）、第 1 節（牌疊）會直接影響狀態與動作設計，建議優先。
+1. 【使用者】回答 `rules.md` 各節「待確認」共 19 項：第 1 節設置 2、第 2 節職業 2、第 3 節建築 7、第 6 節階段與終局 8。規則資料已齊備；其中第 6 節 8（翻牌時機）、第 1 節（種植園各種類張數）會直接影響狀態與 Setup，建議優先。
 2. 【先討論】確認兩項與原需求略有不同的建議：每局種子 = SplitMix64(masterSeed, gameIndex)（結果與執行緒數無關）、`seatOrder` 預設 `rotate`；確認後寫入 CLAUDE.md「架構決策」。
 3. 【先討論】隱藏資訊：VP 籌碼對手不可見，但原策略介面為 `ChooseAction(GameState, ...)`。選項：(a) 傳完整狀態，約定策略不得讀對手 VP；(b) 傳遮罩後的視角（`GameState` 副本，對手 VP 清空）；MCTS 內部模擬仍需完整狀態。涉及策略介面與 Clone 成本，確認後寫入 CLAUDE.md「架構決策」。
 4. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
@@ -21,7 +21,7 @@
 
 ## 想法
 
-- 種植園牌堆預先洗好存入狀態；MCTS 階段用 determinization 重洗未翻開牌。
+- 種植園牌堆預先洗好存入狀態；牌疊用完要洗棄牌堆，所以 GameState 需帶可複製的亂數狀態（如 64 位元計數器）讓洗牌可重現；MCTS 階段用 determinization 重洗未翻開牌。
 - Mayor 放置用「逐一放置＋正規化」避免動作空間爆炸。
 - 引擎只有單一合法動作時自動套用（設定可關）。
 - 結果檔過大時，`games` 另寫 JSONL，主檔只放 summary。
