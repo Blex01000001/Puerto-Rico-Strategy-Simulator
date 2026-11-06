@@ -140,3 +140,164 @@ public class CornShipperTests
         Assert.Throws<ArgumentException>(() => StrategyRegistry.Create("rule-based", bad, 1, 0));
     }
 }
+
+public class PrototypeStrategyTests
+{
+    private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
+
+    private static IStrategy Make(string name, ulong seed = 1) => StrategyRegistry.Create(name, NoParams, seed, 0);
+
+    private static GameAction Choose(string name, GameState s) => Make(name).ChooseAction(s, Legal(s));
+
+    /// <summary>Plays one game with the named strategy at seat <paramref name="seat"/> and random opponents; returns the end state.</summary>
+    private static GameState Play(string name, int seat, ulong seed, out int harborRound)
+    {
+        var strategies = new IStrategy[3];
+        for (int i = 0; i < 3; i++) strategies[i] = i == seat ? Make(name, seed) : new RandomStrategy(seed + (ulong)i + 1);
+        var s = Setup.NewGame(seed);
+        var legal = new List<GameAction>();
+        harborRound = 0;
+        while (!s.IsOver)
+        {
+            Rules.GetLegalActions(s, legal);
+            var a = strategies[s.Actor].ChooseAction(s, legal);
+            Assert.Contains(a, legal);
+            Rules.Apply(s, a);
+            if (harborRound == 0 && s.Owns(seat, BuildingId.Harbor)) harborRound = s.Round;
+        }
+        return s;
+    }
+
+    [Theory]
+    [InlineData("corn-to-premium")]
+    [InlineData("harbor-rush")]
+    public void Only_Legal_Actions_And_Games_Finish(string name)
+    {
+        for (int game = 0; game < 60; game++) Play(name, game % 3, (ulong)game + 7, out _);
+    }
+
+    [Fact]
+    public void Premium_Plays_Corn_First_Then_Goes_For_The_Producer_It_Already_Has()
+    {
+        var early = New();
+        Array.Clear(early.FaceUp);
+        early.FaceUp[(int)Good.Corn] = 1; early.FaceUp[(int)Good.Coffee] = 1;
+        Start(early, 0, Role.Settler);
+        Assert.Equal(A(ActionType.TakePlantation, (int)Good.Corn), Choose("corn-to-premium", early));
+
+        var mid = New();
+        mid.Round = 8;
+        Own(mid, 0, BuildingId.TobaccoStorage, 1);
+        Array.Clear(mid.FaceUp);
+        mid.FaceUp[(int)Good.Corn] = 1; mid.FaceUp[(int)Good.Coffee] = 2; mid.FaceUp[(int)Good.Tobacco] = 1;
+        Start(mid, 0, Role.Settler);
+        Assert.Equal(A(ActionType.TakePlantation, (int)Good.Tobacco), Choose("corn-to-premium", mid)); // the one it can already process
+    }
+
+    [Fact]
+    public void Premium_Chooses_Whichever_Of_Tobacco_And_Coffee_Is_Easier()
+    {
+        var s = New();
+        s.Round = 8;
+        Array.Clear(s.FaceUp);
+        s.FaceUp[(int)Good.Coffee] = 1; s.FaceUp[(int)Good.Tobacco] = 1;
+        SetTiles(s, 0, (int)Good.Coffee, 2); // coffee plantations already owned -> coffee is easier
+        Start(s, 0, Role.Settler);
+        Assert.Equal(A(ActionType.TakePlantation, (int)Good.Coffee), Choose("corn-to-premium", s));
+    }
+
+    [Fact]
+    public void Premium_Buys_The_Producer_For_Its_Target_In_The_Middle_Game()
+    {
+        var s = New();
+        s.Round = 8;
+        SetTiles(s, 0, (int)Good.Tobacco, 2);
+        s.Coins[0] = 6;
+        Start(s, 0, Role.Builder);
+        Assert.Equal(A(ActionType.Build, (int)BuildingId.TobaccoStorage), Choose("corn-to-premium", s));
+    }
+
+    [Fact]
+    public void Harbor_Rush_Takes_Quarries_Buys_Only_The_Harbor_And_Builds_When_Affordable()
+    {
+        var s = New();
+        Start(s, 0, Role.Settler);
+        Assert.Equal(ActionType.TakeQuarry, Choose("harbor-rush", s).Type); // quarries discount the Harbor
+
+        var poor = New();
+        poor.Coins[0] = 6; // Harbor costs 8 - 1 (Builder) = 7
+        Start(poor, 0, Role.Builder);
+        Assert.Equal(GameAction.Pass, Choose("harbor-rush", poor)); // Hacienda etc. are affordable but not wanted yet
+
+        var rich = New();
+        rich.Coins[0] = 7;
+        Start(rich, 0, Role.Builder);
+        Assert.Equal(A(ActionType.Build, (int)BuildingId.Harbor), Choose("harbor-rush", rich));
+    }
+
+    [Fact]
+    public void Harbor_Rush_Picks_Builder_When_It_Can_Pay_For_The_Harbor()
+    {
+        var s = New();
+        s.Coins[0] = 7;
+        Assert.Equal(A(ActionType.ChooseRole, (int)Role.Builder), Choose("harbor-rush", s));
+    }
+
+    [Fact]
+    public void Harbor_Rush_Becomes_Captain_Once_It_Has_Harbor_And_Several_Goods()
+    {
+        var s = New();
+        Own(s, 0, BuildingId.Harbor, 1);
+        SetGoods(s, 0, (int)Good.Corn, 3);
+        SetGoods(s, 0, (int)Good.Indigo, 2);
+        SetGoods(s, 0, (int)Good.Sugar, 1);
+        Assert.Equal(A(ActionType.ChooseRole, (int)Role.Captain), Choose("harbor-rush", s));
+
+        var wants = New();
+        Own(wants, 0, BuildingId.Harbor, 1);
+        wants.Coins[0] = 9;
+        Start(wants, 0, Role.Builder);
+        Assert.Equal(A(ActionType.Build, (int)BuildingId.Wharf), Choose("harbor-rush", wants));
+    }
+
+    [Fact]
+    public void Harbor_Rush_Mans_Quarries_And_Harbor_First()
+    {
+        var s = New();
+        SetTiles(s, 0, GameConstants.QuarryType, 1);
+        Own(s, 0, BuildingId.Harbor);
+        s.ShipColonists = 1; // 2 colonists
+        Start(s, 0, Role.Mayor);
+        var first = Choose("harbor-rush", s);
+        Assert.Equal(A(ActionType.PlaceColonist, GameConstants.QuarryType), first);
+        Do(s, first);
+        Assert.Equal(A(ActionType.PlaceColonist, 6 + (int)BuildingId.Harbor), Choose("harbor-rush", s));
+    }
+
+    [Fact]
+    public void Harbor_Rush_Almost_Always_Gets_The_Harbor_And_Premium_Builds_A_Producer()
+    {
+        int harbor = 0, producer = 0, n = 90;
+        for (int game = 0; game < n; game++)
+        {
+            Play("harbor-rush", game % 3, (ulong)game + 100, out int round);
+            if (round > 0) harbor++;
+            var s2 = Play("corn-to-premium", game % 3, (ulong)game + 100, out _);
+            int seat = game % 3;
+            if (s2.Owns(seat, BuildingId.TobaccoStorage) || s2.Owns(seat, BuildingId.CoffeeRoaster)) producer++;
+        }
+        Assert.True(harbor >= n * 0.9, $"Harbor in {harbor}/{n} games");
+        Assert.True(producer >= n * 0.5, $"tobacco/coffee producer in {producer}/{n} games");
+    }
+
+    [Fact]
+    public void Registry_Knows_All_Profiles()
+    {
+        foreach (var name in new[] { "corn-shipper", "corn-to-premium", "harbor-rush" })
+        {
+            Assert.True(StrategyRegistry.IsKnown(name));
+            var p = new Dictionary<string, JsonElement> { ["profile"] = JsonDocument.Parse($"\"{name}\"").RootElement.Clone() };
+            Assert.NotNull(StrategyRegistry.Create("rule-based", p, 1, 0));
+        }
+    }
+}

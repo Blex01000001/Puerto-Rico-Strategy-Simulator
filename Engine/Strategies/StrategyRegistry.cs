@@ -11,12 +11,19 @@ public static class StrategyRegistry
     {
         ["random"] = (_, seed, _) => new RandomStrategy(seed),
         ["corn-shipper"] = (p, _, _) => new RuleBased.CornShipperStrategy(p),
+        ["corn-to-premium"] = (p, _, _) => new RuleBased.CornToPremiumStrategy(p),
+        ["harbor-rush"] = (p, _, _) => new RuleBased.HarborRushStrategy(p),
         // "rule-based" selects a hand-written profile by params.profile (default corn-shipper).
         ["rule-based"] = (p, seed, seat) =>
         {
             string profile = GetString(p, "profile", "corn-shipper");
-            if (profile.Equals("corn-shipper", StringComparison.OrdinalIgnoreCase)) return new RuleBased.CornShipperStrategy(p);
-            throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper");
+            return profile.ToLowerInvariant() switch
+            {
+                "corn-shipper" => new RuleBased.CornShipperStrategy(p),
+                "corn-to-premium" => new RuleBased.CornToPremiumStrategy(p),
+                "harbor-rush" => new RuleBased.HarborRushStrategy(p),
+                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush"),
+            };
         },
         // Reserved: "mcts".
     };
