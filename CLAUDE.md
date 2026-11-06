@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO），repo 內還沒有任何程式碼。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料大致齊備（設置、職業、建築、階段細節、終局計分，另有待確認項目見 TODO）；程式碼目前只有可建置的專案骨架（Engine/Runner/Tests）。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -12,14 +12,15 @@
 |---|---|---|
 | `docs/TODO.md` | 目前狀態：待辦、已知問題、想法；每次 commit 時同步更新 | 已有 |
 | `rules.md` | 遊戲規則唯一依據 | 資料齊備，仍有待確認項目（見 TODO） |
-| `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable） | 規劃中 |
-| `Engine/Game/` | 狀態、動作、規則（GetLegalActions/Apply）、Setup、計分、靜態表 | 規劃中 |
+| `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable、TreatWarningsAsErrors） | 已有 |
+| `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
+| `Engine/Game/` | 狀態、動作、規則（GetLegalActions/Apply）、Setup、計分、靜態表 | 目前只有 `EngineInfo.cs` |
 | `Engine/Strategies/` | `IStrategy`、隨機玩家、策略註冊（預留 RuleBased/、Mcts/） | 規劃中 |
 | `Engine/Simulation/` | 設定/結果模型、單局執行器、批次模擬器、種子衍生 | 規劃中 |
 | `Engine/Events/` | 事件記錄（大量模擬用 NullSink，回放用 ListSink） | 規劃中 |
-| `Runner/` | 主控台入口：命令列、Ctrl+C、進度、寫結果檔 | 規劃中 |
+| `Runner/` | 主控台入口：命令列、Ctrl+C、進度、寫結果檔 | 佔位 `Program.cs` |
 | `Dashboard/` | Blazor Web App (Interactive Server)：設定、檢視、圖表 | 第一階段不做 |
-| `Tests/` | xUnit | 規劃中 |
+| `Tests/` | xUnit | 已有（1 個煙霧測試） |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
@@ -33,7 +34,7 @@ dotnet build -c Release
 dotnet test -c Release
 dotnet run -c Release --project Runner -- --config config.json --games 100000 --out result.json
 ```
-- 雲端容器預設沒有 dotnet：用 `apt-get update && apt-get install -y dotnet-sdk-8.0`（8.0.133 已驗證可 build/test/NuGet restore）。`builds.dotnet.microsoft.com` 被擋，`dotnet-install.sh` 不可用。
+- 雲端 session 由 SessionStart hook 自動安裝 .NET 8 並 restore（只在 `CLAUDE_CODE_REMOTE=true` 時執行；hook 需合併進預設分支後新 session 才會生效）。手動安裝：用 `apt-get update && apt-get install -y dotnet-sdk-8.0`（8.0.133 已驗證可 build/test/NuGet restore）。`builds.dotnet.microsoft.com` 被擋，`dotnet-install.sh` 不可用。
 - Runner 長時間執行定期寫中間結果、回報進度、Ctrl+C 後寫出目前結果再結束。
 
 ## 常見任務怎麼改
@@ -70,7 +71,8 @@ dotnet run -c Release --project Runner -- --config config.json --games 100000 --
 ## 容易踩的雷
 看起來像錯誤或可簡化、但其實是刻意或改了會壞的地方。修改相關檔案前先看這節。格式：位置 — 現象 — 為什麼不能動／該怎麼處理。
 
-- 環境 — 新 session 沒有 dotnet — 需先 apt 安裝（見上）；容器是暫時的。
+- 環境 — 容器是暫時的，dotnet 靠 SessionStart hook 安裝 — hook 只在合併到預設分支後才對新 session 生效，在那之前新 session 需手動 apt 安裝（見上）。
+- 專案檔 — `Directory.Build.props` 已設 net8.0／Nullable／TreatWarningsAsErrors，csproj 內不要重複設 — 警告即錯誤，新增程式碼要零警告。
 - 種植園牌堆（規劃）— 洗好後存在 GameState，抽牌是確定性的；牌疊用完會洗棄牌堆，故 GameState 需帶可複製的亂數狀態 — MCTS 會偷看牌序，之後做 MCTS 時須在策略層對未翻開的牌重洗（determinization）。
 
 ## 使用者的工作習慣
