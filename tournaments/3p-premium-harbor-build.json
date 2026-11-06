@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "name": "tournament-3p-premium-harbor-build",
+  "players": 3,
+  "games": 100000,
+  "seed": 777,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}

@@ -222,7 +222,9 @@ public class PrototypeStrategyTests
     {
         var s = New();
         Start(s, 0, Role.Settler);
-        Assert.Equal(ActionType.TakeQuarry, Choose("harbor-rush", s).Type); // quarries discount the Harbor
+        var quarries = new Dictionary<string, JsonElement> { ["quarryTarget"] = JsonDocument.Parse("3").RootElement.Clone() };
+        Assert.Equal(ActionType.TakeQuarry, StrategyRegistry.Create("harbor-rush", quarries, 1, 0).ChooseAction(s, Legal(s)).Type); // quarries discount the Harbor
+        Assert.Equal(ActionType.TakePlantation, Choose("harbor-rush", s).Type); // default: no quarries
 
         var poor = New();
         poor.Coins[0] = 6; // Harbor costs 8 - 1 (Builder) = 7
@@ -374,5 +376,33 @@ public class BuildFirstTests
                     Rules.Apply(s, a);
                 }
             }
+    }
+}
+
+public class ProspectorValueTests
+{
+    private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
+
+    [Theory]
+    [InlineData("corn-shipper")]
+    [InlineData("corn-to-premium")]
+    [InlineData("harbor-rush")]
+    [InlineData("build-first")]
+    public void Prospector_Is_Worth_Its_Coins_Not_A_Trader_Sale(string name)
+    {
+        var strategy = StrategyRegistry.Create(name, NoParams, 1, 0);
+        var options = new List<GameAction>
+        {
+            new(ActionType.ChooseRole, (int)Role.Trader),
+            new(ActionType.ChooseRole, (int)Role.Prospector),
+        };
+
+        var rich = Setup.NewGame(1, players: 4);
+        rich.Goods[0 * 5 + (int)Good.Coffee] = 2; rich.Goods[0 * 5 + (int)Good.Tobacco] = 2;
+        Assert.Equal(Role.Trader, (Role)strategy.ChooseAction(rich, options).A); // goods to sell beat one coin
+
+        var poor = Setup.NewGame(1, players: 4);
+        poor.RoleCoins[(int)Role.Prospector] = 3; // nothing to sell, coins on the card
+        Assert.Equal(Role.Prospector, (Role)strategy.ChooseAction(poor, options).A);
     }
 }
