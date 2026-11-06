@@ -4,16 +4,14 @@
 
 ## 待辦
 
-1. 【直接做】（步驟 0）讓新 session 自動有 .NET 8：SessionStart hook（`startup-hook-skill`）或環境 setup script，內容為 `apt-get install -y dotnet-sdk-8.0`。注意：setup script 修改環境設定可能需使用者核准；hook 需 commit 進 repo。驗收：新 session `dotnet --version` 可用。
-2. 【直接做】（步驟 1）建 `PuertoRico.sln`、Engine/Runner/Tests（Dashboard 先放空殼或不建）、`Directory.Build.props`、`.gitignore`；相依方向 Runner/Tests → Engine。驗收：`dotnet build`、`dotnet test` 通過。
-3. 【直接做】後續實作依序：靜態表＋GameState＋Clone → Setup → 決策流程骨架 → 各職業（Settler→Builder→Craftsman→Trader→Captain→Mayor→Prospector）→ 終局計分 → 隨機玩家＋單局執行器 → 批次模擬（Parallel.For／checkpoint／Ctrl+C／`--resume`）→ Runner CLI 與結果 JSON → 效能基準。每步驗收標準見對話規劃第八節。
+1. 【直接做】後續實作依序：靜態表＋GameState＋Clone → Setup → 決策流程骨架 → 各職業（Settler→Builder→Craftsman→Trader→Captain→Mayor→Prospector）→ 終局計分 → 隨機玩家＋單局執行器 → 批次模擬（Parallel.For／checkpoint／Ctrl+C／`--resume`）→ Runner CLI 與結果 JSON → 效能基準。每步驗收標準見對話規劃第八節。
 
 ## 已知問題／限制
 
-- repo 目前只有 README.md 與本文件、CLAUDE.md，沒有任何程式碼或測試，快速檢查（build/test）尚無法執行。
-- 雲端容器的 dotnet 為手動 apt 安裝，容器重建後消失（待辦 4）。
+- 引擎尚未實作，目前只有專案骨架與 1 個煙霧測試；沒有 lint 工具（`dotnet format --verify-no-changes` 可用）。
+- SessionStart hook 只有合併到預設分支後，新 session 才會自動套用；hook 的「dotnet 不存在時 apt 安裝」分支在已安裝的容器中無法重測。
 - `builds.dotnet.microsoft.com` 被網路代理擋住，`dotnet-install.sh` 不可用。
-- Dashboard 範本（`dotnet new blazor`）存在，但尚未實際建置驗證。
+- Dashboard 尚未建立（第一階段不做）。Dashboard 範本（`dotnet new blazor`）存在，但尚未實際建置驗證。
 - 開發分支依 session 指定為 `claude/cool-cerf-xsrphb`；你提供的 Git 規則原文寫的是 `claude/trusting-hopper-wk15uy`，我已改成本 repo 的分支，請確認。
 
 ## 想法
