@@ -4,7 +4,7 @@
 
 ## 待辦
 
-1. 【先討論】更多手寫策略原型（菸草／咖啡流、建築優先、混合）與調參方式：目前只有 `corn-shipper`（`Engine/Strategies/RuleBased/CornShipperStrategy.cs`，參數 `buildThreshold`）。建議先做 1～2 個原型，再用大量對戰比較。
+1. 【先討論】策略調參與下一批原型：現有三個手寫原型（`corn-shipper`、`corn-to-premium`、`harbor-rush`，都在 `Engine/Strategies/RuleBased/`，共用 `HeuristicStrategy` 的打分掛鉤）數值皆未調整。建議先做參數掃描（`buildThreshold`、`switchRound`、`cornTarget`、`quarryTarget`），再決定是否加新原型（建築優先、Wharf 流…）。
 2. 【先討論】MCTS 策略：模擬次數放設定 `params.simulations`；每次 rollout 用 `Clone()` ＋ `ReseedRng`；隱藏資訊不遮罩（約定不讀對手 VP）；rollout 策略可用隨機或 `corn-shipper`。
 3. 【直接做】Dashboard（Blazor Interactive Server，`Dashboard/`，只參考 Engine）：匯入 `result.json`，編輯／產生設定檔，顯示下列已定案的圖表（資料欄位見 `SimulationResult`）：
    - 策略勝率：長條圖，`summary[].winShare`，附 95% 信賴區間（用 `games` 局數算 √(p(1-p)/n)）。
@@ -29,13 +29,17 @@
 - 規則：隱藏資訊（對手 VP）只靠約定，沒有機制阻止策略讀取。
 - 續跑（`--resume`）需要 `output.perGameRecords: true`；結果檔約 430 bytes／局（10 萬局約 43 MB）。
 - 效能：4 核心約 21,000 局／秒（約 5,000 局／秒／核心，隨機玩家，一局約 500 個決策）。
-- `corn-shipper` 對兩個隨機玩家勝率約 99.6%（平均 66 分對 24 分）；三家都用 corn-shipper 時座位 1／2／3 勝率約 45%／25%／30%，所以比較策略時要用 `seatOrder: rotate`。
+- 三個手寫原型互打（30,000 局、座位輪換）：corn-shipper 勝率 33.8%（平均 35.2 分）、corn-to-premium 30.4%（36.2 分）、harbor-rush 35.7%（35.3 分），標準誤約 0.3%；分數幾乎都來自出貨籌碼（26～28 分）加建築分（7～10 分），終局幾乎全是 VP 籌碼耗盡、平均 17 局。三者對兩個隨機玩家都約 99.5%。harbor-rush 100% 蓋到港口（平均第 6 回合）；corn-to-premium 81% 蓋菸草貯存室、63% 蓋咖啡烘焙廠，但只有 30% 蓋到港口；平均只有 3 張玉米種植園（玉米總共只有 10 張）。
+- 座位輪換下仍可見座位差：座位 1／2／3 勝率約 22%／33%／45%（座位 3 玉米起手，座位 1 是起始總督）。
+- `corn-shipper` 對兩個隨機玩家勝率約 99.6%（平均 66 分對 24 分）；三家都用 corn-shipper 時座位 1／2／3 勝率約 45%／25%／30%（此處座位 1 指設定檔順序），所以比較策略時要用 `seatOrder: rotate`。
 - 隨機玩家下座位 3（玉米起手）勝率約 49%，座位 1、2 各約 24%；已驗證不是引擎不對稱（三家都改染料起手後各 33%）。
 - 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）；Dashboard 尚未建立。
 - SessionStart hook 只有合併到預設分支後，新 session 才會自動套用；hook 的「dotnet 不存在時 apt 安裝」分支在已安裝的容器中無法重測。
 - `builds.dotnet.microsoft.com` 被網路代理擋住，`dotnet-install.sh` 不可用，只能用 apt 安裝 .NET。
 
 ## 想法
+
+- 在 Runner 加參數掃描：同一個設定檔列出多組參數，一次跑完並輸出比較表。
 
 - 結果檔過大時，`games` 另寫 JSONL，主檔只放 summary。
 - Dashboard 內建單局回放檢視（Runner 的 `--replay N` 已能輸出決策記錄）。
