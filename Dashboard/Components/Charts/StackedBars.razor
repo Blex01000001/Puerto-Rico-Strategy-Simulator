@@ -1,0 +1,62 @@
+@* Horizontal stacked bars (e.g. where the points come from). Segments are sequential tints, 2px surface gaps. *@
+<svg class="chart" viewBox="0 0 @Width @Height" role="img" aria-label="@Title">
+    @for (int t = 0; t <= 4; t++)
+    {
+        double x = PlotLeft + (PlotRight - PlotLeft) * t / 4;
+        <line class="gridline" x1="@F(x)" x2="@F(x)" y1="4" y2="@F(Height - 22)" />
+        <g><text x="@F(x)" y="@F(Height - 6)" text-anchor="middle">@F(max * t / 4)</text></g>
+    }
+    @for (int i = 0; i < Rows.Count; i++)
+    {
+        var row = Rows[i];
+        double cy = 4 + RowHeight * i + RowHeight / 2;
+        double x = PlotLeft;
+        <g><text x="@F(PlotLeft - 10)" y="@F(cy + 4)" text-anchor="end" class="strong">@row.Label</text></g>
+        @for (int s = 0; s < row.Values.Count; s++)
+        {
+            double w = (PlotRight - PlotLeft) * row.Values[s] / max;
+            if (w <= 0) continue;
+            double drawW = Math.Max(0, w - 2); // 2px gap between fills
+            <rect class="mark" x="@F(x)" y="@F(cy - 10)" width="@F(drawW)" height="20" style="fill:var(--seq-@(s + 1))">
+                <title>@row.Label　@Segments[s]：@row.Values[s].ToString("0.0")</title>
+            </rect>
+            @if (drawW > 34)
+            {
+                <g><text x="@F(x + drawW / 2)" y="@F(cy + 4)" text-anchor="middle" style="fill:@(s == 0 ? "var(--text)" : "#fff")">@row.Values[s].ToString("0.0")</text></g>
+            }
+            x += w;
+        }
+        <g><text x="@F(x + 8)" y="@F(cy + 4)" class="strong">@row.Values.Sum().ToString("0.0")</text></g>
+    }
+</svg>
+<div class="legend">
+    @for (int s = 0; s < Segments.Count; s++)
+    {
+        <span><span class="sw" style="background:var(--seq-@(s + 1))"></span>@Segments[s]</span>
+    }
+</div>
+
+@code {
+    public sealed record StackRow(string Label, IReadOnlyList<double> Values);
+
+    [Parameter, EditorRequired] public IReadOnlyList<StackRow> Rows { get; set; } = Array.Empty<StackRow>();
+    [Parameter, EditorRequired] public IReadOnlyList<string> Segments { get; set; } = Array.Empty<string>();
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public double LabelWidth { get; set; } = 210;
+
+    [Parameter] public double Width { get; set; } = 760;
+    private const double RowHeight = 40;
+    private double PlotLeft => LabelWidth;
+    private double PlotRight => Width - 70;
+    private double Height => 4 + RowHeight * Rows.Count + 26;
+    private double max
+    {
+        get
+        {
+            double m = Rows.Count == 0 ? 1 : Rows.Max(r => r.Values.Sum());
+            double mag = Math.Pow(10, Math.Floor(Math.Log10(Math.Max(m, 1))));
+            return Math.Ceiling(m / mag * 1.1 * 2) / 2 * mag;
+        }
+    }
+    private static string F(double d) => d.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}
