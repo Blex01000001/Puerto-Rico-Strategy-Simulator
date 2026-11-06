@@ -91,8 +91,14 @@ public static class GameRunner
         {
             record.Players.Add(new PlayerRecord
             {
-                Seat = p.Seat, SeatId = cfg.Seats[seatToConfig[p.Seat]].Id, Vp = p.Total, Chips = p.Chips,
-                BuildingPoints = p.BuildingPoints, BonusPoints = p.BonusPoints, Tiebreak = p.Tiebreak, Rank = p.Rank,
+                Seat = p.Seat,
+                SeatId = cfg.Seats[seatToConfig[p.Seat]].Id,
+                Vp = p.Total,
+                Chips = p.Chips,
+                BuildingPoints = p.BuildingPoints,
+                BonusPoints = p.BonusPoints,
+                Tiebreak = p.Tiebreak,
+                Rank = p.Rank,
             });
         }
         finalState = state;

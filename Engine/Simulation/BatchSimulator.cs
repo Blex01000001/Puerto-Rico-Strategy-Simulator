@@ -98,7 +98,10 @@ public static class BatchSimulator
         foreach (var r in records) if (r != null) list.Add(r); // index order, independent of thread timing
         var result = new SimulationResult
         {
-            Status = status, StartedUtc = started, GamesRequested = total, Config = cfg,
+            Status = status,
+            StartedUtc = started,
+            GamesRequested = total,
+            Config = cfg,
         };
         ResultSummarizer.Fill(result, list);
         if (cfg.Output.PerGameRecords) result.Games = list;
