@@ -12,13 +12,20 @@
 
 <div class="panel">
     <div class="row">
+        <label><input type="radio" name="mode" checked="@(!sweep)" @onchange="@(() => sweep = false)" disabled="@Sim.Running" /> 一般對戰</label>
+        <label><input type="radio" name="mode" checked="@sweep" @onchange="@(() => sweep = true)" disabled="@Sim.Running" /> 參數掃描</label>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="row">
         <label>玩家數
             <select value="@players" @onchange="OnPlayers" disabled="@Sim.Running">
                 <option value="3">3 人</option>
                 <option value="4">4 人</option>
             </select>
         </label>
-        <label>局數 <input type="number" min="1" step="1000" @bind="games" disabled="@Sim.Running" /></label>
+        <label>@(sweep ? "每格點局數" : "局數") <input type="number" min="1" step="1000" @bind="games" disabled="@Sim.Running" /></label>
         <label>主種子 <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
         <label>座位順序
             <select @bind="seatOrder" disabled="@Sim.Running">
@@ -36,6 +43,10 @@
         int seat = i;
         <div class="row" style="margin-bottom:.5rem">
             <strong>座位 @(seat + 1)</strong>
+            @if (sweep)
+            {
+                <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> 掃描目標</label>
+            }
             <select @bind="strategies[seat]" disabled="@Sim.Running">
                 @foreach (var n in Choices) { <option value="@n">@n</option> }
             </select>
@@ -46,8 +57,18 @@
     <p class="note">策略：<code>random</code> 隨機；<code>corn-shipper</code> 玉米出貨；<code>corn-to-premium</code> 玉米轉菸草／咖啡；<code>harbor-rush</code> 港口流；<code>build-first</code> 建築優先。參數只吃數值（<code>名稱=數字</code>，逗號分隔）。</p>
 </div>
 
+@if (sweep)
+{
+    <div class="panel">
+        <label>掃描參數（目標座位）：每行一個參數，<code>名稱=值,值,…</code>；格點為所有參數的組合
+            <textarea rows="3" style="width:100%" spellcheck="false" @bind="sweepText" @bind:event="oninput" disabled="@Sim.Running"></textarea>
+        </label>
+        <p class="note">每個格點用同一個主種子、同樣的對手，只改目標座位的參數，格點之間可直接比較；座位的固定參數會被掃描值覆蓋。可掃的參數：<code>buildThreshold</code>（所有手寫策略）、<code>quarryTarget</code>（build-first、harbor-rush）、<code>switchRound</code>／<code>cornTarget</code>（corn-to-premium）。</p>
+    </div>
+}
+
 <div class="row">
-    <button @onclick="Start" disabled="@Sim.Running">開始模擬</button>
+    <button @onclick="Start" disabled="@Sim.Running">@(sweep ? "開始掃描" : "開始模擬")</button>
     <button class="secondary" @onclick="Sim.Cancel" disabled="@(!Sim.Running)">取消（保留已跑完的局）</button>
 </div>
 
@@ -55,7 +76,12 @@
 {
     var p = Sim.Progress;
     <div class="panel">
-        @if (p == null) { <span>啟動中…</span> }
+        @if (Sim.IsSweep)
+        {
+            <progress max="@Math.Max(1, Sim.SweepTotal)" value="@Sim.SweepDone" style="width:100%"></progress>
+            <div class="muted">格點 @Sim.SweepDone / @Sim.SweepTotal @(Sim.SweepLog == null ? "" : "　·　" + Sim.SweepLog)</div>
+        }
+        else if (p == null) { <span>啟動中…</span> }
         else
         {
             <progress max="@p.Total" value="@p.Completed" style="width:100%"></progress>
@@ -65,10 +91,15 @@
 }
 @if (Sim.Error != null) { <div class="error">@Sim.Error</div> }
 @if (error != null) { <div class="error">@error</div> }
-@if (!Sim.Running && Sim.LastOutput != null && State.Result != null)
+@if (!Sim.Running && Sim.LastOutput != null && !Sim.IsSweep && State.Result != null)
 {
     <div class="ok">完成，已存到 @Sim.LastOutput（@State.Result.Status，@State.Analysis?.GamesCompleted.ToString("N0") 局）。
         <a href="" @onclick="GoResults" @onclick:preventDefault>前往「結果」頁</a></div>
+}
+@if (!Sim.Running && Sim.LastOutput != null && Sim.IsSweep && State.Sweep != null)
+{
+    <div class="ok">掃描完成，已存到 @Sim.LastOutput（@State.Sweep.Status，@State.Sweep.Points.Count 個格點）。
+        <a href="sweep" @onclick="GoSweep" @onclick:preventDefault>前往「參數掃描」頁</a></div>
 }
 
 @code {
@@ -79,6 +110,9 @@
     private string seatOrder = "rotate";
     private string[] strategies = { "corn-shipper", "corn-to-premium", "harbor-rush", "build-first" };
     private string[] paramText = { "", "", "", "" };
+    private bool sweep;
+    private int target = 3;
+    private string sweepText = "buildThreshold=3.5,4,4.5,5";
     private string? error;
 
     protected override void OnInitialized() => Sim.Changed += OnChanged;
@@ -87,6 +121,7 @@
 
     private void OnPlayers(ChangeEventArgs e) => players = int.Parse(e.Value?.ToString() ?? "4");
     private void GoResults() => Nav.NavigateTo("");
+    private void GoSweep() => Nav.NavigateTo("sweep");
 
     private async Task Start()
     {
@@ -115,8 +150,42 @@
             SeatOrder = Enum.Parse<SeatOrderMode>(seatOrder, ignoreCase: true),
             Seats = seats,
         };
+        if (sweep)
+        {
+            target = Math.Min(target, players - 1);
+            try { cfg.Sweep = new SweepConfig { Target = seats[target].Id, GamesPerPoint = games, Parameters = ParseSweep(sweepText) }; }
+            catch (FormatException e) { error = e.Message; return; }
+            cfg.Name = "dashboard-sweep";
+            cfg.Output.PerGameRecords = false;
+            string sweepFile = $"sweep-{players}p-{seats[target].Strategy}-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+            await Sim.StartSweepAsync(cfg, sweepFile);
+            return;
+        }
         string file = $"sim-{players}p-{string.Join("_", seats.Select(s => s.Strategy).Distinct())}-{DateTime.Now:yyyyMMdd-HHmmss}.json";
         await Sim.StartAsync(cfg, file);
+    }
+
+    private static Dictionary<string, List<double>> ParseSweep(string text)
+    {
+        var result = new Dictionary<string, List<double>>();
+        foreach (var line in (text ?? "").Split(new[] { '\n', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var kv = line.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (kv.Length != 2 || kv[0].Length == 0) throw new FormatException($"掃描參數「{line}」格式應為 名稱=值,值");
+            var values = new List<double>();
+            foreach (var v in kv[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (!double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d))
+                    throw new FormatException($"掃描參數「{kv[0]}」的值「{v}」不是數字");
+                values.Add(d);
+            }
+            if (values.Count == 0) throw new FormatException($"掃描參數「{kv[0]}」沒有值");
+            result[kv[0]] = values;
+        }
+        if (result.Count == 0) throw new FormatException("請至少填一個掃描參數");
+        const int maxPoints = 500;
+        if (result.Values.Aggregate(1L, (acc, v) => acc * v.Count) > maxPoints) throw new FormatException($"格點超過 {maxPoints} 個，請縮小範圍");
+        return result;
     }
 
     private static Dictionary<string, JsonElement> ParseParams(string text)

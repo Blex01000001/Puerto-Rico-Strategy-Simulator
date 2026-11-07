@@ -4,9 +4,9 @@
 
 ## 待辦
 
-1. 【先討論】策略調參與下一批原型：四個手寫原型（`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，在 `Engine/Strategies/RuleBased/`，共用 `HeuristicStrategy`）已互打並分析（`docs/strategy-analysis.md`）。建議下一輪：用最強的 `build-first` 當固定對手再調其他三個（交替調參）、3 人局另外調一輪、重做「先有出貨量再蓋港口」的港口流與改進菸草／咖啡變現路徑。
+1. 【先討論】下一批原型與調參：4 人局已做兩輪交替調參（`sweeps/round2/`，`docs/strategy-analysis.md` 第 4 節），最佳值收斂。接著可做：3 人局另外調一輪（`sweeps/` 目前只有 4 人局）、改進菸草／咖啡變現路徑、重做「先有出貨量再蓋港口」的港口流（港口流目前最弱，14%）。
 2. 【先討論】MCTS 策略：模擬次數放設定 `params.simulations`；每次 rollout 用 `Clone()` ＋ `ReseedRng`；隱藏資訊不遮罩（約定不讀對手 VP）；rollout 策略可用隨機或手寫策略。
-3. 【直接做】Dashboard 擴充：「模擬」頁加參數掃描與續跑、兩個結果檔並排比較（A/B）、讀多個結果檔的「對戰總覽」頁（像 `docs/strategy-analysis.md` 的組合表）、單局回放檢視（讀 `--replay` 輸出）。
+3. 【直接做】Dashboard 擴充：「模擬」頁加續跑、讀多個結果檔的「對戰總覽」頁（像 `docs/strategy-analysis.md` 的組合表）、單局回放檢視（讀 `--replay` 輸出）。
 4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
 
 ## 已知問題／限制
@@ -21,10 +21,10 @@
 - 結果記錄不含「各職業被選次數」（Prospector 偏好等要另外統計）與「每個建築是否有派殖民者」。
 - 規則：隱藏資訊（對手 VP）只靠約定，沒有機制阻止策略讀取。
 - 續跑（`--resume`）需要 `output.perGameRecords: true`；結果檔約 700～900 bytes／局（10 萬局：3 人局約 70 MB、4 人局約 89 MB）；舊版本（沒有建築清單）的結果檔仍可在 Dashboard 檢視，但不能 `--resume`。
-- 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人結果差很多（建築優先流 4 人局 46%、3 人局只有 17～42%），而參數只用 4 人局調。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
+- 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人結果差很多（建築優先流 4 人局 36%、3 人局只有 21～42%），而參數只用 4 人局調。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
 - 引擎玩家數 3 或 4（`players`）；5 人局與擴充不支援。4 人局職業 Prospector 在手寫策略裡的估值很簡單（約等於 1 枚金幣）。
 - 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）。Dashboard 沒有自動化測試（Tests 只參考 Engine）；以 Playwright 截圖驗證過三個頁面（淺色／深色）。分析邏輯在 `Engine/Simulation/ResultAnalysis.cs`，有單元測試。
-- Dashboard「模擬」頁只能跑一般對戰（不含參數掃描／續跑），一個瀏覽器分頁同時一個任務；模擬與 Dashboard 同一程序，跑大量局數時建議仍用 Runner。
+- Dashboard「模擬」頁可跑一般對戰與參數掃描，但沒有續跑；比較頁只比一般結果檔的勝率與平均分（不比建築等細項），顯著性假設兩份獨立，一個瀏覽器分頁同時一個任務；模擬與 Dashboard 同一程序，跑大量局數時建議仍用 Runner。
 - Dashboard 會把整份結果檔讀進記憶體（10 萬局約 50 MB 沒問題，百萬局以上要改成只讀摘要），並可讀取伺服器上任意路徑：只在本機執行（預設綁 localhost:5080），不要對外開放。
 - 效能：4 核心約 21,000 局／秒（約 5,000 局／秒／核心，隨機玩家，一局約 500 個決策）。
 - 隨機玩家下座位 3（玉米起手）勝率約 49%，座位 1、2 各約 24%；已驗證不是引擎不對稱（三家都改染料起手後各 33%）。

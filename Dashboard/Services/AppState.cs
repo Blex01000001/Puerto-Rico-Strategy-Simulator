@@ -70,6 +70,17 @@ public sealed class AppState
         Changed?.Invoke();
     }
 
+    /// <summary>Read and analyse a result file without touching the shown result (used by the compare page).</summary>
+    public static async Task<(SimulationResult Result, ResultAnalysis Analysis)> ReadResultAsync(string path)
+    {
+        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{path}");
+        await using var fs = File.OpenRead(path);
+        var result = await JsonSerializer.DeserializeAsync<SimulationResult>(fs, SimulationConfig.JsonOptions)
+                     ?? throw new InvalidDataException("空的結果檔");
+        if (result.Config.Seats.Count == 0) throw new InvalidDataException($"{Path.GetFileName(path)} 不是一般模擬結果檔（掃描檔請到「參數掃描」頁）");
+        return (result, await Task.Run(() => ResultAnalysis.From(result)));
+    }
+
     private void Fail(string message)
     {
         Error = message; Loading = false;
