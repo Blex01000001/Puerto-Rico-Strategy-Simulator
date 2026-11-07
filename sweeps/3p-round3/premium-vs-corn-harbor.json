@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep3r-premium-vs-corn-harbor",
+  "players": 3,
+  "games": 20000,
+  "seed": 505,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "premium",
+    "gamesPerPoint": 20000,
+    "parameters": {
+      "traderWeight": [
+        1,
+        1.5,
+        2
+      ]
+    }
+  }
+}

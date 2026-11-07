@@ -186,7 +186,7 @@ public class PrototypeStrategyTests
         Assert.Equal(A(ActionType.TakePlantation, (int)Good.Corn), Choose("corn-to-premium", early));
 
         var mid = New();
-        mid.Round = 8;
+        mid.Round = 10; // past the 3-player switchRound (9)
         Own(mid, 0, BuildingId.TobaccoStorage, 1);
         Array.Clear(mid.FaceUp);
         mid.FaceUp[(int)Good.Corn] = 1; mid.FaceUp[(int)Good.Coffee] = 2; mid.FaceUp[(int)Good.Tobacco] = 1;
@@ -198,7 +198,7 @@ public class PrototypeStrategyTests
     public void Premium_Chooses_Whichever_Of_Tobacco_And_Coffee_Is_Easier()
     {
         var s = New();
-        s.Round = 8;
+        s.Round = 10;
         Array.Clear(s.FaceUp);
         s.FaceUp[(int)Good.Coffee] = 1; s.FaceUp[(int)Good.Tobacco] = 1;
         SetTiles(s, 0, (int)Good.Coffee, 2); // coffee plantations already owned -> coffee is easier
@@ -210,7 +210,7 @@ public class PrototypeStrategyTests
     public void Premium_Buys_The_Producer_For_Its_Target_In_The_Middle_Game()
     {
         var s = New();
-        s.Round = 8;
+        s.Round = 10;
         SetTiles(s, 0, (int)Good.Tobacco, 2);
         s.Coins[0] = 6;
         Start(s, 0, Role.Builder);
@@ -224,6 +224,8 @@ public class PrototypeStrategyTests
         Start(s, 0, Role.Settler);
         var quarries = new Dictionary<string, JsonElement> { ["quarryTarget"] = JsonDocument.Parse("3").RootElement.Clone() };
         Assert.Equal(ActionType.TakeQuarry, StrategyRegistry.Create("harbor-rush", quarries, 1, 0).ChooseAction(s, Legal(s)).Type); // quarries discount the Harbor
+        var none = new Dictionary<string, JsonElement> { ["quarryTarget"] = JsonDocument.Parse("0").RootElement.Clone() };
+        Assert.Equal(ActionType.TakePlantation, StrategyRegistry.Create("harbor-rush", none, 1, 0).ChooseAction(s, Legal(s)).Type); // quarryTarget 0: none
         Assert.Equal(ActionType.TakePlantation, Choose("harbor-rush", s).Type); // default: no quarries
 
         var poor = New();

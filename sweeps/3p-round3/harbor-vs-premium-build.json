@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep3r-harbor-vs-premium-build",
+  "players": 3,
+  "games": 20000,
+  "seed": 505,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "harbor",
+    "gamesPerPoint": 20000,
+    "parameters": {
+      "harborReadyTiles": [
+        0,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "harborReadyRound": [
+        8
+      ]
+    }
+  }
+}

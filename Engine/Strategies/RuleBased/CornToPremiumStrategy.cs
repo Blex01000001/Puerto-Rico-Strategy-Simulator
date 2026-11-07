@@ -8,21 +8,25 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// coins are scarce). From the middle game it moves to tobacco or coffee, whichever it can get at more easily
 /// (it already owns the producer building, or has plantations / sees them face up), builds that producer, mans it
 /// and sells the goods to the trading house for coins. It keeps shipping corn for VP throughout.
-/// Parameters: <c>switchRound</c> (default 7) and <c>cornTarget</c> (default 4 corn plantations; tuned by 4-player sweeps, see sweeps/round2) decide when the
-/// middle game starts (whichever comes first); <c>buildThreshold</c> (default 4.0; 5.0 lost about 10 points of win share).
+/// Parameters: <c>switchRound</c> (default 7 for 4 players, 9 for 3) and <c>cornTarget</c> (default 4 corn plantations for 4 players, 5 for 3; tuned by sweeps, see sweeps/round2 and sweeps/3p) decide when the
+/// middle game starts (whichever comes first); <c>traderWeight</c> (default 1.5) scales the Trader role value in the middle game; <c>buildThreshold</c> (default 4.0 for 4 players, where 5.0 lost about 10 points of win share, and 5.0 for 3).
 /// </summary>
 public sealed class CornToPremiumStrategy : HeuristicStrategy
 {
     private const int Tobacco = (int)Good.Tobacco;
     private const int Coffee = (int)Good.Coffee;
 
-    private readonly int _switchRound;
-    private readonly int _cornTarget;
+    private int _switchRound;
+    private int _cornTarget;
+    private double _traderWeight;
 
-    public CornToPremiumStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0)
+    public CornToPremiumStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0, 5.0) { }
+
+    protected override void Configure(int players)
     {
-        _switchRound = (int)StrategyRegistry.GetDouble(parameters, "switchRound", 7);
-        _cornTarget = (int)StrategyRegistry.GetDouble(parameters, "cornTarget", 4);
+        _switchRound = (int)Param("switchRound", players, 9, 7);
+        _cornTarget = (int)Param("cornTarget", players, 5, 4);
+        _traderWeight = Param("traderWeight", players, 1.5, 1.5);
     }
 
     private bool MidGame(GameState s, int me) => s.Round >= _switchRound || CornTiles(s, me) >= _cornTarget;
@@ -98,7 +102,7 @@ public sealed class CornToPremiumStrategy : HeuristicStrategy
     protected override double SellValue(GameState s, int me, int good)
     {
         if (good == Corn) return 0.5;
-        return IsPremium(good) ? 4 + GameConstants.BasePrice[good] : 2 + GameConstants.BasePrice[good];
+        return (IsPremium(good) ? 4 + GameConstants.BasePrice[good] : 2 + GameConstants.BasePrice[good]);
     }
 
     protected override double TraderRoleValue(GameState s, int me)
@@ -107,7 +111,7 @@ public sealed class CornToPremiumStrategy : HeuristicStrategy
         double v = 0.3;
         for (int g = 1; g < G; g++)
             if (s.Goods[me * G + g] > 0) v += 0.8 * (GameConstants.BasePrice[g] + 1);
-        return v;
+        return v * _traderWeight;
     }
 
     protected override double KeepValue(GameState s, int me, int good, int count)

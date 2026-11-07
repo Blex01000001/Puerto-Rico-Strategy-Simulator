@@ -39,15 +39,40 @@ public abstract class HeuristicStrategy : IStrategy
     }
 
     /// <summary>Minimum building value worth paying for (config param <c>buildThreshold</c>).</summary>
-    protected double BuildThreshold { get; }
+    protected double BuildThreshold { get; private set; }
 
-    protected HeuristicStrategy(IReadOnlyDictionary<string, JsonElement> parameters, double defaultBuildThreshold = 5.0)
+    private readonly IReadOnlyDictionary<string, JsonElement> _parameters;
+    private readonly double _defaultThreshold4;
+    private readonly double _defaultThreshold3;
+    private int _players;
+
+    /// <param name="defaultBuildThreshold">Default <c>buildThreshold</c> for 4 players (and for 3 when no 3-player value is given).</param>
+    /// <param name="defaultBuildThreshold3p">Default <c>buildThreshold</c> for 3 players, when it differs.</param>
+    protected HeuristicStrategy(IReadOnlyDictionary<string, JsonElement> parameters, double defaultBuildThreshold = 5.0, double? defaultBuildThreshold3p = null)
     {
-        BuildThreshold = StrategyRegistry.GetDouble(parameters, "buildThreshold", defaultBuildThreshold);
+        _parameters = parameters;
+        _defaultThreshold4 = defaultBuildThreshold;
+        _defaultThreshold3 = defaultBuildThreshold3p ?? defaultBuildThreshold;
     }
+
+    /// <summary>
+    /// Called once, at the first decision, when the player count is known. Subclasses read their parameters here
+    /// with <see cref="Param"/> so defaults can differ between 3 and 4 players; parameters written in the config always win.
+    /// </summary>
+    protected virtual void Configure(int players) { }
+
+    /// <summary>Config parameter <paramref name="key"/>, else the default for this player count.</summary>
+    protected double Param(string key, int players, double default3p, double default4p) =>
+        StrategyRegistry.GetDouble(_parameters, key, players == 3 ? default3p : default4p);
 
     public GameAction ChooseAction(GameState s, IReadOnlyList<GameAction> legalActions)
     {
+        if (_players == 0)
+        {
+            _players = s.PlayerCount;
+            BuildThreshold = StrategyRegistry.GetDouble(_parameters, "buildThreshold", _players == 3 ? _defaultThreshold3 : _defaultThreshold4);
+            Configure(_players);
+        }
         if (legalActions.Count == 1) return legalActions[0];
         if (s.Phase == Phase.Mayor) return ChooseMayorPlacement(s);
 

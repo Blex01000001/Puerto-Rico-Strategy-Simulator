@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-premium-sell",
+  "players": 4,
+  "games": 40000,
+  "seed": 404,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "premium",
+    "gamesPerPoint": 40000,
+    "parameters": {
+      "premiumSellBonus": [
+        -4,
+        -2,
+        0,
+        2,
+        4
+      ],
+      "traderWeight": [
+        0.5,
+        1,
+        1.5
+      ]
+    }
+  }
+}
