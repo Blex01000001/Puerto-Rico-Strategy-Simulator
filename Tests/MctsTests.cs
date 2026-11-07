@@ -36,6 +36,36 @@ public class MctsTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void Truncated_and_full_rollouts_finish_games(int rolloutRounds)
+    {
+        var cfg = Config(3, sims: 5);
+        cfg.Seats[0].Params["rolloutRounds"] = Num(rolloutRounds);
+        var rec = GameRunner.Play(cfg, 0, null, out var final);
+        Assert.True(final.IsOver);
+        Assert.NotEmpty(rec.Winners);
+    }
+
+    [Fact]
+    public void Guided_random_rollout_only_returns_legal_actions()
+    {
+        var cfg = Config(3, sims: 4, rollout: "guided-random");
+        var rec = GameRunner.Play(cfg, 2, null, out var final);
+        Assert.True(final.IsOver);
+        var strategy = StrategyRegistry.Create("guided-random", new Dictionary<string, JsonElement>(), 7, 0);
+        var s = Setup.NewGame(3, 150, 3);
+        var legal = new List<GameAction>();
+        for (int i = 0; i < 300 && !s.IsOver; i++)
+        {
+            Rules.GetLegalActions(s, legal);
+            var a = strategy.ChooseAction(s, legal);
+            Assert.Contains(a, legal);
+            Rules.Apply(s, a);
+        }
+    }
+
     [Fact]
     public void Same_config_and_seed_reproduce_the_game()
     {

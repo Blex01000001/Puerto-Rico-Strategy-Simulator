@@ -11,7 +11,8 @@ namespace PuertoRico.Engine.Strategies.Mcts;
 /// finish the game with the rollout policy (every seat plays <c>rolloutStrategy</c>), back up the final result
 /// for every seat. Only the simulation count limits the work, never time, so results are reproducible.
 /// Parameters: <c>simulations</c> (default 200 per decision), <c>exploration</c> (UCT constant, default 0.7, rewards are in [0,1]),
-/// <c>rolloutStrategy</c> (any registered strategy name except mcts, default <c>random</c>: with 300 simulations random rollouts won 90% against three hand-written strategies, build-first rollouts only 57%, see docs/strategy-analysis.md), <c>rolloutMaxDecisions</c> (default 3000).
+/// <c>rolloutStrategy</c> (any registered strategy name except mcts, default <c>random</c>: with 300 simulations random rollouts won 90% against three hand-written strategies, build-first rollouts only 57%, see docs/strategy-analysis.md), <c>rolloutMaxDecisions</c> (default 3000), <c>rolloutRounds</c> (default 8; 0 = play to the end; N = stop N rounds after the leaf and
+/// rank the players by their current points: as strong as full rollouts at about half the cost, see docs/strategy-analysis.md).
 /// The tree search sees the full state (opponents' VP chips included) as the architecture notes allow for MCTS.
 /// </summary>
 public sealed class MctsStrategy : IStrategy
@@ -23,6 +24,7 @@ public sealed class MctsStrategy : IStrategy
     private readonly double _exploration;
     private readonly string _rolloutName;
     private readonly int _rolloutMaxDecisions;
+    private readonly int _rolloutRounds;
     private ulong _rng;
     private IStrategy[]? _rollout;
     private readonly List<GameAction> _legal = new(32);
@@ -41,6 +43,7 @@ public sealed class MctsStrategy : IStrategy
         _exploration = StrategyRegistry.GetDouble(parameters, "exploration", 0.7);
         _rolloutName = StrategyRegistry.GetString(parameters, "rolloutStrategy", "random");
         _rolloutMaxDecisions = Math.Max(1, (int)StrategyRegistry.GetDouble(parameters, "rolloutMaxDecisions", 3000));
+        _rolloutRounds = Math.Max(0, (int)StrategyRegistry.GetDouble(parameters, "rolloutRounds", 8));
         if (!StrategyRegistry.IsKnown(_rolloutName) || _rolloutName.Equals("mcts", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException($"Unknown or recursive rolloutStrategy '{_rolloutName}'.");
         _rng = seed;
@@ -128,7 +131,8 @@ public sealed class MctsStrategy : IStrategy
         // rollout
         var buf = new List<GameAction>(32);
         int decisions = 0;
-        while (!s.IsOver)
+        int stopRound = _rolloutRounds > 0 ? s.Round + _rolloutRounds : int.MaxValue;
+        while (!s.IsOver && s.Round < stopRound)
         {
             Rules.GetLegalActions(s, buf);
             var action = buf.Count == 1 ? buf[0] : _rollout![s.Actor].ChooseAction(s, buf);

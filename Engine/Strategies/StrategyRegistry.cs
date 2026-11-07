@@ -27,6 +27,7 @@ public static class StrategyRegistry
                 _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first"),
             };
         },
+        ["guided-random"] = (_, seed, _) => new GuidedRandomStrategy(seed),
         ["mcts"] = (p, seed, _) => new Mcts.MctsStrategy(p, seed),
     };
 
