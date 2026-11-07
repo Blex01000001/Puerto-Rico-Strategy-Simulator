@@ -90,7 +90,8 @@ public sealed class AppState
                      ?? throw new InvalidDataException("空的結果檔");
         if (result.Config.Seats.Count == 0 || result.Summary.Count == 0)
             throw new InvalidDataException($"{Path.GetFileName(path)} 不是一般模擬結果檔");
-        return TournamentOverview.FromResult(Path.GetFileNameWithoutExtension(path), result);
+        var analysis = result.Games.Count > 0 ? await Task.Run(() => ResultAnalysis.From(result)) : null;
+        return TournamentOverview.FromResult(Path.GetFileNameWithoutExtension(path), result, analysis);
     }
 
     private void Fail(string message)

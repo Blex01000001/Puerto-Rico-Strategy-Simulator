@@ -41,3 +41,47 @@ public class TournamentOverviewTests
         Assert.Equal(2000, r.Games);
     }
 }
+
+public class TournamentOverviewExtraTests
+{
+    private static OverviewTable Table(int players, string[] names, double[][] pair, params double[] wins) => new()
+    {
+        Name = "t", Players = players, Games = 1000, PairNames = names.ToList(), Pairwise = pair.Select(r => r.ToList()).ToList(),
+        Seats = names.Select((n, i) => new SeatSummary { SeatId = n, Strategy = n, Games = 1000, WinShare = wins[i], AvgScore = 30 }).ToList(),
+    };
+
+    [Fact]
+    public void Interval_shrinks_with_more_tables()
+    {
+        var one = TournamentOverview.Summarize(new[] { Table(3, new[] { "a", "b", "c" }, new double[0][], 0.5, 0.3, 0.2) }).Single(r => r.Strategy == "a");
+        var three = TournamentOverview.Summarize(Enumerable.Repeat(Table(3, new[] { "a", "b", "c" }, new double[0][], 0.5, 0.3, 0.2), 3)).Single(r => r.Strategy == "a");
+        Assert.True(one.AvgWinShareCi95 > 0);
+        Assert.Equal(one.AvgWinShareCi95 / Math.Sqrt(3), three.AvgWinShareCi95, 9);
+    }
+
+    [Fact]
+    public void Pairwise_averages_over_tables_with_both_strategies()
+    {
+        double n = double.NaN;
+        var t1 = Table(3, new[] { "a", "b", "c" }, new[] { new[] { n, 0.7, 0.6 }, new[] { 0.3, n, 0.5 }, new[] { 0.4, 0.5, n } }, 0.4, 0.3, 0.3);
+        var t2 = Table(3, new[] { "a", "b", "d" }, new[] { new[] { n, 0.5, 0.8 }, new[] { 0.5, n, 0.4 }, new[] { 0.2, 0.6, n } }, 0.4, 0.3, 0.3);
+        var rows = TournamentOverview.Pairwise(new[] { t1, t2 });
+        var ab = rows.Single(r => r.A == "a" && r.B == "b");
+        Assert.Equal(2, ab.Tables);
+        Assert.Equal(0.6, ab.AAboveB, 9);
+        Assert.Equal(1, rows.Single(r => r.A == "a" && r.B == "c").Tables);
+        Assert.Equal(0.5, rows.Single(r => r.A == "b" && r.B == "c").AAboveB, 9);
+    }
+
+    [Fact]
+    public void Same_strategy_pairs_and_tables_without_records_are_skipped()
+    {
+        double n = double.NaN;
+        var same = Table(3, new[] { "a", "a", "b" }, new[] { new[] { n, 0.5, 0.6 }, new[] { 0.5, n, 0.6 }, new[] { 0.4, 0.4, n } }, 0.4, 0.3, 0.3);
+        var none = Table(3, new[] { "a", "b", "c" }, new double[0][], 0.4, 0.3, 0.3);
+        none.PairNames.Clear();
+        var rows = TournamentOverview.Pairwise(new[] { same, none });
+        Assert.DoesNotContain(rows, r => r.A == r.B);
+        Assert.Single(rows.Where(r => r.A == "a" && r.B == "b"));
+    }
+}

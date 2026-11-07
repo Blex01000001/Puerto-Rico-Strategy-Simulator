@@ -34,18 +34,18 @@
         <h2>@players 人局（@tables.Count(t => t.Players == players) 張桌子）</h2>
         <figure class="chartbox">
             <BarChart Title="@($"{players} 人局平均勝率")" LabelWidth="220" Format="@(v => v.ToString("P1"))"
-                      Items="@(group.Select((r, i) => new BarChart.BarItem(Palette.DisplayName(r.Strategy), r.AvgWinShare, 0, Palette.Color(r.Strategy, i),
-                           $"{Palette.DisplayName(r.Strategy)}　平均勝率 {r.AvgWinShare:P1}（{r.Tables} 桌，範圍 {r.MinWinShare:P1}～{r.MaxWinShare:P1}），均分基準 {1.0 / players:P1}")).ToList())" />
+                      Items="@(group.Select((r, i) => new BarChart.BarItem(Palette.DisplayName(r.Strategy), r.AvgWinShare, r.AvgWinShareCi95, Palette.Color(r.Strategy, i),
+                           $"{Palette.DisplayName(r.Strategy)}　平均勝率 {r.AvgWinShare:P1} ± {r.AvgWinShareCi95:P1}（{r.Tables} 桌，範圍 {r.MinWinShare:P1}～{r.MaxWinShare:P1}），均分基準 {1.0 / players:P1}")).ToList())" />
         </figure>
         <div class="tablewrap">
             <table class="data">
-                <thead><tr><th>策略</th><th>桌數</th><th>局數</th><th>平均勝率</th><th>優勢</th><th>最低～最高</th><th>平均分</th></tr></thead>
+                <thead><tr><th>策略</th><th>桌數</th><th>局數</th><th>平均勝率</th><th>±95%</th><th>優勢</th><th>最低～最高</th><th>平均分</th></tr></thead>
                 <tbody>
                 @foreach (var r in group)
                 {
                     <tr>
                         <td>@Palette.DisplayName(r.Strategy)</td><td>@r.Tables</td><td>@r.Games.ToString("N0")</td>
-                        <td>@r.AvgWinShare.ToString("P1")</td>
+                        <td>@r.AvgWinShare.ToString("P1")</td><td>@r.AvgWinShareCi95.ToString("P1")</td>
                         <td>@((r.Edge >= 0 ? "+" : "−") + Math.Abs(r.Edge * 100).ToString("0.0")) pp</td>
                         <td>@r.MinWinShare.ToString("P1")～@r.MaxWinShare.ToString("P1")</td>
                         <td>@r.AvgScore.ToString("0.0")</td>
@@ -54,6 +54,35 @@
                 </tbody>
             </table>
         </div>
+    }
+
+    @if (pairs.Count > 0)
+    {
+        <h2>兩兩對戰矩陣</h2>
+        <p class="note">格子 = 列策略的名次高於欄策略的局數比例（平手不算），在兩者同桌的所有桌子上取平均；需要結果檔含逐局記錄。顏色越深代表列越占優勢。</p>
+        foreach (int players in pairs.Select(p => p.Players).Distinct().OrderBy(p => p))
+        {
+            var names = pairs.Where(p => p.Players == players).SelectMany(p => new[] { p.A, p.B }).Distinct().OrderBy(n => n, StringComparer.Ordinal).ToList();
+            <h3>@players 人局</h3>
+            <div class="tablewrap">
+                <table class="data heat">
+                    <thead><tr><th>列 ＼ 欄</th>@foreach (var c in names) { <th>@Palette.DisplayName(c)</th> }</tr></thead>
+                    <tbody>
+                    @foreach (var rname in names)
+                    {
+                        <tr>
+                            <td>@Palette.DisplayName(rname)</td>
+                            @foreach (var c in names)
+                            {
+                                var cell = rname == c ? null : Lookup(players, rname, c);
+                                <td class="cell" style="@(cell == null ? "" : HeatStyle(cell.Value))">@(rname == c ? "—" : cell == null ? "（沒同桌）" : cell.Value.ToString("P0"))</td>
+                            }
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
     }
 
     <h2>各桌明細</h2>
@@ -81,6 +110,17 @@
     private readonly List<string> skipped = new();
     private bool loading;
     private int done;
+    private List<OverviewPairRow> pairs = new();
+
+    /// <summary>Share of games where <paramref name="a"/> ranked above <paramref name="b"/>; stored once per ordered pair (A &lt; B), the reverse is the complement.</summary>
+    private double? Lookup(int players, string a, string b)
+    {
+        var p = pairs.FirstOrDefault(x => x.Players == players && x.A == a && x.B == b);
+        return p != null ? p.AAboveB : pairs.FirstOrDefault(x => x.Players == players && x.A == b && x.B == a) is { } q ? 1 - q.AAboveB : null;
+    }
+
+    private static string HeatStyle(double v) =>
+        FormattableString.Invariant($"background:color-mix(in srgb, var(--series-1) {Math.Clamp(Math.Abs(v - 0.5) * 2, 0, 1) * 70:0}%, var(--neutral))");
 
     protected override void OnInitialized()
     {
@@ -110,6 +150,7 @@
             catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { skipped.Add($"{Path.GetFileName(f)}：{e.Message}"); }
             done++; StateHasChanged();
         }
+        pairs = TournamentOverview.Pairwise(tables);
         loading = false;
     }
 }
