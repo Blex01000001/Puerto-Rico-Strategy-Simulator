@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep2-4p-corn",
+  "players": 4,
+  "games": 40000,
+  "seed": 202,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "corn",
+    "gamesPerPoint": 40000,
+    "parameters": {
+      "buildThreshold": [
+        3,
+        3.5,
+        4,
+        4.5,
+        5,
+        5.5,
+        6
+      ]
+    }
+  }
+}

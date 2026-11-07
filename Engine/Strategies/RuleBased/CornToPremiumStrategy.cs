@@ -8,8 +8,8 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// coins are scarce). From the middle game it moves to tobacco or coffee, whichever it can get at more easily
 /// (it already owns the producer building, or has plantations / sees them face up), builds that producer, mans it
 /// and sells the goods to the trading house for coins. It keeps shipping corn for VP throughout.
-/// Parameters: <c>switchRound</c> (default 7, tuned by a 4-player sweep) and <c>cornTarget</c> (default 3 corn plantations) decide when the
-/// middle game starts (whichever comes first); <c>buildThreshold</c> as for all heuristic strategies.
+/// Parameters: <c>switchRound</c> (default 7) and <c>cornTarget</c> (default 4 corn plantations; tuned by 4-player sweeps, see sweeps/round2) decide when the
+/// middle game starts (whichever comes first); <c>buildThreshold</c> (default 4.0; 5.0 lost about 10 points of win share).
 /// </summary>
 public sealed class CornToPremiumStrategy : HeuristicStrategy
 {
@@ -19,10 +19,10 @@ public sealed class CornToPremiumStrategy : HeuristicStrategy
     private readonly int _switchRound;
     private readonly int _cornTarget;
 
-    public CornToPremiumStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters)
+    public CornToPremiumStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0)
     {
         _switchRound = (int)StrategyRegistry.GetDouble(parameters, "switchRound", 7);
-        _cornTarget = (int)StrategyRegistry.GetDouble(parameters, "cornTarget", 3);
+        _cornTarget = (int)StrategyRegistry.GetDouble(parameters, "cornTarget", 4);
     }
 
     private bool MidGame(GameState s, int me) => s.Round >= _switchRound || CornTiles(s, me) >= _cornTarget;
