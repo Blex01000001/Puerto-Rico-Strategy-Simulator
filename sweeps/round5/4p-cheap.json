@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep7-4p-cheap",
+  "players": 4,
+  "games": 30000,
+  "seed": 7070,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "cheap",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "cheap",
+    "gamesPerPoint": 30000,
+    "parameters": {
+      "buildThreshold": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "tileCap": [
+        3,
+        4,
+        6,
+        8
+      ],
+      "smallValue": [
+        6,
+        8
+      ]
+    }
+  }
+}

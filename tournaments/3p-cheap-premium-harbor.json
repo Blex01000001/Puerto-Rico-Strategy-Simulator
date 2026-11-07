@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-cheap-premium-harbor",
+  "players": 3,
+  "games": 100000,
+  "seed": 777,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "cheap",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": true
+  }
+}

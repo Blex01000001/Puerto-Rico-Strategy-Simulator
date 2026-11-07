@@ -171,6 +171,7 @@ public class PrototypeStrategyTests
     [Theory]
     [InlineData("corn-to-premium")]
     [InlineData("harbor-rush")]
+    [InlineData("cheap-engine")]
     public void Only_Legal_Actions_And_Games_Finish(string name)
     {
         for (int game = 0; game < 60; game++) Play(name, game % 3, (ulong)game + 7, out _);

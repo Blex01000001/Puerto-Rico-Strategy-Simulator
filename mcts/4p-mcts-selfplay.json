@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-mcts-selfplay",
+  "players": 4,
+  "games": 200,
+  "seed": 8282,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "mcts1",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "mcts2",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "mcts3",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "mcts4",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    }
+  ],
+  "output": {
+    "perGameRecords": true
+  }
+}

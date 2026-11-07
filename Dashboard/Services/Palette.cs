@@ -11,6 +11,7 @@ public static class Palette
         ["build-first"] = 4,      // yellow
         ["random"] = 5,           // magenta
         ["mcts"] = 6,             // green
+        ["cheap-engine"] = 7,     // violet
     };
 
     private static readonly Dictionary<string, string> Names = new(StringComparer.OrdinalIgnoreCase)
@@ -21,6 +22,7 @@ public static class Palette
         ["build-first"] = "建築優先流",
         ["random"] = "隨機",
         ["mcts"] = "MCTS 搜尋",
+        ["cheap-engine"] = "便宜引擎流",
     };
 
     /// <summary>CSS variable for the series colour (1..8); unknown strategies take the remaining slots by position.</summary>

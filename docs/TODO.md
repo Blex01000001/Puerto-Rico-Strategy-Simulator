@@ -4,10 +4,11 @@
 
 ## 待辦
 
-1. 【先討論】手寫策略下一步：premium 在 4 人局被「先擴張的港口流」壓到 19%（搶同一批種植園），要找抵抗種植園競爭的做法；把 MCTS 找到的行為（開局、建築順序）寫成新的手寫策略；調參要持續交替（改強一個流派會改變別人的最佳值）。
-2. 【先討論】MCTS 擴充：更大的模擬次數、MCTS 對 MCTS 與自我對戰、記錄 MCTS 選了哪些開局／建築（用 `--replay`／回放頁）；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
-3. 【直接做】Dashboard 擴充：「模擬」頁加續跑；回放頁目前只列決策文字，可加視覺化盤面（種植園、建築、貨物）。
-4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
+1. 【先討論】預設 `seatOrder` 由 `rotate` 改成 `random`：`rotate` 保留固定的循環座位順序，同一桌換設定檔排列順序勝率就差 20 個百分點以上（`docs/strategy-analysis.md` 第 0 節）；`random` 才對排列不偏。八份 `tournaments/` 已改用 `random`；若同意改預設，需同步 `config.*.json`、`SimulationConfig.SeatOrder` 預設值與 CLAUDE.md 的架構決策，並重跑 MCTS 實驗與歷史掃描。
+2. 【先討論】手寫策略下一步：用 MCTS 當陪練找弱點（例如 cheap-engine 對 MCTS）；繼續把 MCTS 行為寫進手寫策略（cheap-engine 仍遠不如 MCTS）；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
+3. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
+4. 【直接做】Dashboard 擴充：「模擬」頁加續跑；回放頁目前只列決策文字，可加視覺化盤面（種植園、建築、貨物）。
+5. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
 
 ## 已知問題／限制
 
@@ -21,7 +22,7 @@
 - 結果記錄不含「各職業被選次數」（Prospector 偏好等要另外統計）與「每個建築是否有派殖民者」。
 - 規則：隱藏資訊（對手 VP）只靠約定，沒有機制阻止策略讀取。
 - 續跑（`--resume`）需要 `output.perGameRecords: true`；結果檔約 700～900 bytes／局（10 萬局：3 人局約 70 MB、4 人局約 89 MB）；舊版本（沒有建築清單）的結果檔仍可在 Dashboard 檢視，但不能 `--resume`。
-- 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人結果差很多（建築優先流 4 人局 41%、3 人局 23～53%）；手寫策略的預設參數依人數分開（3 人局另外調過，`HeuristicStrategy.Configure`／`Param`）。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
+- 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人階層不同（4 人局 build > harbor > premium > corn，3 人局 harbor ≈ premium > build > corn；random 座位）；手寫策略的預設參數依人數分開（3 人局另外調過，`HeuristicStrategy.Configure`／`Param`）。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
 - 引擎玩家數 3 或 4（`players`）；5 人局與擴充不支援。4 人局職業 Prospector 在手寫策略裡的估值很簡單（約等於 1 枚金幣）。
 - 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）。Dashboard 沒有自動化測試（Tests 只參考 Engine）；以 Playwright 截圖驗證過三個頁面（淺色／深色）。分析邏輯在 `Engine/Simulation/ResultAnalysis.cs`，有單元測試。
 - MCTS 比手寫策略慢很多（4 人局預設 300 次模擬、截斷 8 回合：400 局約 92 秒，4 核心），只適合數百局的實驗；它看得到完整狀態（含對手 VP），不偷看牌堆（每次模擬重洗）；實驗結果在 `docs/strategy-analysis.md` 第 5 節，設定在 `mcts/`。

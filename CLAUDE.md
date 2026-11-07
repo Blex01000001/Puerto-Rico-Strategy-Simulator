@@ -16,7 +16,7 @@
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
 | `config.example.json`、`config.4p.example.json`、`config.sweep.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
-| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`、`mcts`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）；`Mcts/MctsStrategy.cs`（UCT 樹搜尋，`params.simulations`／`rolloutStrategy`／`exploration`，只用模擬次數）；手寫策略的預設參數依玩家數分開：子類別覆寫 `Configure(players)`，用 `Param(名稱, players, 3人預設, 4人預設)` 讀 | 隨機、四個手寫原型與 MCTS 已有 |
+| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`、`cheap-engine`、`guided-random`、`mcts`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）、`CheapEngineStrategy`（便宜引擎流：由 MCTS 行為分析而來，早買便宜 1 分建築、少量種植園、頻繁出貨）；`GuidedRandomStrategy`（按動作種類加權的隨機）；`Mcts/MctsStrategy.cs`（UCT 樹搜尋，`params.simulations`／`rolloutStrategy`／`rolloutRounds`／`exploration`，只用模擬次數）；手寫策略的預設參數依玩家數分開：子類別覆寫 `Configure(players)`，用 `Param(名稱, players, 3人預設, 4人預設)` 讀 | 隨機、四個手寫原型與 MCTS 已有 |
 | `Engine/Simulation/` | `ResultAnalysis.cs`（Dashboard 用的統計：勝率與信賴區間、分數構成與分佈、名次矩陣、每個建築的取得率與勝率、港口取得回合）、`ResultComparison.cs`（兩份分析結果依策略名稱並排：勝率差與顯著性）、`TournamentOverview.cs`（多個結果檔依玩家數彙整每個策略的平均勝率與信賴區間、兩兩對戰矩陣）、`SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要；`PlayerRecord` 有建築清單 `Buildings`／購買回合 `BuiltRounds`、期末種植園 `Tiles`、金幣、出貨次數，舊檔這些欄位為 null）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
@@ -28,7 +28,7 @@
 - Runner、Dashboard、Tests 只參考 Engine（Dashboard 的「模擬」頁直接呼叫 Engine 的 `BatchSimulator`，結果寫進結果資料夾）。Engine 不得引用 Blazor、任何 UI 或 Windows 專用 API。
 - 不使用 EF Core；存資料用 JSON 檔，或 SQLite + Dapper。
 - 路徑一律用 `Path.Combine`，不寫死 Windows 路徑。
-- 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`（4 人局第一輪）、`sweeps/round2/`、`sweeps/3p/`（3 人局，每個目標對三種對手組合）、`sweeps/round3/`、`sweeps/3p-round3/`；MCTS 實驗設定在 `mcts/`。
+- 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`（4 人局第一輪）、`sweeps/round2/`、`sweeps/3p/`（3 人局，每個目標對三種對手組合）、`sweeps/round3/`、`sweeps/3p-round3/`、`sweeps/round4/`（cheap-engine）、`sweeps/round5/`（座位 random 重掃）；MCTS 實驗設定在 `mcts/`。
 
 ## 建置、測試、Runner
 ```bash
@@ -87,6 +87,7 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 專案檔 — `Directory.Build.props` 已設 net8.0／Nullable／TreatWarningsAsErrors，csproj 內不要重複設 — 警告即錯誤，新增程式碼要零警告。
 - `GameState.RngState` — 抽種植園時才推進亂數 — 複製後兩份狀態會抽到相同的牌；MCTS 的每次 rollout 必須先 `ReseedRng(新種子)`，否則所有 rollout 看到同一個未來。
 - `Rules.Apply` 之後的狀態一定停在下一個真實決策 — 不要自己迴圈略過 Pass；測試用 `Sc.Start`（`Tests/Sc.cs`）直接指定總督與職業來建情境。
+- `seatOrder: rotate` — 保留固定的循環座位順序，同一桌換設定檔排列順序勝率差 20 個百分點以上（corn 23.8%／5.6%／2.3%）— 比較策略要用 `random`（`tournaments/` 與新掃描都用），不要用 `rotate` 的單一排列下結論；預設仍是 `rotate`，改預設待討論（TODO 第 1 項）。
 - 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以預設 `seatOrder: rotate`，統計看策略而非座位。
 
 - `results/` — 模擬輸出（10 萬局 70～90 MB）已被 `.gitignore` 忽略 — 絕對不要 `git add -f`；`git add -A` 之前先看 `git status`（曾誤把 390 MB 結果檔 commit 進 main，後來改寫歷史才清掉）。
