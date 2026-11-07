@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard 已有結果、總覽（多個結果檔彙整）、比較（A/B 兩個結果檔並排）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔五頁。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard 已有結果、總覽（多個結果檔彙整，含信賴區間與兩兩對戰矩陣）、比較（A/B 兩個結果檔並排）、回放（重打結果檔中的某一局並列決策）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔七頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -17,11 +17,11 @@
 | `config.example.json`、`config.4p.example.json`、`config.sweep.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
 | `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`、`mcts`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）；`Mcts/MctsStrategy.cs`（UCT 樹搜尋，`params.simulations`／`rolloutStrategy`／`exploration`，只用模擬次數）；手寫策略的預設參數依玩家數分開：子類別覆寫 `Configure(players)`，用 `Param(名稱, players, 3人預設, 4人預設)` 讀 | 隨機、四個手寫原型與 MCTS 已有 |
-| `Engine/Simulation/` | `ResultAnalysis.cs`（Dashboard 用的統計：勝率與信賴區間、分數構成與分佈、名次矩陣、每個建築的取得率與勝率、港口取得回合）、`ResultComparison.cs`（兩份分析結果依策略名稱並排：勝率差與顯著性）、`TournamentOverview.cs`（多個結果檔依玩家數彙整每個策略的平均勝率）、`SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要；`PlayerRecord` 有建築清單 `Buildings`／購買回合 `BuiltRounds`、期末種植園 `Tiles`、金幣、出貨次數，舊檔這些欄位為 null）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
+| `Engine/Simulation/` | `ResultAnalysis.cs`（Dashboard 用的統計：勝率與信賴區間、分數構成與分佈、名次矩陣、每個建築的取得率與勝率、港口取得回合）、`ResultComparison.cs`（兩份分析結果依策略名稱並排：勝率差與顯著性）、`TournamentOverview.cs`（多個結果檔依玩家數彙整每個策略的平均勝率與信賴區間、兩兩對戰矩陣）、`SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要；`PlayerRecord` 有建築清單 `Buildings`／購買回合 `BuiltRounds`、期末種植園 `Tiles`、金幣、出貨次數，舊檔這些欄位為 null）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Overview／Compare／Simulate／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Overview／Compare／Replay／Simulate／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
