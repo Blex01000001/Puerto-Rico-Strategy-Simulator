@@ -27,7 +27,7 @@ public static class StrategyRegistry
                 _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first"),
             };
         },
-        // Reserved: "mcts".
+        ["mcts"] = (p, seed, _) => new Mcts.MctsStrategy(p, seed),
     };
 
     public static double GetDouble(IReadOnlyDictionary<string, JsonElement> p, string key, double fallback) =>

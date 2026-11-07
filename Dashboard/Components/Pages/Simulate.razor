@@ -54,7 +54,7 @@
                    @bind="paramText[seat]" disabled="@Sim.Running" />
         </div>
     }
-    <p class="note">策略：<code>random</code> 隨機；<code>corn-shipper</code> 玉米出貨；<code>corn-to-premium</code> 玉米轉菸草／咖啡；<code>harbor-rush</code> 港口流；<code>build-first</code> 建築優先。參數只吃數值（<code>名稱=數字</code>，逗號分隔）。</p>
+    <p class="note">策略：<code>random</code> 隨機；<code>corn-shipper</code> 玉米出貨；<code>corn-to-premium</code> 玉米轉菸草／咖啡；<code>harbor-rush</code> 港口流；<code>build-first</code> 建築優先；<code>mcts</code> 樹搜尋（參數 <code>simulations=300</code>，越大越強也越慢）。參數只吃數值（<code>名稱=數字</code>，逗號分隔）。</p>
 </div>
 
 @if (sweep)

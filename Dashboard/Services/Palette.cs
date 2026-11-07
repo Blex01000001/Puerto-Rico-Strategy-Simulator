@@ -10,6 +10,7 @@ public static class Palette
         ["harbor-rush"] = 3,      // aqua
         ["build-first"] = 4,      // yellow
         ["random"] = 5,           // magenta
+        ["mcts"] = 6,             // green
     };
 
     private static readonly Dictionary<string, string> Names = new(StringComparer.OrdinalIgnoreCase)
@@ -19,6 +20,7 @@ public static class Palette
         ["harbor-rush"] = "港口流",
         ["build-first"] = "建築優先流",
         ["random"] = "隨機",
+        ["mcts"] = "MCTS 搜尋",
     };
 
     /// <summary>CSS variable for the series colour (1..8); unknown strategies take the remaining slots by position.</summary>

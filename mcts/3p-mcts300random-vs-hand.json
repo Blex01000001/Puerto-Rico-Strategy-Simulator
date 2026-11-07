@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-mcts300random-vs-hand",
+  "players": 3,
+  "games": 200,
+  "seed": 5252,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "mcts",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "rolloutStrategy": "random"
+      }
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

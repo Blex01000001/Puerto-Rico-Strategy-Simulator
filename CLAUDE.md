@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援；Dashboard 已有結果、比較（A/B 兩個結果檔並排）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔五頁。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard 已有結果、總覽（多個結果檔彙整）、比較（A/B 兩個結果檔並排）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔五頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -16,19 +16,19 @@
 | `.claude/hooks/session-start.sh`, `.claude/settings.json` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore | 已有 |
 | `config.example.json`、`config.4p.example.json`、`config.sweep.example.json`、`config.corn-vs-random.json`、`config.strategies-compare.json` | 設定檔範例（Runner 與 Dashboard 共用格式）；`corn-vs-random` 為 corn-shipper 對兩個隨機玩家，`strategies-compare` 為三個手寫原型互打 | 已有 |
 | `Engine/Game/` | `GameState`（可複製狀態）、`GameAction`、`Rules.cs`（GetLegalActions/Apply/Advance）、`Rules.<階段>.cs`（Settler/Mayor/Builder/Craftsman/Trader/Captain 的 Fill+Apply）、`Setup.cs`、`Scoring.cs`、`Buildings.cs`/`GameConstants.cs`（靜態表）、`Invariants.cs` | 已有 |
-| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）；預留 Mcts/ | 隨機與四個手寫原型已有 |
-| `Engine/Simulation/` | `ResultAnalysis.cs`（Dashboard 用的統計：勝率與信賴區間、分數構成與分佈、名次矩陣、每個建築的取得率與勝率、港口取得回合）、`ResultComparison.cs`（兩份分析結果依策略名稱並排：勝率差與顯著性）、`SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要；`PlayerRecord` 有建築清單 `Buildings`／購買回合 `BuiltRounds`、期末種植園 `Tiles`、金幣、出貨次數，舊檔這些欄位為 null）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
+| `Engine/Strategies/` | `IStrategy`、`RandomStrategy`、`StrategyRegistry`（名稱：`random`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`、`mcts`，或 `rule-based`＋`params.profile`）；`RuleBased/HeuristicStrategy.cs`（共用打分基底：每個選擇打分數取最高，子類別覆寫掛鉤）、`CornShipperStrategy`（玉米出貨流）、`CornToPremiumStrategy`（前期玉米、中後期菸草／咖啡）、`HarborRushStrategy`（先蓋港口再靠港口出貨，後期加 Wharf）、`BuildFirstStrategy`（建築優先：採石場折扣、混合經濟換金幣、依終局加成挑大型建築）；`Mcts/MctsStrategy.cs`（UCT 樹搜尋，`params.simulations`／`rolloutStrategy`／`exploration`，只用模擬次數）；手寫策略的預設參數依玩家數分開：子類別覆寫 `Configure(players)`，用 `Param(名稱, players, 3人預設, 4人預設)` 讀 | 隨機、四個手寫原型與 MCTS 已有 |
+| `Engine/Simulation/` | `ResultAnalysis.cs`（Dashboard 用的統計：勝率與信賴區間、分數構成與分佈、名次矩陣、每個建築的取得率與勝率、港口取得回合）、`ResultComparison.cs`（兩份分析結果依策略名稱並排：勝率差與顯著性）、`TournamentOverview.cs`（多個結果檔依玩家數彙整每個策略的平均勝率）、`SimulationConfig`、`Sweep.cs`（參數掃描：設定、`SweepRunner`、結果）、`SimulationResult`（含摘要；`PlayerRecord` 有建築清單 `Buildings`／購買回合 `BuiltRounds`、期末種植園 `Tiles`、金幣、出貨次數，舊檔這些欄位為 null）、`SeedDeriver`、`GameRunner`（單局＋座位分配）、`BatchSimulator`（Parallel／checkpoint／取消／續跑） | 已有 |
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Compare／Simulate／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Overview／Compare／Simulate／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
 - Runner、Dashboard、Tests 只參考 Engine（Dashboard 的「模擬」頁直接呼叫 Engine 的 `BatchSimulator`，結果寫進結果資料夾）。Engine 不得引用 Blazor、任何 UI 或 Windows 專用 API。
 - 不使用 EF Core；存資料用 JSON 檔，或 SQLite + Dapper。
 - 路徑一律用 `Path.Combine`，不寫死 Windows 路徑。
-- 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`（第一輪）與 `sweeps/round2/`（第二輪，種子 202）。
+- 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`（4 人局第一輪）、`sweeps/round2/`、`sweeps/3p/`（3 人局，每個目標對三種對手組合）、`sweeps/round3/`、`sweeps/3p-round3/`；MCTS 實驗設定在 `mcts/`。
 
 ## 建置、測試、Runner
 ```bash
@@ -90,6 +90,7 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以預設 `seatOrder: rotate`，統計看策略而非座位。
 
 - `results/` — 模擬輸出（10 萬局 70～90 MB）已被 `.gitignore` 忽略 — 絕對不要 `git add -f`；`git add -A` 之前先看 `git status`（曾誤把 390 MB 結果檔 commit 進 main，後來改寫歷史才清掉）。
+- 手寫策略預設參數 — 依玩家數不同（`Param` 在第一次 `ChooseAction` 才解析，因為建構時還不知道人數）；`StrategyTests` 的情境多半是 3 人局，用到 4 人預設值（如 premium 的 `switchRound`、harbor 的 `harborReadyTiles`）時要明確傳參數或指定玩家數 — 設定檔明確寫的參數永遠優先。
 - 玩家數 — 每位玩家的陣列固定開 4 個座位的大小，3 人局第 4 座位全是 0 — 迴圈、模數一律用 `s.PlayerCount`、`s.RoleCount`、`s.ShipCap`，不要用 `GameConstants` 的固定值；`GameConstants.XXX(players)` 是依人數查的函式。
 
 ## 使用者的工作習慣
