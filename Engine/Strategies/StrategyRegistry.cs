@@ -36,6 +36,8 @@ public static class StrategyRegistry
     public static string GetString(IReadOnlyDictionary<string, JsonElement> p, string key, string fallback) =>
         p.TryGetValue(key, out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() ?? fallback : fallback;
 
+    public static IEnumerable<string> Names => Factories.Keys;
+
     public static bool IsKnown(string name) => Factories.ContainsKey(name);
 
     public static IStrategy Create(string name, IReadOnlyDictionary<string, JsonElement> parameters, ulong seed, int seat)

@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援；Dashboard 已有結果、參數掃描、設定檔三頁。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流；3、4 人局皆支援；Dashboard 已有結果、模擬（直接在 Dashboard 選策略並執行）、參數掃描、設定檔四頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -21,11 +21,11 @@
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Simulate／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
-- Runner、Dashboard、Tests 只參考 Engine。Engine 不得引用 Blazor、任何 UI 或 Windows 專用 API。
+- Runner、Dashboard、Tests 只參考 Engine（Dashboard 的「模擬」頁直接呼叫 Engine 的 `BatchSimulator`，結果寫進結果資料夾）。Engine 不得引用 Blazor、任何 UI 或 Windows 專用 API。
 - 不使用 EF Core；存資料用 JSON 檔，或 SQLite + Dapper。
 - 路徑一律用 `Path.Combine`，不寫死 Windows 路徑。
 - 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`。
