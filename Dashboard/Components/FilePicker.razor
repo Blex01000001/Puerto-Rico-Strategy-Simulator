@@ -15,6 +15,7 @@
         </label>
         <button @onclick="LoadSelected" disabled="@(string.IsNullOrEmpty(selected) || State.Loading)">載入</button>
         <button class="secondary" @onclick="Refresh">重新整理</button>
+        @ChildContent
     </div>
     <p class="note">掃描資料夾：@AppState.DisplayPath(dir)（可在 appsettings.json 的 Dashboard:ResultsDirectory 改）。大檔案（10 萬局約 40 MB）載入需要幾秒。</p>
     @if (State.Loading) { <p>載入並計算中…</p> }
@@ -22,6 +23,9 @@
 </div>
 
 @code {
+    /// <summary>Extra controls shown right of the refresh button.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
     private string dir = "";
     private List<string> files = new();
     private string selected = "";

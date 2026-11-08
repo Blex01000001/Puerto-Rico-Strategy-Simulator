@@ -31,11 +31,6 @@
     <div class="row">
         <label><input type="radio" name="mode" checked="@(!sweep)" @onchange="@(() => sweep = false)" disabled="@Sim.Running" /> 一般對戰</label>
         <label><input type="radio" name="mode" checked="@sweep" @onchange="@(() => sweep = true)" disabled="@Sim.Running" /> 參數掃描</label>
-    </div>
-</div>
-
-<div class="panel">
-    <div class="row">
         <label>玩家數
             <select value="@players" @onchange="OnPlayers" disabled="@Sim.Running">
                 <option value="3">3 人</option>
