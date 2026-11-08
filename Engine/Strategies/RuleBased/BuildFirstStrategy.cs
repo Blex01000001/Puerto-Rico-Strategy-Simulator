@@ -9,16 +9,15 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// is affordable, and aims at the large buildings whose end-of-game bonus it can actually fill
 /// (Residence with a full island, City Hall with many violet buildings, Guild Hall with production buildings,
 /// Fortress with many colonists, Customs House with many VP chips). It mans buildings before plantations.
-/// Parameters: <c>buildThreshold</c> (default 4.5, tuned by a 4-player sweep; lower values buy too much junk).
+/// Parameters: <c>buildThreshold</c> (default 4.5 for 4 players, 3.5 for 3; tuned by sweeps, see sweeps/; lower values buy too much junk), <c>quarryTarget</c> (default 3).
 /// </summary>
 public sealed class BuildFirstStrategy : HeuristicStrategy
 {
-    private readonly int _quarryTarget;
+    private int _quarryTarget;
 
-    public BuildFirstStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.5)
-    {
-        _quarryTarget = (int)StrategyRegistry.GetDouble(parameters, "quarryTarget", 3);
-    }
+    public BuildFirstStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.5, 3.5) { }
+
+    protected override void Configure(int players) => _quarryTarget = (int)Param("quarryTarget", players, 3, 3);
 
     private static bool Owns(GameState s, int me, BuildingId b) => s.BuildingOwned[me * B + (int)b] != 0;
 

@@ -9,7 +9,10 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// and the Captain role as often as possible.
 /// Before the Harbor it spends nothing on anything else and collects coins (role coins, selling goods) and
 /// Harbor discounts (manned quarries, the Builder privilege), choosing Builder the moment the Harbor is affordable.
-/// Parameters: <c>quarryTarget</c> (default 0 = take no quarries; the 4-player sweep found quarries not worth a turn; the tier-3 Harbor discount would cap at 3), <c>buildThreshold</c> (default 4).
+/// "Build output first": the Harbor race only starts once the player owns <c>harborReadyTiles</c> plantations/quarries
+/// or the round reaches <c>harborReadyRound</c> (defaults 7 tiles / round 8 with 4 players: +2.5 points of win share in sweeps/round3;
+/// 0/0 with 3 players = the race starts at once, because waiting hurt there); before that it plays the default economy.
+/// Parameters: <c>quarryTarget</c> (default 0 = take no quarries; the sweeps found quarries not worth a turn, and 0 vs 1 is within noise in 3-player games; the tier-3 Harbor discount would cap at 3), <c>buildThreshold</c> (default 4).
 /// </summary>
 public sealed class HarborRushStrategy : HeuristicStrategy
 {
@@ -17,16 +20,23 @@ public sealed class HarborRushStrategy : HeuristicStrategy
     private const int Sugar = (int)Good.Sugar;
     private const int Harbor = (int)BuildingId.Harbor;
 
-    private readonly int _quarryTarget;
+    private int _quarryTarget;
+    private int _readyTiles;
+    private int _readyRound;
 
-    public HarborRushStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0)
+    public HarborRushStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0) { }
+
+    protected override void Configure(int players)
     {
-        _quarryTarget = (int)StrategyRegistry.GetDouble(parameters, "quarryTarget", 0);
+        _quarryTarget = (int)Param("quarryTarget", players, 0, 0);
+        _readyTiles = (int)Param("harborReadyTiles", players, 0, 7);
+        _readyRound = (int)Param("harborReadyRound", players, 0, 8);
     }
 
     /// <summary>True while the Harbor is still the goal: not owned and still available.</summary>
-    private static bool SeekingHarbor(GameState s, int me) =>
-        s.BuildingOwned[me * B + Harbor] == 0 && s.BuildingSupply[Harbor] > 0;
+    private bool SeekingHarbor(GameState s, int me) =>
+        s.BuildingOwned[me * B + Harbor] == 0 && s.BuildingSupply[Harbor] > 0
+        && (s.TileCount(me) >= _readyTiles || s.Round >= _readyRound);
 
     protected override double TileValue(GameState s, int me, int good)
     {

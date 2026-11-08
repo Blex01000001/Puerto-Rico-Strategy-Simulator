@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-mcts30random-vs-hand",
+  "players": 4,
+  "games": 200,
+  "seed": 5151,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "mcts",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 30,
+        "rolloutStrategy": "random"
+      }
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

@@ -4,7 +4,7 @@
   "players": 4,
   "games": 100000,
   "seed": 777,
-  "seatOrder": "rotate",
+  "seatOrder": "random",
   "seats": [
     {
       "id": "corn",

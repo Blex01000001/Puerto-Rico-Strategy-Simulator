@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "name": "ab-random100-vs-guided100",
+  "players": 4,
+  "games": 300,
+  "seed": 7171,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "A",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100
+      }
+    },
+    {
+      "id": "B",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "rolloutStrategy": "guided-random"
+      }
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

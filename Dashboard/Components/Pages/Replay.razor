@@ -1,0 +1,124 @@
+@page "/replay"
+@using PuertoRico.Engine.Events
+@using PuertoRico.Engine.Game
+@inject IConfiguration Config
+
+<PageTitle>單局回放 · 波多黎各策略模擬器</PageTitle>
+<h1>單局回放</h1>
+<p class="note">從結果檔取出設定與種子，重新打指定的那一局並列出每個決策（同一份設定與局號一定重現同一局，也不需要結果檔含逐局記錄）。需要用同版本的引擎產生的結果檔才會與原結果一致。</p>
+
+<div class="panel">
+    <div class="row">
+        <label>結果檔
+            <select @bind="path"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@Path.GetFileName(f)</option> }</select>
+        </label>
+        <label>局號（0 起算）<input type="number" min="0" @bind="index" /></label>
+        <button @onclick="Run" disabled="@(string.IsNullOrEmpty(path) || loading)">回放</button>
+        <button class="secondary" @onclick="Refresh">重新整理</button>
+    </div>
+    <p class="note">掃描資料夾：@dir。@(cfg == null ? "" : $"目前設定：{cfg.Players} 人局，{cfg.Games:N0} 局，主種子 {cfg.Seed}，座位順序 {cfg.SeatOrder}。")</p>
+    @if (loading) { <p>讀取並重打中…</p> }
+    @if (error != null) { <div class="error">@error</div> }
+</div>
+
+@if (record != null && cfg != null)
+{
+    string SeatName(int seat) => Palette.DisplayName(cfg.Seats.First(s => s.Id == record.Players.First(p => p.Seat == seat).SeatId).Strategy);
+    <div class="kpis">
+        <div class="kpi"><div class="v">@record.Rounds</div><div class="l">回合數</div></div>
+        <div class="kpi"><div class="v">@record.Decisions</div><div class="l">決策數</div></div>
+        <div class="kpi"><div class="v">@record.EndReason</div><div class="l">終局原因</div></div>
+        <div class="kpi"><div class="v">@string.Join("、", record.Winners.Select(w => SeatName(w)))</div><div class="l">贏家</div></div>
+    </div>
+
+    <h2>各玩家結果</h2>
+    <div class="tablewrap">
+        <table class="data">
+            <thead><tr><th>桌位</th><th>策略</th><th>名次</th><th>總分</th><th>出貨籌碼</th><th>建築分</th><th>大型建築加成</th><th>金幣</th><th>出貨次數</th><th>建築（購買回合）</th></tr></thead>
+            <tbody>
+            @foreach (var p in record.Players.OrderBy(p => p.Rank))
+            {
+                <tr>
+                    <td>@(p.Seat + 1)</td><td>@SeatName(p.Seat)</td><td>@p.Rank</td><td>@p.Vp</td><td>@p.Chips</td><td>@p.BuildingPoints</td><td>@p.BonusPoints</td><td>@p.Coins</td><td>@p.Shipments</td>
+                    <td>@(p.Buildings == null ? "—" : string.Join("、", p.Buildings.Select((b, i) => $"{Buildings.All[b].Name}（{p.BuiltRounds![i]}）")))</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <h2>決策記錄（@shown.Count / @events.Count）</h2>
+    <div class="panel">
+        <div class="row">
+            <label>桌位
+                <select @bind="seatFilter">
+                    <option value="-1">全部</option>
+                    @foreach (var p in record.Players) { <option value="@p.Seat">@(p.Seat + 1) · @SeatName(p.Seat)</option> }
+                </select>
+            </label>
+            <label>回合 <input type="number" min="0" max="@record.Rounds" @bind="roundFilter" /> （0 = 全部）</label>
+            <label>動作含 <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="例如 Build、LoadShip" /></label>
+        </div>
+    </div>
+    <div class="tablewrap">
+        <table class="data">
+            <thead><tr><th>#</th><th>回合</th><th>階段</th><th>桌位</th><th>策略</th><th>動作</th></tr></thead>
+            <tbody>
+            @foreach (var (e, i) in shown.Take(1500))
+            {
+                <tr><td>@i</td><td>@e.Round</td><td>@e.Phase</td><td>@(e.Seat + 1)</td><td>@SeatName(e.Seat)</td><td>@e.Action</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    @if (shown.Count > 1500) { <p class="note">只顯示前 1500 筆，請用上方篩選縮小範圍。</p> }
+}
+
+@code {
+    private string dir = "";
+    private List<string> files = new();
+    private string path = "";
+    private int index;
+    private bool loading;
+    private string? error;
+    private SimulationConfig? cfg;
+    private GameRecord? record;
+    private List<GameEvent> events = new();
+    private int seatFilter = -1, roundFilter;
+    private string textFilter = "";
+
+    private List<(GameEvent E, int I)> shown => events.Select((e, i) => (e, i))
+        .Where(x => (seatFilter < 0 || x.e.Seat == seatFilter) && (roundFilter <= 0 || x.e.Round == roundFilter)
+                    && (string.IsNullOrWhiteSpace(textFilter) || x.e.Action.Contains(textFilter.Trim(), StringComparison.OrdinalIgnoreCase))).ToList();
+
+    protected override void OnInitialized()
+    {
+        dir = AppState.ResultsDirectory(Config);
+        Refresh();
+    }
+
+    private void Refresh() =>
+        files = Directory.Exists(dir)
+            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
+            : new List<string>();
+
+    private async Task Run()
+    {
+        loading = true; error = null; record = null; StateHasChanged();
+        try
+        {
+            var (result, _) = await AppState.ReadResultAsync(path);
+            cfg = result.Config;
+            if (index < 0 || index >= cfg.Games) throw new InvalidDataException($"局號要在 0～{cfg.Games - 1} 之間");
+            var sink = new ListEventSink();
+            record = await Task.Run(() => GameRunner.Play(cfg, index, sink));
+            events = sink.Events;
+            seatFilter = -1; roundFilter = 0; textFilter = "";
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
+        {
+            error = e.Message;
+        }
+        loading = false;
+    }
+}

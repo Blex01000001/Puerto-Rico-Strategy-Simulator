@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-harbor-ready2",
+  "players": 4,
+  "games": 40000,
+  "seed": 404,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "harbor",
+    "gamesPerPoint": 40000,
+    "parameters": {
+      "harborReadyTiles": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "harborReadyRound": [
+        6,
+        7,
+        8
+      ]
+    }
+  }
+}

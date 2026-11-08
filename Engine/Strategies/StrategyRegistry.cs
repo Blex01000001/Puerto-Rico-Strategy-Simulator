@@ -14,6 +14,7 @@ public static class StrategyRegistry
         ["corn-to-premium"] = (p, _, _) => new RuleBased.CornToPremiumStrategy(p),
         ["harbor-rush"] = (p, _, _) => new RuleBased.HarborRushStrategy(p),
         ["build-first"] = (p, _, _) => new RuleBased.BuildFirstStrategy(p),
+        ["cheap-engine"] = (p, _, _) => new RuleBased.CheapEngineStrategy(p),
         // "rule-based" selects a hand-written profile by params.profile (default corn-shipper).
         ["rule-based"] = (p, seed, seat) =>
         {
@@ -24,10 +25,12 @@ public static class StrategyRegistry
                 "corn-to-premium" => new RuleBased.CornToPremiumStrategy(p),
                 "harbor-rush" => new RuleBased.HarborRushStrategy(p),
                 "build-first" => new RuleBased.BuildFirstStrategy(p),
-                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first"),
+                "cheap-engine" => new RuleBased.CheapEngineStrategy(p),
+                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first, cheap-engine"),
             };
         },
-        // Reserved: "mcts".
+        ["guided-random"] = (_, seed, _) => new GuidedRandomStrategy(seed),
+        ["mcts"] = (p, seed, _) => new Mcts.MctsStrategy(p, seed),
     };
 
     public static double GetDouble(IReadOnlyDictionary<string, JsonElement> p, string key, double fallback) =>
@@ -35,6 +38,8 @@ public static class StrategyRegistry
 
     public static string GetString(IReadOnlyDictionary<string, JsonElement> p, string key, string fallback) =>
         p.TryGetValue(key, out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() ?? fallback : fallback;
+
+    public static IEnumerable<string> Names => Factories.Keys;
 
     public static bool IsKnown(string name) => Factories.ContainsKey(name);
 

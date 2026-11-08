@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep3-build-vs-corn-premium",
+  "players": 3,
+  "games": 20000,
+  "seed": 303,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "build",
+    "gamesPerPoint": 20000,
+    "parameters": {
+      "buildThreshold": [
+        3.5,
+        4,
+        4.5,
+        5
+      ],
+      "quarryTarget": [
+        1,
+        2,
+        3,
+        4
+      ]
+    }
+  }
+}

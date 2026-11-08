@@ -1,0 +1,115 @@
+@page "/compare"
+@inject IConfiguration Config
+
+<PageTitle>比較 · 波多黎各策略模擬器</PageTitle>
+<h1>結果並排比較（A/B）</h1>
+<p class="note">選兩份一般模擬結果檔，依策略名稱對照勝率與平均分。A 是基準、B 是新的；差異 = B − A。差異大於其 95% 信賴區間才標示「顯著」（假設兩份是獨立樣本；兩份用同一主種子時差異其實更穩，這裡的判斷偏保守）。</p>
+
+<div class="panel">
+    <div class="row">
+        <label>A（基準）
+            <select @bind="pathA"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@Path.GetFileName(f)</option> }</select>
+        </label>
+        <label>B（新的）
+            <select @bind="pathB"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@Path.GetFileName(f)</option> }</select>
+        </label>
+        <button @onclick="Load" disabled="@(string.IsNullOrEmpty(pathA) || string.IsNullOrEmpty(pathB) || loading)">比較</button>
+        <button class="secondary" @onclick="Refresh">重新整理</button>
+    </div>
+    <p class="note">掃描資料夾：@dir</p>
+    @if (loading) { <p>載入並計算中…</p> }
+    @if (error != null) { <div class="error">@error</div> }
+</div>
+
+@if (rows != null && ra != null && rb != null)
+{
+    string Pct(double v) => v.ToString("P1");
+    string Signed(double v) => (v >= 0 ? "+" : "−") + Math.Abs(v * 100).ToString("0.0") + " pp";
+    <div class="kpis">
+        <div class="kpi"><div class="v">@ra.GamesCompleted.ToString("N0")</div><div class="l">A 局數 · @(resA!.Config.Players) 人局</div></div>
+        <div class="kpi"><div class="v">@rb.GamesCompleted.ToString("N0")</div><div class="l">B 局數 · @(resB!.Config.Players) 人局</div></div>
+    </div>
+    @if (resA!.Config.Players != resB!.Config.Players || resA.Config.Seed != resB.Config.Seed)
+    {
+        <div class="error">兩份的@(resA.Config.Players != resB.Config.Players ? "玩家數" : "主種子")不同，差異可能來自桌況而非策略本身。</div>
+    }
+
+    <h2>勝率</h2>
+    <figure class="chartbox">
+        <BarChart Title="勝率 A/B" LabelWidth="260" Format="@(v => v.ToString("P1"))"
+                  Items="@(rows.SelectMany(r => Bars(r)).ToList())" />
+    </figure>
+
+    <h2>數據表</h2>
+    <div class="tablewrap">
+        <table class="data">
+            <thead><tr><th>策略</th><th>A 勝率</th><th>B 勝率</th><th>差異</th><th>±95%</th><th>顯著</th><th>A 平均分</th><th>B 平均分</th><th>分數差</th></tr></thead>
+            <tbody>
+            @foreach (var r in rows)
+            {
+                <tr>
+                    <td>@Palette.DisplayName(r.Strategy)</td>
+                    <td>@(r.A == null ? "—" : Pct(r.A.WinShare))</td>
+                    <td>@(r.B == null ? "—" : Pct(r.B.WinShare))</td>
+                    <td>@(r.HasBoth ? Signed(r.DeltaWin) : "—")</td>
+                    <td>@(r.HasBoth ? Pct(r.DeltaWinCi95) : "—")</td>
+                    <td>@(r.HasBoth ? (r.Significant ? "是" : "否") : "—")</td>
+                    <td>@(r.A == null ? "—" : r.A.AvgScore.ToString("0.0"))</td>
+                    <td>@(r.B == null ? "—" : r.B.AvgScore.ToString("0.0"))</td>
+                    <td>@(r.HasBoth ? r.DeltaScore.ToString("+0.0;−0.0;0.0") : "—")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private string dir = "";
+    private List<string> files = new();
+    private string pathA = "", pathB = "";
+    private bool loading;
+    private string? error;
+    private SimulationResult? resA, resB;
+    private ResultAnalysis? ra, rb;
+    private List<ComparisonRow>? rows;
+
+    protected override void OnInitialized()
+    {
+        dir = AppState.ResultsDirectory(Config);
+        Refresh();
+    }
+
+    private void Refresh() =>
+        files = Directory.Exists(dir)
+            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
+            : new List<string>();
+
+    private async Task Load()
+    {
+        loading = true; error = null; rows = null; StateHasChanged();
+        try
+        {
+            (resA, ra) = await AppState.ReadResultAsync(pathA);
+            (resB, rb) = await AppState.ReadResultAsync(pathB);
+            rows = ResultComparison.Compare(ra!, rb!);
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
+        {
+            error = e.Message;
+        }
+        loading = false;
+    }
+
+    private IEnumerable<BarChart.BarItem> Bars(ComparisonRow r)
+    {
+        string name = Palette.DisplayName(r.Strategy);
+        string color = Palette.Color(r.Strategy, 0);
+        if (r.A != null)
+            yield return new BarChart.BarItem($"{name}（A）", r.A.WinShare, r.A.WinShareCi95, "var(--text-3)",
+                $"{name} A　勝率 {r.A.WinShare:P1} ± {r.A.WinShareCi95:P1}");
+        if (r.B != null)
+            yield return new BarChart.BarItem($"{name}（B）", r.B.WinShare, r.B.WinShareCi95, color,
+                $"{name} B　勝率 {r.B.WinShare:P1} ± {r.B.WinShareCi95:P1}");
+    }
+}

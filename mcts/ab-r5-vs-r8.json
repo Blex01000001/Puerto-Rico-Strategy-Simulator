@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "name": "ab-r5-vs-r8",
+  "players": 4,
+  "games": 300,
+  "seed": 7171,
+  "seatOrder": "rotate",
+  "seats": [
+    {
+      "id": "A",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "rolloutRounds": 5
+      }
+    },
+    {
+      "id": "B",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "rolloutRounds": 8
+      }
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}
