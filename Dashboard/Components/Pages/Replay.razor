@@ -23,7 +23,6 @@
 
 @if (record != null && cfg != null)
 {
-    string SeatName(int seat) => Palette.DisplayName(cfg.Seats.First(s => s.Id == record.Players.First(p => p.Seat == seat).SeatId).Strategy);
     <div class="kpis">
         <div class="kpi"><div class="v">@record.Rounds</div><div class="l">回合數</div></div>
         <div class="kpi"><div class="v">@record.Decisions</div><div class="l">決策數</div></div>
@@ -47,6 +46,26 @@
         </table>
     </div>
 
+    <h2>盤面</h2>
+    <p class="note">顯示「第 @step 個決策之前」的盤面（輪到的玩家以藍框標示）；拉到最右邊是終局盤面。種植園方塊裡的 ● 代表有殖民者，建築名稱下的 ●○ 是殖民者／空位。</p>
+    <div class="stepbar">
+        <button class="secondary" @onclick="@(() => Go(0))" disabled="@(step == 0)">⏮ 開頭</button>
+        <button class="secondary" @onclick="@(() => Go(step - 1))" disabled="@(step == 0)">◀ 上一步</button>
+        <input type="range" min="0" max="@events.Count" value="@step" @oninput="@(e => Go(int.Parse(e.Value?.ToString() ?? "0")))" />
+        <button class="secondary" @onclick="@(() => Go(step + 1))" disabled="@(step >= events.Count)">下一步 ▶</button>
+        <button class="secondary" @onclick="@(() => Go(events.Count))" disabled="@(step >= events.Count)">⏭ 終局</button>
+        <span>第 <input type="number" min="0" max="@events.Count" value="@step" @onchange="@(e => Go(int.TryParse(e.Value?.ToString(), out var v) ? v : step))" style="width:5.5rem" /> / @events.Count 步</span>
+    </div>
+    <div class="panel">
+        @if (step < events.Count)
+        {
+            var ev = events[step];
+            <span>第 @ev.Round 回合 · 座位 @(ev.Seat + 1)（@SeatNameFn(ev.Seat)）將執行：<strong>@ev.Action</strong></span>
+        }
+        else { <span>終局盤面（所有決策已執行完）。</span> }
+    </div>
+    <BoardView S="@(step < events.Count ? snaps[step] : finalState!)" SeatNameOf="@((Func<int, string>)SeatNameFn)" />
+
     <h2>決策記錄（@shown.Count / @events.Count）</h2>
     <div class="panel">
         <div class="row">
@@ -66,7 +85,7 @@
             <tbody>
             @foreach (var (e, i) in shown.Take(1500))
             {
-                <tr><td>@i</td><td>@e.Round</td><td>@e.Phase</td><td>@(e.Seat + 1)</td><td>@SeatName(e.Seat)</td><td>@e.Action</td></tr>
+                <tr class="clickable @(i == step ? "cur" : "")" @onclick="@(() => Go(i))" title="點一下，在上面的盤面看這一步之前的局面"><td>@i</td><td>@e.Round</td><td>@e.Phase</td><td>@(e.Seat + 1)</td><td>@SeatName(e.Seat)</td><td>@e.Action</td></tr>
             }
             </tbody>
         </table>
@@ -84,6 +103,12 @@
     private SimulationConfig? cfg;
     private GameRecord? record;
     private List<GameEvent> events = new();
+    private List<GameState> snaps = new();
+    private GameState? finalState;
+    private int step;
+    private string SeatNameFn(int seat) => record == null || cfg == null ? "" : Palette.DisplayName(cfg.Seats.First(s => s.Id == record.Players.First(p => p.Seat == seat).SeatId).Strategy);
+    private string SeatName(int seat) => SeatNameFn(seat);
+    private void Go(int s) => step = Math.Clamp(s, 0, events.Count);
     private int seatFilter = -1, roundFilter;
     private string textFilter = "";
 
@@ -107,12 +132,12 @@
         loading = true; error = null; record = null; StateHasChanged();
         try
         {
-            var (result, _) = await AppState.ReadResultAsync(path);
-            cfg = result.Config;
+            cfg = await AppState.ReadConfigAsync(path);
             if (index < 0 || index >= cfg.Games) throw new InvalidDataException($"局號要在 0～{cfg.Games - 1} 之間");
-            var sink = new ListEventSink();
-            record = await Task.Run(() => GameRunner.Play(cfg, index, sink));
-            events = sink.Events;
+            var sink = new SnapshotEventSink();
+            GameState end = null!;
+            record = await Task.Run(() => GameRunner.Play(cfg, index, sink, out end));
+            events = sink.Events; snaps = sink.Before; finalState = end; step = 0;
             seatFilter = -1; roundFilter = 0; textFilter = "";
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)

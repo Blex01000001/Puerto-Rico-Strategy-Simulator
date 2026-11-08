@@ -101,7 +101,7 @@ public static class StrategyInfo
                 new ParamInfo("simulations", "200", "每個決策的模擬次數；越多越強也越慢（大致成正比）。", "100 次約能打平手寫策略，300 次大幅勝出"),
                 new ParamInfo("exploration", "0.7", "UCT 的探索係數（獎勵在 0～1 之間）。", "0.5～1.0"),
                 new ParamInfo("rolloutRounds", "8", "模擬時往下打幾回合就停止並以當時分數排名；0 = 打到終局。", "5～8；3 太短；8 與打到終局一樣強但快一倍"),
-                new ParamInfo("rolloutStrategy", "random（文字，不能在這頁填數字）", "模擬時所有座位使用的策略名稱，不能是 mcts。隨機最準，手寫策略與 guided-random 反而較差。", "random"),
+                new ParamInfo("rolloutStrategy", "random（文字參數，填 rolloutStrategy=random）", "模擬時所有座位使用的策略名稱，不能是 mcts。隨機最準，手寫策略與 guided-random 反而較差。", "random"),
                 new ParamInfo("rolloutMaxDecisions", "3000", "單次模擬最多決策數（安全上限）。", "一般不用改"),
             }),
 

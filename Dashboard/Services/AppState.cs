@@ -15,7 +15,53 @@ public sealed class AppState
 
     public event Action? Changed;
 
-    /// <summary>Folder scanned for result files; default <c>results/</c> next to the solution file.</summary>
+    /// <summary>A configuration handed to the simulate page ("simulate again with this setup"); consumed once.</summary>
+    public SimulationConfig? Template { get; private set; }
+    public string? TemplateSource { get; private set; }
+
+    public void SetTemplate(SimulationConfig config, string source)
+    {
+        Template = SimulationConfig.Clone(config);
+        TemplateSource = source;
+    }
+
+    public (SimulationConfig Config, string Source)? TakeTemplate()
+    {
+        if (Template == null) return null;
+        var t = (Template, TemplateSource ?? "");
+        Template = null; TemplateSource = null;
+        return t;
+    }
+
+    /// <summary>Reads only the <c>config</c> section of a result or sweep file (skips the per-game records, so big files are fast).</summary>
+    public static async Task<SimulationConfig> ReadConfigAsync(string path)
+    {
+        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{DisplayPath(path)}");
+        byte[] bytes = await File.ReadAllBytesAsync(path);
+        return ExtractConfig(bytes, Path.GetFileName(path));
+    }
+
+    private static SimulationConfig ExtractConfig(byte[] bytes, string fileName)
+    {
+        var reader = new Utf8JsonReader(bytes, new JsonReaderOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) throw new InvalidDataException("不是 JSON 物件");
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonTokenType.PropertyName) continue;
+            bool isConfig = string.Equals(reader.GetString(), "config", StringComparison.OrdinalIgnoreCase);
+            reader.Read();
+            if (isConfig)
+            {
+                var cfg = JsonSerializer.Deserialize<SimulationConfig>(ref reader, SimulationConfig.JsonOptions)
+                          ?? throw new InvalidDataException("空的設定");
+                if (cfg.Seats.Count == 0) throw new InvalidDataException("設定沒有座位");
+                return cfg;
+            }
+            reader.Skip();
+        }
+        throw new InvalidDataException($"{fileName} 裡沒有 config 區塊");
+    }
+
     /// <summary>Folder that holds PuertoRico.sln (found upwards from the app), or the current directory.</summary>
     public static string RepoRoot()
     {

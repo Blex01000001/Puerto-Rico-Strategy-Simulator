@@ -5,10 +5,27 @@
 @inject AppState State
 @inject SimulationService Sim
 @inject NavigationManager Nav
+@inject IConfiguration AppConfig
 
 <PageTitle>模擬 · 波多黎各策略模擬器</PageTitle>
 <h1>執行模擬</h1>
 <p class="note">選玩家數與每個座位的策略，按「開始模擬」。結果存進結果資料夾，跑完自動載入並可到「結果」頁檢視。</p>
+
+<div class="panel">
+    <div class="row">
+        <label>用結果檔的設定當範本
+            <select @bind="templateFile" disabled="@Sim.Running">
+                <option value="">（選擇結果檔）</option>
+                @foreach (var f in templateFiles) { <option value="@f">@Path.GetFileName(f)</option> }
+            </select>
+        </label>
+        <button class="secondary" @onclick="ApplyTemplateFile" disabled="@(Sim.Running || string.IsNullOrEmpty(templateFile))">套用</button>
+        <button class="secondary" @onclick="RefreshTemplates" disabled="@Sim.Running">重新整理</button>
+        <span class="muted">只讀設定，不載入整份結果，大檔也很快。也可以在「結果」頁按「用這份設定再模擬」。</span>
+    </div>
+    @if (templateNote != null) { <div class="ok" style="margin-top:.5rem">@templateNote</div> }
+    @if (templateError != null) { <div class="error" style="margin-top:.5rem">@templateError</div> }
+</div>
 
 <div class="panel">
     <div class="row">
@@ -54,7 +71,7 @@
                    @bind="paramText[seat]" disabled="@Sim.Running" />
         </div>
     }
-    <p class="note">每個策略的行為規則與可調參數見頁面下方「流派介紹」。參數欄位格式：<code>名稱=數字</code>，多個用逗號分隔，例如 <code>buildThreshold=3.5, quarryTarget=2</code>。</p>
+    <p class="note">每個策略的行為規則與可調參數見頁面下方「流派介紹」。參數欄位格式：<code>名稱=值</code>（數字，或像 <code>rolloutStrategy=random</code> 這樣的文字），多個用逗號分隔，例如 <code>buildThreshold=3.5, quarryTarget=2</code>。</p>
 </div>
 
 @if (sweep)
@@ -148,7 +165,73 @@
     private string sweepText = "buildThreshold=3.5,4,4.5,5";
     private string? error;
 
-    protected override void OnInitialized() => Sim.Changed += OnChanged;
+    private List<string> templateFiles = new();
+    private string templateFile = "";
+    private string? templateNote, templateError;
+
+    protected override void OnInitialized()
+    {
+        Sim.Changed += OnChanged;
+        RefreshTemplates();
+        if (State.TakeTemplate() is { } t) ApplyConfig(t.Config, t.Source);
+    }
+
+    private void RefreshTemplates()
+    {
+        string dir = AppState.ResultsDirectory(AppConfig);
+        templateFiles = Directory.Exists(dir)
+            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
+            : new List<string>();
+    }
+
+    private async Task ApplyTemplateFile()
+    {
+        templateError = templateNote = null;
+        try { ApplyConfig(await AppState.ReadConfigAsync(templateFile), Path.GetFileName(templateFile)); }
+        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
+        {
+            templateError = $"無法讀取設定：{AppState.Scrub(e.Message)}";
+        }
+    }
+
+    /// <summary>Fills the form from a configuration (a result's or a sweep's); rule-based seats become their profile strategy.</summary>
+    private void ApplyConfig(SimulationConfig c, string source)
+    {
+        players = c.Players;
+        seed = c.Seed;
+        seatOrder = c.SeatOrder.ToString().ToLowerInvariant();
+        games = c.Sweep is { GamesPerPoint: > 0 } ? c.Sweep.GamesPerPoint : c.Games;
+        var notes = new List<string>();
+        for (int i = 0; i < 4; i++)
+        {
+            if (i >= c.Seats.Count) { paramText[i] = ""; continue; }
+            var seat = c.Seats[i];
+            var prm = new Dictionary<string, JsonElement>(seat.Params);
+            string name = seat.Strategy;
+            if (name.Equals("rule-based", StringComparison.OrdinalIgnoreCase))
+            {
+                name = prm.TryGetValue("profile", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString()! : "corn-shipper";
+                prm.Remove("profile");
+            }
+            if (!Choices.Contains(name, StringComparer.OrdinalIgnoreCase)) { notes.Add($"座位 {i + 1} 的策略「{name}」不在清單內，改為 {Choices[0]}"); name = Choices[0]; }
+            strategies[i] = Choices.First(x => x.Equals(name, StringComparison.OrdinalIgnoreCase));
+            paramText[i] = FormatParams(prm);
+        }
+        if (c.Sweep != null)
+        {
+            sweep = true;
+            int idx = c.Seats.FindIndex(s => s.Id == c.Sweep.Target);
+            target = idx >= 0 ? idx : 0;
+            sweepText = string.Join("\n", c.Sweep.Parameters.Select(kv => kv.Key + "=" + string.Join(",", kv.Value.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)))));
+        }
+        else sweep = false;
+        templateNote = $"已套用「{source}」的設定：{c.Players} 人局、{games:N0} 局、主種子 {c.Seed}、座位順序 {c.SeatOrder}" + (c.Sweep != null ? "、參數掃描" : "") + "。可以修改後再按開始。" + (notes.Count > 0 ? " " + string.Join("；", notes) : "");
+    }
+
+    private static string FormatParams(Dictionary<string, JsonElement> prm) =>
+        string.Join(", ", prm.Select(kv => kv.Value.ValueKind == JsonValueKind.Number
+            ? kv.Key + "=" + kv.Value.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : kv.Key + "=" + (kv.Value.ValueKind == JsonValueKind.String ? kv.Value.GetString() : kv.Value.ToString())));
     private void OnChanged() => InvokeAsync(StateHasChanged);
     public void Dispose() => Sim.Changed -= OnChanged;
 
@@ -227,10 +310,12 @@
         foreach (var part in (text ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var kv = part.Split('=', 2, StringSplitOptions.TrimEntries);
-            if (kv.Length != 2 || kv[0].Length == 0 || !double.TryParse(kv[1], System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var v))
-                throw new FormatException($"「{part}」格式應為 名稱=數字");
-            result[kv[0]] = JsonSerializer.SerializeToElement(v);
+            if (kv.Length != 2 || kv[0].Length == 0 || kv[1].Length == 0)
+                throw new FormatException($"「{part}」格式應為 名稱=值（數字或文字）");
+            // numbers become numeric parameters, anything else a text parameter (e.g. rolloutStrategy=random)
+            result[kv[0]] = double.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
+                ? JsonSerializer.SerializeToElement(v)
+                : JsonSerializer.SerializeToElement(kv[1]);
         }
         return result;
     }

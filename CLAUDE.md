@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard（左側導覽：HOME 介紹頁、模擬、結果…）已有 HOME、模擬、結果、總覽（多個結果檔彙整，含信賴區間與兩兩對戰矩陣）、比較（A/B 兩個結果檔並排）、回放（重打結果檔中的某一局並列決策）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔八頁。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard（左側導覽：HOME 介紹頁、模擬、結果…）已有 HOME、模擬、結果、總覽（多個結果檔彙整，含信賴區間與兩兩對戰矩陣）、比較（A/B 兩個結果檔並排）、回放（重打結果檔中的某一局，可逐步看盤面：種植園、建築、貨物、貨船）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔八頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -21,7 +21,7 @@
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/StrategyInfo.cs`（HOME 與模擬頁「流派介紹」的行為規則與可調參數文字）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Home `/`、Results `/results`、Overview、Compare、Replay、Simulate、Sweep、Config）；畫面上的路徑一律用 `AppState.DisplayPath`／`Scrub` 顯示成相對專案根目錄，不顯示機器上的完整路徑、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/SnapshotEventSink.cs`（回放用，保存每個決策前的狀態）、`Services/StrategyInfo.cs`（HOME 與模擬頁「流派介紹」的行為規則與可調參數文字）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Home `/`、Results `/results`、Overview、Compare、Replay、Simulate、Sweep、Config）；`AppState.ReadConfigAsync` 只讀結果／掃描檔的 config（跳過逐局記錄，大檔很快），模擬頁的「用結果檔當範本」與結果頁「用這份設定再模擬」（`AppState.SetTemplate`）、回放頁都用它；畫面上的路徑一律用 `AppState.DisplayPath`／`Scrub` 顯示成相對專案根目錄，不顯示機器上的完整路徑、`Components/FilePicker.razor`、`Components/BoardView.razor`（回放盤面）、`wwwroot/favicon.svg`（瀏覽器圖示）、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
