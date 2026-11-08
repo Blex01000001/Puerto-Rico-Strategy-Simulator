@@ -4,7 +4,7 @@
   "players": 3,
   "games": 100000,
   "seed": 12345,
-  "seatOrder": "rotate",
+  "seatOrder": "random",
   "seats": [
     { "id": "A", "strategy": "random", "params": {} },
     { "id": "B", "strategy": "random", "params": {} },

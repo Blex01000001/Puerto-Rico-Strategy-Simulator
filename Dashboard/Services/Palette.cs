@@ -29,6 +29,16 @@ public static class Palette
     public static string Color(string strategy, int fallbackIndex) =>
         $"var(--series-{(Slots.TryGetValue(strategy, out int s) ? s : 6 + Math.Abs(fallbackIndex) % 3)})";
 
+    /// <summary>Chinese label of a seat-order mode.</summary>
+    public static string SeatOrderLabel(PuertoRico.Engine.Simulation.SeatOrderMode mode) => mode switch
+    {
+        PuertoRico.Engine.Simulation.SeatOrderMode.Random => "隨機",
+        PuertoRico.Engine.Simulation.SeatOrderMode.Balanced => "完全平衡",
+        PuertoRico.Engine.Simulation.SeatOrderMode.Rotate => "輪換",
+        PuertoRico.Engine.Simulation.SeatOrderMode.Fixed => "固定",
+        _ => mode.ToString(),
+    };
+
     public static string DisplayName(string strategy) => Names.TryGetValue(strategy, out var n) ? n : strategy;
 
     public static string Label(string seatId, string strategy) =>

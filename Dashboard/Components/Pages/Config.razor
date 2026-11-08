@@ -73,7 +73,7 @@ dotnet run -c Release --project Runner -- --config config.json --sweep --out res
             var cfg = JsonSerializer.Deserialize<SimulationConfig>(text, SimulationConfig.JsonOptions)
                       ?? throw new InvalidDataException("空的設定");
             cfg.Validate();
-            message = $"設定有效：{cfg.Players} 人局、{cfg.Games:N0} 局、座位順序 {cfg.SeatOrder}，策略 " +
+            message = $"設定有效：{cfg.Players} 人局、{cfg.Games:N0} 局、座位順序 {Palette.SeatOrderLabel(cfg.SeatOrder)}，策略 " +
                       string.Join("、", cfg.Seats.Select(s => $"{s.Id}={s.Strategy}")) + (cfg.Sweep != null ? "；含參數掃描區塊" : "");
         }
         catch (Exception e) when (e is JsonException or InvalidDataException)

@@ -16,6 +16,24 @@ public static class GameRunner
             case SeatOrderMode.Fixed:
                 for (int i = 0; i < n; i++) map[i] = i;
                 break;
+            case SeatOrderMode.Balanced:
+                {
+                    // Lehmer code of (gameIndex mod n!): all n! permutations come up in turn, the same number of times
+                    long fact = 1;
+                    for (int i = 2; i <= n; i++) fact *= i;
+                    long code = ((gameIndex % fact) + fact) % fact;
+                    var avail = new List<int>(n);
+                    for (int i = 0; i < n; i++) avail.Add(i);
+                    for (int i = 0; i < n; i++)
+                    {
+                        fact /= n - i;
+                        int pick = (int)(code / fact);
+                        code %= fact;
+                        map[i] = avail[pick];
+                        avail.RemoveAt(pick);
+                    }
+                    break;
+                }
             case SeatOrderMode.Rotate:
                 for (int i = 0; i < n; i++) map[i] = ((i - gameIndex) % n + n) % n;
                 break;

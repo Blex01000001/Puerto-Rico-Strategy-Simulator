@@ -46,13 +46,20 @@
         <label>主種子 <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
         <label>座位順序
             <select @bind="seatOrder" disabled="@Sim.Running">
-                <option value="random">隨機（random，建議）</option>
-                <option value="rotate">輪換（rotate）</option>
-                <option value="fixed">固定（fixed）</option>
+                <option value="random">隨機（random，預設）</option>
+                <option value="balanced">完全平衡（balanced）</option>
+                <option value="rotate">輪換（rotate，不建議）</option>
+                <option value="fixed">固定（fixed，不建議）</option>
             </select>
         </label>
     </div>
 </div>
+
+@if (seatOrder == "balanced" && BalancedStep > 0 && games % BalancedStep != 0)
+{
+    <div class="error">完全平衡需要局數是 @BalancedStep 的倍數（@(players == 3 ? "3 人局" : "4 人局")共有 @BalancedStep 種座位排列，每種要排一樣多次），目前 @games.ToString("N0") 局，最後 @(games % BalancedStep) 局會讓排列略不平衡。
+        <button class="secondary" @onclick="@(() => games = (games / BalancedStep + 1) * BalancedStep)">調成 @(((games / BalancedStep) + 1) * BalancedStep) 局</button></div>
+}
 
 <div class="panel">
     @for (int i = 0; i < players; i++)
@@ -169,6 +176,9 @@
     private string templateFile = "";
     private string? templateNote, templateError;
 
+    /// <summary>Number of seat permutations (3! or 4!) that <c>balanced</c> cycles through.</summary>
+    private int BalancedStep => players == 3 ? 6 : players == 4 ? 24 : 0;
+
     protected override void OnInitialized()
     {
         Sim.Changed += OnChanged;
@@ -225,7 +235,7 @@
             sweepText = string.Join("\n", c.Sweep.Parameters.Select(kv => kv.Key + "=" + string.Join(",", kv.Value.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)))));
         }
         else sweep = false;
-        templateNote = $"已套用「{source}」的設定：{c.Players} 人局、{games:N0} 局、主種子 {c.Seed}、座位順序 {c.SeatOrder}" + (c.Sweep != null ? "、參數掃描" : "") + "。可以修改後再按開始。" + (notes.Count > 0 ? " " + string.Join("；", notes) : "");
+        templateNote = $"已套用「{source}」的設定：{c.Players} 人局、{games:N0} 局、主種子 {c.Seed}、座位順序 {Palette.SeatOrderLabel(c.SeatOrder)}" + (c.Sweep != null ? "、參數掃描" : "") + "。可以修改後再按開始。" + (notes.Count > 0 ? " " + string.Join("；", notes) : "");
     }
 
     private static string FormatParams(Dictionary<string, JsonElement> prm) =>

@@ -26,7 +26,7 @@ else if (State.Result != null && State.Analysis != null)
         <div class="kpi"><div class="v">@a.GamesCompleted.ToString("N0")</div><div class="l">局數（@r.Status）</div></div>
         <div class="kpi"><div class="v">@r.Config.Players</div><div class="l">玩家數</div></div>
         <div class="kpi"><div class="v">@r.Config.Seed</div><div class="l">主種子</div></div>
-        <div class="kpi"><div class="v">@r.Config.SeatOrder</div><div class="l">座位順序</div></div>
+        <div class="kpi"><div class="v">@Palette.SeatOrderLabel(r.Config.SeatOrder)</div><div class="l">座位順序</div></div>
         @if (a.HasGameRecords)
         {
             <div class="kpi"><div class="v">@a.AvgRounds.ToString("0.0")</div><div class="l">平均回合數</div></div>

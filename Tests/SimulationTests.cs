@@ -92,11 +92,55 @@ public class DeterminismTests
     [Fact]
     public void Rotate_Moves_Every_Strategy_Through_Every_Seat()
     {
-        var cfg = Cfg();
+        var cfg = Cfg(); cfg.SeatOrder = SeatOrderMode.Rotate;
         var seen = new Dictionary<string, HashSet<int>> { ["A"] = new(), ["B"] = new(), ["C"] = new() };
         for (int i = 0; i < 6; i++)
             foreach (var p in GameRunner.Play(cfg, i).Players) seen[p.SeatId].Add(p.Seat);
         Assert.All(seen.Values, v => Assert.Equal(3, v.Count));
+    }
+
+    [Fact]
+    public void Default_Seat_Order_Is_Random_Also_When_The_File_Does_Not_Say()
+    {
+        Assert.Equal(SeatOrderMode.Random, new SimulationConfig().SeatOrder);
+        var cfg = System.Text.Json.JsonSerializer.Deserialize<SimulationConfig>("{ \"games\": 3 }", SimulationConfig.JsonOptions)!;
+        Assert.Equal(SeatOrderMode.Random, cfg.SeatOrder);
+        var balanced = System.Text.Json.JsonSerializer.Deserialize<SimulationConfig>("{ \"seatOrder\": \"balanced\" }", SimulationConfig.JsonOptions)!;
+        Assert.Equal(SeatOrderMode.Balanced, balanced.SeatOrder);
+    }
+
+    /// <summary>Balanced = every permutation of the seats the same number of times, so every strategy sits in every seat
+    /// and next to every other strategy (on its left and on its right) equally often.</summary>
+    [Theory]
+    [InlineData(3, 6)]
+    [InlineData(4, 24)]
+    public void Balanced_Order_Plays_Every_Permutation_Equally_Often_And_Balances_Neighbours(int players, int perms)
+    {
+        const int Rounds = 3;
+        var cfg = new SimulationConfig { Players = players, Seed = 1, SeatOrder = SeatOrderMode.Balanced };
+        var permutations = new Dictionary<string, int>();
+        var seatCount = new int[players, players];       // [strategy, table seat]
+        var rightOf = new int[players, players];         // [strategy, strategy sitting at the next table seat]
+        for (int g = 0; g < perms * Rounds; g++)
+        {
+            var map = GameRunner.SeatAssignment(cfg, g, SeedDeriver.GameSeed(cfg.Seed, g)); // table seat -> config seat
+            Assert.Equal(Enumerable.Range(0, players), map.OrderBy(x => x));
+            string key = string.Join(",", map);
+            permutations[key] = permutations.GetValueOrDefault(key) + 1;
+            for (int seat = 0; seat < players; seat++)
+            {
+                seatCount[map[seat], seat]++;
+                rightOf[map[seat], map[(seat + 1) % players]]++;
+            }
+        }
+        Assert.Equal(perms, permutations.Count);
+        Assert.All(permutations.Values, c => Assert.Equal(Rounds, c));
+        for (int a = 0; a < players; a++)
+            for (int b = 0; b < players; b++)
+            {
+                Assert.Equal(perms * Rounds / players, seatCount[a, b]);
+                if (a != b) Assert.Equal(perms * Rounds / (players - 1), rightOf[a, b]);
+            }
     }
 
     [Fact]

@@ -66,7 +66,7 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 牌疊以各種類張數＋`RngState` 表示，不存牌序 — Clone 小、洗牌可重現 — 不要在狀態內存洗好的牌陣列。
 - 範圍：3 人與 4 人基礎版（`players: 3|4`，4 人局多一個 Prospector 職業），無擴充、不做 5 人局 — 不要加擴充內容。
 - 每局種子由 (masterSeed, gameIndex) 衍生 — 結果與執行緒數、分工方式無關，且 `--resume` 容易 — 不要改成「每執行緒一個 Random」。
-- 設定 `seatOrder` 預設 `rotate`（策略座位依局數輪換） — 3 人局有座位優勢，輪換才公平；統計以「策略」而非座位歸類 — 不要預設固定座位。
+- 設定 `seatOrder` 預設 `random`（每局隨機排座位），另有 `balanced`（3 人 6 種、4 人 24 種排列輪流，局數是 6／24 的倍數時每個策略坐每個座位、鄰座的次數完全相等）；`rotate` 與 `fixed` 不建議 — 3 人局有座位優勢，且「誰坐在誰旁邊」會讓同一桌勝率差 20 個百分點以上；統計以「策略」而非座位歸類 — 不要預設固定座位或輪換。
 - 隱藏資訊（對手 VP 籌碼）：策略介面照傳完整 `GameState`，約定策略**不得讀取對手 VP**；MCTS 內部需要完整狀態 — 簡單且不增加 Clone 成本 — 不要為此另做遮罩副本或另開介面。
 
 ## 亂數種子規則
@@ -88,8 +88,8 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 專案檔 — `Directory.Build.props` 已設 net8.0／Nullable／TreatWarningsAsErrors，csproj 內不要重複設 — 警告即錯誤，新增程式碼要零警告。
 - `GameState.RngState` — 抽種植園時才推進亂數 — 複製後兩份狀態會抽到相同的牌；MCTS 的每次 rollout 必須先 `ReseedRng(新種子)`，否則所有 rollout 看到同一個未來。
 - `Rules.Apply` 之後的狀態一定停在下一個真實決策 — 不要自己迴圈略過 Pass；測試用 `Sc.Start`（`Tests/Sc.cs`）直接指定總督與職業來建情境。
-- `seatOrder: rotate` — 保留固定的循環座位順序，同一桌換設定檔排列順序勝率差 20 個百分點以上（corn 23.8%／5.6%／2.3%）— 比較策略要用 `random`（`tournaments/` 與新掃描都用），不要用 `rotate` 的單一排列下結論；預設仍是 `rotate`，改預設待討論（TODO 第 1 項）。
-- 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以預設 `seatOrder: rotate`，統計看策略而非座位。
+- `seatOrder: rotate` — 保留固定的循環座位順序，同一桌換設定檔排列順序勝率差 20 個百分點以上（corn 23.8%／5.6%／2.3%）— 比較策略要用 `random`（預設）或 `balanced`，不要用 `rotate` 的單一排列下結論；第一到第三輪調參與 MCTS 實驗用的是 `rotate`，絕對勝率帶有這個偏差（`docs/strategy-analysis.md` 第 0 節）。
+- 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以座位要輪流（預設 `seatOrder: random`），統計看策略而非座位。
 
 - `results/` — 模擬輸出（10 萬局 70～90 MB）已被 `.gitignore` 忽略 — 絕對不要 `git add -f`；`git add -A` 之前先看 `git status`（曾誤把 390 MB 結果檔 commit 進 main，後來改寫歷史才清掉）。
 - 手寫策略預設參數 — 依玩家數不同（`Param` 在第一次 `ChooseAction` 才解析，因為建構時還不知道人數）；`StrategyTests` 的情境多半是 3 人局，用到 4 人預設值（如 premium 的 `switchRound`、harbor 的 `harborReadyTiles`）時要明確傳參數或指定玩家數 — 設定檔明確寫的參數永遠優先。
