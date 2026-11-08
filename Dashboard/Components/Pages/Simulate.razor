@@ -7,9 +7,9 @@
 @inject NavigationManager Nav
 @inject IConfiguration AppConfig
 
-<PageTitle>模擬 · 波多黎各策略模擬器</PageTitle>
-<h1>執行模擬</h1>
-<p class="note">選玩家數與每個座位的策略，按「開始模擬」。結果存進結果資料夾，跑完自動載入並可到「結果」頁檢視。</p>
+<PageTitle>策略模擬 · 波多黎各策略模擬器</PageTitle>
+<h1>策略模擬</h1>
+<p class="note">選玩家數與每個座位的策略，按「開始模擬」。結果存進結果資料夾，跑完自動載入並可到「結果總覽」頁檢視。</p>
 
 <div class="panel">
     <div class="row">
@@ -21,7 +21,7 @@
         </label>
         <button class="secondary" @onclick="ApplyTemplateFile" disabled="@(Sim.Running || string.IsNullOrEmpty(templateFile))">套用</button>
         <button class="secondary" @onclick="RefreshTemplates" disabled="@Sim.Running">重新整理</button>
-        <span class="muted">只讀設定，不載入整份結果，大檔也很快。也可以在「結果」頁按「用這份設定再模擬」。</span>
+        <span class="muted">只讀設定，不載入整份結果，大檔也很快。也可以在「結果總覽」頁按「用這份設定再模擬」。</span>
     </div>
     @if (templateNote != null) { <div class="ok" style="margin-top:.5rem">@templateNote</div> }
     @if (templateError != null) { <div class="error" style="margin-top:.5rem">@templateError</div> }
@@ -118,7 +118,7 @@
 @if (!Sim.Running && Sim.LastOutput != null && !Sim.IsSweep && State.Result != null)
 {
     <div class="ok">完成，已存到 @AppState.DisplayPath(Sim.LastOutput)（@State.Result.Status，@State.Analysis?.GamesCompleted.ToString("N0") 局）。
-        <a href="results" @onclick="GoResults" @onclick:preventDefault>前往「結果」頁</a></div>
+        <a href="results" @onclick="GoResults" @onclick:preventDefault>前往「結果總覽」頁</a></div>
 }
 @if (!Sim.Running && Sim.LastOutput != null && Sim.IsSweep && State.Sweep != null)
 {

@@ -3,8 +3,8 @@
 @using PuertoRico.Engine.Game
 @inject IConfiguration Config
 
-<PageTitle>單局回放 · 波多黎各策略模擬器</PageTitle>
-<h1>單局回放</h1>
+<PageTitle>模擬重播 · 波多黎各策略模擬器</PageTitle>
+<h1>模擬重播</h1>
 <p class="note">從結果檔取出設定與種子，重新打指定的那一局並列出每個決策（同一份設定與局號一定重現同一局，也不需要結果檔含逐局記錄）。需要用同版本的引擎產生的結果檔才會與原結果一致。</p>
 
 <div class="panel">
@@ -15,15 +15,15 @@
         <label>局號（0 起算）<input type="number" min="0" @bind="index" /></label>
         <button @onclick="Run" disabled="@(string.IsNullOrEmpty(path) || loading)">回放</button>
         <button class="secondary" @onclick="Refresh">重新整理</button>
+        <span class="note">@(cfg == null ? "" : $"{cfg.Players} 人局 · {cfg.Games:N0} 局 · 主種子 {cfg.Seed} · {Palette.SeatOrderLabel(cfg.SeatOrder)}")</span>
     </div>
-    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。@(cfg == null ? "" : $"目前設定：{cfg.Players} 人局，{cfg.Games:N0} 局，主種子 {cfg.Seed}，座位順序 {Palette.SeatOrderLabel(cfg.SeatOrder)}。")</p>
     @if (loading) { <p>讀取並重打中…</p> }
     @if (error != null) { <div class="error">@error</div> }
 </div>
 
 @if (record != null && cfg != null)
 {
-    <div class="kpis">
+    <div class="kpis lt">
         <div class="kpi"><div class="v">@record.Rounds</div><div class="l">回合數</div></div>
         <div class="kpi"><div class="v">@record.Decisions</div><div class="l">決策數</div></div>
         <div class="kpi"><div class="v">@record.EndReason</div><div class="l">終局原因</div></div>
@@ -33,13 +33,13 @@
     <h2>各玩家結果</h2>
     <div class="tablewrap">
         <table class="data">
-            <thead><tr><th>桌位</th><th>策略</th><th>名次</th><th>總分</th><th>出貨籌碼</th><th>建築分</th><th>大型建築加成</th><th>金幣</th><th>出貨次數</th><th>建築（購買回合）</th></tr></thead>
+            <thead><tr><th>桌位</th><th>策略</th><th>名次</th><th>總分</th><th>出貨籌碼</th><th>建築分</th><th>大型建築加成</th><th>金幣</th><th>出貨次數</th><th class="left">建築（購買回合）</th></tr></thead>
             <tbody>
             @foreach (var p in record.Players.OrderBy(p => p.Rank))
             {
                 <tr>
                     <td>@(p.Seat + 1)</td><td>@SeatName(p.Seat)</td><td>@p.Rank</td><td>@p.Vp</td><td>@p.Chips</td><td>@p.BuildingPoints</td><td>@p.BonusPoints</td><td>@p.Coins</td><td>@p.Shipments</td>
-                    <td>@(p.Buildings == null ? "—" : string.Join("、", p.Buildings.Select((b, i) => $"{Buildings.All[b].Name}（{p.BuiltRounds![i]}）")))</td>
+                    <td class="left">@(p.Buildings == null ? "—" : string.Join("、", p.Buildings.Select((b, i) => $"{Buildings.All[b].Name}（{p.BuiltRounds![i]}）")))</td>
                 </tr>
             }
             </tbody>
@@ -60,7 +60,8 @@
         @if (step < events.Count)
         {
             var ev = events[step];
-            <span>第 @ev.Round 回合 · 座位 @(ev.Seat + 1)（@SeatNameFn(ev.Seat)）將執行：<strong>@ev.Action</strong></span>
+            <span>第 @ev.Round 回合 · @PhaseLabel(ev.Phase) · 座位 @(ev.Seat + 1)（@SeatNameFn(ev.Seat)）：<strong>@ActionText.Describe(snaps[step], ParseAction(step))</strong> <span class="muted">（@ev.Action）</span></span>
+            @if (searches[step] is { } sr) { <MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Chosen="@actions[step]" /> }
         }
         else { <span>終局盤面（所有決策已執行完）。</span> }
     </div>
@@ -81,11 +82,11 @@
     </div>
     <div class="tablewrap">
         <table class="data">
-            <thead><tr><th>#</th><th>回合</th><th>階段</th><th>桌位</th><th>策略</th><th>動作</th></tr></thead>
+            <thead><tr><th>#</th><th>回合</th><th>階段</th><th>桌位</th><th>策略</th><th class="left">動作說明</th><th class="left">原始動作</th></tr></thead>
             <tbody>
             @foreach (var (e, i) in shown.Take(1500))
             {
-                <tr class="clickable @(i == step ? "cur" : "")" @onclick="@(() => Go(i))" title="點一下，在上面的盤面看這一步之前的局面"><td>@i</td><td>@e.Round</td><td>@e.Phase</td><td>@(e.Seat + 1)</td><td>@SeatName(e.Seat)</td><td>@e.Action</td></tr>
+                <tr class="clickable @(i == step ? "cur" : "")" @onclick="@(() => Go(i))" title="點一下，在上面的盤面看這一步之前的局面"><td>@i</td><td>@e.Round</td><td>@e.Phase</td><td>@(e.Seat + 1)</td><td>@SeatName(e.Seat)</td><td class="left">@ActionText.Describe(snaps[i], actions[i])@(searches[i] != null ? " 🔍" : "")</td><td class="left muted">@e.Action</td></tr>
             }
             </tbody>
         </table>
@@ -104,10 +105,18 @@
     private GameRecord? record;
     private List<GameEvent> events = new();
     private List<GameState> snaps = new();
+    private List<GameAction> actions = new();
+    private List<PuertoRico.Engine.Strategies.SearchSummary?> searches = new();
     private GameState? finalState;
     private int step;
     private string SeatNameFn(int seat) => record == null || cfg == null ? "" : Palette.DisplayName(cfg.Seats.First(s => s.Id == record.Players.First(p => p.Seat == seat).SeatId).Strategy);
     private string SeatName(int seat) => SeatNameFn(seat);
+    private GameAction ParseAction(int i) => actions[i];
+    private static string PhaseLabel(Phase p) => p switch
+    {
+        Phase.ChooseRole => "選職業", Phase.Settler => "開拓者", Phase.Mayor => "市長", Phase.Builder => "建築師",
+        Phase.CraftsmanBonus => "工匠", Phase.Trader => "商人", Phase.Captain => "船長", Phase.CaptainStorage => "船長（保留貨物）", _ => p.ToString(),
+    };
     private void Go(int s) => step = Math.Clamp(s, 0, events.Count);
     private int seatFilter = -1, roundFilter;
     private string textFilter = "";
@@ -137,7 +146,7 @@
             var sink = new SnapshotEventSink();
             GameState end = null!;
             record = await Task.Run(() => GameRunner.Play(cfg, index, sink, out end));
-            events = sink.Events; snaps = sink.Before; finalState = end; step = 0;
+            events = sink.Events; snaps = sink.Before; actions = sink.Actions; searches = sink.Searches; finalState = end; step = 0;
             seatFilter = -1; roundFilter = 0; textFilter = "";
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)

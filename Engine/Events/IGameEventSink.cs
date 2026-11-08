@@ -1,4 +1,5 @@
 using PuertoRico.Engine.Game;
+using PuertoRico.Engine.Strategies;
 
 namespace PuertoRico.Engine.Events;
 
@@ -7,6 +8,8 @@ public interface IGameEventSink
 {
     bool Enabled { get; }
     void OnDecision(GameState before, GameAction action);
+    /// <summary>Called right before <see cref="OnDecision"/> when the acting strategy reports a search (MCTS). Default: ignore.</summary>
+    void OnSearch(SearchSummary search) { }
 }
 
 public sealed class NullEventSink : IGameEventSink

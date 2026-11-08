@@ -3,8 +3,8 @@
 @inject AppState State
 @inject NavigationManager Nav
 
-<PageTitle>結果 · 波多黎各策略模擬器</PageTitle>
-<h1>模擬結果</h1>
+<PageTitle>結果總覽 · 波多黎各策略模擬器</PageTitle>
+<h1>結果總覽</h1>
 <p class="note">載入 Runner 輸出的 result.json（<code>--out</code>），檢視策略勝率、分數與終局。策略顏色固定對應策略，不隨排名改變。</p>
 
 <FilePicker />
@@ -41,7 +41,7 @@ else if (State.Result != null && State.Analysis != null)
 
     <div class="row">
         <button @onclick="SimulateAgain">用這份設定再模擬</button>
-        <span class="muted">把這份結果的玩家數、策略、參數、種子帶到「模擬」頁，可以修改後再跑。</span>
+        <span class="muted">把這份結果的玩家數、策略、參數、種子帶到「策略模擬」頁，可以修改後再跑。</span>
     </div>
 
     <h2>策略勝率</h2>

@@ -21,6 +21,32 @@ public class MctsTests
         return cfg;
     }
 
+    private sealed class CollectSink : PuertoRico.Engine.Events.IGameEventSink
+    {
+        public List<(int Seat, GameAction Action, SearchSummary? Search)> Items { get; } = new();
+        private SearchSummary? _pending;
+        public bool Enabled => true;
+        public void OnSearch(SearchSummary search) => _pending = search;
+        public void OnDecision(GameState before, GameAction action) { Items.Add((before.Actor, action, _pending)); _pending = null; }
+    }
+
+    [Fact]
+    public void Replay_sink_receives_search_summary_only_for_mcts_decisions_with_a_choice()
+    {
+        var cfg = Config(3, sims: 8);
+        var sink = new CollectSink();
+        GameRunner.Play(cfg, 0, sink, out _);
+        var mctsSeat = sink.Items.Where(i => i.Search != null).Select(i => i.Seat).Distinct().ToList();
+        Assert.Single(mctsSeat); // only the MCTS player reports a search
+        foreach (var (_, action, search) in sink.Items.Where(i => i.Search != null))
+        {
+            Assert.Equal(8, search!.Simulations);
+            Assert.True(search.Actions.Count >= 2);
+            Assert.Contains(search.Actions, e => e.Action == action);
+            Assert.Equal(search.Actions.Max(e => e.Visits), search.Actions.First(e => e.Action == action).Visits);
+        }
+    }
+
     [Theory]
     [InlineData(3)]
     [InlineData(4)]

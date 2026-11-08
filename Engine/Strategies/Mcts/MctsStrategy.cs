@@ -15,7 +15,7 @@ namespace PuertoRico.Engine.Strategies.Mcts;
 /// rank the players by their current points: as strong as full rollouts at about half the cost, see docs/strategy-analysis.md).
 /// The tree search sees the full state (opponents' VP chips included) as the architecture notes allow for MCTS.
 /// </summary>
-public sealed class MctsStrategy : IStrategy
+public sealed class MctsStrategy : IStrategy, IDecisionExplainer
 {
     private const double WinWeight = 0.6;
     private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
@@ -49,8 +49,11 @@ public sealed class MctsStrategy : IStrategy
         _rng = seed;
     }
 
+    public SearchSummary? LastSearch { get; private set; }
+
     public GameAction ChooseAction(GameState state, IReadOnlyList<GameAction> legalActions)
     {
+        LastSearch = null;
         if (legalActions.Count == 1) return legalActions[0];
         _rollout ??= CreateRollout(state.PlayerCount);
 
@@ -66,13 +69,16 @@ public sealed class MctsStrategy : IStrategy
         int me = state.Actor;
         GameAction best = legalActions[0];
         double bestVisits = -1, bestMean = -1;
+        var entries = new List<SearchSummary.Entry>(legalActions.Count);
         foreach (var a in legalActions)
         {
             int k = root.Actions.IndexOf(a);
             double visits = k < 0 ? 0 : root.Kids[k].Visits;
             double mean = visits > 0 ? root.Kids[k].Reward[me] / visits : 0;
+            entries.Add(new SearchSummary.Entry(a, (int)visits, mean));
             if (visits > bestVisits || (visits == bestVisits && mean > bestMean)) { best = a; bestVisits = visits; bestMean = mean; }
         }
+        LastSearch = new SearchSummary(_simulations, entries);
         return best;
     }
 

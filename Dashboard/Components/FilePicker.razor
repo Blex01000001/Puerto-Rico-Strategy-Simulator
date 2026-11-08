@@ -15,11 +15,6 @@
         </label>
         <button @onclick="LoadSelected" disabled="@(string.IsNullOrEmpty(selected) || State.Loading)">載入</button>
         <button class="secondary" @onclick="Refresh">重新整理</button>
-        <label>或上傳 <InputFile OnChange="OnUpload" accept=".json" /></label>
-    </div>
-    <div class="row" style="margin-top:.5rem">
-        <input type="text" class="grow" placeholder="@("或輸入本機路徑，例如 " + Path.Combine("results", "4p-all.json"))" @bind="path" @bind:event="oninput" />
-        <button @onclick="LoadPath" disabled="@(string.IsNullOrWhiteSpace(path) || State.Loading)">載入路徑</button>
     </div>
     <p class="note">掃描資料夾：@AppState.DisplayPath(dir)（可在 appsettings.json 的 Dashboard:ResultsDirectory 改）。大檔案（10 萬局約 40 MB）載入需要幾秒。</p>
     @if (State.Loading) { <p>載入並計算中…</p> }
@@ -30,7 +25,6 @@
     private string dir = "";
     private List<string> files = new();
     private string selected = "";
-    private string path = "";
 
     protected override void OnInitialized()
     {
@@ -53,13 +47,6 @@
     }
 
     private Task LoadSelected() => State.LoadPathAsync(selected);
-    private Task LoadPath() => State.LoadPathAsync(path.Trim().Trim('"'));
-
-    private async Task OnUpload(InputFileChangeEventArgs e)
-    {
-        await using var stream = e.File.OpenReadStream(maxAllowedSize: 600L * 1024 * 1024);
-        await State.LoadStreamAsync(stream, e.File.Name);
-    }
 
     public void Dispose() => State.Changed -= OnChanged;
 }

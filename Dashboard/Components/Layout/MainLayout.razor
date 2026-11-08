@@ -1,18 +1,19 @@
 @inherits LayoutComponentBase
 
-<div class="shell">
+<div class="shell @(collapsed ? "collapsed" : "")">
     <nav class="sidebar" aria-label="主選單">
         <NavLink href="" Match="NavLinkMatch.All" ActiveClass="active" class="home">
             <span class="brand">波多黎各策略模擬器</span>
             <span class="homelabel">HOME</span>
         </NavLink>
-        <NavLink href="simulate" ActiveClass="active">模擬</NavLink>
-        <NavLink href="results" ActiveClass="active">結果</NavLink>
-        <NavLink href="overview" ActiveClass="active">總覽</NavLink>
-        <NavLink href="compare" ActiveClass="active">比較</NavLink>
-        <NavLink href="replay" ActiveClass="active">回放</NavLink>
+        <NavLink href="simulate" ActiveClass="active">策略模擬</NavLink>
+        <NavLink href="results" ActiveClass="active">結果總覽</NavLink>
+        <NavLink href="overview" ActiveClass="active">對戰總覽</NavLink>
+        <NavLink href="compare" ActiveClass="active">結果並排比較</NavLink>
+        <NavLink href="replay" ActiveClass="active">模擬重播</NavLink>
         <NavLink href="sweep" ActiveClass="active">參數掃描</NavLink>
         <NavLink href="config" ActiveClass="active">設定檔</NavLink>
+        <button class="navtoggle" @onclick="() => collapsed = !collapsed" title="@(collapsed ? "展開選單" : "收折選單")" aria-label="@(collapsed ? "展開選單" : "收折選單")">@(collapsed ? "»" : "« 收折")</button>
     </nav>
     <main>
         @Body
@@ -24,3 +25,7 @@
     <a href="" class="reload">重新載入</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    private bool collapsed;
+}
