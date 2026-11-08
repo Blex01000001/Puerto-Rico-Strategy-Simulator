@@ -4,14 +4,15 @@
   "players": 3,
   "games": 300,
   "seed": 5252,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "mcts",
       "strategy": "mcts",
       "params": {
         "simulations": 300,
-        "rolloutStrategy": "build-first"
+        "rolloutStrategy": "build-first",
+        "rolloutRounds": 0
       }
     },
     {

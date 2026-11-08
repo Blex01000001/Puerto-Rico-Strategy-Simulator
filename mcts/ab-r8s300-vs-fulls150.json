@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "name": "ab-r8s300-vs-fulls150",
   "players": 4,
-  "games": 300,
+  "games": 312,
   "seed": 7171,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "A",
@@ -18,7 +18,8 @@
       "id": "B",
       "strategy": "mcts",
       "params": {
-        "simulations": 150
+        "simulations": 150,
+        "rolloutRounds": 0
       }
     },
     {

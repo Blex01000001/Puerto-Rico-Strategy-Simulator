@@ -2,15 +2,16 @@
   "schemaVersion": 1,
   "name": "ab-random100-vs-random300r5",
   "players": 4,
-  "games": 300,
+  "games": 312,
   "seed": 7171,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "A",
       "strategy": "mcts",
       "params": {
-        "simulations": 100
+        "simulations": 100,
+        "rolloutRounds": 0
       }
     },
     {

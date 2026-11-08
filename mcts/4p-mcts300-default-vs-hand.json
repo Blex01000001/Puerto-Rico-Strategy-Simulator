@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "name": "4p-mcts300-default-vs-hand",
   "players": 4,
-  "games": 400,
+  "games": 408,
   "seed": 5151,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "mcts",

@@ -88,7 +88,7 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 專案檔 — `Directory.Build.props` 已設 net8.0／Nullable／TreatWarningsAsErrors，csproj 內不要重複設 — 警告即錯誤，新增程式碼要零警告。
 - `GameState.RngState` — 抽種植園時才推進亂數 — 複製後兩份狀態會抽到相同的牌；MCTS 的每次 rollout 必須先 `ReseedRng(新種子)`，否則所有 rollout 看到同一個未來。
 - `Rules.Apply` 之後的狀態一定停在下一個真實決策 — 不要自己迴圈略過 Pass；測試用 `Sc.Start`（`Tests/Sc.cs`）直接指定總督與職業來建情境。
-- `seatOrder: rotate` — 保留固定的循環座位順序，同一桌換設定檔排列順序勝率差 20 個百分點以上（corn 23.8%／5.6%／2.3%）— 比較策略要用 `random`（預設）或 `balanced`，不要用 `rotate` 的單一排列下結論；第一到第三輪調參與 MCTS 實驗用的是 `rotate`，絕對勝率帶有這個偏差（`docs/strategy-analysis.md` 第 0 節）。
+- `seatOrder: rotate` — 保留固定的循環座位順序，同一桌換設定檔排列順序勝率差 20 個百分點以上（corn 23.8%／5.6%／2.3%）— 比較策略要用 `random`（預設）或 `balanced`，不要用 `rotate` 的單一排列下結論；第一到第三輪調參用的是 `rotate`，絕對勝率帶有這個偏差（`docs/strategy-analysis.md` 第 0 節）；MCTS 實驗（`mcts/`）已用 `balanced` 重做（A/B 成對比較也會受排列順序影響，重做後一個結論翻轉）。
 - 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以座位要輪流（預設 `seatOrder: random`），統計看策略而非座位。
 
 - `results/` — 模擬輸出（10 萬局 70～90 MB）已被 `.gitignore` 忽略 — 絕對不要 `git add -f`；`git add -A` 之前先看 `git status`（曾誤把 390 MB 結果檔 commit 進 main，後來改寫歷史才清掉）。

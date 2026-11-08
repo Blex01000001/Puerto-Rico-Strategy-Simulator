@@ -8,7 +8,7 @@
 2. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 3. 【直接做】Dashboard 擴充：「模擬」頁加續跑；回放盤面可加每步的動作說明（例如誰賣了什麼、花多少錢）與兩局並排。
 4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
-5. 【直接做】`tournaments/` 與 MCTS 實驗改用 `balanced`（局數用 6／24 的倍數，例如 4 人局 100,008 局）並重跑，更新 `docs/strategy-analysis.md` 的數字（目前對戰是 `random`、MCTS 與第一到第三輪調參是 `rotate`）。
+5. 【直接做】`tournaments/` 改用 `balanced`（局數用 6／24 的倍數，例如 4 人局 100,008 局）並重跑，更新 `docs/strategy-analysis.md` 的數字（目前對戰是 `random`、第一到第三輪調參是 `rotate`；MCTS 實驗已是 `balanced`）。
 
 ## 已知問題／限制
 
