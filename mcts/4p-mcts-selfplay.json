@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "name": "4p-mcts-selfplay",
   "players": 4,
-  "games": 200,
+  "games": 192,
   "seed": 8282,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "mcts1",

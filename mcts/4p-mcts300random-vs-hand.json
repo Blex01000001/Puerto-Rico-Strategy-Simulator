@@ -2,16 +2,17 @@
   "schemaVersion": 1,
   "name": "4p-mcts300random-vs-hand",
   "players": 4,
-  "games": 200,
+  "games": 192,
   "seed": 5151,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "mcts",
       "strategy": "mcts",
       "params": {
         "simulations": 300,
-        "rolloutStrategy": "random"
+        "rolloutStrategy": "random",
+        "rolloutRounds": 0
       }
     },
     {

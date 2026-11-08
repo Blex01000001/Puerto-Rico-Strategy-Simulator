@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard 已有結果、總覽（多個結果檔彙整，含信賴區間與兩兩對戰矩陣）、比較（A/B 兩個結果檔並排）、回放（重打結果檔中的某一局並列決策）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔七頁。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard（左側導覽：HOME 介紹頁、模擬、結果…）已有 HOME、模擬、結果、總覽（多個結果檔彙整，含信賴區間與兩兩對戰矩陣）、比較（A/B 兩個結果檔並排）、回放（重打結果檔中的某一局，可逐步看盤面：種植園、建築、貨物、貨船）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔八頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -21,7 +21,7 @@
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Overview／Compare／Replay／Simulate／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/SnapshotEventSink.cs`（回放用，保存每個決策前的狀態）、`Services/StrategyInfo.cs`（HOME 與模擬頁「流派介紹」的行為規則與可調參數文字）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Home `/`、Results `/results`、Overview、Compare、Replay、Simulate、Sweep、Config）；`AppState.ReadConfigAsync` 只讀結果／掃描檔的 config（跳過逐局記錄，大檔很快），模擬頁的「用結果檔當範本」與結果頁「用這份設定再模擬」（`AppState.SetTemplate`）、回放頁都用它；畫面上的路徑一律用 `AppState.DisplayPath`／`Scrub` 顯示成相對專案根目錄，不顯示機器上的完整路徑、`Components/FilePicker.razor`、`Components/BoardView.razor`（回放盤面）、`wwwroot/favicon.svg`（瀏覽器圖示）、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
@@ -45,6 +45,7 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 
 - **改／加規則**：先改 `rules.md` → 改 `Engine/Game/Rules.<階段>.cs` 的 `Fill*`（列合法動作）與 `Apply*`（執行）；靜態數字改 `Buildings.cs`／`GameConstants.cs` → 在對應 `Tests/*Tests.cs` 加情境測試並註明 rules.md 節次 → `dotnet test -c Release`（fuzz 測試會檢查不變量）。新增動作種類時同步改 `ActionType`、`GameAction.ToString`。
 - **加手寫策略**：新類別繼承 `RuleBased/HeuristicStrategy.cs`，只覆寫要改的掛鉤（`TileValue`、`BuildingWanted`、`SlotValue`、各角色價值…），在 `StrategyRegistry` 註冊並加進 `rule-based` 的 profile 清單，參考 `HarborRushStrategy.cs`；測試放 `Tests/StrategyTests.cs`（用 `Sc.Start` 建情境，檢查它選的動作）。
+- **加／改策略後**：同步 `Dashboard/Services/StrategyInfo.cs`（流派介紹：規則與參數預設值），否則 HOME 與模擬頁的說明會過時。
 - **加其他策略**：新檔 `Engine/Strategies/XStrategy.cs` 實作 `IStrategy`（座位 = `state.Actor`，亂數只用工廠給的 seed，不得讀對手 `VpChips`）→ 在 `StrategyRegistry.Factories` 註冊名稱 → 設定檔 `seats[].strategy` 填該名稱，參數放 `params` → 加測試（至少能跑完 100 局且不丟例外）。
 - **改設定／結果 JSON 欄位**（先問使用者）：`SimulationConfig.cs`／`SimulationResult.cs`；新增欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`（續跑比對的欄位）。
 - **參數掃描**：設定檔加 `sweep: { target: "<seat id>", gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值型 `params`，格點為笛卡兒積），`dotnet run -c Release --project Runner -- --config config.sweep.example.json --sweep --out sweep.json`；每個格點用同一個主種子（共用隨機抽牌，差異雜訊較小），只比較 target 座位的勝率（附 95% 信賴區間）與平均分，對手固定。新增可掃參數 = 在策略建構子用 `StrategyRegistry.GetDouble` 讀 `params`。
@@ -65,7 +66,7 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 牌疊以各種類張數＋`RngState` 表示，不存牌序 — Clone 小、洗牌可重現 — 不要在狀態內存洗好的牌陣列。
 - 範圍：3 人與 4 人基礎版（`players: 3|4`，4 人局多一個 Prospector 職業），無擴充、不做 5 人局 — 不要加擴充內容。
 - 每局種子由 (masterSeed, gameIndex) 衍生 — 結果與執行緒數、分工方式無關，且 `--resume` 容易 — 不要改成「每執行緒一個 Random」。
-- 設定 `seatOrder` 預設 `rotate`（策略座位依局數輪換） — 3 人局有座位優勢，輪換才公平；統計以「策略」而非座位歸類 — 不要預設固定座位。
+- 設定 `seatOrder` 預設 `random`（每局隨機排座位），另有 `balanced`（3 人 6 種、4 人 24 種排列輪流，局數是 6／24 的倍數時每個策略坐每個座位、鄰座的次數完全相等）；`rotate` 與 `fixed` 不建議 — 3 人局有座位優勢，且「誰坐在誰旁邊」會讓同一桌勝率差 20 個百分點以上；統計以「策略」而非座位歸類 — 不要預設固定座位或輪換。
 - 隱藏資訊（對手 VP 籌碼）：策略介面照傳完整 `GameState`，約定策略**不得讀取對手 VP**；MCTS 內部需要完整狀態 — 簡單且不增加 Clone 成本 — 不要為此另做遮罩副本或另開介面。
 
 ## 亂數種子規則
@@ -87,8 +88,8 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 - 專案檔 — `Directory.Build.props` 已設 net8.0／Nullable／TreatWarningsAsErrors，csproj 內不要重複設 — 警告即錯誤，新增程式碼要零警告。
 - `GameState.RngState` — 抽種植園時才推進亂數 — 複製後兩份狀態會抽到相同的牌；MCTS 的每次 rollout 必須先 `ReseedRng(新種子)`，否則所有 rollout 看到同一個未來。
 - `Rules.Apply` 之後的狀態一定停在下一個真實決策 — 不要自己迴圈略過 Pass；測試用 `Sc.Start`（`Tests/Sc.cs`）直接指定總督與職業來建情境。
-- `seatOrder: rotate` — 保留固定的循環座位順序，同一桌換設定檔排列順序勝率差 20 個百分點以上（corn 23.8%／5.6%／2.3%）— 比較策略要用 `random`（`tournaments/` 與新掃描都用），不要用 `rotate` 的單一排列下結論；預設仍是 `rotate`，改預設待討論（TODO 第 1 項）。
-- 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以預設 `seatOrder: rotate`，統計看策略而非座位。
+- `seatOrder: rotate` — 保留固定的循環座位順序，同一桌換設定檔排列順序勝率差 20 個百分點以上（corn 23.8%／5.6%／2.3%）— 比較策略要用 `random`（預設）或 `balanced`，不要用 `rotate` 的單一排列下結論；第一到第三輪調參用的是 `rotate`，絕對勝率帶有這個偏差（`docs/strategy-analysis.md` 第 0 節）；MCTS 實驗（`mcts/`）已用 `balanced` 重做（A/B 成對比較也會受排列順序影響，重做後一個結論翻轉）。
+- 隨機玩家下座位 3（玉米起手）勝率明顯偏高（約 49%）— 不是 bug：把三家起手都改成染料後三座位勝率各 33%；所以座位要輪流（預設 `seatOrder: random`），統計看策略而非座位。
 
 - `results/` — 模擬輸出（10 萬局 70～90 MB）已被 `.gitignore` 忽略 — 絕對不要 `git add -f`；`git add -A` 之前先看 `git status`（曾誤把 390 MB 結果檔 commit 進 main，後來改寫歷史才清掉）。
 - 手寫策略預設參數 — 依玩家數不同（`Param` 在第一次 `ChooseAction` 才解析，因為建構時還不知道人數）；`StrategyTests` 的情境多半是 3 人局，用到 4 人預設值（如 premium 的 `switchRound`、harbor 的 `harborReadyTiles`）時要明確傳參數或指定玩家數 — 設定檔明確寫的參數永遠優先。

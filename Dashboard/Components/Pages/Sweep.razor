@@ -1,6 +1,7 @@
 @page "/sweep"
 @implements IDisposable
 @inject AppState State
+@inject NavigationManager Nav
 
 <PageTitle>參數掃描 · 波多黎各策略模擬器</PageTitle>
 <h1>參數掃描</h1>
@@ -30,6 +31,11 @@ else if (State.Sweep != null)
         {
             <div class="kpi"><div class="v">@best.WinShare.ToString("P1")</div><div class="l">最佳勝率：@Describe(best)</div></div>
         }
+    </div>
+
+    <div class="row">
+        <button @onclick="SimulateAgain">用這份設定再掃描</button>
+        <span class="muted">把這份掃描的策略、對手與掃描參數帶到「模擬」頁。</span>
     </div>
 
     <h2>各格點勝率</h2>
@@ -94,6 +100,13 @@ else if (State.Sweep != null)
     protected override void OnInitialized() => State.Changed += OnChanged;
     private void OnChanged() => InvokeAsync(StateHasChanged);
     public void Dispose() => State.Changed -= OnChanged;
+
+    private void SimulateAgain()
+    {
+        if (State.Sweep == null) return;
+        State.SetTemplate(State.Sweep.Config, State.Source ?? "目前掃描");
+        Nav.NavigateTo("simulate");
+    }
 
     private static string Describe(SweepPoint p) => SweepRunner.Describe(p.Params);
 

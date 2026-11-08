@@ -20,7 +20,7 @@
         }
         @if (files.Count == 0) { <span class="muted">資料夾內沒有 .json</span> }
     </div>
-    <p class="note">掃描資料夾：@dir。參數掃描檔（sweep）會被略過；每份大檔載入需要幾秒。</p>
+    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。參數掃描檔（sweep）會被略過；每份大檔載入需要幾秒。</p>
     @if (loading) { <p>載入中…（@done / @selected.Count）</p> }
     @foreach (var m in skipped) { <div class="error">略過：@m</div> }
 </div>
@@ -31,7 +31,18 @@
     foreach (int players in rows.Select(r => r.Players).Distinct().OrderBy(p => p))
     {
         var group = rows.Where(r => r.Players == players).ToList();
-        <h2>@players 人局（@tables.Count(t => t.Players == players) 張桌子）</h2>
+        var groupTables = tables.Where(t => t.Players == players).ToList();
+        var orders = groupTables.Select(t => t.SeatOrder).Distinct().ToList();
+        <h2>@players 人局（@groupTables.Count 張桌子）</h2>
+        <p class="note">座位順序：@string.Join("、", orders.Select(o => Palette.SeatOrderLabel(o) + "（" + groupTables.Count(t => t.SeatOrder == o) + " 張）"))</p>
+        @if (groupTables.Any(t => TournamentOverview.SeatOrderQuality(t) == "biased"))
+        {
+            <div class="error">這組有桌子用「輪換」或「固定」座位順序：同一桌只用一種循環排列，勝率可能偏差 20 個百分點以上，不能和其他桌直接比較強弱。建議用「隨機」或「完全平衡」重跑。</div>
+        }
+        else if (orders.Count > 1)
+        {
+            <div class="ok">這組的桌子座位順序不一致，平均勝率時請留意。</div>
+        }
         <figure class="chartbox">
             <BarChart Title="@($"{players} 人局平均勝率")" LabelWidth="220" Format="@(v => v.ToString("P1"))"
                       Items="@(group.Select((r, i) => new BarChart.BarItem(Palette.DisplayName(r.Strategy), r.AvgWinShare, r.AvgWinShareCi95, Palette.Color(r.Strategy, i),
@@ -88,12 +99,13 @@
     <h2>各桌明細</h2>
     <div class="tablewrap">
         <table class="data">
-            <thead><tr><th>檔案</th><th>人數</th><th>局數</th><th>座位（勝率／平均分）</th></tr></thead>
+            <thead><tr><th>檔案</th><th>人數</th><th>局數</th><th>座位順序</th><th>座位（勝率／平均分）</th></tr></thead>
             <tbody>
             @foreach (var t in tables.OrderBy(t => t.Players).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
             {
                 <tr>
                     <td>@t.Name</td><td>@t.Players</td><td>@t.Games.ToString("N0")</td>
+                    <td class="@(TournamentOverview.SeatOrderQuality(t) == "biased" ? "warn" : "")">@SeatOrderText(t)</td>
                     <td>@string.Join("；", t.Seats.OrderByDescending(s => s.WinShare).Select(s => $"{Palette.DisplayName(s.Strategy)} {s.WinShare:P1}／{s.AvgScore:0.0}"))</td>
                 </tr>
             }
@@ -111,6 +123,14 @@
     private bool loading;
     private int done;
     private List<OverviewPairRow> pairs = new();
+
+    private static string SeatOrderText(OverviewTable t) => TournamentOverview.SeatOrderQuality(t) switch
+    {
+        "exact" => "完全平衡",
+        "approx" => $"完全平衡（局數不是 {(t.Players == 3 ? 6 : 24)} 的倍數，近似）",
+        "fair" => "隨機",
+        _ => $"{Palette.SeatOrderLabel(t.SeatOrder)}（有排列偏差）",
+    };
 
     /// <summary>Share of games where <paramref name="a"/> ranked above <paramref name="b"/>; stored once per ordered pair (A &lt; B), the reverse is the complement.</summary>
     private double? Lookup(int players, string a, string b)
@@ -147,7 +167,7 @@
         foreach (var f in selected.OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList())
         {
             try { tables.Add(await AppState.ReadOverviewAsync(f)); }
-            catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { skipped.Add($"{Path.GetFileName(f)}：{e.Message}"); }
+            catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { skipped.Add($"{Path.GetFileName(f)}：{AppState.Scrub(e.Message)}"); }
             done++; StateHasChanged();
         }
         pairs = TournamentOverview.Pairwise(tables);

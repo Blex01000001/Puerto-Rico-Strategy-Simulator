@@ -15,19 +15,88 @@ public sealed class AppState
 
     public event Action? Changed;
 
-    /// <summary>Folder scanned for result files; default <c>results/</c> next to the solution file.</summary>
+    /// <summary>A configuration handed to the simulate page ("simulate again with this setup"); consumed once.</summary>
+    public SimulationConfig? Template { get; private set; }
+    public string? TemplateSource { get; private set; }
+
+    public void SetTemplate(SimulationConfig config, string source)
+    {
+        Template = SimulationConfig.Clone(config);
+        TemplateSource = source;
+    }
+
+    public (SimulationConfig Config, string Source)? TakeTemplate()
+    {
+        if (Template == null) return null;
+        var t = (Template, TemplateSource ?? "");
+        Template = null; TemplateSource = null;
+        return t;
+    }
+
+    /// <summary>Reads only the <c>config</c> section of a result or sweep file (skips the per-game records, so big files are fast).</summary>
+    public static async Task<SimulationConfig> ReadConfigAsync(string path)
+    {
+        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{DisplayPath(path)}");
+        byte[] bytes = await File.ReadAllBytesAsync(path);
+        return ExtractConfig(bytes, Path.GetFileName(path));
+    }
+
+    private static SimulationConfig ExtractConfig(byte[] bytes, string fileName)
+    {
+        var reader = new Utf8JsonReader(bytes, new JsonReaderOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) throw new InvalidDataException("不是 JSON 物件");
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonTokenType.PropertyName) continue;
+            bool isConfig = string.Equals(reader.GetString(), "config", StringComparison.OrdinalIgnoreCase);
+            reader.Read();
+            if (isConfig)
+            {
+                var cfg = JsonSerializer.Deserialize<SimulationConfig>(ref reader, SimulationConfig.JsonOptions)
+                          ?? throw new InvalidDataException("空的設定");
+                if (cfg.Seats.Count == 0) throw new InvalidDataException("設定沒有座位");
+                return cfg;
+            }
+            reader.Skip();
+        }
+        throw new InvalidDataException($"{fileName} 裡沒有 config 區塊");
+    }
+
+    /// <summary>Folder that holds PuertoRico.sln (found upwards from the app), or the current directory.</summary>
+    public static string RepoRoot()
+    {
+        string? dir = AppContext.BaseDirectory;
+        while (dir != null && !File.Exists(Path.Combine(dir, "PuertoRico.sln"))) dir = Path.GetDirectoryName(dir);
+        return dir ?? Directory.GetCurrentDirectory();
+    }
+
+    /// <summary>Path as shown to the user: relative to the project root (e.g. <c>results</c>), never the machine's full path.</summary>
+    public static string DisplayPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return path;
+        string rel;
+        try { rel = Path.GetRelativePath(RepoRoot(), Path.GetFullPath(path)); }
+        catch (ArgumentException) { return Path.GetFileName(path); }
+        return rel.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(rel) ? Path.GetFileName(path.TrimEnd('/', '\\')) : rel;
+    }
+
+    /// <summary>Removes the machine's project root from a message (e.g. an exception text) so no full path is shown.</summary>
+    public static string Scrub(string message)
+    {
+        string root = RepoRoot();
+        return message.Replace(root + Path.DirectorySeparatorChar, "").Replace(root, ".");
+    }
+
     public static string ResultsDirectory(IConfiguration config)
     {
         string? configured = config["Dashboard:ResultsDirectory"];
         if (!string.IsNullOrWhiteSpace(configured)) return Path.GetFullPath(configured);
-        string? dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "PuertoRico.sln"))) dir = Path.GetDirectoryName(dir);
-        return Path.Combine(dir ?? Directory.GetCurrentDirectory(), "results");
+        return Path.Combine(RepoRoot(), "results");
     }
 
     public async Task LoadPathAsync(string path)
     {
-        if (!File.Exists(path)) { Fail($"找不到檔案：{path}"); return; }
+        if (!File.Exists(path)) { Fail($"找不到檔案：{DisplayPath(path)}"); return; }
         await using var fs = File.OpenRead(path);
         await LoadStreamAsync(fs, Path.GetFileName(path));
     }
@@ -63,7 +132,7 @@ public sealed class AppState
         }
         catch (Exception e) when (e is JsonException or InvalidDataException or IOException)
         {
-            Fail($"無法讀取 {name}：{e.Message}");
+            Fail($"無法讀取 {name}：{Scrub(e.Message)}");
             return;
         }
         Loading = false;
@@ -73,7 +142,7 @@ public sealed class AppState
     /// <summary>Read and analyse a result file without touching the shown result (used by the compare page).</summary>
     public static async Task<(SimulationResult Result, ResultAnalysis Analysis)> ReadResultAsync(string path)
     {
-        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{path}");
+        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{DisplayPath(path)}");
         await using var fs = File.OpenRead(path);
         var result = await JsonSerializer.DeserializeAsync<SimulationResult>(fs, SimulationConfig.JsonOptions)
                      ?? throw new InvalidDataException("空的結果檔");
@@ -84,7 +153,7 @@ public sealed class AppState
     /// <summary>Read a result file and keep only its summary (for the overview page; the per-game records are dropped).</summary>
     public static async Task<OverviewTable> ReadOverviewAsync(string path)
     {
-        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{path}");
+        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{DisplayPath(path)}");
         await using var fs = File.OpenRead(path);
         var result = await JsonSerializer.DeserializeAsync<SimulationResult>(fs, SimulationConfig.JsonOptions)
                      ?? throw new InvalidDataException("空的結果檔");

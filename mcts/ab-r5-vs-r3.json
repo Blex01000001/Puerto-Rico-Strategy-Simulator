@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "name": "ab-r5-vs-r3",
   "players": 4,
-  "games": 300,
+  "games": 312,
   "seed": 7171,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "A",

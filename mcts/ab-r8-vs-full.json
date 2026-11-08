@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "name": "ab-r8-vs-full",
   "players": 4,
-  "games": 300,
+  "games": 312,
   "seed": 7171,
-  "seatOrder": "rotate",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "A",
@@ -18,7 +18,8 @@
       "id": "B",
       "strategy": "mcts",
       "params": {
-        "simulations": 300
+        "simulations": 300,
+        "rolloutRounds": 0
       }
     },
     {

@@ -1,0 +1,168 @@
+@using PuertoRico.Engine.Game
+
+@* Read-only picture of a game state: shared area (roles, ships, trading house, supplies) and one card per player
+   (coins, VP chips, plantations, buildings, goods). *@
+<div class="board">
+    <div class="boardshared">
+        <div class="boardhead">
+            回合 <strong>@S.Round</strong> · 階段 <strong>@PhaseName(S.Phase)</strong>
+            @if (!S.IsOver) { <span> · 總督：<strong>座位 @(S.Governor + 1)</strong> · 輪到：<strong>座位 @(S.Actor + 1)（@SeatName(S.Actor)）</strong></span> }
+            else { <span> · <strong>遊戲結束</strong></span> }
+        </div>
+
+        <div class="boardrow">
+            <div class="boardbox">
+                <h4>職業</h4>
+                <ul class="plain">
+                    @for (int r = 0; r < S.RoleCount; r++)
+                    {
+                        <li class="@(S.RoleOwner[r] >= 0 ? "taken" : "")">
+                            @RoleName(r)
+                            @if (S.RoleCoins[r] > 0) { <span class="muted"> · @S.RoleCoins[r] 金幣</span> }
+                            @if (S.RoleOwner[r] >= 0) { <span class="pill">座位 @(S.RoleOwner[r] + 1)</span> }
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <div class="boardbox">
+                <h4>貨船</h4>
+                @for (int i = 0; i < GameConstants.ShipCount; i++)
+                {
+                    <div class="shiprow">
+                        <span class="muted">@S.ShipCap[i] 格</span>
+                        @if (S.ShipLoad[i] > 0)
+                        {
+                            for (int k = 0; k < S.ShipLoad[i]; k++) { <span class="good" style="background:var(--good-@S.ShipGood[i])" title="@GoodName(S.ShipGood[i])"></span> }
+                            for (int k = S.ShipLoad[i]; k < S.ShipCap[i]; k++) { <span class="good empty"></span> }
+                            <span class="muted"> @GoodName(S.ShipGood[i]) @S.ShipLoad[i]/@S.ShipCap[i]</span>
+                        }
+                        else
+                        {
+                            for (int k = 0; k < S.ShipCap[i]; k++) { <span class="good empty"></span> }
+                            <span class="muted"> 空船</span>
+                        }
+                    </div>
+                }
+                <h4>交易所（@S.TradeCount/@GameConstants.TradeSlots）</h4>
+                <div class="shiprow">
+                    @for (int i = 0; i < GameConstants.TradeSlots; i++)
+                    {
+                        if (i < S.TradeCount) { <span class="good" style="background:var(--good-@S.TradeHouse[i])" title="@GoodName(S.TradeHouse[i])"></span> }
+                        else { <span class="good empty"></span> }
+                    }
+                </div>
+            </div>
+
+            <div class="boardbox">
+                <h4>供應區</h4>
+                <div class="shiprow">
+                    @for (int g = 0; g < GameConstants.GoodCount; g++)
+                    {
+                        <span class="good" style="background:var(--good-@g)" title="@GoodName(g)"></span><span class="muted">@S.GoodsSupply[g]&nbsp;</span>
+                    }
+                </div>
+                <div class="muted">勝利點籌碼 @S.VpSupply · 殖民者 銀行 @S.BankColonists／移民船 @S.ShipColonists · 採石場 @S.QuarrySupply</div>
+                <div class="muted">
+                    翻開的種植園：
+                    @for (int g = 0; g < GameConstants.GoodCount; g++)
+                    {
+                        for (int k = 0; k < S.FaceUp[g]; k++) { <span class="tile" style="background:var(--good-@g)" title="@GoodName(g)"></span> }
+                    }
+                    · 牌堆 @S.DeckTotal() 張
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="boardplayers">
+        @for (int p = 0; p < S.PlayerCount; p++)
+        {
+            int seat = p;
+            <div class="boardplayer @(!S.IsOver && S.Actor == seat ? "acting" : "")">
+                <div class="boardhead">
+                    <strong>座位 @(seat + 1)</strong> · @SeatName(seat)
+                    @if (S.Governor == seat) { <span class="pill">總督</span> }
+                    @for (int r = 0; r < S.RoleCount; r++) { if (S.RoleOwner[r] == seat) { <span class="pill role">@RoleName(r)</span> } }
+                </div>
+                <div class="boardnums">
+                    <span>金幣 <strong>@S.Coins[seat]</strong></span>
+                    <span>勝利點 <strong>@S.VpChips[seat]</strong></span>
+                    <span>聖胡安殖民者 <strong>@S.SanJuan[seat]</strong></span>
+                </div>
+
+                <h4>種植園（● 有殖民者）</h4>
+                <div class="tilesrow">
+                    @for (int t = 0; t < GameConstants.TileTypes; t++)
+                    {
+                        int count = S.Tiles[seat * GameConstants.TileTypes + t];
+                        int occ = S.TilesOcc[seat * GameConstants.TileTypes + t];
+                        for (int k = 0; k < count; k++)
+                        {
+                            <span class="tile" style="background:@(t == GameConstants.QuarryType ? "var(--good-q)" : $"var(--good-{t})")" title="@(t == GameConstants.QuarryType ? "採石場" : GoodName(t))">@(k < occ ? "●" : "")</span>
+                        }
+                    }
+                    @if (S.TileCount(seat) == 0) { <span class="muted">（沒有）</span> }
+                </div>
+
+                <h4>建築</h4>
+                <div class="bldrow">
+                    @for (int b = 0; b < GameConstants.BuildingCount; b++)
+                    {
+                        if (S.BuildingOwned[seat * GameConstants.BuildingCount + b] == 0) continue;
+                        var info = Buildings.All[b];
+                        int occ = S.BuildingOcc[seat * GameConstants.BuildingCount + b];
+                        <span class="bld @(info.Large ? "large" : "") @(info.IsProduction ? "prod" : "")" title="費用 @info.Cost · @info.Vp 分">
+                            @info.Name
+                            <span class="dots">@string.Concat(Enumerable.Repeat("●", Math.Min(occ, info.Capacity)))@string.Concat(Enumerable.Repeat("○", Math.Max(0, info.Capacity - occ)))</span>
+                        </span>
+                    }
+                    @if (!HasBuildings(seat)) { <span class="muted">（沒有）</span> }
+                </div>
+
+                <h4>貨物</h4>
+                <div class="shiprow">
+                    @for (int g = 0; g < GameConstants.GoodCount; g++)
+                    {
+                        int n = S.Goods[seat * GameConstants.GoodCount + g];
+                        for (int k = 0; k < n; k++) { <span class="good" style="background:var(--good-@g)" title="@GoodName(g)"></span> }
+                    }
+                    @if (S.GoodTotal(seat) == 0) { <span class="muted">（沒有）</span> }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public GameState S { get; set; } = default!;
+    /// <summary>Display name of the strategy at a table seat.</summary>
+    [Parameter] public Func<int, string> SeatNameOf { get; set; } = seat => "";
+
+    private string SeatName(int seat) => SeatNameOf(seat);
+
+    private bool HasBuildings(int seat)
+    {
+        for (int b = 0; b < GameConstants.BuildingCount; b++) if (S.BuildingOwned[seat * GameConstants.BuildingCount + b] != 0) return true;
+        return false;
+    }
+
+    private static readonly string[] Goods = { "玉米", "靛藍", "糖", "菸草", "咖啡" };
+    private static readonly string[] Roles = { "開拓者", "市長", "建築師", "工匠", "商人", "船長", "淘金者" };
+    private static string GoodName(int g) => g >= 0 && g < Goods.Length ? Goods[g] : "?";
+    private static string RoleName(int r) => r >= 0 && r < Roles.Length ? Roles[r] : "?";
+
+    private static string PhaseName(Phase p) => p switch
+    {
+        Phase.ChooseRole => "選職業",
+        Phase.Settler => "開拓者",
+        Phase.Mayor => "市長（放殖民者）",
+        Phase.Builder => "建築師",
+        Phase.CraftsmanBonus => "工匠（額外貨物）",
+        Phase.Trader => "商人",
+        Phase.Captain => "船長",
+        Phase.CaptainStorage => "船長（保留貨物）",
+        Phase.GameOver => "遊戲結束",
+        _ => p.ToString(),
+    };
+}

@@ -7,6 +7,7 @@ public sealed class OverviewTable
     public int Players { get; set; }
     public int Games { get; set; }
     public ulong Seed { get; set; }
+    public SeatOrderMode SeatOrder { get; set; } = SeatOrderMode.Random;
     public List<SeatSummary> Seats { get; set; } = new();
     /// <summary>Strategy name per row/column of <see cref="Pairwise"/> (one per seat); empty when the file has no per-game records.</summary>
     public List<string> PairNames { get; set; } = new();
@@ -35,6 +36,21 @@ public sealed class OverviewStrategyRow
 /// <summary>Cross-table summary for the Dashboard overview page (UI-free, testable).</summary>
 public static class TournamentOverview
 {
+    /// <summary>
+    /// How trustworthy the seating of this table is for comparing strategies: <c>balanced</c> with a game count that is a multiple of n! is exact,
+    /// <c>random</c> is fair on average, <c>rotate</c> and <c>fixed</c> keep one circular order (results can swing by 20+ points).
+    /// </summary>
+    public static string SeatOrderQuality(OverviewTable t)
+    {
+        long perms = t.Players == 3 ? 6 : 24;
+        return t.SeatOrder switch
+        {
+            SeatOrderMode.Balanced => t.Games % perms == 0 ? "exact" : "approx",
+            SeatOrderMode.Random => "fair",
+            _ => "biased",
+        };
+    }
+
     public static OverviewTable FromResult(string name, SimulationResult r, ResultAnalysis? analysis = null)
     {
         var t = new OverviewTable
@@ -43,6 +59,7 @@ public static class TournamentOverview
             Players = r.Config.Players,
             Games = r.GamesCompleted,
             Seed = r.Config.Seed,
+            SeatOrder = r.Config.SeatOrder,
             Seats = r.Summary,
         };
         if (analysis is { HasGameRecords: true })

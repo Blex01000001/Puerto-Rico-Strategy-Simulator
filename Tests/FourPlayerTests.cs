@@ -166,6 +166,7 @@ public class FourPlayerTests
             Players = 4,
             Games = 80,
             Seed = 5,
+            SeatOrder = SeatOrderMode.Rotate,
             Seats = new[] { "A", "B", "C", "D" }.Select(id => new SeatConfig { Id = id, Strategy = "random" }).ToList(),
         };
         cfg.Validate();

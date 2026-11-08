@@ -1,6 +1,7 @@
-@page "/"
+@page "/results"
 @implements IDisposable
 @inject AppState State
+@inject NavigationManager Nav
 
 <PageTitle>結果 · 波多黎各策略模擬器</PageTitle>
 <h1>模擬結果</h1>
@@ -25,7 +26,7 @@ else if (State.Result != null && State.Analysis != null)
         <div class="kpi"><div class="v">@a.GamesCompleted.ToString("N0")</div><div class="l">局數（@r.Status）</div></div>
         <div class="kpi"><div class="v">@r.Config.Players</div><div class="l">玩家數</div></div>
         <div class="kpi"><div class="v">@r.Config.Seed</div><div class="l">主種子</div></div>
-        <div class="kpi"><div class="v">@r.Config.SeatOrder</div><div class="l">座位順序</div></div>
+        <div class="kpi"><div class="v">@Palette.SeatOrderLabel(r.Config.SeatOrder)</div><div class="l">座位順序</div></div>
         @if (a.HasGameRecords)
         {
             <div class="kpi"><div class="v">@a.AvgRounds.ToString("0.0")</div><div class="l">平均回合數</div></div>
@@ -38,20 +39,25 @@ else if (State.Result != null && State.Analysis != null)
         <div class="error">這份結果狀態是「@r.Status」，只含已跑完的 @a.GamesCompleted 局 / 預定 @r.GamesRequested 局。</div>
     }
 
+    <div class="row">
+        <button @onclick="SimulateAgain">用這份設定再模擬</button>
+        <span class="muted">把這份結果的玩家數、策略、參數、種子帶到「模擬」頁，可以修改後再跑。</span>
+    </div>
+
     <h2>策略勝率</h2>
     <p class="note">勝率 = 贏的局數比例（並列第一者平分）；誤差線 = 95% 信賴區間。隨機基準 = @((1.0 / r.Config.Players).ToString("P1"))。</p>
     <figure class="chartbox">
         <BarChart Title="策略勝率" Format="@(v => v.ToString("P1"))"
-                  Items="@(strategies.Select((s, i) => new BarChart.BarItem(Name(i), s.WinShare, s.WinShareCi95, Color(i),
-                       $"{Name(i)}　勝率 {Pct(s.WinShare)} ± {Pct(s.WinShareCi95)}（{s.Games:N0} 局）")).ToList())" />
+                  Items="@(strategies.Select((s, i) => (s, i)).OrderByDescending(x => x.s.WinShare).Select(x => new BarChart.BarItem(Name(x.i), x.s.WinShare, x.s.WinShareCi95, Color(x.i),
+                       $"{Name(x.i)}　勝率 {Pct(x.s.WinShare)} ± {Pct(x.s.WinShareCi95)}（{x.s.Games:N0} 局）")).ToList())" />
     </figure>
 
     <h2>平均分數</h2>
     <p class="note">長條 = 平均總分；線段 = ±1 個標準差（分數的離散程度，越短越穩定）。</p>
     <figure class="chartbox">
         <BarChart Title="平均分數" Format="@(v => v.ToString("0.0"))"
-                  Items="@(strategies.Select((s, i) => new BarChart.BarItem(Name(i), s.AvgScore, s.StdScore, Color(i),
-                       $"{Name(i)}　平均 {s.AvgScore:0.0}，標準差 {s.StdScore:0.0}")).ToList())" />
+                  Items="@(strategies.Select((s, i) => (s, i)).OrderByDescending(x => x.s.AvgScore).Select(x => new BarChart.BarItem(Name(x.i), x.s.AvgScore, x.s.StdScore, Color(x.i),
+                       $"{Name(x.i)}　平均 {x.s.AvgScore:0.0}，標準差 {x.s.StdScore:0.0}")).ToList())" />
     </figure>
 
     <div class="grid2">
@@ -139,14 +145,6 @@ else if (State.Result != null && State.Analysis != null)
 
     @if (a.HasGameRecords)
     {
-        <h2>分數分佈</h2>
-        <p class="note">各策略的總分落在每 @a.Scores.BinWidth 分一格的比例（曲線越靠右越高分、越窄越穩定）。</p>
-        <figure class="chartbox">
-            <LineChart Title="分數分佈" YFormat="@(v => v.ToString("P0"))"
-                       XLabels="@(Enumerable.Range(0, a.Scores.BinCount).Select(b => (a.Scores.MinScore + b * a.Scores.BinWidth).ToString()).ToList())"
-                       Series="@(strategies.Select((s, i) => new LineChart.LineSeries(Name(i), Color(i), a.Scores.Series[i])).ToList())" />
-        </figure>
-
         <div class="grid2">
             <div>
                 <h2>局長（回合數）</h2>
@@ -189,7 +187,7 @@ else if (State.Result != null && State.Analysis != null)
     }
     else
     {
-        <div class="ok">這份結果沒有逐局記錄（<code>output.perGameRecords: false</code>），所以沒有分數分佈、局長、終局原因與名次比較。</div>
+        <div class="ok">這份結果沒有逐局記錄（<code>output.perGameRecords: false</code>），所以沒有局長、終局原因與名次比較。</div>
     }
 
     <h2>數據表</h2>
@@ -236,6 +234,13 @@ else if (State.Result != null && State.Analysis != null)
     protected override void OnInitialized() => State.Changed += OnChanged;
     private void OnChanged() => InvokeAsync(StateHasChanged);
     public void Dispose() => State.Changed -= OnChanged;
+
+    private void SimulateAgain()
+    {
+        if (State.Result == null) return;
+        State.SetTemplate(State.Result.Config, State.Source ?? "目前結果");
+        Nav.NavigateTo("simulate");
+    }
 
     private static string ReasonName(string key)
     {

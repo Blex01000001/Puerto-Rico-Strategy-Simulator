@@ -21,7 +21,7 @@
         <input type="text" class="grow" placeholder="@("或輸入本機路徑，例如 " + Path.Combine("results", "4p-all.json"))" @bind="path" @bind:event="oninput" />
         <button @onclick="LoadPath" disabled="@(string.IsNullOrWhiteSpace(path) || State.Loading)">載入路徑</button>
     </div>
-    <p class="note">掃描資料夾：@dir（可在 appsettings.json 的 Dashboard:ResultsDirectory 改）。大檔案（10 萬局約 40 MB）載入需要幾秒。</p>
+    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)（可在 appsettings.json 的 Dashboard:ResultsDirectory 改）。大檔案（10 萬局約 40 MB）載入需要幾秒。</p>
     @if (State.Loading) { <p>載入並計算中…</p> }
     @if (State.Error != null) { <div class="error">@State.Error</div> }
 </div>

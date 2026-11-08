@@ -4,14 +4,16 @@
 
 ## 待辦
 
-1. 【先討論】預設 `seatOrder` 由 `rotate` 改成 `random`：`rotate` 保留固定的循環座位順序，同一桌換設定檔排列順序勝率就差 20 個百分點以上（`docs/strategy-analysis.md` 第 0 節）；`random` 才對排列不偏。八份 `tournaments/` 已改用 `random`；若同意改預設，需同步 `config.*.json`、`SimulationConfig.SeatOrder` 預設值與 CLAUDE.md 的架構決策，並重跑 MCTS 實驗與歷史掃描。
-2. 【先討論】手寫策略下一步：用 MCTS 當陪練找弱點（例如 cheap-engine 對 MCTS）；繼續把 MCTS 行為寫進手寫策略（cheap-engine 仍遠不如 MCTS）；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
-3. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
-4. 【直接做】Dashboard 擴充：「模擬」頁加續跑；回放頁目前只列決策文字，可加視覺化盤面（種植園、建築、貨物）。
-5. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
+1. 【先討論】手寫策略下一步：用 MCTS 當陪練找弱點（例如 cheap-engine 對 MCTS）；繼續把 MCTS 行為寫進手寫策略（cheap-engine 仍遠不如 MCTS）；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
+2. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
+3. 【直接做】Dashboard 擴充：「模擬」頁加續跑；回放盤面可加每步的動作說明（例如誰賣了什麼、花多少錢）與兩局並排。
+4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
+5. 【直接做】`tournaments/` 改用 `balanced`（局數用 6／24 的倍數，例如 4 人局 100,008 局）並重跑，更新 `docs/strategy-analysis.md` 的數字（目前對戰是 `random`、第一到第三輪調參是 `rotate`；MCTS 實驗已是 `balanced`）。
 
 ## 已知問題／限制
 
+- 模擬頁新增的「完全平衡」選項與局數提示（`Simulate.razor`）只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。
+- 分析文件第 1、2 節的絕對數字是 `random` 座位順序的結果，MCTS 實驗（第 5 節）是 `balanced`，第一到第三輪調參是 `rotate`；總覽頁的「座位順序」欄會標示每份結果用哪種。
 - 規則中未明說、引擎採用的詮釋（請使用者確認，或提供反例）：
   - Factory 的金幣依「公式產量 > 0 的貨種數」計算，不看實際領到多少（供應不足時也照給）。
   - Guild Hall／City Hall 計算的建築不要求有殖民者（只有大型建築本身要）；可由 `Scoring.CountedBuildingsNeedColonist` 切換。

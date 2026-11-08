@@ -7,10 +7,14 @@ public enum SeatOrderMode
 {
     /// <summary>Config seat i always sits at table seat i.</summary>
     Fixed,
-    /// <summary>Strategies rotate through the table seats game by game (default; removes the seat advantage).</summary>
+    /// <summary>Strategies rotate through the table seats game by game. Removes the seat advantage but keeps one fixed circular order
+    /// (who sits next to whom), which can swing a table's results by 20+ points; not recommended for comparing strategies.</summary>
     Rotate,
-    /// <summary>Random permutation per game (derived from the game seed).</summary>
+    /// <summary>Random permutation per game (derived from the game seed). Default: fair on average over the games.</summary>
     Random,
+    /// <summary>Every permutation of the seats in turn (game index mod n!, 6 for 3 players, 24 for 4): each strategy sits in every seat and next to
+    /// every other strategy equally often, exactly when the number of games is a multiple of n!.</summary>
+    Balanced,
 }
 
 public sealed class SeatConfig
@@ -56,7 +60,7 @@ public sealed class SimulationConfig
     public int Players { get; set; } = 3;
     public int Games { get; set; } = 1000;
     public ulong Seed { get; set; } = 12345;
-    public SeatOrderMode SeatOrder { get; set; } = SeatOrderMode.Rotate;
+    public SeatOrderMode SeatOrder { get; set; } = SeatOrderMode.Random;
     public List<SeatConfig> Seats { get; set; } = new()
     {
         new SeatConfig { Id = "A", Strategy = "random" },

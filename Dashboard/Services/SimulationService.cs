@@ -28,7 +28,7 @@ public sealed class SimulationService : IDisposable
         if (Running) return;
         Error = null; Progress = null; LastOutput = null; IsSweep = false;
         try { cfg.Validate(); }
-        catch (InvalidDataException e) { Error = e.Message; Changed?.Invoke(); return; }
+        catch (InvalidDataException e) { Error = AppState.Scrub(e.Message); Changed?.Invoke(); return; }
 
         string dir = AppState.ResultsDirectory(_config);
         string path = Path.Combine(dir, fileName);
@@ -45,7 +45,7 @@ public sealed class SimulationService : IDisposable
         }
         catch (Exception e)
         {
-            Error = $"模擬失敗：{e.Message}";
+            Error = $"模擬失敗：{AppState.Scrub(e.Message)}";
         }
         finally
         {
@@ -63,7 +63,7 @@ public sealed class SimulationService : IDisposable
             SweepRunner.Validate(cfg);
             SweepTotal = SweepRunner.Grid(cfg.Sweep!).Count;
         }
-        catch (InvalidDataException e) { Error = e.Message; Changed?.Invoke(); return; }
+        catch (InvalidDataException e) { Error = AppState.Scrub(e.Message); Changed?.Invoke(); return; }
 
         string path = Path.Combine(AppState.ResultsDirectory(_config), fileName);
         _cts = new CancellationTokenSource();
@@ -79,7 +79,7 @@ public sealed class SimulationService : IDisposable
         }
         catch (Exception e)
         {
-            Error = $"掃描失敗：{e.Message}";
+            Error = $"掃描失敗：{AppState.Scrub(e.Message)}";
         }
         finally
         {
