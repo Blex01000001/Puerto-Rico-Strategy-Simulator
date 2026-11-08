@@ -147,3 +147,4 @@ pre.panel { overflow-x: auto; margin: .75rem 0; }
 .stepbar input[type=range] { flex: 1 1 260px; }
 tr.cur td { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 tr.clickable { cursor: pointer; }
+td.warn { color: var(--neg); font-weight: 600; }

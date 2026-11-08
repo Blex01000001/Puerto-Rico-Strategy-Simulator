@@ -85,3 +85,27 @@ public class TournamentOverviewExtraTests
         Assert.Single(rows.Where(r => r.A == "a" && r.B == "b"));
     }
 }
+
+public class TournamentOverviewSeatOrderTests
+{
+    private static OverviewTable T(int players, int games, SeatOrderMode mode) => new() { Name = "t", Players = players, Games = games, SeatOrder = mode };
+
+    [Fact]
+    public void Seat_order_quality_follows_the_mode_and_the_game_count()
+    {
+        Assert.Equal("exact", TournamentOverview.SeatOrderQuality(T(4, 2400, SeatOrderMode.Balanced)));
+        Assert.Equal("approx", TournamentOverview.SeatOrderQuality(T(4, 100000, SeatOrderMode.Balanced)));
+        Assert.Equal("exact", TournamentOverview.SeatOrderQuality(T(3, 99996, SeatOrderMode.Balanced)));
+        Assert.Equal("fair", TournamentOverview.SeatOrderQuality(T(4, 100000, SeatOrderMode.Random)));
+        Assert.Equal("biased", TournamentOverview.SeatOrderQuality(T(4, 100000, SeatOrderMode.Rotate)));
+        Assert.Equal("biased", TournamentOverview.SeatOrderQuality(T(3, 6, SeatOrderMode.Fixed)));
+    }
+
+    [Fact]
+    public void FromResult_keeps_the_seat_order_of_the_config()
+    {
+        var r = new SimulationResult { Config = new SimulationConfig { Players = 4, SeatOrder = SeatOrderMode.Balanced } };
+        Assert.Equal(SeatOrderMode.Balanced, TournamentOverview.FromResult("x", r).SeatOrder);
+    }
+}
+
