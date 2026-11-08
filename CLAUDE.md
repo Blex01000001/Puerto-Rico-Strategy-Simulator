@@ -10,6 +10,7 @@
 
 | 路徑 | 用途 | 狀態 |
 |---|---|---|
+| `README.md` | 給第一次看的人：專案目的、主要結論（數字來自 `docs/strategy-analysis.md`，分析更新時同步）、快速開始、Dashboard 功能 | 已有 |
 | `docs/TODO.md` | 目前狀態：待辦、已知問題、想法；每次 commit 時同步更新 | 已有 |
 | `rules.md` | 遊戲規則唯一依據（第 1～6 節 3 人局，第 7 節 4 人局差異） | 資料齊備，沒有待確認的規則問題 |
 | `PuertoRico.sln`, `Directory.Build.props` | 解決方案與共用建置設定（net8.0、Nullable、TreatWarningsAsErrors） | 已有 |
@@ -21,7 +22,7 @@
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/SnapshotEventSink.cs`（回放用，保存每個決策前的狀態）、`Services/StrategyInfo.cs`（HOME 與模擬頁「流派介紹」的行為規則與可調參數文字）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Home `/`、Results `/results`、Overview、Compare、Replay、Simulate、Sweep、Config）；`AppState.ReadConfigAsync` 只讀結果／掃描檔的 config（跳過逐局記錄，大檔很快），模擬頁的「用結果檔當範本」與結果頁「用這份設定再模擬」（`AppState.SetTemplate`）、回放頁都用它；畫面上的路徑一律用 `AppState.DisplayPath`／`Scrub` 顯示成相對專案根目錄，不顯示機器上的完整路徑、`Components/FilePicker.razor`、`Components/BoardView.razor`（回放盤面）、`wwwroot/favicon.svg`（瀏覽器圖示）、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/SnapshotEventSink.cs`（回放用，保存每個決策前的狀態）、`Services/StrategyInfo.cs`（HOME 與模擬頁「流派介紹」的行為規則與可調參數文字）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Home `/`、Results `/results`、Overview、Compare、Replay、Simulate、Sweep、Config）；`AppState.ReadConfigAsync` 只讀結果／掃描檔的 config（跳過逐局記錄，大檔很快），模擬頁的「用結果檔當範本」與結果頁「用這份設定再模擬」（`AppState.SetTemplate`）、回放頁都用它；畫面上的路徑一律用 `AppState.DisplayPath`／`Scrub` 顯示成相對專案根目錄，不顯示機器上的完整路徑、`Components/FilePicker.razor`、`Components/BoardView.razor`（回放盤面）、`wwwroot/favicon.svg`（瀏覽器圖示）、`wwwroot/app.css`（色票 token；只有一套扁平深色主題，Steam／Discord 風，沒有淺色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
