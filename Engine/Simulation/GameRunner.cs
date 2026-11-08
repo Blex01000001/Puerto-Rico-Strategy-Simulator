@@ -91,8 +91,13 @@ public static class GameRunner
         {
             Rules.GetLegalActions(state, legal);
             if (legal.Count == 0) throw new InvalidOperationException($"No legal action in phase {state.Phase} (game {gameIndex})");
-            var action = auto && legal.Count == 1 ? legal[0] : strategies[state.Actor].ChooseAction(state, legal);
-            if (sink.Enabled) sink.OnDecision(state, action);
+            bool forced = auto && legal.Count == 1;
+            var action = forced ? legal[0] : strategies[state.Actor].ChooseAction(state, legal);
+            if (sink.Enabled)
+            {
+                if (!forced && strategies[state.Actor] is IDecisionExplainer { LastSearch: { } search }) sink.OnSearch(search);
+                sink.OnDecision(state, action);
+            }
             // statistics for the result file (read before Apply: actor and round are those of the decision)
             if (action.Type == ActionType.Build) built[state.Actor].Add((action.A, state.Round));
             else if (action.Type == ActionType.LoadShip || action.Type == ActionType.LoadWharf) shipments[state.Actor]++;

@@ -6,17 +6,17 @@
 
 <h2>怎麼使用</h2>
 <ol>
-    <li><strong>模擬</strong>：選玩家數（3 或 4 人）與每個座位的策略，按「開始模擬」。結果會存進 <code>results</code> 資料夾並自動載入。</li>
-    <li><strong>結果</strong>：看每個策略的勝率、平均分數、分數構成、買了哪些建築、局長與終局原因、兩兩名次比較。</li>
-    <li>想進一步比較：用 <strong>總覽</strong>（彙整多張桌子）、<strong>比較</strong>（兩份結果並排）、<strong>回放</strong>（重看某一局的每個決策）、<strong>參數掃描</strong>（試一個策略的不同參數）。</li>
+    <li><strong>策略模擬</strong>：選玩家數（3 或 4 人）與每個座位的策略，按「開始模擬」。結果會存進 <code>results</code> 資料夾並自動載入。</li>
+    <li><strong>結果總覽</strong>：看每個策略的勝率、平均分數、分數構成、買了哪些建築、局長與終局原因、兩兩名次比較。</li>
+    <li>想進一步比較：用 <strong>對戰總覽</strong>（彙整多張桌子）、<strong>結果並排比較</strong>（兩份結果並排）、<strong>模擬重播</strong>（重看某一局的每個決策）、<strong>參數掃描</strong>（試一個策略的不同參數）。</li>
 </ol>
 
 <div class="cards">
-    <a class="card" href="simulate"><strong>模擬</strong>選策略、設定局數與種子，直接在這裡跑。頁面下方有每個流派的行為規則與可調參數。</a>
-    <a class="card" href="results"><strong>結果</strong>一份模擬結果的完整分析：勝率、分數、建築、局長。</a>
-    <a class="card" href="overview"><strong>總覽</strong>勾選多份結果，依玩家數彙整每個策略的平均勝率、信賴區間與兩兩對戰矩陣。</a>
-    <a class="card" href="compare"><strong>比較</strong>A/B 兩份結果並排，看勝率差與是否顯著。</a>
-    <a class="card" href="replay"><strong>回放</strong>重打結果檔中的某一局，列出每個決策與最終盤面。</a>
+    <a class="card" href="simulate"><strong>策略模擬</strong>選策略、設定局數與種子，直接在這裡跑。頁面下方有每個流派的行為規則與可調參數。</a>
+    <a class="card" href="results"><strong>結果總覽</strong>一份模擬結果的完整分析：勝率、分數、建築、局長。</a>
+    <a class="card" href="overview"><strong>對戰總覽</strong>勾選多份結果，依玩家數彙整每個策略的平均勝率、信賴區間與兩兩對戰矩陣。</a>
+    <a class="card" href="compare"><strong>結果並排比較</strong>A/B 兩份結果並排，看勝率差與是否顯著。</a>
+    <a class="card" href="replay"><strong>模擬重播</strong>重打結果檔中的某一局，逐步看盤面與每步動作說明（MCTS 玩家另列搜尋結果）。</a>
     <a class="card" href="sweep"><strong>參數掃描</strong>只改一個策略的參數、對手固定，找出較好的參數。</a>
     <a class="card" href="config"><strong>設定檔</strong>編輯並驗證模擬設定（JSON），可下載後交給命令列 Runner 跑大量局數。</a>
 </div>
@@ -28,7 +28,7 @@
         <li><strong>@s.Title</strong>（<code>@s.Id</code>）：@s.Summary</li>
     }
 </ul>
-<p class="note">每個策略的行為規則與可調整參數，請看「模擬」頁最下方。</p>
+<p class="note">每個策略的行為規則與可調整參數，請看「策略模擬」頁最下方。</p>
 
 <h2>讀結果前要知道的事</h2>
 <ul>

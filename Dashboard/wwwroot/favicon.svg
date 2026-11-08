@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#1c5cab"/>
-  <path d="M0 46c8-4 14-4 21 0s14 4 21 0 14-4 22 0v18H0z" fill="#184f95"/>
-  <path d="M30 10v34H14c4-8 10-20 16-34z" fill="#f8f4e8"/>
-  <path d="M34 16c8 8 14 18 16 28H34z" fill="#efe3c4"/>
-  <path d="M10 46h44l-6 9H17z" fill="#7a4a21"/>
-  <rect x="29" y="8" width="3" height="38" fill="#4a2c12"/>
-  <circle cx="50" cy="14" r="8" fill="#f2b01e"/>
-  <circle cx="50" cy="14" r="5" fill="none" stroke="#c98500" stroke-width="1.5"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="50" font-size="84" text-anchor="middle" dominant-baseline="central">🎮</text></svg>

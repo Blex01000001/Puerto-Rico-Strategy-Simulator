@@ -11,7 +11,7 @@
 
 @if (State.Result != null)
 {
-    <div class="ok">目前載入的是一般模擬結果，請到「結果」頁檢視。</div>
+    <div class="ok">目前載入的是一般模擬結果，請到「結果總覽」頁檢視。</div>
 }
 else if (State.Sweep != null)
 {
@@ -35,7 +35,7 @@ else if (State.Sweep != null)
 
     <div class="row">
         <button @onclick="SimulateAgain">用這份設定再掃描</button>
-        <span class="muted">把這份掃描的策略、對手與掃描參數帶到「模擬」頁。</span>
+        <span class="muted">把這份掃描的策略、對手與掃描參數帶到「策略模擬」頁。</span>
     </div>
 
     <h2>各格點勝率</h2>
