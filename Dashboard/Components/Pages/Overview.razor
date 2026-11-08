@@ -20,7 +20,7 @@
         }
         @if (files.Count == 0) { <span class="muted">資料夾內沒有 .json</span> }
     </div>
-    <p class="note">掃描資料夾：@dir。參數掃描檔（sweep）會被略過；每份大檔載入需要幾秒。</p>
+    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。參數掃描檔（sweep）會被略過；每份大檔載入需要幾秒。</p>
     @if (loading) { <p>載入中…（@done / @selected.Count）</p> }
     @foreach (var m in skipped) { <div class="error">略過：@m</div> }
 </div>
@@ -147,7 +147,7 @@
         foreach (var f in selected.OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList())
         {
             try { tables.Add(await AppState.ReadOverviewAsync(f)); }
-            catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { skipped.Add($"{Path.GetFileName(f)}：{e.Message}"); }
+            catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { skipped.Add($"{Path.GetFileName(f)}：{AppState.Scrub(e.Message)}"); }
             done++; StateHasChanged();
         }
         pairs = TournamentOverview.Pairwise(tables);

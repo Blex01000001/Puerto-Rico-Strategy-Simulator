@@ -16,7 +16,7 @@
         <button @onclick="Run" disabled="@(string.IsNullOrEmpty(path) || loading)">回放</button>
         <button class="secondary" @onclick="Refresh">重新整理</button>
     </div>
-    <p class="note">掃描資料夾：@dir。@(cfg == null ? "" : $"目前設定：{cfg.Players} 人局，{cfg.Games:N0} 局，主種子 {cfg.Seed}，座位順序 {cfg.SeatOrder}。")</p>
+    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。@(cfg == null ? "" : $"目前設定：{cfg.Players} 人局，{cfg.Games:N0} 局，主種子 {cfg.Seed}，座位順序 {cfg.SeatOrder}。")</p>
     @if (loading) { <p>讀取並重打中…</p> }
     @if (error != null) { <div class="error">@error</div> }
 </div>
@@ -117,7 +117,7 @@
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
         {
-            error = e.Message;
+            error = AppState.Scrub(e.Message);
         }
         loading = false;
     }

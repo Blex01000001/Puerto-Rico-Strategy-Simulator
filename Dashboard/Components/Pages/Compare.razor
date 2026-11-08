@@ -16,7 +16,7 @@
         <button @onclick="Load" disabled="@(string.IsNullOrEmpty(pathA) || string.IsNullOrEmpty(pathB) || loading)">比較</button>
         <button class="secondary" @onclick="Refresh">重新整理</button>
     </div>
-    <p class="note">掃描資料夾：@dir</p>
+    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)</p>
     @if (loading) { <p>載入並計算中…</p> }
     @if (error != null) { <div class="error">@error</div> }
 </div>
@@ -96,7 +96,7 @@
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
         {
-            error = e.Message;
+            error = AppState.Scrub(e.Message);
         }
         loading = false;
     }

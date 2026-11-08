@@ -3,7 +3,7 @@
 開始新工作前先讀 `docs/TODO.md`。
 
 目的：用大量模擬找出「波多黎各」桌遊的強策略。這不是可玩遊戲，沒有玩家介面。
-規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard 已有結果、總覽（多個結果檔彙整，含信賴區間與兩兩對戰矩陣）、比較（A/B 兩個結果檔並排）、回放（重打結果檔中的某一局並列決策）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔七頁。**
+規則來源：`rules.md`（唯一依據；有歧義先問，不自行假設）。**目前 rules.md 資料齊備（設置、職業、建築、階段細節、終局計分、4 人局差異；引擎採用的幾項詮釋見 TODO「已知問題」）；第一階段引擎、隨機玩家、批次模擬與 Runner 已完成並有測試；手寫策略已有玉米出貨流、玉米轉菸草／咖啡流、港口流、建築優先流，另有 MCTS 策略（`mcts`）；3、4 人局皆支援；Dashboard（左側導覽：HOME 介紹頁、模擬、結果…）已有 HOME、模擬、結果、總覽（多個結果檔彙整，含信賴區間與兩兩對戰矩陣）、比較（A/B 兩個結果檔並排）、回放（重打結果檔中的某一局並列決策）、模擬（直接在 Dashboard 選策略並執行一般對戰或參數掃描）、參數掃描、設定檔八頁。**
 
 ## 檔案地圖（先看這裡決定要讀哪個檔案）
 依任務從這張表找到要讀的檔案，只讀相關檔案，不要整個 repo 掃過。表上沒有的檔案通常不需要動；新增或搬移檔案時同步更新這張表。
@@ -21,7 +21,7 @@
 | `Engine/Events/` | 事件記錄：`NullEventSink`（大量模擬）、`ListEventSink`（回放） | 已有 |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` | 已有 |
 | `Tests/` | xUnit（含 `StrategyTests`）：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消） | 已有 |
-| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Results／Overview／Compare／Replay／Simulate／Sweep／Config）、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
+| `Dashboard/` | Blazor Web App (Interactive Server，只參考 Engine)：`Services/AppState.cs`（載入結果／掃描檔）、`Services/SimulationService.cs`（背景執行 `BatchSimulator`、進度、取消）、`Services/StrategyInfo.cs`（HOME 與模擬頁「流派介紹」的行為規則與可調參數文字）、`Services/Palette.cs`（策略顏色與名稱）、`Components/Charts/`（純 SVG 圖表：BarChart／StackedBars／LineChart）、`Components/Pages/`（Home `/`、Results `/results`、Overview、Compare、Replay、Simulate、Sweep、Config）；畫面上的路徑一律用 `AppState.DisplayPath`／`Scrub` 顯示成相對專案根目錄，不顯示機器上的完整路徑、`Components/FilePicker.razor`、`wwwroot/app.css`（色票 token，含深色模式） | 已有 |
 
 ## 專案結構與相依方向（.NET 8，PuertoRico.sln）
 - Engine：規則引擎 + 策略 + 模擬器；Runner：批次模擬共用入口（本機與 RunPod）；Dashboard：只負責設定／檢視／圖表；Tests：xUnit。
@@ -45,6 +45,7 @@ dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 result
 
 - **改／加規則**：先改 `rules.md` → 改 `Engine/Game/Rules.<階段>.cs` 的 `Fill*`（列合法動作）與 `Apply*`（執行）；靜態數字改 `Buildings.cs`／`GameConstants.cs` → 在對應 `Tests/*Tests.cs` 加情境測試並註明 rules.md 節次 → `dotnet test -c Release`（fuzz 測試會檢查不變量）。新增動作種類時同步改 `ActionType`、`GameAction.ToString`。
 - **加手寫策略**：新類別繼承 `RuleBased/HeuristicStrategy.cs`，只覆寫要改的掛鉤（`TileValue`、`BuildingWanted`、`SlotValue`、各角色價值…），在 `StrategyRegistry` 註冊並加進 `rule-based` 的 profile 清單，參考 `HarborRushStrategy.cs`；測試放 `Tests/StrategyTests.cs`（用 `Sc.Start` 建情境，檢查它選的動作）。
+- **加／改策略後**：同步 `Dashboard/Services/StrategyInfo.cs`（流派介紹：規則與參數預設值），否則 HOME 與模擬頁的說明會過時。
 - **加其他策略**：新檔 `Engine/Strategies/XStrategy.cs` 實作 `IStrategy`（座位 = `state.Actor`，亂數只用工廠給的 seed，不得讀對手 `VpChips`）→ 在 `StrategyRegistry.Factories` 註冊名稱 → 設定檔 `seats[].strategy` 填該名稱，參數放 `params` → 加測試（至少能跑完 100 局且不丟例外）。
 - **改設定／結果 JSON 欄位**（先問使用者）：`SimulationConfig.cs`／`SimulationResult.cs`；新增欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`（續跑比對的欄位）。
 - **參數掃描**：設定檔加 `sweep: { target: "<seat id>", gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值型 `params`，格點為笛卡兒積），`dotnet run -c Release --project Runner -- --config config.sweep.example.json --sweep --out sweep.json`；每個格點用同一個主種子（共用隨機抽牌，差異雜訊較小），只比較 target 座位的勝率（附 95% 信賴區間）與平均分，對手固定。新增可掃參數 = 在策略建構子用 `StrategyRegistry.GetDouble` 讀 `params`。

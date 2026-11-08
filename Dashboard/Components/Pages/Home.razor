@@ -1,0 +1,47 @@
+@page "/"
+
+<PageTitle>HOME · 波多黎各策略模擬器</PageTitle>
+<h1>波多黎各策略模擬器</h1>
+<p class="note">用大量電腦對戰找出桌遊「波多黎各」的強策略。這不是可以玩的遊戲，沒有玩家介面：把不同策略放上桌、打幾萬局，再看誰贏得多、為什麼贏。</p>
+
+<h2>怎麼使用</h2>
+<ol>
+    <li><strong>模擬</strong>：選玩家數（3 或 4 人）與每個座位的策略，按「開始模擬」。結果會存進 <code>results</code> 資料夾並自動載入。</li>
+    <li><strong>結果</strong>：看每個策略的勝率、平均分數、分數構成、買了哪些建築、局長與終局原因、兩兩名次比較。</li>
+    <li>想進一步比較：用 <strong>總覽</strong>（彙整多張桌子）、<strong>比較</strong>（兩份結果並排）、<strong>回放</strong>（重看某一局的每個決策）、<strong>參數掃描</strong>（試一個策略的不同參數）。</li>
+</ol>
+
+<div class="cards">
+    <a class="card" href="simulate"><strong>模擬</strong>選策略、設定局數與種子，直接在這裡跑。頁面下方有每個流派的行為規則與可調參數。</a>
+    <a class="card" href="results"><strong>結果</strong>一份模擬結果的完整分析：勝率、分數、建築、局長。</a>
+    <a class="card" href="overview"><strong>總覽</strong>勾選多份結果，依玩家數彙整每個策略的平均勝率、信賴區間與兩兩對戰矩陣。</a>
+    <a class="card" href="compare"><strong>比較</strong>A/B 兩份結果並排，看勝率差與是否顯著。</a>
+    <a class="card" href="replay"><strong>回放</strong>重打結果檔中的某一局，列出每個決策與最終盤面。</a>
+    <a class="card" href="sweep"><strong>參數掃描</strong>只改一個策略的參數、對手固定，找出較好的參數。</a>
+    <a class="card" href="config"><strong>設定檔</strong>編輯並驗證模擬設定（JSON），可下載後交給命令列 Runner 跑大量局數。</a>
+</div>
+
+<h2>有哪些策略</h2>
+<ul>
+    @foreach (var s in StrategyInfo.All)
+    {
+        <li><strong>@s.Title</strong>（<code>@s.Id</code>）：@s.Summary</li>
+    }
+</ul>
+<p class="note">每個策略的行為規則與可調整參數，請看「模擬」頁最下方。</p>
+
+<h2>讀結果前要知道的事</h2>
+<ul>
+    <li><strong>勝率</strong>是贏的局數比例（並列第一平分），誤差線是 95% 信賴區間；差距小於誤差線就不能說誰比較強。</li>
+    <li><strong>座位順序</strong>：3、4 人局都有座位優勢，而且「誰坐在誰旁邊」也會大幅改變結果。比較策略時請選「隨機（random）」，不要用「輪換」或「固定」下結論。</li>
+    <li><strong>可重現</strong>：同一份設定與主種子，結果完全相同；每一局的種子由主種子與局號決定。</li>
+    <li><strong>策略強弱要看同桌是誰</strong>：策略之間不是單純的上下關係，3 人局與 4 人局的排名也不同。</li>
+    <li>MCTS 比手寫策略慢很多，只適合跑數百局；手寫策略一萬局只要幾秒。</li>
+</ul>
+
+<h2>專案資料夾</h2>
+<ul>
+    <li><code>results</code>：模擬輸出（不進版本控制）。</li>
+    <li><code>tournaments</code>：對戰設定；<code>sweeps</code>：調參設定；<code>mcts</code>：MCTS 實驗設定。</li>
+    <li><code>docs/strategy-analysis.md</code>：各流派的分析結論；<code>rules.md</code>：遊戲規則（唯一依據）。</li>
+</ul>
