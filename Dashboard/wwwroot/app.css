@@ -189,3 +189,9 @@ input[type=number] { width: 7.5rem; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--text); }
 .pager { margin-top: .4rem; }
+
+/* file picker: the select must not grow with the longest file name, otherwise the buttons wrap to a second line */
+.row.picker { flex-wrap: nowrap; }
+.row.picker select { width: 30rem; max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+.row.picker button { flex: none; white-space: nowrap; }
+@media (max-width: 900px) { .row.picker { flex-wrap: wrap; } }
