@@ -113,10 +113,10 @@ else if (State.Result != null && State.Analysis != null)
         </div>
 
         <h2>建築與勝率</h2>
-        <p class="note">擁有該建築的玩家的勝率（所有策略合計），基準 = @((1.0 / r.Config.Players).ToString("P1"))。擁有人數少於 300 的建築不畫（樣本太少）。</p>
-        <figure class="chartbox">
-            <BarChart Title="擁有該建築的玩家勝率" LabelWidth="200" Format="@(v => v.ToString("P1"))"
-                      Items="@(a.Buildings.Where(b => b.OwnerPlayers >= 300).OrderByDescending(b => b.WinShareOwned).Take(15)
+        <p class="note">擁有該建築的玩家的勝率（所有策略合計），基準 = @((1.0 / r.Config.Players).ToString("P1"))。擁有人數少於 300 的建築不畫（樣本太少），只列勝率高於 25% 的；完整資料在下方表格。</p>
+        <figure class="chartbox" style="max-width:560px">
+            <BarChart Title="擁有該建築的玩家勝率" Width="520" LabelWidth="150" Format="@(v => v.ToString("P1"))"
+                      Items="@(a.Buildings.Where(b => b.OwnerPlayers >= 300 && b.WinShareOwned > 0.25).OrderByDescending(b => b.WinShareOwned).Take(15)
                            .Select(b => new BarChart.BarItem(b.Name, b.WinShareOwned, PuertoRico.Engine.Simulation.ResultAnalysis.Ci(b.WinShareOwned, b.OwnerPlayers), "var(--accent)",
                                $"{b.Name}　擁有者 {b.OwnerPlayers:N0} 人，勝率 {Pct(b.WinShareOwned)}（未擁有 {Pct(b.WinShareNotOwned)}），平均第 {b.AvgBuiltRound:0.0} 回合購買")).ToList())" />
         </figure>
