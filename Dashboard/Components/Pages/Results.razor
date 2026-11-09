@@ -7,7 +7,12 @@
 <h1>結果總覽</h1>
 <p class="note">載入 Runner 輸出的 result.json（<code>--out</code>），檢視策略勝率、分數與終局。策略顏色固定對應策略，不隨排名改變。</p>
 
-<FilePicker />
+<FilePicker>
+    @if (State.Result != null && State.Sweep == null)
+    {
+        <button @onclick="SimulateAgain" title="把這份結果的玩家數、策略、參數、種子帶到「策略模擬」頁，可以修改後再跑">用這份設定再模擬</button>
+    }
+</FilePicker>
 
 @if (State.Sweep != null)
 {
@@ -39,34 +44,35 @@ else if (State.Result != null && State.Analysis != null)
         <div class="error">這份結果狀態是「@r.Status」，只含已跑完的 @a.GamesCompleted 局 / 預定 @r.GamesRequested 局。</div>
     }
 
-    <div class="row">
-        <button @onclick="SimulateAgain">用這份設定再模擬</button>
-        <span class="muted">把這份結果的玩家數、策略、參數、種子帶到「策略模擬」頁，可以修改後再跑。</span>
-    </div>
-
+    <div class="grid2">
+    <div>
     <h2>策略勝率</h2>
     <p class="note">勝率 = 贏的局數比例（並列第一者平分）；誤差線 = 95% 信賴區間。隨機基準 = @((1.0 / r.Config.Players).ToString("P1"))。</p>
     <figure class="chartbox">
-        <BarChart Title="策略勝率" Format="@(v => v.ToString("P1"))"
+        <BarChart Title="策略勝率" Width="520" LabelWidth="170" Format="@(v => v.ToString("P1"))"
                   Items="@(strategies.Select((s, i) => (s, i)).OrderByDescending(x => x.s.WinShare).Select(x => new BarChart.BarItem(Name(x.i), x.s.WinShare, x.s.WinShareCi95, Color(x.i),
                        $"{Name(x.i)}　勝率 {Pct(x.s.WinShare)} ± {Pct(x.s.WinShareCi95)}（{x.s.Games:N0} 局）")).ToList())" />
     </figure>
+    </div>
 
+    <div>
     <h2>平均分數</h2>
     <p class="note">長條 = 平均總分；線段 = ±1 個標準差（分數的離散程度，越短越穩定）。</p>
     <figure class="chartbox">
-        <BarChart Title="平均分數" Format="@(v => v.ToString("0.0"))"
+        <BarChart Title="平均分數" Width="520" LabelWidth="170" Format="@(v => v.ToString("0.0"))"
                   Items="@(strategies.Select((s, i) => (s, i)).OrderByDescending(x => x.s.AvgScore).Select(x => new BarChart.BarItem(Name(x.i), x.s.AvgScore, x.s.StdScore, Color(x.i),
                        $"{Name(x.i)}　平均 {x.s.AvgScore:0.0}，標準差 {x.s.StdScore:0.0}")).ToList())" />
     </figure>
+    </div>
+    </div>
 
     <div class="grid2">
         <div>
             <h2>分數構成</h2>
-            <p class="note">平均每局：出貨籌碼／建築分／大型建築加成。</p>
+            <p class="note">平均每局：出貨籌碼／建築分／大型建築加成；依總分由高到低排列。</p>
             <figure class="chartbox">
                 <StackedBars Title="分數構成" Width="440" LabelWidth="150" Segments="@(new[] { "出貨籌碼（含額外 VP）", "建築分", "大型建築加成" })"
-                             Rows="@(strategies.Select((s, i) => new StackedBars.StackRow(Name(i), new[] { s.AvgChips, s.AvgBuildingPoints, s.AvgBonusPoints })).ToList())" />
+                             Rows="@(strategies.Select((s, i) => new StackedBars.StackRow(Name(i), new[] { s.AvgChips, s.AvgBuildingPoints, s.AvgBonusPoints })).OrderByDescending(r => r.Values.Sum()).ToList())" />
             </figure>
         </div>
         <div>
@@ -228,6 +234,13 @@ else if (State.Result != null && State.Analysis != null)
             </table>
         </div>
     </details>
+
+    @if (a.HasGameRecords)
+    {
+        <h2>對局列表</h2>
+        <p class="note">逐局瀏覽並篩選（資料來自結果檔的逐局記錄）；點「重播」會重打那一局，看每步盤面與動作說明。</p>
+        <GameList Result="@r" Analysis="@a" Source="@State.Source" />
+    }
 }
 
 @code {

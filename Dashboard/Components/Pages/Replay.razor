@@ -23,7 +23,7 @@
 
 @if (record != null && cfg != null)
 {
-    <div class="kpis lt">
+    <div class="kpis">
         <div class="kpi"><div class="v">@record.Rounds</div><div class="l">回合數</div></div>
         <div class="kpi"><div class="v">@record.Decisions</div><div class="l">決策數</div></div>
         <div class="kpi"><div class="v">@record.EndReason</div><div class="l">終局原因</div></div>
@@ -125,10 +125,19 @@
         .Where(x => (seatFilter < 0 || x.e.Seat == seatFilter) && (roundFilter <= 0 || x.e.Round == roundFilter)
                     && (string.IsNullOrWhiteSpace(textFilter) || x.e.Action.Contains(textFilter.Trim(), StringComparison.OrdinalIgnoreCase))).ToList();
 
-    protected override void OnInitialized()
+    /// <summary>Deep link from the game list: <c>replay?file=NAME.json&amp;game=N</c> opens and replays that game.</summary>
+    [SupplyParameterFromQuery(Name = "file")] public string? FileParam { get; set; }
+    [SupplyParameterFromQuery(Name = "game")] public int? GameParam { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
         dir = AppState.ResultsDirectory(Config);
         Refresh();
+        if (!string.IsNullOrEmpty(FileParam) && GameParam is int g)
+        {
+            var match = files.FirstOrDefault(f => string.Equals(Path.GetFileName(f), FileParam, StringComparison.OrdinalIgnoreCase));
+            if (match != null) { path = match; index = g; await Run(); }
+        }
     }
 
     private void Refresh() =>
