@@ -179,3 +179,13 @@ table.data td.left, table.data th.left { text-align: left; white-space: normal; 
 span.note { color: var(--text-2); font-size: .82rem; }
 input[type=number] { width: 7.5rem; }
 .kpi .sub { font-size: .75rem; color: var(--text-2); margin-top: .1rem; }
+
+/* game list filters */
+.filters { display: flex; flex-direction: column; gap: .4rem; }
+.filters fieldset { border: 1px solid var(--line); border-radius: 4px; margin: 0; padding: .3rem .6rem .5rem; display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; align-items: center; }
+.filters legend { color: var(--text-3); font-size: .78rem; padding: 0 .3rem; }
+.filters label { display: inline-flex; align-items: center; gap: .3rem; font-size: .88rem; }
+.filters input[type=number] { width: 4.8rem; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+.pager { margin-top: .4rem; }

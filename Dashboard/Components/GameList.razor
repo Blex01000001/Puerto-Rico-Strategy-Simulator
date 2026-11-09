@@ -1,0 +1,224 @@
+@using PuertoRico.Engine.Game
+@using PuertoRico.Engine.Simulation
+
+@* List of the individual games of a result file with filters. Everything comes from the per-game records already in the file;
+   "重播" opens the replay page for that game (the game is replayed from config + game number). *@
+<div class="panel">
+    <div class="filters">
+        <fieldset>
+            <legend>整局</legend>
+            <label>回合 <input type="number" min="0" @bind="f.RoundsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.RoundsMax" placeholder="最多" /></label>
+            <label>決策數 <input type="number" min="0" @bind="f.DecisionsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.DecisionsMax" placeholder="最多" /></label>
+            <label>終局原因
+                <select @bind="endReason">
+                    <option value="">（不限）</option>
+                    @foreach (var (key, name) in Reasons) { <option value="@key">@name</option> }
+                </select>
+            </label>
+            <label>贏家策略
+                <select @bind="winnerStrategy">
+                    <option value="">（不限）</option>
+                    @foreach (var s in Strategies) { <option value="@s">@Palette.DisplayName(s)</option> }
+                </select>
+            </label>
+            <label>贏家桌位
+                <select @bind="winnerSeat">
+                    <option value="-1">（不限）</option>
+                    @for (int i = 0; i < Result.Config.Players; i++) { <option value="@i">座位 @(i + 1)</option> }
+                </select>
+            </label>
+            <label>並列第一
+                <select @bind="tie">
+                    <option value="">（不限）</option>
+                    <option value="yes">只看並列</option>
+                    <option value="no">排除並列</option>
+                </select>
+            </label>
+            <label>第一二名分差 <input type="number" min="0" @bind="f.MarginMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.MarginMax" placeholder="最多" /></label>
+        </fieldset>
+
+        <fieldset>
+            <legend>某位玩家同時符合（同一位玩家要全部成立）</legend>
+            <label>策略
+                <select @bind="playerStrategy">
+                    <option value="">（不限）</option>
+                    @foreach (var s in Strategies) { <option value="@s">@Palette.DisplayName(s)</option> }
+                </select>
+            </label>
+            <label>名次
+                <select @bind="playerRank">
+                    <option value="0">（不限）</option>
+                    @for (int r = 1; r <= Result.Config.Players; r++) { <option value="@r">第 @r 名</option> }
+                </select>
+            </label>
+            <label>總分 <input type="number" min="0" @bind="f.Player.ScoreMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.Player.ScoreMax" placeholder="最多" /></label>
+            <label>出貨次數 <input type="number" min="0" @bind="f.Player.ShipmentsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.Player.ShipmentsMax" placeholder="最多" /></label>
+            <label>終局金幣 <input type="number" min="0" @bind="f.Player.CoinsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.Player.CoinsMax" placeholder="最多" /></label>
+            <label>大型建築加成 ≥ <input type="number" min="0" @bind="f.Player.BonusMin" /></label>
+            @if (Analysis.HasBuildingRecords)
+            {
+                <label>擁有建築
+                    <select @bind="building">
+                        <option value="-1">（不限）</option>
+                        @for (int b = 0; b < GameConstants.BuildingCount; b++) { <option value="@b">@Buildings.All[b].Name</option> }
+                    </select>
+                </label>
+                <label>購買回合 ≤ <input type="number" min="1" @bind="f.Player.BuiltByRound" disabled="@(building < 0)" /></label>
+                <label>種植園
+                    <select @bind="tileType">
+                        <option value="-1">（不限）</option>
+                        @for (int t = 0; t < TileNames.Length; t++) { <option value="@t">@TileNames[t]</option> }
+                    </select>
+                    ≥ <input type="number" min="0" @bind="f.Player.TileMin" disabled="@(tileType < 0)" />
+                </label>
+            }
+            else { <span class="muted">這份結果檔沒有建築與期末種植園記錄，無法用建築、種植園篩選。</span> }
+        </fieldset>
+    </div>
+    <div class="row">
+        <button @onclick="Apply">套用篩選</button>
+        <button class="secondary" @onclick="Clear">清除條件</button>
+        <span class="note">符合 <strong>@matched.Count.ToString("N0")</strong> / @Result.Games.Count.ToString("N0") 局（@((matched.Count / (double)Math.Max(1, Result.Games.Count)).ToString("P1"))）</span>
+    </div>
+</div>
+
+<div class="tablewrap">
+    <table class="data">
+        <thead>
+            <tr>
+                @Head("index", "局號") @Head("rounds", "回合") @Head("decisions", "決策數")
+                <th class="left">終局原因</th><th class="left">贏家</th><th class="left">各玩家分數（依名次）</th>
+                @Head("top", "第一名分數") @Head("margin", "分差") <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var g in PageItems)
+        {
+            <tr>
+                <td>@g.Index</td><td>@g.Rounds</td><td>@g.Decisions</td>
+                <td class="left">@ReasonName(g.EndReason)</td>
+                <td class="left">@string.Join("、", g.Winners.Select(w => StrategyName(g, w)))@(g.Winners.Count > 1 ? "（並列）" : "")</td>
+                <td class="left">@string.Join("　", g.Players.OrderBy(p => p.Rank).ThenBy(p => p.Seat).Select(p => $"{Palette.DisplayName(StrategyOf(p))} {p.Vp}"))</td>
+                <td>@g.Players.Max(p => p.Vp)</td><td>@GameFilter.Margin(g)</td>
+                <td><a href="@ReplayHref(g)">重播</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+@if (matched.Count == 0) { <p class="note">沒有符合條件的對局。</p> }
+else
+{
+    <div class="row pager">
+        <button class="secondary" @onclick="@(() => page = 0)" disabled="@(page == 0)">⏮</button>
+        <button class="secondary" @onclick="@(() => page--)" disabled="@(page == 0)">◀</button>
+        <span class="note">第 @(page + 1) / @PageCount 頁（每頁 @PageSize 局）</span>
+        <button class="secondary" @onclick="@(() => page++)" disabled="@(page >= PageCount - 1)">▶</button>
+        <button class="secondary" @onclick="@(() => page = PageCount - 1)" disabled="@(page >= PageCount - 1)">⏭</button>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public SimulationResult Result { get; set; } = default!;
+    [Parameter, EditorRequired] public ResultAnalysis Analysis { get; set; } = default!;
+    /// <summary>File name of the result in the results folder (used for the replay link).</summary>
+    [Parameter] public string? Source { get; set; }
+
+    private const int PageSize = 50;
+    private static readonly string[] TileNames = { "玉米", "染料", "糖", "菸草", "咖啡", "採石場" };
+
+    private GameFilter f = new();
+    private string endReason = "", winnerStrategy = "", tie = "", playerStrategy = "";
+    private int winnerSeat = -1, playerRank, building = -1, tileType = -1;
+    private List<GameRecord> matched = new();
+    private Dictionary<string, string> map = new();
+    private string sortKey = "index";
+    private bool desc;
+    private int page;
+    private SimulationResult? loaded;
+
+    private IEnumerable<string> Strategies => Result.Config.Seats.Select(s => s.Strategy).Distinct();
+    private IEnumerable<(string Key, string Name)> Reasons => Analysis.EndReasons.Keys.SelectMany(k => k.Split('+')).Distinct().OrderBy(k => k).Select(k => (k, ReasonName(k)));
+    private int PageCount => Math.Max(1, (matched.Count + PageSize - 1) / PageSize);
+    private IEnumerable<GameRecord> PageItems => matched.Skip(page * PageSize).Take(PageSize);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(loaded, Result)) return;
+        loaded = Result;
+        map = GameFilter.StrategyMap(Result.Config);
+        Clear();
+    }
+
+    private void Clear()
+    {
+        f = new GameFilter();
+        endReason = winnerStrategy = tie = playerStrategy = "";
+        winnerSeat = -1; playerRank = 0; building = -1; tileType = -1;
+        Apply();
+    }
+
+    private void Apply()
+    {
+        f.EndReason = endReason == "" ? null : endReason;
+        f.WinnerStrategy = winnerStrategy == "" ? null : winnerStrategy;
+        f.WinnerSeat = winnerSeat < 0 ? null : winnerSeat;
+        f.Tie = tie == "" ? null : tie == "yes";
+        f.Player.Strategy = playerStrategy == "" ? null : playerStrategy;
+        f.Player.Rank = playerRank == 0 ? null : playerRank;
+        f.Player.Building = building < 0 ? null : building;
+        if (building < 0) f.Player.BuiltByRound = null;
+        f.Player.TileType = tileType < 0 ? null : tileType;
+        if (tileType < 0) f.Player.TileMin = null;
+        matched = Result.Games.Where(g => f.Matches(g, map)).ToList();
+        Sort();
+        page = 0;
+    }
+
+    private void SortBy(string key)
+    {
+        if (sortKey == key) desc = !desc; else { sortKey = key; desc = key != "index"; }
+        Sort();
+        page = 0;
+    }
+
+    private void Sort()
+    {
+        Func<GameRecord, int> key = sortKey switch
+        {
+            "rounds" => g => g.Rounds,
+            "decisions" => g => g.Decisions,
+            "top" => g => g.Players.Max(p => p.Vp),
+            "margin" => GameFilter.Margin,
+            _ => g => g.Index,
+        };
+        matched = (desc ? matched.OrderByDescending(key).ThenBy(g => g.Index) : matched.OrderBy(key).ThenBy(g => g.Index)).ToList();
+    }
+
+    private Microsoft.AspNetCore.Components.RenderFragment Head(string key, string title) => __builder =>
+    {
+        <th class="sortable" @onclick="@(() => SortBy(key))">@title@(sortKey == key ? (desc ? " ▼" : " ▲") : "")</th>
+    };
+
+    private string StrategyOf(PlayerRecord p) => map.TryGetValue(p.SeatId, out var s) ? s : p.SeatId;
+    private string StrategyName(GameRecord g, int seat)
+    {
+        var p = g.Players.FirstOrDefault(x => x.Seat == seat);
+        return p == null ? "?" : Palette.DisplayName(StrategyOf(p));
+    }
+    private string ReplayHref(GameRecord g) => $"replay?file={Uri.EscapeDataString(Source ?? "")}&game={g.Index}";
+
+    private static string ReasonName(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return "（無）";
+        return string.Join(" ＋ ", key.Split('+').Select(k => k switch
+        {
+            "vpExhausted" => "VP 籌碼耗盡",
+            "colonistsShort" => "殖民者不足",
+            "cityFull" => "城市蓋滿",
+            "roundLimit" => "回合上限",
+            "decisionLimit" => "決策上限",
+            _ => k,
+        }));
+    }
+}

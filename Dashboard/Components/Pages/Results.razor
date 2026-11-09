@@ -234,6 +234,13 @@ else if (State.Result != null && State.Analysis != null)
             </table>
         </div>
     </details>
+
+    @if (a.HasGameRecords)
+    {
+        <h2>對局列表</h2>
+        <p class="note">逐局瀏覽並篩選（資料來自結果檔的逐局記錄）；點「重播」會重打那一局，看每步盤面與動作說明。</p>
+        <GameList Result="@r" Analysis="@a" Source="@State.Source" />
+    }
 }
 
 @code {
