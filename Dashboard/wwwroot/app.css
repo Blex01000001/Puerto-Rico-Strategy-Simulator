@@ -178,3 +178,4 @@ table.data td.left, table.data th.left { text-align: left; white-space: normal; 
 .pageinline { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
 span.note { color: var(--text-2); font-size: .82rem; }
 input[type=number] { width: 7.5rem; }
+.kpi .sub { font-size: .75rem; color: var(--text-2); margin-top: .1rem; }

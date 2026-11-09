@@ -7,7 +7,12 @@
 <h1>參數掃描</h1>
 <p class="note">載入 <code>Runner --sweep</code> 輸出的 sweep.json。每個格點用同一個主種子與同樣的對手，只改目標策略的參數，所以格點之間可以直接比較。</p>
 
-<FilePicker />
+<FilePicker>
+    @if (State.Sweep != null && State.Result == null)
+    {
+        <button @onclick="SimulateAgain" title="把這份掃描的策略、對手與掃描參數帶到「策略模擬」頁">用這份設定再掃描</button>
+    }
+</FilePicker>
 
 @if (State.Result != null)
 {
@@ -29,13 +34,8 @@ else if (State.Sweep != null)
         <div class="kpi"><div class="v">@sw.Config.Players</div><div class="l">玩家數</div></div>
         @if (best != null)
         {
-            <div class="kpi"><div class="v">@best.WinShare.ToString("P1")</div><div class="l">最佳勝率：@Describe(best)</div></div>
+            <div class="kpi"><div><div class="v">@best.WinShare.ToString("P1")</div><div class="sub">@Describe(best)</div></div><div class="l">最佳勝率</div></div>
         }
-    </div>
-
-    <div class="row">
-        <button @onclick="SimulateAgain">用這份設定再掃描</button>
-        <span class="muted">把這份掃描的策略、對手與掃描參數帶到「策略模擬」頁。</span>
     </div>
 
     <h2>各格點勝率</h2>
