@@ -37,7 +37,7 @@
                 <option value="4">4 人</option>
             </select>
         </label>
-        <label>@(sweep ? "每格點局數" : "局數") <input type="number" min="1" step="1000" @bind="games" disabled="@Sim.Running" /></label>
+        <label>@(sweep ? "每格點局數" : "局數") <input type="text" inputmode="numeric" style="width:8rem" @bind="gamesText" @bind:event="onchange" disabled="@Sim.Running" /></label>
         <label>主種子 <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
         <label>座位順序
             <select @bind="seatOrder" disabled="@Sim.Running">
@@ -158,6 +158,16 @@
     private static readonly string[] Choices = StrategyRegistry.Names.Where(n => n != "rule-based").OrderBy(n => n == "random" ? 1 : 0).ThenBy(n => n).ToArray();
     private int players = 4;
     private int games = 10000;
+    /// <summary>Games as text with thousands separators; typed commas are ignored, invalid or non-positive input keeps the old value.</summary>
+    private string gamesText
+    {
+        get => games.ToString("N0");
+        set
+        {
+            var digits = new string((value ?? "").Where(char.IsDigit).ToArray());
+            if (int.TryParse(digits, out var v) && v >= 1) games = v;
+        }
+    }
     private ulong seed = 12345;
     private string seatOrder = "random";
     private string[] strategies = { "corn-shipper", "corn-to-premium", "harbor-rush", "build-first" };
