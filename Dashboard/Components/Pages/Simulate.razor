@@ -37,7 +37,8 @@
                 <option value="4">4 人</option>
             </select>
         </label>
-        <label>@(sweep ? "每格點局數" : "局數") <input type="number" min="1" step="1000" @bind="games" disabled="@Sim.Running" /></label>
+        <label>@(sweep ? "每格點局數" : "局數") <input type="text" inputmode="numeric" style="width:8rem" @bind="gamesText" @bind:event="onchange" disabled="@Sim.Running" /></label>
+        <label>結果檔名（空白＝預設） <input type="text" style="width:16rem" placeholder="@DefaultFileName(DateTime.Now)" @bind="fileNameText" disabled="@Sim.Running" /></label>
         <label>主種子 <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
         <label>座位順序
             <select @bind="seatOrder" disabled="@Sim.Running">
@@ -56,6 +57,11 @@
         <button class="secondary" @onclick="@(() => games = (games / BalancedStep + 1) * BalancedStep)">調成 @(((games / BalancedStep) + 1) * BalancedStep) 局</button></div>
 }
 
+@if (MctsWarning() is { } warn)
+{
+    <div class="error">@warn</div>
+}
+
 <div class="panel">
     @for (int i = 0; i < players; i++)
     {
@@ -67,7 +73,7 @@
                 <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> 掃描目標</label>
             }
             <select @bind="strategies[seat]" disabled="@Sim.Running">
-                @foreach (var n in Choices) { <option value="@n">@n</option> }
+                @foreach (var n in Choices) { <option value="@n">@Palette.DisplayName(n)</option> }
             </select>
             <input type="text" class="grow" placeholder="參數（選填），例如 buildThreshold=3, quarryTarget=2"
                    @bind="paramText[seat]" disabled="@Sim.Running" />
@@ -126,7 +132,7 @@
 @foreach (var doc in StrategyInfo.All)
 {
     <section class="stratdoc">
-        <h3>@doc.Title <code>@doc.Id</code></h3>
+        <h3>@Palette.DisplayName(doc.Id) <span class="muted">@doc.Title</span></h3>
         <p>@doc.Summary</p>
         <strong>行為規則</strong>
         <ul>
@@ -158,6 +164,17 @@
     private static readonly string[] Choices = StrategyRegistry.Names.Where(n => n != "rule-based").OrderBy(n => n == "random" ? 1 : 0).ThenBy(n => n).ToArray();
     private int players = 4;
     private int games = 10000;
+    /// <summary>Games as text with thousands separators; typed commas are ignored, invalid or non-positive input keeps the old value.</summary>
+    private string gamesText
+    {
+        get => games.ToString("N0");
+        set
+        {
+            var digits = new string((value ?? "").Where(char.IsDigit).ToArray());
+            if (int.TryParse(digits, out var v) && v >= 1) games = v;
+        }
+    }
+    private string fileNameText = "";
     private ulong seed = 12345;
     private string seatOrder = "random";
     private string[] strategies = { "corn-shipper", "corn-to-premium", "harbor-rush", "build-first" };
@@ -237,6 +254,61 @@
         string.Join(", ", prm.Select(kv => kv.Value.ValueKind == JsonValueKind.Number
             ? kv.Key + "=" + kv.Value.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture)
             : kv.Key + "=" + (kv.Value.ValueKind == JsonValueKind.String ? kv.Value.GetString() : kv.Value.ToString())));
+    // Measured: 4 players, 300 simulations, 8 rollout rounds: 400 games in about 92 s on 4 cores (docs/TODO.md).
+    private const double MctsSecondsPerGame = 92.0 / 400 * 4; // per core, at 300 simulations
+    private const int MctsWarnGames = 200;
+
+    /// <summary>Warning text when an MCTS seat is combined with a game count that will take long; null otherwise.</summary>
+    private string? MctsWarning()
+    {
+        double totalSims = 0;
+        int mctsSeats = 0;
+        for (int i = 0; i < players; i++)
+        {
+            if (!strategies[i].Equals("mcts", StringComparison.OrdinalIgnoreCase)) continue;
+            mctsSeats++;
+            double sims = 300;
+            try { if (ParseParams(paramText[i]).TryGetValue("simulations", out var e) && e.ValueKind == JsonValueKind.Number) sims = Math.Max(1, e.GetDouble()); }
+            catch (FormatException) { }
+            totalSims += sims;
+        }
+        if (mctsSeats == 0) return null;
+        long totalGames = sweep ? (long)games * GridSize() : games;
+        if (totalGames < MctsWarnGames) return null;
+        double seconds = totalGames * MctsSecondsPerGame * (totalSims / 300.0) / Math.Max(1, Environment.ProcessorCount);
+        string eta = seconds < 90 ? $"{seconds:0} 秒" : seconds < 5400 ? $"{seconds / 60:0} 分鐘" : $"{seconds / 3600:0.#} 小時";
+        return $"有 {mctsSeats} 個座位使用 MCTS，共 {totalGames:N0} 局，會跑很久（粗估約 {eta}，以本機 {Environment.ProcessorCount} 核心推算）。MCTS 比手寫策略慢數百倍，建議先用數百局以內、或降低 simulations 參數。";
+    }
+
+    /// <summary>Number of grid points of the sweep text (1 if it cannot be parsed yet).</summary>
+    private long GridSize()
+    {
+        try { return ParseSweep(sweepText).Values.Aggregate(1L, (acc, v) => acc * v.Count); }
+        catch (FormatException) { return 1; }
+    }
+
+    private string DefaultFileName(DateTime now)
+    {
+        var used = strategies.Take(players).Select(x => x).ToList();
+        return sweep
+            ? $"sweep-{players}p-{used[Math.Min(target, players - 1)]}-{now:yyyyMMdd-HHmmss}.json"
+            : $"sim-{players}p-{string.Join("_", used.Distinct())}-{now:yyyyMMdd-HHmmss}.json";
+    }
+
+    /// <summary>The result file name to use: the typed name (path parts and invalid characters removed, ".json" added) or the default.</summary>
+    private string ResultFileName(DateTime now, out string? problem)
+    {
+        problem = null;
+        string raw = (fileNameText ?? "").Trim();
+        if (raw.Length == 0) return DefaultFileName(now);
+        string name = Path.GetFileName(raw.Replace('\\', '/'));
+        name = new string(name.Where(c => Array.IndexOf(Path.GetInvalidFileNameChars(), c) < 0).ToArray()).Trim();
+        if (name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) name = name[..^5];
+        name = name.Trim('.', ' ');
+        if (name.Length == 0) { problem = "結果檔名無效，請改用英數字、中文、- 或 _。"; return DefaultFileName(now); }
+        return name + ".json";
+    }
+
     private void OnChanged() => InvokeAsync(StateHasChanged);
     public void Dispose() => Sim.Changed -= OnChanged;
 
@@ -278,13 +350,17 @@
             catch (FormatException e) { error = e.Message; return; }
             cfg.Name = "dashboard-sweep";
             cfg.Output.PerGameRecords = false;
-            string sweepFile = $"sweep-{players}p-{seats[target].Strategy}-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+            string sweepFile = ResultFileName(DateTime.Now, out var sweepProblem);
+            if (sweepProblem != null || FileExists(sweepFile)) { error = sweepProblem ?? $"結果資料夾已有「{sweepFile}」，請換一個檔名（不會覆蓋既有檔案）。"; return; }
             await Sim.StartSweepAsync(cfg, sweepFile);
             return;
         }
-        string file = $"sim-{players}p-{string.Join("_", seats.Select(s => s.Strategy).Distinct())}-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+        string file = ResultFileName(DateTime.Now, out var problem);
+        if (problem != null || FileExists(file)) { error = problem ?? $"結果資料夾已有「{file}」，請換一個檔名（不會覆蓋既有檔案）。"; return; }
         await Sim.StartAsync(cfg, file);
     }
+
+    private bool FileExists(string name) => File.Exists(Path.Combine(AppState.ResultsDirectory(AppConfig), name));
 
     private static Dictionary<string, List<double>> ParseSweep(string text)
     {

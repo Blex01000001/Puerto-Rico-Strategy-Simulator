@@ -25,7 +25,7 @@
 <ul>
     @foreach (var s in StrategyInfo.All)
     {
-        <li><strong>@s.Title</strong>（<code>@s.Id</code>）：@s.Summary</li>
+        <li><strong>@Palette.DisplayName(s.Id)</strong>（@s.Title）：@s.Summary</li>
     }
 </ul>
 <p class="note">每個策略的行為規則與可調整參數，請看「策略模擬」頁最下方。</p>

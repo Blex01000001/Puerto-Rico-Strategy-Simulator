@@ -47,6 +47,22 @@ public class MctsTests
         }
     }
 
+    [Fact]
+    public void Search_summary_has_principal_lines_with_the_acting_seat_and_visits_that_do_not_grow()
+    {
+        var cfg = Config(3, sims: 60);
+        var sink = new CollectSink();
+        GameRunner.Play(cfg, 0, sink, out _);
+        var searches = sink.Items.Where(i => i.Search != null).Select(i => i.Search!).ToList();
+        Assert.Contains(searches, sr => sr.Actions.Any(e => e.Line is { Count: > 0 }));
+        foreach (var e in searches.SelectMany(sr => sr.Actions).Where(e => e.Line != null))
+        {
+            Assert.True(e.Line!.Count <= 8);
+            int prev = e.Visits;
+            foreach (var step in e.Line) { Assert.InRange(step.Seat, 0, 2); Assert.True(step.Visits <= prev); prev = step.Visits; }
+        }
+    }
+
     [Theory]
     [InlineData(3)]
     [InlineData(4)]
