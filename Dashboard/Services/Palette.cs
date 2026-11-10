@@ -1,6 +1,6 @@
 namespace Dashboard.Services;
 
-/// <summary>Colour and display-name per strategy. Colour follows the strategy (entity), never its rank.</summary>
+/// <summary>Colour and display name per strategy. Colour follows the strategy (entity), never its rank.</summary>
 public static class Palette
 {
     private static readonly Dictionary<string, int> Slots = new(StringComparer.OrdinalIgnoreCase)
@@ -12,17 +12,6 @@ public static class Palette
         ["random"] = 5,           // magenta
         ["mcts"] = 6,             // green
         ["cheap-engine"] = 7,     // violet
-    };
-
-    private static readonly Dictionary<string, string> Names = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["corn-shipper"] = "玉米出貨流",
-        ["corn-to-premium"] = "玉米轉菸草／咖啡流",
-        ["harbor-rush"] = "港口流",
-        ["build-first"] = "建築優先流",
-        ["random"] = "隨機",
-        ["mcts"] = "MCTS 搜尋",
-        ["cheap-engine"] = "便宜引擎流",
     };
 
     /// <summary>CSS variable for the series colour (1..8); unknown strategies take the remaining slots by position.</summary>
@@ -39,7 +28,11 @@ public static class Palette
         _ => mode.ToString(),
     };
 
-    public static string DisplayName(string strategy) => Names.TryGetValue(strategy, out var n) ? n : strategy;
+    /// <summary>Display name of a strategy: "mcts" in capitals, the others as PascalCase words joined by "-" (corn-shipper → Corn-Shipper).</summary>
+    public static string DisplayName(string strategy) =>
+        strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)
+            ? "MCTS"
+            : string.Join("-", strategy.Split('-').Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..]));
 
     public static string Label(string seatId, string strategy) =>
         string.Equals(seatId, strategy, StringComparison.OrdinalIgnoreCase) ? DisplayName(strategy) : $"{seatId} · {DisplayName(strategy)}";

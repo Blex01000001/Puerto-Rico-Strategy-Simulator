@@ -145,11 +145,11 @@ tr.clickable { cursor: pointer; }
 td.warn { color: var(--neg); font-weight: 600; }
 
 /* collapsible sidebar */
-.sidebar .navtoggle { background: transparent; color: var(--text-2); border: 0; border-radius: 0; text-align: left; padding: .45rem 1.1rem; font-weight: 500; font-size: .85rem; margin-top: auto; border-top: 1px solid var(--line); }
+.sidebar .navtoggle { background: transparent; color: var(--text-2); border: 0; border-radius: 0; text-align: left; padding: .45rem 1.1rem; font-weight: 500; font-size: .85rem; border-bottom: 1px solid var(--line); }
 .sidebar .navtoggle:hover { color: var(--text); background: var(--surface-2); filter: none; }
 .shell.collapsed .sidebar { width: 44px; overflow: hidden; }
 .shell.collapsed .sidebar a { display: none; }
-.shell.collapsed .sidebar .navtoggle { padding: .45rem 0; text-align: center; margin-top: 0; border-top: 0; }
+.shell.collapsed .sidebar .navtoggle { padding: .45rem 0; text-align: center; border-bottom: 0; }
 @media (max-width: 760px) { .sidebar .navtoggle { display: none; } .shell.collapsed .sidebar { width: auto; } .shell.collapsed .sidebar a { display: flex; } }
 
 /* replay board: supply card in the middle, player cards around it in turn order, ships/trade house in the free corners */

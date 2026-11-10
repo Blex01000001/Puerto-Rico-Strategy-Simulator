@@ -73,7 +73,7 @@
                 <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> 掃描目標</label>
             }
             <select @bind="strategies[seat]" disabled="@Sim.Running">
-                @foreach (var n in Choices) { <option value="@n">@StrategyLabel(n)</option> }
+                @foreach (var n in Choices) { <option value="@n">@Palette.DisplayName(n)</option> }
             </select>
             <input type="text" class="grow" placeholder="參數（選填），例如 buildThreshold=3, quarryTarget=2"
                    @bind="paramText[seat]" disabled="@Sim.Running" />
@@ -132,7 +132,7 @@
 @foreach (var doc in StrategyInfo.All)
 {
     <section class="stratdoc">
-        <h3>@doc.Title <code>@doc.Id</code></h3>
+        <h3>@Palette.DisplayName(doc.Id) <span class="muted">@doc.Title</span></h3>
         <p>@doc.Summary</p>
         <strong>行為規則</strong>
         <ul>
@@ -254,12 +254,6 @@
         string.Join(", ", prm.Select(kv => kv.Value.ValueKind == JsonValueKind.Number
             ? kv.Key + "=" + kv.Value.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture)
             : kv.Key + "=" + (kv.Value.ValueKind == JsonValueKind.String ? kv.Value.GetString() : kv.Value.ToString())));
-    /// <summary>Dropdown label of a strategy: "mcts" in capitals, the others as PascalCase words joined by "-" (corn-shipper → Corn-Shipper).</summary>
-    private static string StrategyLabel(string name) =>
-        name.Equals("mcts", StringComparison.OrdinalIgnoreCase)
-            ? "MCTS"
-            : string.Join("-", name.Split('-').Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..]));
-
     // Measured: 4 players, 300 simulations, 8 rollout rounds: 400 games in about 92 s on 4 cores (docs/TODO.md).
     private const double MctsSecondsPerGame = 92.0 / 400 * 4; // per core, at 300 simulations
     private const int MctsWarnGames = 200;
