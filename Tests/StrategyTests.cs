@@ -409,3 +409,88 @@ public class ProspectorValueTests
         Assert.Equal(Role.Prospector, (Role)strategy.ChooseAction(poor, options).A);
     }
 }
+
+public class WharfAndMonopolyTests
+{
+    private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
+
+    private static void PlayGamesAgainstRandom(Func<IStrategy> make)
+    {
+        for (int game = 0; game < 100; game++)
+        {
+            var mine = make();
+            var rnd1 = new RandomStrategy((ulong)game);
+            var rnd2 = new RandomStrategy((ulong)game + 1);
+            var s = Setup.NewGame((ulong)game + 11);
+            var legal = new List<GameAction>();
+            int steps = 0;
+            while (!s.IsOver)
+            {
+                Rules.GetLegalActions(s, legal);
+                IStrategy who = s.Actor == game % 3 ? mine : (s.Actor == (game + 1) % 3 ? rnd1 : rnd2);
+                var a = who.ChooseAction(s, legal);
+                Assert.Contains(a, legal);
+                Rules.Apply(s, a);
+                Assert.True(++steps < 20000);
+            }
+            Assert.Null(Invariants.Check(s));
+        }
+    }
+
+    [Fact] public void Wharf_Rush_Plays_Legal_Games() => PlayGamesAgainstRandom(() => new WharfRushStrategy(NoParams));
+    [Fact] public void Corn_Monopoly_Plays_Legal_Games() => PlayGamesAgainstRandom(() => new CornMonopolyStrategy(NoParams));
+
+    [Fact]
+    public void Wharf_Rush_Ships_The_Biggest_Stack_On_The_Wharf_First()
+    {
+        // rules.md section 4 (Wharf): the private ship takes all barrels of one good, ignoring capacity
+        var s = New();
+        Own(s, 0, BuildingId.Wharf, occupied: 1);
+        SetGoods(s, 0, (int)Good.Corn, 6);
+        SetGoods(s, 0, (int)Good.Indigo, 2);
+        s.GoodsSupply[(int)Good.Corn] -= 6;
+        s.GoodsSupply[(int)Good.Indigo] -= 2;
+        Start(s, 0, Role.Captain);
+        var a = new WharfRushStrategy(NoParams).ChooseAction(s, Legal(s));
+        Assert.Equal(new GameAction(ActionType.LoadWharf, (int)Good.Corn), a);
+    }
+
+    [Fact]
+    public void Wharf_Rush_Buys_The_Wharf_Once_The_Farming_Phase_Is_Over()
+    {
+        var s = New();
+        s.Round = 8; // past wharfReadyRound
+        s.Coins[0] = 9;
+        Start(s, 0, Role.Builder);
+        var a = new WharfRushStrategy(NoParams).ChooseAction(s, Legal(s));
+        Assert.Equal(new GameAction(ActionType.Build, (int)BuildingId.Wharf), a);
+    }
+
+    [Fact]
+    public void Corn_Monopoly_Takes_Corn_Plantations_And_Never_Picks_Captain_When_It_Can_Avoid_It()
+    {
+        var s = New();
+        s.FaceUp[(int)Good.Corn] = 1;
+        Start(s, 0, Role.Settler);
+        var a = new CornMonopolyStrategy(NoParams).ChooseAction(s, Legal(s));
+        Assert.Equal(new GameAction(ActionType.TakePlantation, (int)Good.Corn), a);
+
+        var s2 = New();
+        SetGoods(s2, 0, (int)Good.Corn, 3);
+        s2.Governor = 0; s2.Actor = 0; s2.Phase = Phase.ChooseRole;
+        var role = new CornMonopolyStrategy(NoParams).ChooseAction(s2, Legal(s2));
+        Assert.NotEqual(new GameAction(ActionType.ChooseRole, (int)Role.Captain), role);
+    }
+
+    [Fact]
+    public void Corn_Monopoly_Never_Sells_Corn_And_Ships_Other_Goods_First()
+    {
+        var s = New();
+        SetGoods(s, 0, (int)Good.Corn, 3);
+        SetGoods(s, 0, (int)Good.Indigo, 1);
+        Start(s, 0, Role.Captain);
+        var a = new CornMonopolyStrategy(NoParams).ChooseAction(s, Legal(s));
+        Assert.Equal(ActionType.LoadShip, a.Type);
+        Assert.Equal((int)Good.Indigo, a.A);
+    }
+}

@@ -173,6 +173,18 @@ MCTS 最常蓋的建築（取得率＠平均回合）：小靛藍工廠 94%＠4�
 
 - 手寫策略只有五個原型；階層（4 人局 build ≈ cheap > harbor > premium > corn）只代表這些實作。調參是「對固定對手」，改強一個流派會改變別人的最佳值，所以要持續交替；最佳值對座位排列穩健（第五輪）。
 - **座位順序**：`rotate` 會帶入排列偏差（第 0 節），比較請用 `random`（預設）或 `balanced`；3 人局只有兩種循環順序、4 人局三種，差異仍然很大。`balanced` 是絕對公平的做法；`random` 在大量局數下偏差也很小（4 人局 10 萬局的估計：約 0.03 個百分點，未實測）。
-- 「Wharf 流」與港口流是同一個流派（買 Wharf 的價值 9.5、派殖民者 11）；目前 harbor-rush 只有約 3% 的局蓋到 Wharf（Wharf 費用 9，蓋港口之後金幣常常不夠），若要加強可以調整後期購買的優先順序。
+- harbor-rush 只有約 3% 的局蓋到 Wharf（Wharf 費用 9，蓋港口之後金幣常常不夠）；以 Wharf 為核心的打法另外做成 `wharf-rush`（第 7 節）。
 - MCTS：只對手寫策略與自我對戰測過；每個決策重新建樹；rollout 的職業選擇完全隨機；搜尋樹重用在現有介面做不到（第 5 節）。
 - 建議的下一輪：(1) 用 MCTS 當「陪練」找手寫策略的弱點（例如讓 cheap-engine 對 MCTS）；(2) 繼續把 MCTS 的行為寫進手寫策略（cheap-engine 仍遠不如 MCTS，缺的是什麼？）；(3) 用 `balanced` 重跑對戰（`tournaments/`，局數用 24／6 的倍數）；(4) 3 人局的 cheap-engine 另外調參。
+
+## 7. Wharf 私船流（`wharf-rush`）與玉米壟斷派（`corn-monopoly`）
+
+動機：Wharf 的私船可把 1 種貨物全數出貨（無視容量與公家船），實際玩覺得太強，所以做成專用策略來驗證（`WharfRushStrategy`）。座位用 `balanced`，局數 10,008（4 人）／10,002（3 人），設定在 `tournaments/*wharf*`、`tournaments/*monopoly*`，調參在 `sweeps/round6/`。
+
+- **打法**：前期農玉米與靛藍／糖，種植園湊到 `wharfReadyTiles` 塊或到 `wharfReadyRound` 回合後，除了 Wharf 什麼都不買（拿 `quarryTarget` 個採石場折價、賣貨湊 9 元）；買到後私船永遠先裝最大的一堆貨，再買倉庫（讓大堆撐過船長階段）與 Harbor。不依賴 Harbor。
+- **對戰（預設參數）**：4 人局與 corn／premium／harbor 同桌：wharf 18.5%、premium 33.0%、harbor 41.9%、corn 6.6%；與 build／cheap／harbor 同桌：wharf 18.1%、cheap 41.0%、harbor 29.2%、build 11.7%。3 人局與 corn／build 同桌：wharf 37.2%、corn 32.8%、build 30.0%（均分基準 33.3%）。
+- **結論**：以這份實作，Wharf **沒有**強到失衡：4 人局低於均分（25%），3 人局略高於均分。原因是 Wharf 太晚才買到：99% 的局最後都有蓋，但平均要到第 9～10 回合（金幣來源只有賣貨與角色獎勵，4 人局 9 元要等很久），私船只用得到後半場，已蓋 Wharf 的局勝率也只約 15%（沒蓋的局反而更高，因為那些局是被別的建築路線帶走）。
+- **調參**（`sweeps/round6/`）：`quarryTarget` 3 以上持平、0 明顯差（8.8%）；起跑條件 7 塊種植園以上平台；更早起跑（3～5 塊）較差。預設值：quarryTarget 3、wharfReadyTiles 7、wharfReadyRound 4 人 6／3 人 4。
+- **限制與下一步**：只掃了這三個參數；沒試過「放棄 Harbor 與倉庫、純靠私船出玉米」以外的組合（例如早買 Small Indigo Plant／賣靛藍湊錢、買 Wharf 前先買 Hospice）。若認為 Wharf 太強，建議用 MCTS 當陪練（把 `wharf-rush` 放進桌上對 MCTS）看最強玩家是否搶 Wharf。
+- **`corn-monopoly`（搗亂）**：霸占玉米種植園、玉米不賣不出貨、只買倉庫／Hacienda／Hospice，被迫出貨時先出別的貨。勝率很低（4 人局與 wharf／corn／build 同桌：6.9%；3 人局與 corn／harbor 同桌：6.1%，harbor 84.9%），目的是搗亂而不是贏；它對同桌 corn-shipper 的影響（玉米供應區被囤光）還沒單獨量化。
+- **確認：貨物供應有限**：Craftsman 結算以供應區為上限（`Rules.Craftsman.cs`），供應區歸零時拿不到貨、沒有金幣或分數補償；不變量檢查（貨物守恆）與 `Empty_Supply_Gives_Nothing_And_No_Compensation` 測試確認。

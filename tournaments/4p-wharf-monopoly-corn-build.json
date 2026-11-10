@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-wharf-monopoly-corn-build",
+  "players": 4,
+  "games": 10008,
+  "seed": 777,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "wharf-rush",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "corn-monopoly",
+      "strategy": "corn-monopoly",
+      "params": {}
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}

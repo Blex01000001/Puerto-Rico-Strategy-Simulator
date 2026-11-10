@@ -15,6 +15,8 @@ public static class StrategyRegistry
         ["harbor-rush"] = (p, _, _) => new RuleBased.HarborRushStrategy(p),
         ["build-first"] = (p, _, _) => new RuleBased.BuildFirstStrategy(p),
         ["cheap-engine"] = (p, _, _) => new RuleBased.CheapEngineStrategy(p),
+        ["wharf-rush"] = (p, _, _) => new RuleBased.WharfRushStrategy(p),
+        ["corn-monopoly"] = (p, _, _) => new RuleBased.CornMonopolyStrategy(p),
         // "rule-based" selects a hand-written profile by params.profile (default corn-shipper).
         ["rule-based"] = (p, seed, seat) =>
         {
@@ -26,7 +28,9 @@ public static class StrategyRegistry
                 "harbor-rush" => new RuleBased.HarborRushStrategy(p),
                 "build-first" => new RuleBased.BuildFirstStrategy(p),
                 "cheap-engine" => new RuleBased.CheapEngineStrategy(p),
-                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first, cheap-engine"),
+                "wharf-rush" => new RuleBased.WharfRushStrategy(p),
+                "corn-monopoly" => new RuleBased.CornMonopolyStrategy(p),
+                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first, cheap-engine, wharf-rush, corn-monopoly"),
             };
         },
         ["guided-random"] = (_, seed, _) => new GuidedRandomStrategy(seed),

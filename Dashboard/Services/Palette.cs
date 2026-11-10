@@ -12,6 +12,8 @@ public static class Palette
         ["random"] = 5,           // magenta
         ["mcts"] = 6,             // green
         ["cheap-engine"] = 7,     // violet
+        ["wharf-rush"] = 8,       // red
+        ["corn-monopoly"] = 9,    // lime
     };
 
     /// <summary>CSS variable for the series colour (1..8); unknown strategies take the remaining slots by position.</summary>
@@ -26,6 +28,8 @@ public static class Palette
         "harbor-rush" => "⚓",
         "build-first" => "🏗️",
         "cheap-engine" => "⚙️",
+        "wharf-rush" => "🚢",
+        "corn-monopoly" => "😈",
         "mcts" => "🌳",
         "random" => "🎲",
         "guided-random" => "🧭",

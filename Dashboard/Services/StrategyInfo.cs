@@ -87,6 +87,35 @@ public static class StrategyInfo
                 new ParamInfo("smallValue", "8", "便宜的 1 分建築（小靛藍、小糖廠、小市場）的價值。", "8 以上都一樣；6 以下較差"),
             }),
 
+        new("wharf-rush", "Wharf 私船流",
+            "先農一陣子，湊到錢（採石場折價）買 Wharf，之後每次船長階段把最大的一堆貨全數丟上私船。",
+            new[]
+            {
+                "前期（種植園不到 wharfReadyTiles 塊且未到 wharfReadyRound 回合）：玉米為主，加靛藍／糖，用預設經濟，不急著買 Wharf。",
+                "起跑後：除了 Wharf 什麼都不買；拿 quarryTarget 個採石場（每個折 1 元，最多折 3 元），賣靛藍／糖等換金幣，一湊到 9 元就選 Builder。",
+                "Wharf 買到後：優先派殖民者給 Wharf，再買倉庫（讓大堆貨撐過船長階段）與 Harbor（每次出貨 +1 分）；不一定要買 Harbor。",
+                "出貨：私船永遠先裝最大的一堆（無視容量與公家船，整堆都算分），其餘貨再裝公家船；倉庫保留數量最多的那堆；手上有大堆貨時多選 Captain。",
+                "玉米不賣（那是私船要出的主力）。",
+            },
+            new[]
+            {
+                new ParamInfo("quarryTarget", "3", "起跑後最多拿幾個採石場（Wharf 折價上限 3 元）。", "3 以上都一樣；0 差很多"),
+                new ParamInfo("wharfReadyTiles", "7", "種植園／採石場拿到幾塊就開始買 Wharf。", "7 以上差不多；3～5 較差"),
+                new ParamInfo("wharfReadyRound", "4 人 6／3 人 4", "到第幾回合就開始買 Wharf（與上一項先到的算）。", "4 人局 6～8；3 人局 4～6"),
+                new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可"),
+            }),
+
+        new("corn-monopoly", "玉米壟斷派（搗亂）",
+            "只想參加的搗亂者：霸占所有玉米種植園，玉米囤著不賣也不出貨，把有限的玉米供應區吃光。",
+            new[]
+            {
+                "種植園只拿玉米（連翻開的玉米也搶），選 Settler 的價值在有玉米可拿時最高。",
+                "玉米貨物不賣、不主動出貨；Captain 角色價值為 0，被迫出貨時先出別的貨，最後才出玉米。",
+                "只買倉庫（把玉米囤過船長階段）、Hacienda、Hospice；其他建築一概不買。",
+                "派殖民者給玉米種植園與倉庫；選 Craftsman 時看重玉米產量（供應區只有 10 個玉米，囤光了別人就沒有）。",
+            },
+            new[] { new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可") }),
+
         new("mcts", "MCTS 樹搜尋",
             "每個決策都用大量隨機模擬找出最好的動作；最強但很慢，適合只跑數百局。",
             new[]
