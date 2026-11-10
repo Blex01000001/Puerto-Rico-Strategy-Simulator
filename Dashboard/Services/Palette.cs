@@ -18,6 +18,20 @@ public static class Palette
     public static string Color(string strategy, int fallbackIndex) =>
         $"var(--series-{(Slots.TryGetValue(strategy, out int s) ? s : 6 + Math.Abs(fallbackIndex) % 3)})";
 
+    /// <summary>Icon shown in front of a strategy's title in the strategy descriptions.</summary>
+    public static string Icon(string strategy) => strategy.ToLowerInvariant() switch
+    {
+        "corn-shipper" => "🌽",
+        "corn-to-premium" => "☕",
+        "harbor-rush" => "⚓",
+        "build-first" => "🏗️",
+        "cheap-engine" => "⚙️",
+        "mcts" => "🌳",
+        "random" => "🎲",
+        "guided-random" => "🧭",
+        _ => "🎯",
+    };
+
     /// <summary>Chinese label of a seat-order mode.</summary>
     public static string SeatOrderLabel(PuertoRico.Engine.Simulation.SeatOrderMode mode) => mode switch
     {
@@ -32,6 +46,8 @@ public static class Palette
     public static string DisplayName(string strategy) =>
         strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)
             ? "MCTS"
+            : strategy.Equals("random", StringComparison.OrdinalIgnoreCase)
+            ? "完全隨機" // not just "Random": guided-random is also random
             : string.Join("-", strategy.Split('-').Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..]));
 
     public static string Label(string seatId, string strategy) =>

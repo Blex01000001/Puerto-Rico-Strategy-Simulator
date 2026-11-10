@@ -105,7 +105,7 @@ public static class StrategyInfo
                 new ParamInfo("rolloutMaxDecisions", "3000", "單次模擬最多決策數（安全上限）。", "一般不用改"),
             }),
 
-        new("random", "隨機",
+        new("random", "亂選動作",
             "每次從合法動作中均勻隨機挑一個，當作最弱的基準。",
             new[] { "沒有任何策略；用來確認其他策略真的比亂打強。" },
             Array.Empty<ParamInfo>()),

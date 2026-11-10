@@ -209,3 +209,18 @@ th.sortable:hover { color: var(--text); }
 .mcts table.fit { width: auto; min-width: 0; }
 .mcts .tablewrap { display: block; }
 .mcts td.line { max-width: 42rem; min-width: 16rem; white-space: normal; font-size: .8rem; }
+
+/* strategy descriptions */
+.stratdoc h3.stratname { font-size: 1.35rem; margin: 0 0 .4rem; display: flex; align-items: center; gap: .5rem; }
+.stratdoc h3.stratname .muted { font-size: .9rem; font-weight: 400; }
+.stratname .sicon { font-size: 1.6rem; line-height: 1; }
+.stratsummary { margin: 0 0 .6rem 2.2rem; padding-left: .7rem; border-left: 2px solid var(--line); color: var(--text-2); }
+/* simulate: seat table with headings */
+.seatgrid { display: grid; grid-template-columns: 5rem minmax(11rem, 14rem) 1fr; gap: .45rem .75rem; align-items: center; }
+.seatgrid.withtarget { grid-template-columns: 5rem 6.5rem minmax(11rem, 14rem) 1fr; }
+.seathead { font-size: .8rem; font-weight: 700; color: var(--text-2); padding-bottom: .15rem; border-bottom: 1px solid var(--line); }
+/* overview: file picker table */
+.filetable tbody tr { cursor: pointer; }
+.filetable tbody tr.picked td { background: var(--accent-dim); }
+.filetable th.chk, .filetable td.chk { width: 2rem; text-align: center; }
+.filetable td, .filetable th { white-space: nowrap; }
