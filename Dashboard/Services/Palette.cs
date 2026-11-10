@@ -47,7 +47,7 @@ public static class Palette
         strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)
             ? "MCTS"
             : strategy.Equals("random", StringComparison.OrdinalIgnoreCase)
-            ? "Pure-Random" // not just "Random": guided-random is also random
+            ? "Full-Random" // not just "Random": guided-random is also random
             : string.Join("-", strategy.Split('-').Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..]));
 
     public static string Label(string seatId, string strategy) =>
