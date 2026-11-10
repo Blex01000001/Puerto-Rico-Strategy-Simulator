@@ -98,20 +98,7 @@ dotnet run -c Release --project Dashboard
 - 設定範例：`config.example.json`（3 人）、`config.4p.example.json`、`config.sweep.example.json`；Runner 與 Dashboard 共用同一份 JSON 格式。
 - 各輪對戰與調參設定：`tournaments/`（`tournaments/run.sh` 重跑）、`sweeps/`、`mcts/`；輸出進 git 忽略的 `results/`。
 
-## 專案結構
-
-```
-Engine/     規則引擎、策略、模擬器（無 UI 相依）
-Runner/     命令列批次模擬
-Dashboard/  Blazor 檢視與設定介面（只參考 Engine）
-Tests/      xUnit：規則情境、隨機局不變量、同種子重現、策略
-docs/       strategy-analysis.md（分析與結論）、TODO.md（目前狀態）
-```
-
 ## 限制
 
 - 結論只代表這幾份手寫策略實作；調參是「對固定對手」，改強一個策略會改變別人的最佳值。
 - MCTS 看得到完整狀態（含對手 VP 籌碼），但不偷看未翻開的牌堆；手寫策略約定不讀對手 VP。
-- 規則中幾處未明說之處，引擎採用的詮釋列在 [`docs/TODO.md`](docs/TODO.md) 的「已知問題」。
-
-更多開發細節（架構決策、常見修改步驟、容易踩的雷）見 [`CLAUDE.md`](CLAUDE.md)。
