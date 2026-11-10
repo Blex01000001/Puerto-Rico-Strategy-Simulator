@@ -3,10 +3,10 @@
 
 @* The MCTS search behind one decision: every legal action with its visit count and mean reward for the acting seat. *@
 <div class="mcts">
-    <div class="muted">MCTS 搜尋：@Search.Simulations 次模擬；訪問次數最多的動作被選中。「平均報酬」= 該動作之後的模擬結果對本座位的平均值（0～1，0.6×獲勝＋0.4×名次分）。</div>
+    <div class="muted">MCTS 搜尋：@Search.Simulations 次模擬；模擬次數最多的動作被選中。「佔比」= 該動作的模擬次數 ÷ 總模擬次數。「平均報酬」= 該動作之後的模擬結果對本座位的平均值（0～1，0.6×獲勝＋0.4×名次分）。</div>
     <div class="tablewrap">
-        <table class="data">
-            <thead><tr><th class="left">動作</th><th>訪問次數</th><th class="left">比例</th><th>平均報酬</th></tr></thead>
+        <table class="data fit">
+            <thead><tr><th class="left">動作</th><th>模擬次數</th><th class="left">佔比</th><th>平均報酬</th></tr></thead>
             <tbody>
             @foreach (var i in order)
             {

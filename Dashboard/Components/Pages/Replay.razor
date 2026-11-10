@@ -61,11 +61,14 @@
         {
             var ev = events[step];
             <span>第 @ev.Round 回合 · @PhaseLabel(ev.Phase) · 座位 @(ev.Seat + 1)（@SeatNameFn(ev.Seat)）：<strong>@ActionText.Describe(snaps[step], ParseAction(step))</strong> <span class="muted">（@ev.Action）</span></span>
-            @if (searches[step] is { } sr) { <MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Chosen="@actions[step]" /> }
         }
         else { <span>終局盤面（所有決策已執行完）。</span> }
     </div>
     <BoardView S="@(step < events.Count ? snaps[step] : finalState!)" SeatNameOf="@((Func<int, string>)SeatNameFn)" />
+    @if (step < events.Count && searches[step] is { } sr)
+    {
+        <div class="panel"><MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Chosen="@actions[step]" /></div>
+    }
 
     <h2>決策記錄（@shown.Count / @events.Count）</h2>
     <div class="panel">

@@ -117,7 +117,7 @@ pre.panel { overflow-x: auto; margin: .75rem 0; }
 
 /* replay board */
 .board { display: flex; flex-direction: column; gap: .75rem; margin: .75rem 0; }
-.board h4 { margin: .55rem 0 .25rem; font-size: .85rem; color: var(--text-2); font-weight: 600; }
+.board h4 { margin: .55rem 0 .3rem; font-size: 1rem; color: var(--text); font-weight: 700; }
 .boardhead { margin-bottom: .3rem; }
 .boardrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
 .boardbox, .boardplayer { border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); padding: .6rem .8rem; }
@@ -195,3 +195,16 @@ th.sortable:hover { color: var(--text); }
 .row.picker select { width: 30rem; max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 .row.picker button { flex: none; white-space: nowrap; }
 @media (max-width: 900px) { .row.picker { flex-wrap: wrap; } }
+
+/* replay board cards: all square, same side */
+.board { --card: 5.6rem; }
+.boardhead.centered { text-align: center; }
+.groupbox { border: 1px solid var(--line); border-radius: 4px; padding: .2rem .6rem .5rem; margin: .5rem 0; background: var(--surface); }
+.groupbox h4 { margin-top: .3rem; }
+.cardrow { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; margin: .4rem 0; }
+.statcard { width: var(--card); height: var(--card); aspect-ratio: 1; box-sizing: border-box; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: .2rem; gap: .1rem; }
+.statcard .ctitle { font-size: .72rem; font-weight: 700; color: var(--text); line-height: 1.15; }
+.statcard strong { font-size: 1.5rem; line-height: 1.1; }
+.statcard .cunit { font-size: .7rem; color: var(--text-3); }
+.mcts table.fit { width: auto; min-width: 0; }
+.mcts .tablewrap { display: block; }
