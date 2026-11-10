@@ -58,6 +58,35 @@ public static class ActionText
     public static IReadOnlyList<string> DescribeAll(GameState s, PuertoRico.Engine.Strategies.SearchSummary search) =>
         search.Actions.Select(e => Describe(s, e.Action)).ToList();
 
+    /// <summary>
+    /// Principal variation of every action of a search summary as text ("座位 2：… → 座位 3：…"). The steps are replayed
+    /// on a copy of the state (plantation draws may differ from the real game); a step that is no longer legal ends the line.
+    /// </summary>
+    public static IReadOnlyList<string> DescribeLines(GameState s, PuertoRico.Engine.Strategies.SearchSummary search)
+    {
+        var result = new List<string>(search.Actions.Count);
+        var legal = new List<GameAction>(32);
+        foreach (var e in search.Actions)
+        {
+            var parts = new List<string>();
+            if (e.Line is { Count: > 0 })
+            {
+                var c = s.Clone();
+                PuertoRico.Engine.Game.Rules.Apply(c, e.Action);
+                foreach (var step in e.Line)
+                {
+                    if (c.IsOver) break;
+                    PuertoRico.Engine.Game.Rules.GetLegalActions(c, legal);
+                    if (c.Actor != step.Seat || !legal.Contains(step.Action)) break;
+                    parts.Add($"座位 {step.Seat + 1}：{Describe(c, step.Action)}");
+                    PuertoRico.Engine.Game.Rules.Apply(c, step.Action);
+                }
+            }
+            result.Add(string.Join(" → ", parts));
+        }
+        return result;
+    }
+
     private static string PassText(GameState s) => s.Phase switch
     {
         Phase.Settler => "不拿種植園（跳過）",

@@ -67,7 +67,7 @@
     <BoardView S="@(step < events.Count ? snaps[step] : finalState!)" SeatNameOf="@((Func<int, string>)SeatNameFn)" />
     @if (step < events.Count && searches[step] is { } sr)
     {
-        <div class="panel"><MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Chosen="@actions[step]" /></div>
+        <div class="panel"><MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Lines="@ActionText.DescribeLines(snaps[step], sr)" Chosen="@actions[step]" /></div>
     }
 
     <h2>決策記錄（@shown.Count / @events.Count）</h2>

@@ -208,3 +208,4 @@ th.sortable:hover { color: var(--text); }
 .statcard .cunit { font-size: .7rem; color: var(--text-3); }
 .mcts table.fit { width: auto; min-width: 0; }
 .mcts .tablewrap { display: block; }
+.mcts td.line { max-width: 42rem; min-width: 16rem; white-space: normal; font-size: .8rem; }

@@ -7,7 +7,11 @@ namespace PuertoRico.Engine.Strategies;
 /// <param name="Actions">Every legal action with its visit count and mean reward (0..1) for the acting seat.</param>
 public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.Entry> Actions)
 {
-    public sealed record Entry(GameAction Action, int Visits, double MeanReward);
+    /// <param name="Line">Principal variation after this action: the most visited reply at each following node (may be empty).</param>
+    public sealed record Entry(GameAction Action, int Visits, double MeanReward, IReadOnlyList<LineStep>? Line = null);
+
+    /// <summary>One step of a principal variation: the seat that acts there, its most visited action and that node's visits.</summary>
+    public sealed record LineStep(int Seat, GameAction Action, int Visits);
 }
 
 /// <summary>Optional: a strategy that can report how it reached its latest decision (the interface <see cref="IStrategy"/> stays unchanged).</summary>

@@ -34,6 +34,7 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         public readonly List<GameAction> Actions = new(4);
         public readonly List<Node> Kids = new(4);
         public int Visits;
+        public int Actor = -1; // seat acting at this node (set once children exist)
         public readonly double[] Reward = new double[GameConstants.MaxPlayers];
     }
 
@@ -75,11 +76,27 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             int k = root.Actions.IndexOf(a);
             double visits = k < 0 ? 0 : root.Kids[k].Visits;
             double mean = visits > 0 ? root.Kids[k].Reward[me] / visits : 0;
-            entries.Add(new SearchSummary.Entry(a, (int)visits, mean));
+            entries.Add(new SearchSummary.Entry(a, (int)visits, mean, k < 0 ? null : PrincipalLine(root.Kids[k])));
             if (visits > bestVisits || (visits == bestVisits && mean > bestMean)) { best = a; bestVisits = visits; bestMean = mean; }
         }
         LastSearch = new SearchSummary(_simulations, entries);
         return best;
+    }
+
+    private const int MaxLineSteps = 8;
+
+    /// <summary>Most visited reply chain below a node (display only).</summary>
+    private static List<SearchSummary.LineStep> PrincipalLine(Node node)
+    {
+        var line = new List<SearchSummary.LineStep>();
+        while (line.Count < MaxLineSteps && node.Kids.Count > 0)
+        {
+            int best = 0;
+            for (int i = 1; i < node.Kids.Count; i++) if (node.Kids[i].Visits > node.Kids[best].Visits) best = i;
+            line.Add(new SearchSummary.LineStep(node.Actor, node.Actions[best], node.Kids[best].Visits));
+            node = node.Kids[best];
+        }
+        return line;
     }
 
     private IStrategy[] CreateRollout(int players)
@@ -99,6 +116,7 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             var legal = _legal;
             Rules.GetLegalActions(s, legal);
             int actor = s.Actor;
+            node.Actor = actor;
 
             // untried actions at this node (the legal set can differ between simulations because of chance events)
             int untried = 0;
