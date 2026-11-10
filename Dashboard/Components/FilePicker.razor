@@ -3,7 +3,7 @@
 @inject IConfiguration Config
 
 <div class="panel">
-    <div class="row">
+    <div class="row picker">
         <label>結果檔
             <select @bind="selected">
                 <option value="">（@(files.Count == 0 ? "資料夾內沒有 .json" : "選擇檔案")）</option>
