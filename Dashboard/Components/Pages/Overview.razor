@@ -20,6 +20,20 @@
         <span class="muted">已選 <strong>@selected.Count</strong> 份 / 共 @metas.Count 份（目前列出 @shown.Count 份）</span>
         <button @onclick="Build" disabled="@(loading || !selected.Any())">產生總覽</button>
     </div>
+    <div class="row" style="margin-top:.5rem">
+        <label>預設組合
+            <select @bind="presetName">
+                <option value="">（@(presets.Count == 0 ? "尚無，先勾選檔案再儲存" : "選擇組合")）</option>
+                @foreach (var n in presets.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase)) { <option value="@n">@n（@presets[n].Count 份）</option> }
+            </select>
+        </label>
+        <button class="secondary" @onclick="ApplyPreset" disabled="@string.IsNullOrEmpty(presetName)">套用</button>
+        <button class="secondary" @onclick="DeletePreset" disabled="@string.IsNullOrEmpty(presetName)">刪除</button>
+        <span class="grow"></span>
+        <label>另存勾選為 <input type="text" style="width:9rem" placeholder="組合名稱，例如 五選四" @bind="newPresetName" @bind:event="oninput" /></label>
+        <button class="secondary" @onclick="SavePreset" disabled="@(selected.Count == 0 || string.IsNullOrWhiteSpace(newPresetName))">儲存</button>
+    </div>
+    @if (presetNote != null) { <div class="ok" style="margin-top:.4rem">@presetNote</div> }
     <div class="tablewrap" style="max-height:20rem; overflow-y:auto; margin-top:.5rem">
         <table class="data filetable">
             <thead>
@@ -150,6 +164,9 @@
     private List<FileMeta> metas = new();
     private int playersFilter;
     private string textFilter = "";
+    private Dictionary<string, List<string>> presets = new();
+    private string presetName = "", newPresetName = "";
+    private string? presetNote;
     private readonly HashSet<string> selected = new();
     private readonly List<OverviewTable> tables = new();
     private readonly List<string> skipped = new();
@@ -213,7 +230,37 @@
             }
         }
         metas = list;
+        presets = OverviewPresets.Load(dir);
         selected.RemoveWhere(f => !metas.Any(m => m.Path == f));
+    }
+
+    /// <summary>Selects exactly the files of the preset that still exist (a filter that hides some of them is cleared).</summary>
+    private void ApplyPreset()
+    {
+        if (!presets.TryGetValue(presetName, out var names)) return;
+        var found = metas.Where(m => names.Contains(System.IO.Path.GetFileName(m.Path), StringComparer.OrdinalIgnoreCase)).Select(m => m.Path).ToList();
+        selected.Clear();
+        foreach (var f in found) selected.Add(f);
+        playersFilter = 0; textFilter = "";
+        presetNote = $"已套用「{presetName}」：選取 {found.Count} 份" + (found.Count < names.Count ? $"（有 {names.Count - found.Count} 份檔案已不存在）" : "") + "。";
+    }
+
+    private void SavePreset()
+    {
+        string name = newPresetName.Trim();
+        bool replaced = presets.ContainsKey(name);
+        OverviewPresets.Save(dir, name, selected);
+        presets = OverviewPresets.Load(dir);
+        presetName = name; newPresetName = "";
+        presetNote = $"已{(replaced ? "更新" : "儲存")}組合「{name}」（{selected.Count} 份）。";
+    }
+
+    private void DeletePreset()
+    {
+        OverviewPresets.Delete(dir, presetName);
+        presetNote = $"已刪除組合「{presetName}」。";
+        presets = OverviewPresets.Load(dir);
+        presetName = "";
     }
 
     private void ToggleShown(bool on) { foreach (var m in shown) { if (on) selected.Add(m.Path); else selected.Remove(m.Path); } }
