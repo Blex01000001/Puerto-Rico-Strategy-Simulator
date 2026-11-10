@@ -7,20 +7,64 @@
 
 <div class="panel">
     <div class="row">
-        <button @onclick="SelectAll" class="secondary">全選</button>
-        <button @onclick="SelectNone" class="secondary">全不選</button>
-        <button @onclick="Refresh" class="secondary">重新整理</button>
-        <button @onclick="Build" disabled="@(loading || !selected.Any())">產生總覽（@selected.Count 份）</button>
+        <label>玩家數
+            <select @bind="playersFilter">
+                <option value="0">全部</option>
+                <option value="3">3 人</option>
+                <option value="4">4 人</option>
+            </select>
+        </label>
+        <label>檔名或策略含 <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="例如 harbor、4p" /></label>
+        <button class="secondary" @onclick="Refresh">重新整理</button>
+        <span class="grow"></span>
+        <span class="muted">已選 <strong>@selected.Count</strong> 份 / 共 @metas.Count 份（目前列出 @shown.Count 份）</span>
+        <button @onclick="Build" disabled="@(loading || !selected.Any())">產生總覽</button>
     </div>
     <div class="row" style="margin-top:.5rem">
-        @foreach (var f in files)
-        {
-            string file = f;
-            <label><input type="checkbox" checked="@selected.Contains(file)" @onchange="@(e => Toggle(file, (bool)(e.Value ?? false)))" /> @Path.GetFileName(f)</label>
-        }
-        @if (files.Count == 0) { <span class="muted">資料夾內沒有 .json</span> }
+        <label>預設組合
+            <select @bind="presetName">
+                <option value="">（@(presets.Count == 0 ? "尚無，先勾選檔案再儲存" : "選擇組合")）</option>
+                @foreach (var n in presets.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase)) { <option value="@n">@n（@presets[n].Count 份）</option> }
+            </select>
+        </label>
+        <button class="secondary" @onclick="ApplyPreset" disabled="@string.IsNullOrEmpty(presetName)">套用</button>
+        <button class="secondary" @onclick="DeletePreset" disabled="@string.IsNullOrEmpty(presetName)">刪除</button>
+        <span class="grow"></span>
+        <label>另存勾選為 <input type="text" style="width:9rem" placeholder="組合名稱，例如 五選四" @bind="newPresetName" @bind:event="oninput" /></label>
+        <button class="secondary" @onclick="SavePreset" disabled="@(selected.Count == 0 || string.IsNullOrWhiteSpace(newPresetName))">儲存</button>
     </div>
-    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。參數掃描檔（sweep）會被略過；每份大檔載入需要幾秒。</p>
+    @if (presetNote != null) { <div class="ok" style="margin-top:.4rem">@presetNote</div> }
+    <div class="tablewrap" style="max-height:20rem; overflow-y:auto; margin-top:.5rem">
+        <table class="data filetable">
+            <thead>
+                <tr>
+                    <th class="chk"><input type="checkbox" title="全選／取消目前列出的檔案" checked="@AllShownSelected" disabled="@(shown.Count == 0)" @onchange="@(e => ToggleShown((bool)(e.Value ?? false)))" /></th>
+                    <th class="left">檔名</th><th>人數</th><th>局數</th><th class="left">座位順序</th><th class="left">策略</th><th>大小</th><th class="left">修改時間</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var m in shown)
+            {
+                string file = m.Path;
+                <tr class="@(selected.Contains(file) ? "picked" : "")" @onclick="@(() => Toggle(file, !selected.Contains(file)))">
+                    <td class="chk"><input type="checkbox" checked="@selected.Contains(file)" @onclick:stopPropagation="true" @onchange="@(e => Toggle(file, (bool)(e.Value ?? false)))" /></td>
+                    <td class="left">@m.Name</td>
+                    <td>@m.Players</td>
+                    <td>@m.Games.ToString("N0")</td>
+                    <td class="left">@m.SeatOrder</td>
+                    <td class="left">@m.Strategies</td>
+                    <td>@m.Size</td>
+                    <td class="left">@m.Modified</td>
+                </tr>
+            }
+            @if (shown.Count == 0)
+            {
+                <tr><td colspan="8" class="muted left">@(metas.Count == 0 ? "資料夾內沒有可用的結果檔" : "沒有符合篩選條件的檔案")</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。點整列或勾選方塊即可選取；表頭的方塊會全選／取消目前列出的檔案（先用上方篩選縮小範圍）。參數掃描檔（sweep）與無法讀取的檔案不會列出；每份大檔載入需要幾秒。</p>
     @if (loading) { <p>載入中…（@done / @selected.Count）</p> }
     @foreach (var m in skipped) { <div class="error">略過：@m</div> }
 </div>
@@ -116,7 +160,13 @@
 
 @code {
     private string dir = "";
-    private List<string> files = new();
+    private sealed record FileMeta(string Path, string Name, int Players, int Games, string SeatOrder, string Strategies, string Size, string Modified);
+    private List<FileMeta> metas = new();
+    private int playersFilter;
+    private string textFilter = "";
+    private Dictionary<string, List<string>> presets = new();
+    private string presetName = "", newPresetName = "";
+    private string? presetNote;
     private readonly HashSet<string> selected = new();
     private readonly List<OverviewTable> tables = new();
     private readonly List<string> skipped = new();
@@ -142,23 +192,78 @@
     private static string HeatStyle(double v) =>
         FormattableString.Invariant($"background:color-mix(in srgb, var(--series-1) {Math.Clamp(Math.Abs(v - 0.5) * 2, 0, 1) * 70:0}%, var(--neutral))");
 
-    protected override void OnInitialized()
+    private IReadOnlyList<FileMeta> shown => metas
+        .Where(m => (playersFilter == 0 || m.Players == playersFilter)
+                    && (textFilter.Length == 0 || m.Name.Contains(textFilter, StringComparison.OrdinalIgnoreCase) || m.Strategies.Contains(textFilter, StringComparison.OrdinalIgnoreCase)))
+        .ToList();
+
+    private bool AllShownSelected => shown.Count > 0 && shown.All(m => selected.Contains(m.Path));
+
+    protected override async Task OnInitializedAsync()
     {
         dir = AppState.ResultsDirectory(Config);
-        Refresh();
+        await Refresh();
     }
 
-    private void Refresh()
+    /// <summary>Lists the result files with their settings (read from each file's config only, which is fast even for big files).</summary>
+    private async Task Refresh()
     {
-        files = Directory.Exists(dir)
-            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp") && !Path.GetFileName(f).StartsWith("sweep", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
-            : new List<string>();
-        selected.RemoveWhere(f => !files.Contains(f));
+        var list = new List<FileMeta>();
+        if (Directory.Exists(dir))
+        {
+            var paths = Directory.GetFiles(dir, "*.json")
+                .Where(f => !f.EndsWith(".tmp") && !System.IO.Path.GetFileName(f).StartsWith("sweep", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(f => File.GetLastWriteTime(f)).ToList();
+            foreach (var f in paths)
+            {
+                try
+                {
+                    var c = await AppState.ReadConfigAsync(f);
+                    if (c.Seats.Count == 0 || c.Sweep != null) continue;
+                    var fi = new FileInfo(f);
+                    var names = c.Seats.Select(x => x.Strategy.Equals("rule-based", StringComparison.OrdinalIgnoreCase) && x.Params.TryGetValue("profile", out var pr) ? pr.ToString() : x.Strategy)
+                        .Select(Palette.DisplayName).ToList();
+                    list.Add(new FileMeta(f, System.IO.Path.GetFileNameWithoutExtension(f), c.Players, c.Games, Palette.SeatOrderLabel(c.SeatOrder),
+                        string.Join("、", names.Distinct()), fi.Length >= 1048576 ? $"{fi.Length / 1048576.0:0.#} MB" : $"{Math.Max(1, fi.Length / 1024)} KB", fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")));
+                }
+                catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { }
+            }
+        }
+        metas = list;
+        presets = OverviewPresets.Load(dir);
+        selected.RemoveWhere(f => !metas.Any(m => m.Path == f));
     }
 
-    private void SelectAll() { foreach (var f in files) selected.Add(f); }
-    private void SelectNone() => selected.Clear();
+    /// <summary>Selects exactly the files of the preset that still exist (a filter that hides some of them is cleared).</summary>
+    private void ApplyPreset()
+    {
+        if (!presets.TryGetValue(presetName, out var names)) return;
+        var found = metas.Where(m => names.Contains(System.IO.Path.GetFileName(m.Path), StringComparer.OrdinalIgnoreCase)).Select(m => m.Path).ToList();
+        selected.Clear();
+        foreach (var f in found) selected.Add(f);
+        playersFilter = 0; textFilter = "";
+        presetNote = $"已套用「{presetName}」：選取 {found.Count} 份" + (found.Count < names.Count ? $"（有 {names.Count - found.Count} 份檔案已不存在）" : "") + "。";
+    }
+
+    private void SavePreset()
+    {
+        string name = newPresetName.Trim();
+        bool replaced = presets.ContainsKey(name);
+        OverviewPresets.Save(dir, name, selected);
+        presets = OverviewPresets.Load(dir);
+        presetName = name; newPresetName = "";
+        presetNote = $"已{(replaced ? "更新" : "儲存")}組合「{name}」（{selected.Count} 份）。";
+    }
+
+    private void DeletePreset()
+    {
+        OverviewPresets.Delete(dir, presetName);
+        presetNote = $"已刪除組合「{presetName}」。";
+        presets = OverviewPresets.Load(dir);
+        presetName = "";
+    }
+
+    private void ToggleShown(bool on) { foreach (var m in shown) { if (on) selected.Add(m.Path); else selected.Remove(m.Path); } }
     private void Toggle(string f, bool on) { if (on) selected.Add(f); else selected.Remove(f); }
 
     private async Task Build()

@@ -63,22 +63,26 @@
 }
 
 <div class="panel">
-    @for (int i = 0; i < players; i++)
-    {
-        int seat = i;
-        <div class="row" style="margin-bottom:.5rem">
+    <div class="seatgrid @(sweep ? "withtarget" : "")">
+        <div class="seathead">座位</div>
+        @if (sweep) { <div class="seathead">掃描目標</div> }
+        <div class="seathead">策略</div>
+        <div class="seathead">參數（選填）</div>
+        @for (int i = 0; i < players; i++)
+        {
+            int seat = i;
             <strong>座位 @(seat + 1)</strong>
             @if (sweep)
             {
-                <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> 掃描目標</label>
+                <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> 目標</label>
             }
             <select @bind="strategies[seat]" disabled="@Sim.Running">
                 @foreach (var n in Choices) { <option value="@n">@Palette.DisplayName(n)</option> }
             </select>
-            <input type="text" class="grow" placeholder="參數（選填），例如 buildThreshold=3, quarryTarget=2"
+            <input type="text" placeholder="例如 buildThreshold=3, quarryTarget=2"
                    @bind="paramText[seat]" disabled="@Sim.Running" />
-        </div>
-    }
+        }
+    </div>
     <p class="note">每個策略的行為規則與可調參數見頁面下方「流派介紹」。參數欄位格式：<code>名稱=值</code>（數字，或像 <code>rolloutStrategy=random</code> 這樣的文字），多個用逗號分隔，例如 <code>buildThreshold=3.5, quarryTarget=2</code>。</p>
 </div>
 
@@ -132,8 +136,8 @@
 @foreach (var doc in StrategyInfo.All)
 {
     <section class="stratdoc">
-        <h3>@Palette.DisplayName(doc.Id) <span class="muted">@doc.Title</span></h3>
-        <p>@doc.Summary</p>
+        <h3 class="stratname"><span class="sicon">@Palette.Icon(doc.Id)</span>@Palette.DisplayName(doc.Id) <span class="muted">@doc.Title</span></h3>
+        <p class="stratsummary">@doc.Summary</p>
         <strong>行為規則</strong>
         <ul>
             @foreach (var rule in doc.Rules) { <li>@rule</li> }
