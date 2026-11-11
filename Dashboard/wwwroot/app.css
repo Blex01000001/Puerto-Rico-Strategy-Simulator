@@ -321,3 +321,37 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 /* replay: step bar and current action stay at the top while the board is in view */
 .stepdock { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: .3rem 0 .1rem; }
 .stepdock .stepbar { margin: 0 0 .3rem; } .stepdock .panel { margin: 0; }
+
+/* replay board, round 2: fixed positions (nothing moves when tags or names change) and larger type */
+.board { --role: 5.2rem; --rgap: .35rem; }
+.board h4 { font-size: .95rem; margin: .3rem 0 .25rem; }
+.midhead { text-align: center; font-size: .95rem; line-height: 1.45; height: 2.9em; overflow: hidden; margin: 0; }
+.midhead > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rolecard { padding: .25rem .2rem; }
+.rolecard .rname { font-size: .95rem; } .rolecard .rinfo { font-size: .78rem; min-height: 1.15rem; }
+.supplytable { font-size: .95rem; }
+.supplytable th { font-size: .8rem; width: 2.7rem; padding: .12rem .2rem .12rem 0; }
+.supplytable td { font-size: .88rem; padding: .12rem 0; }
+.supplytable td .good { width: .8rem; height: .8rem; }
+.supplytable strong { font-size: 1rem; }
+.statcard { min-width: 4.1rem; padding: .2rem .35rem .25rem; }
+.statcard .ctitle { font-size: .76rem; }
+.statcard strong { font-size: 1.35rem; }
+.supply .statcard .ctitle { font-size: .72rem; }
+.playerhead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .5rem; margin-bottom: .4rem; }
+.pname { min-width: 0; }
+.pline { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptags { height: 1.5rem; margin-top: .15rem; display: flex; gap: .3rem; align-items: center; overflow: hidden; }
+.ptags .pill { margin-left: 0; font-size: .78rem; padding: .05rem .5rem; white-space: nowrap; }
+.pill.role { background: #e6e9ef; color: #10151c; font-weight: 700; }
+.brow { grid-template-columns: 3.3rem minmax(0, 1fr); margin-top: .35rem; }
+.blabel { font-size: .8rem; padding-top: .2rem; }
+.board .tile { width: 1.6rem; height: 1.6rem; font-size: .8rem; }
+.board .bld { font-size: .82rem; padding: .12rem .4rem; }
+.board .bld .dots { font-size: .72rem; }
+.board .shiprow { font-size: .88rem; margin: .15rem 0; }
+.board .good { width: 1rem; height: 1rem; }
+/* MCTS panel: compact so it stays in the same window as the board */
+.mcts { font-size: .82rem; margin: 0; }
+.mcts table.data td, .mcts table.data th { padding-top: .04rem; padding-bottom: .04rem; line-height: 1.35; }
+.board { margin: .3rem 0 .2rem; }
