@@ -22,12 +22,16 @@
 </div>
 
 <h2>有哪些策略</h2>
-<ul>
-    @foreach (var s in StrategyInfo.All)
-    {
-        <li><strong>@Palette.DisplayName(s.Id)</strong>（@s.Title）：@s.Summary</li>
-    }
-</ul>
+@foreach (var g in StrategyInfo.Groups)
+{
+    <h3>@g.Title</h3>
+    <ul>
+        @foreach (var s in StrategyInfo.InGroup(g.Key))
+        {
+            <li><strong>@Palette.DisplayName(s.Id)</strong>（@s.Title）：@s.Summary</li>
+        }
+    </ul>
+}
 <p class="note">每個策略的行為規則與可調整參數，請看「策略模擬」頁最下方。</p>
 
 <h2>讀結果前要知道的事</h2>

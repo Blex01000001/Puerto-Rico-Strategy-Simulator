@@ -185,4 +185,26 @@ public static class StrategyInfo
             new[] { "實驗中當 MCTS 的模擬策略反而比純隨機差（有偏好的模擬評估較不準）。" },
             Array.Empty<ParamInfo>()),
     };
+
+    /// <summary>Tabs of the strategy descriptions: strategies grouped by their main good / plan.</summary>
+    public sealed record StrategyGroup(string Key, string Title, string Hint, string[] Ids);
+
+    public static readonly IReadOnlyList<StrategyGroup> Groups = new StrategyGroup[]
+    {
+        new("corn", "🌽 玉米", "主貨是玉米：出貨、轉高價貨，或霸占玉米搗亂。",
+            new[] { "corn-shipper", "corn-to-premium", "corn-monopoly", "corn-monopoly-tiles", "corn-monopoly-hoard" }),
+        new("ship", "⚓ 港口／私船", "靠 Harbor 或 Wharf 的出貨加成拿分。",
+            new[] { "harbor-rush", "wharf-rush", "wharf-premium" }),
+        new("build", "🏗️ 建築", "把金幣變成建築：大型建築的終局加分，或便宜的 1 分建築。",
+            new[] { "build-first", "cheap-engine" }),
+        new("search", "🎲 搜尋／隨機", "不是手寫規則：樹搜尋與當基準的隨機玩家。",
+            new[] { "mcts", "random", "guided-random" }),
+    };
+
+    /// <summary>Strategies of a group in group order; a key that is not a group (e.g. "all") returns every strategy.</summary>
+    public static IEnumerable<StrategyDoc> InGroup(string key)
+    {
+        var g = Groups.FirstOrDefault(x => x.Key == key);
+        return g == null ? All : g.Ids.Select(id => All.First(d => d.Id == id));
+    }
 }

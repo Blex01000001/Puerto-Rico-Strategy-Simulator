@@ -224,3 +224,10 @@ th.sortable:hover { color: var(--text); }
 .filetable tbody tr.picked td { background: var(--accent-dim); }
 .filetable th.chk, .filetable td.chk { width: 2rem; text-align: center; }
 .filetable td, .filetable th { white-space: nowrap; }
+
+/* tabs (strategy descriptions) */
+.tabs { display: flex; flex-wrap: wrap; gap: .25rem; margin: .6rem 0 .2rem; border-bottom: 1px solid var(--line); }
+.tabs .tab { background: transparent; color: var(--text-2); border: 0; border-bottom: 3px solid transparent; border-radius: 4px 4px 0 0; padding: .5rem .9rem; font-weight: 600; font-size: .95rem; margin-bottom: -1px; }
+.tabs .tab:hover { color: var(--text); background: var(--surface-2); filter: none; }
+.tabs .tab.active { color: #fff; border-bottom-color: var(--accent); background: var(--surface-2); }
+.tabs .tab .count { font-size: .72rem; font-weight: 500; color: var(--text-3); margin-left: .25rem; }
