@@ -1,51 +1,76 @@
 @page "/"
 
 <PageTitle>HOME · 波多黎各策略模擬器</PageTitle>
-<h1>波多黎各策略模擬器</h1>
-<p class="note">用大量電腦對戰找出桌遊「波多黎各」的強策略。這不是可以玩的遊戲，沒有玩家介面：把不同策略放上桌、打幾萬局，再看誰贏得多、為什麼贏。</p>
 
-<h2>怎麼使用</h2>
-<ol>
-    <li><strong>策略模擬</strong>：選玩家數（3 或 4 人）與每個座位的策略，按「開始模擬」。結果會存進 <code>results</code> 資料夾並自動載入。</li>
-    <li><strong>結果總覽</strong>：看每個策略的勝率、平均分數、分數構成、買了哪些建築、局長與終局原因、兩兩名次比較。</li>
-    <li>想進一步比較：用 <strong>對戰總覽</strong>（彙整多張桌子）、<strong>結果並排比較</strong>（兩份結果並排）、<strong>模擬重播</strong>（重看某一局的每個決策）、<strong>參數掃描</strong>（試一個策略的不同參數）。</li>
-</ol>
+<section class="hero">
+    <div class="herotext">
+        <div class="herokicker">PUERTO RICO · STRATEGY LAB</div>
+        <h1 class="herotitle">讓電腦替你打一萬局波多黎各 🏝️</h1>
+        <p class="herolead">想知道「狂種玉米」還是「先蓋港口」比較會贏？把不同流派丟上同一張桌子，幾秒鐘打完上萬局，看誰笑到最後、又是怎麼贏的。</p>
+        <div class="herocta">
+            <a class="btn primary" href="simulate">🎲 開一桌試試</a>
+            <a class="btn" href="results">📊 看結果</a>
+        </div>
+    </div>
+    <div class="herogoods" aria-hidden="true">
+        @for (int g = 0; g < 5; g++)
+        {
+            <div class="barrel" style="background:var(--good-@g)"><span>@GoodNames[g]</span></div>
+        }
+    </div>
+</section>
+<p class="note">這不是可以玩的遊戲，沒有玩家介面，只有策略互打。</p>
 
-<div class="cards">
-    <a class="card" href="simulate"><strong>策略模擬</strong>選策略、設定局數與種子，直接在這裡跑。頁面下方有每個流派的行為規則與可調參數。</a>
-    <a class="card" href="results"><strong>結果總覽</strong>一份模擬結果的完整分析：勝率、分數、建築、局長。</a>
-    <a class="card" href="overview"><strong>對戰總覽</strong>勾選多份結果，依玩家數彙整每個策略的平均勝率、信賴區間與兩兩對戰矩陣。</a>
-    <a class="card" href="compare"><strong>結果並排比較</strong>A/B 兩份結果並排，看勝率差與是否顯著。</a>
-    <a class="card" href="replay"><strong>模擬重播</strong>重打結果檔中的某一局，逐步看盤面與每步動作說明（MCTS 玩家另列搜尋結果）。</a>
-    <a class="card" href="sweep"><strong>參數掃描</strong>只改一個策略的參數、對手固定，找出較好的參數。</a>
-    <a class="card" href="config"><strong>設定檔</strong>編輯並驗證模擬設定（JSON），可下載後交給命令列 Runner 跑大量局數。</a>
+<h2>三步驟上手</h2>
+<div class="steps">
+    <a class="step" href="simulate"><span class="stepno">1</span><strong>排一桌</strong><span>選 3 或 4 人、每個座位放一個流派，按「開始模擬」。</span></a>
+    <a class="step" href="results"><span class="stepno">2</span><strong>看誰贏</strong><span>勝率、平均分、分數從哪來、買了哪些建築，一頁看完。</span></a>
+    <a class="step" href="replay"><span class="stepno">3</span><strong>挖原因</strong><span>挑一局重播，逐步看盤面；或換參數、換對手再比一次。</span></a>
 </div>
 
-<h2>有哪些策略</h2>
+<h2>還能做什麼</h2>
+<div class="cards">
+    <a class="card" href="overview"><span class="cicon">🏆</span><strong>對戰總覽</strong>把好幾桌的結果合起來排名，還有兩兩對戰矩陣看誰剋誰。</a>
+    <a class="card" href="compare"><span class="cicon">⚖️</span><strong>結果並排比較</strong>改了參數有沒有變強？A、B 兩份並排，告訴你差異算不算數。</a>
+    <a class="card" href="replay"><span class="cicon">🎬</span><strong>模擬重播</strong>重看任何一局的每一步；MCTS 玩家還會攤開它的搜尋過程。</a>
+    <a class="card" href="sweep"><span class="cicon">🎛️</span><strong>參數掃描</strong>對手固定，只轉一個流派的旋鈕，找出最好的設定。</a>
+    <a class="card" href="config"><span class="cicon">📝</span><strong>設定檔</strong>編輯並檢查 JSON 設定，下載後交給命令列跑更大的局數。</a>
+</div>
+
+<h2>登場流派（@StrategyInfo.All.Count 位）</h2>
+<p class="note">點任何一位可以到「策略模擬」頁看它的行為規則與可調參數。</p>
 @foreach (var g in StrategyInfo.Groups)
 {
-    <h3>@g.Title</h3>
-    <ul>
+    <h3 class="rostergroup">@g.Title <span class="muted">@g.Hint</span></h3>
+    <div class="roster">
         @foreach (var s in StrategyInfo.InGroup(g.Key))
         {
-            <li><strong>@Palette.DisplayName(s.Id)</strong>（@s.Title）：@s.Summary</li>
+            <a class="fighter" href="simulate#strategies" style="--c:@Palette.Color(s.Id, 0)">
+                <span class="ficon">@Palette.Icon(s.Id)</span>
+                <span class="fbody"><strong>@Palette.DisplayName(s.Id)</strong><em>@s.Title</em><span>@s.Summary</span></span>
+            </a>
         }
-    </ul>
+    </div>
 }
-<p class="note">每個策略的行為規則與可調整參數，請看「策略模擬」頁最下方。</p>
 
-<h2>讀結果前要知道的事</h2>
-<ul>
-    <li><strong>勝率</strong>是贏的局數比例（並列第一平分），誤差線是 95% 信賴區間；差距小於誤差線就不能說誰比較強。</li>
-    <li><strong>座位順序</strong>：3、4 人局都有座位優勢，而且「誰坐在誰旁邊」也會大幅改變結果。預設是「隨機」（每局隨機排，平均而言公平）；想要絕對公平請選「完全平衡」（3 人 6 種、4 人 24 種排列輪流，局數要是 6／24 的倍數）。不要用「輪換」或「固定」比較策略。</li>
-    <li><strong>可重現</strong>：同一份設定與主種子，結果完全相同；每一局的種子由主種子與局號決定。</li>
-    <li><strong>策略強弱要看同桌是誰</strong>：策略之間不是單純的上下關係，3 人局與 4 人局的排名也不同。</li>
-    <li>MCTS 比手寫策略慢很多，只適合跑數百局；手寫策略一萬局只要幾秒。</li>
-</ul>
+<h2>看結果前的小提醒</h2>
+<div class="tips">
+    <div class="tip"><span class="ticon">📏</span><div><strong>差距要大於誤差線</strong>勝率旁的誤差線是 95% 信賴區間；兩個策略差得比它小，就別急著說誰強。</div></div>
+    <div class="tip"><span class="ticon">🪑</span><div><strong>座位很重要</strong>坐哪裡、旁邊是誰都會影響勝率。預設「隨機」夠公平；要絕對公平選「完全平衡」（局數用 6 或 24 的倍數）。別用「輪換」「固定」比較策略。</div></div>
+    <div class="tip"><span class="ticon">🤝</span><div><strong>強弱看同桌是誰</strong>流派之間會互剋，3 人局和 4 人局的排名也不一樣，沒有永遠的第一名。</div></div>
+    <div class="tip"><span class="ticon">🔁</span><div><strong>結果可以重現</strong>同一份設定加同一個主種子，跑幾次都一模一樣。</div></div>
+    <div class="tip"><span class="ticon">🐢</span><div><strong>MCTS 很慢</strong>它每一步都要想幾百次，適合跑幾百局；手寫流派一萬局只要幾秒。</div></div>
+</div>
 
-<h2>專案資料夾</h2>
-<ul>
-    <li><code>results</code>：模擬輸出（不進版本控制）。</li>
-    <li><code>tournaments</code>：對戰設定；<code>sweeps</code>：調參設定；<code>mcts</code>：MCTS 實驗設定。</li>
-    <li><code>docs/strategy-analysis.md</code>：各流派的分析結論；<code>rules.md</code>：遊戲規則（唯一依據）。</li>
-</ul>
+<details class="folders">
+    <summary>專案資料夾在哪</summary>
+    <ul>
+        <li><code>results</code>：模擬輸出（不進版本控制）。</li>
+        <li><code>tournaments</code>：對戰設定；<code>sweeps</code>：調參設定；<code>mcts</code>：MCTS 實驗設定。</li>
+        <li><code>docs/strategy-analysis.md</code>：各流派的分析結論；<code>rules.md</code>：遊戲規則（唯一依據）。</li>
+    </ul>
+</details>
+
+@code {
+    private static readonly string[] GoodNames = { "玉米", "靛藍", "糖", "菸草", "咖啡" };
+}
