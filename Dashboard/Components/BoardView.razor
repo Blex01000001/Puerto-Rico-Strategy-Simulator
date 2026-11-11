@@ -5,10 +5,12 @@
    from the bottom left: seat 1 bottom left, seat 2 top left, seat 3 top right, seat 4 bottom right. *@
 <div class="board seats@(S.PlayerCount)">
     <div class="area-mid boardbox supply">
-        <div class="boardhead centered">
-            回合 <strong>@S.Round</strong> · <strong>@PhaseName(S.Phase)</strong>
-            @if (!S.IsOver) { <span> · 總督 <strong>座位 @(S.Governor + 1)</strong> · 輪到 <strong>座位 @(S.Actor + 1)</strong></span> }
-            else { <span> · <strong>遊戲結束</strong></span> }
+        <div class="boardhead midhead">
+            <div>回合 <strong>@S.Round</strong> · <strong>@PhaseName(S.Phase)</strong></div>
+            <div>
+                @if (!S.IsOver) { <span>總督 <strong>座位 @(S.Governor + 1)</strong> · 輪到 <strong>座位 @(S.Actor + 1)</strong></span> }
+                else { <strong>遊戲結束</strong> }
+            </div>
         </div>
 
         <div class="groupbox">
@@ -39,7 +41,7 @@
                 <div class="statcard"><span class="ctitle">牌堆</span><strong>@S.DeckTotal()</strong></div>
                 <div class="statcard"><span class="ctitle">採石場</span><strong>@S.QuarrySupply</strong></div>
                 <div class="statcard"><span class="ctitle">勝利點</span><strong>@S.VpSupply</strong></div>
-                <div class="statcard"><span class="ctitle">銀行殖民</span><strong>@S.BankColonists</strong></div>
+                <div class="statcard"><span class="ctitle">銀行殖民者</span><strong>@S.BankColonists</strong></div>
                 <div class="statcard"><span class="ctitle">移民船</span><strong>@S.ShipColonists</strong></div>
             </div>
         </div>
@@ -79,15 +81,17 @@
             int seat = p;
             <div class="boardplayer area-p@(seat + 1) @(!S.IsOver && S.Actor == seat ? "acting" : "")">
                 <div class="playerhead">
-                    <div class="boardhead">
-                        <strong>座位 @(seat + 1)</strong> · @SeatName(seat)
-                        @if (S.Governor == seat) { <span class="pill">總督</span> }
-                        @for (int r = 0; r < S.RoleCount; r++) { if (S.RoleOwner[r] == seat) { <span class="pill role">@RoleName(r)</span> } }
+                    <div class="pname">
+                        <div class="pline" title="@SeatName(seat)"><strong>座位 @(seat + 1)</strong> · @SeatName(seat)</div>
+                        <div class="ptags">
+                            @if (S.Governor == seat) { <span class="pill">總督</span> }
+                            @for (int r = 0; r < S.RoleCount; r++) { if (S.RoleOwner[r] == seat) { <span class="pill role">@RoleName(r)</span> } }
+                        </div>
                     </div>
                     <div class="cardrow">
                         <div class="statcard"><span class="ctitle">金幣</span><strong>@S.Coins[seat]</strong></div>
                         <div class="statcard"><span class="ctitle">勝利點</span><strong>@S.VpChips[seat]</strong></div>
-                        <div class="statcard"><span class="ctitle">聖胡安</span><strong>@S.SanJuan[seat]</strong></div>
+                        <div class="statcard"><span class="ctitle">殖民者</span><strong>@S.SanJuan[seat]</strong></div>
                     </div>
                 </div>
 
