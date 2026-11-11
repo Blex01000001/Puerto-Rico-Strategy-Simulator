@@ -202,19 +202,8 @@ th.sortable:hover { color: var(--text); }
 .row.picker button { flex: none; white-space: nowrap; }
 @media (max-width: 900px) { .row.picker { flex-wrap: wrap; } }
 
-/* replay board cards: all square, same side */
-.board { --card: 5.6rem; }
-.boardhead.centered { text-align: center; }
-.groupbox { border: 1px solid var(--line); border-radius: 4px; padding: .2rem .6rem .5rem; margin: .5rem 0; background: var(--surface); }
-.groupbox h4 { margin-top: .3rem; }
-.cardrow { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; margin: .4rem 0; }
-.statcard { width: var(--card); height: var(--card); aspect-ratio: 1; box-sizing: border-box; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: .2rem; gap: .1rem; }
-.statcard .ctitle { font-size: .72rem; font-weight: 700; color: var(--text); line-height: 1.15; }
-.statcard strong { font-size: 1.5rem; line-height: 1.1; }
-.statcard .cunit { font-size: .7rem; color: var(--text-3); }
 .mcts table.fit { width: auto; min-width: 0; }
 .mcts .tablewrap { display: block; }
-.mcts td.line { max-width: 42rem; min-width: 16rem; white-space: normal; font-size: .8rem; }
 
 /* strategy descriptions */
 .stratdoc h3.stratname { font-size: 1.35rem; margin: 0 0 .4rem; display: flex; align-items: center; gap: .5rem; }
@@ -293,3 +282,42 @@ a.fighter .fbody { align-items: center; } a.fighter .fbody strong { font-size: 1
 a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; padding: .1rem .5rem; border-radius: 999px; background: var(--c); color: #111; margin-bottom: .4rem; }
 .tip { flex-direction: column; align-items: center; text-align: center; } .tip .ticon { font-size: 2rem; }
 .tips { grid-template-columns: repeat(auto-fit, minmax(280px, 340px)); justify-content: center; }
+
+/* replay board, compact: must fit one window together with the step bar.
+   Middle column = exactly four role cards wide; players in the side columns, clockwise from the bottom left. */
+.board { --role: 4.4rem; --rgap: .3rem; gap: .5rem; margin: .4rem 0; align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) calc(4 * var(--role) + 3 * var(--rgap) + 2.5rem) minmax(0, 1fr); }
+.board.seats4 { grid-template-areas: "p2 mid p3" "p1 mid p4"; }
+.board.seats3 { grid-template-areas: "p2 mid p3" "p1 mid ."; }
+.board .boardbox, .board .boardplayer { padding: .4rem .55rem; }
+.board h4 { margin: .25rem 0 .2rem; font-size: .85rem; }
+.boardhead.centered { text-align: center; font-size: .85rem; }
+.groupbox { border: 1px solid var(--line); border-radius: 4px; padding: .1rem .45rem .35rem; margin: .35rem 0 0; background: var(--surface); }
+.rolerow { display: grid; grid-template-columns: repeat(4, var(--role)); gap: var(--rgap); }
+.rolecard { min-width: 0; padding: .15rem .2rem; }
+.rolecard .rname { font-size: .82rem; } .rolecard .rinfo { font-size: .7rem; min-height: 1rem; }
+.rolecard .pill { margin-left: 0; }
+.supplytable { font-size: .8rem; table-layout: fixed; }
+.supplytable th { width: 2.4rem; padding: .05rem .2rem .05rem 0; font-size: .72rem; }
+.supplytable td { padding: .05rem 0; text-align: center; font-size: .75rem; }
+.supplytable td .good { width: .7rem; height: .7rem; margin-right: 2px; }
+.cardrow { display: flex; flex-wrap: wrap; gap: .25rem; justify-content: center; margin: .3rem 0 0; }
+.statcard { box-sizing: border-box; min-width: 3.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: .1rem .3rem .15rem; line-height: 1.15; }
+.supply .statcard { flex: 1 1 0; min-width: 0; padding: .1rem .1rem .15rem; }
+.statcard .ctitle { font-size: .66rem; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.statcard strong { font-size: 1.05rem; }
+.boardplayer .statcard { background: var(--bg); }
+.playerhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem .6rem; margin-bottom: .3rem; }
+.playerhead .boardhead { margin: 0; } .playerhead .cardrow { margin: 0; flex-wrap: nowrap; }
+.brow { display: grid; grid-template-columns: 2.9rem minmax(0, 1fr); gap: .4rem; align-items: start; margin-top: .25rem; }
+.blabel { font-size: .72rem; font-weight: 600; color: var(--text-3); padding-top: .15rem; }
+.board .tile { width: 1.35rem; height: 1.35rem; font-size: .7rem; }
+.board .tilesrow, .board .bldrow { gap: .2rem; }
+.board .bld { flex-direction: row; align-items: center; gap: .3rem; font-size: .72rem; padding: .08rem .35rem; border-radius: 4px; }
+.board .bld .dots { font-size: .65rem; }
+.board .shiprow { margin: .1rem 0; font-size: .8rem; }
+.board .good { width: .85rem; height: .85rem; }
+@media (max-width: 1000px) { .board, .board.seats3, .board.seats4 { grid-template-columns: 1fr; grid-template-areas: none; } .rolerow { grid-template-columns: repeat(4, 1fr); } }
+/* replay: step bar and current action stay at the top while the board is in view */
+.stepdock { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: .3rem 0 .1rem; }
+.stepdock .stepbar { margin: 0 0 .3rem; } .stepdock .panel { margin: 0; }
