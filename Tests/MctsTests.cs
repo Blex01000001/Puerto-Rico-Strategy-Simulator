@@ -45,6 +45,9 @@ public class MctsTests
             foreach (var e in search.Actions)
             {
                 // UCT = mean + exploration bonus: never below the mean, undefined for unvisited actions
+                // reward = 0.6 × win + 0.4 × rank score, so the win rate is between 0 and reward / 0.6
+                Assert.InRange(e.WinRate, 0, 1);
+                Assert.True(0.6 * e.WinRate <= e.MeanReward + 1e-9);
                 if (e.Visits == 0) Assert.Null(search.Uct(e));
                 else Assert.True(search.Uct(e) >= e.MeanReward);
             }

@@ -16,7 +16,8 @@ public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.
         e.Visits <= 0 ? null : e.MeanReward + Exploration * Math.Sqrt(Math.Log(Math.Max(1, Simulations)) / e.Visits);
 
     /// <param name="Line">Principal variation after this action: the most visited reply at each following node (may be empty).</param>
-    public sealed record Entry(GameAction Action, int Visits, double MeanReward, IReadOnlyList<LineStep>? Line = null);
+    /// <param name="WinRate">Share of this action's simulations the acting seat won (ties split); with truncated rollouts "won" means leading on points when the simulation stopped.</param>
+    public sealed record Entry(GameAction Action, int Visits, double MeanReward, IReadOnlyList<LineStep>? Line = null, double WinRate = 0);
 
     /// <summary>One step of a principal variation: the seat that acts there, its most visited action and that node's visits.</summary>
     public sealed record LineStep(int Seat, GameAction Action, int Visits);

@@ -355,3 +355,4 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .mcts { font-size: .82rem; margin: 0; }
 .mcts table.data td, .mcts table.data th { padding-top: .04rem; padding-bottom: .04rem; line-height: 1.35; }
 .board { margin: .3rem 0 .2rem; }
+.mcts th[title] { cursor: help; text-decoration: underline dotted var(--text-3); text-underline-offset: 3px; }
