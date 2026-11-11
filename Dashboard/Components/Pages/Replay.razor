@@ -48,6 +48,7 @@
 
     <h2>盤面</h2>
     <p class="note">顯示「第 @step 個決策之前」的盤面（輪到的玩家以藍框標示）；拉到最右邊是終局盤面。種植園方塊裡的 ● 代表有殖民者，建築名稱下的 ●○ 是殖民者／空位。</p>
+    <div class="stepdock">
     <div class="stepbar">
         <button class="secondary" @onclick="@(() => Go(0))" disabled="@(step == 0)">⏮ 開頭</button>
         <button class="secondary" @onclick="@(() => Go(step - 1))" disabled="@(step == 0)">◀ 上一步</button>
@@ -64,10 +65,11 @@
         }
         else { <span>終局盤面（所有決策已執行完）。</span> }
     </div>
+    </div>
     <BoardView S="@(step < events.Count ? snaps[step] : finalState!)" SeatNameOf="@((Func<int, string>)SeatNameFn)" />
     @if (step < events.Count && searches[step] is { } sr)
     {
-        <div class="panel"><MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Lines="@ActionText.DescribeLines(snaps[step], sr)" Chosen="@actions[step]" /></div>
+        <div class="panel"><MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Chosen="@actions[step]" /></div>
     }
 
     <h2>決策記錄（@shown.Count / @events.Count）</h2>

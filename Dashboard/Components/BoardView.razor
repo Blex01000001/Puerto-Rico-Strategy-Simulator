@@ -1,47 +1,13 @@
 @using PuertoRico.Engine.Game
 
-@* Read-only picture of a game state. The shared supply card sits in the middle and the player cards sit around it
-   in turn order (clockwise: seat 1 at the bottom, then left, top, right; with 3 players the top is left free).
-   The ships and the trading house fill the blank corners. *@
+@* Read-only picture of a game state, sized to fit one window. The shared supply (roles, goods, ships, trading house) is the
+   middle column, exactly four role cards wide; the player cards sit in the two side columns in turn order, clockwise
+   from the bottom left: seat 1 bottom left, seat 2 top left, seat 3 top right, seat 4 bottom right. *@
 <div class="board seats@(S.PlayerCount)">
-    <div class="area-ship boardbox">
-        <h4>貨船</h4>
-        @for (int i = 0; i < GameConstants.ShipCount; i++)
-        {
-            <div class="shiprow">
-                <span class="muted">@S.ShipCap[i] 格船　</span>
-                @if (S.ShipLoad[i] > 0)
-                {
-                    for (int k = 0; k < S.ShipLoad[i]; k++) { <span class="good" style="background:var(--good-@S.ShipGood[i])" title="@GoodName(S.ShipGood[i])"></span> }
-                    for (int k = S.ShipLoad[i]; k < S.ShipCap[i]; k++) { <span class="good empty"></span> }
-                    <span class="muted">　@GoodName(S.ShipGood[i]) @S.ShipLoad[i]/@S.ShipCap[i]</span>
-                }
-                else
-                {
-                    for (int k = 0; k < S.ShipCap[i]; k++) { <span class="good empty"></span> }
-                    <span class="muted">　空船</span>
-                }
-            </div>
-        }
-    </div>
-
-    <div class="area-trade boardbox">
-        <h4>交易所（@S.TradeCount/@GameConstants.TradeSlots）</h4>
-        <div class="shiprow">
-            @for (int i = 0; i < GameConstants.TradeSlots; i++)
-            {
-                if (i < S.TradeCount) { <span class="good" style="background:var(--good-@S.TradeHouse[i])" title="@GoodName(S.TradeHouse[i])"></span> }
-                else { <span class="good empty"></span> }
-            }
-        </div>
-        @if (S.TradeCount > 0) { <div class="muted">@string.Join("、", Enumerable.Range(0, S.TradeCount).Select(i => GoodName(S.TradeHouse[i])))</div> }
-        else { <div class="muted">（空）</div> }
-    </div>
-
     <div class="area-mid boardbox supply">
         <div class="boardhead centered">
-            回合 <strong>@S.Round</strong> · 階段 <strong>@PhaseName(S.Phase)</strong>
-            @if (!S.IsOver) { <span> · 總督：<strong>座位 @(S.Governor + 1)</strong> · 輪到：<strong>座位 @(S.Actor + 1)（@SeatName(S.Actor)）</strong></span> }
+            回合 <strong>@S.Round</strong> · <strong>@PhaseName(S.Phase)</strong>
+            @if (!S.IsOver) { <span> · 總督 <strong>座位 @(S.Governor + 1)</strong> · 輪到 <strong>座位 @(S.Actor + 1)</strong></span> }
             else { <span> · <strong>遊戲結束</strong></span> }
         </div>
 
@@ -65,16 +31,46 @@
         <div class="groupbox">
             <h4>供應區</h4>
             <table class="supplytable">
-                <tr><th>貨物</th>@for (int g = 0; g < GameConstants.GoodCount; g++) { <td><span class="good" style="background:var(--good-@g)"></span> @GoodName(g) <strong>@S.GoodsSupply[g]</strong></td> }</tr>
-                <tr><th>翻開的種植園</th>@for (int g = 0; g < GameConstants.GoodCount; g++) { <td><span class="tile" style="background:var(--good-@g)"></span> @GoodName(g) <strong>@S.FaceUp[g]</strong></td> }</tr>
+                <tr><th></th>@for (int g = 0; g < GameConstants.GoodCount; g++) { <td><span class="good" style="background:var(--good-@g)"></span>@GoodName(g)</td> }</tr>
+                <tr><th>貨物</th>@for (int g = 0; g < GameConstants.GoodCount; g++) { <td><strong>@S.GoodsSupply[g]</strong></td> }</tr>
+                <tr><th>翻開</th>@for (int g = 0; g < GameConstants.GoodCount; g++) { <td><strong>@S.FaceUp[g]</strong></td> }</tr>
             </table>
+            <div class="cardrow">
+                <div class="statcard"><span class="ctitle">牌堆</span><strong>@S.DeckTotal()</strong></div>
+                <div class="statcard"><span class="ctitle">採石場</span><strong>@S.QuarrySupply</strong></div>
+                <div class="statcard"><span class="ctitle">勝利點</span><strong>@S.VpSupply</strong></div>
+                <div class="statcard"><span class="ctitle">銀行殖民</span><strong>@S.BankColonists</strong></div>
+                <div class="statcard"><span class="ctitle">移民船</span><strong>@S.ShipColonists</strong></div>
+            </div>
         </div>
-        <div class="cardrow">
-            <div class="statcard"><span class="ctitle">牌堆</span><strong>@S.DeckTotal()</strong><span class="cunit">張</span></div>
-            <div class="statcard"><span class="ctitle">採石場</span><strong>@S.QuarrySupply</strong></div>
-            <div class="statcard"><span class="ctitle">勝利點籌碼</span><strong>@S.VpSupply</strong></div>
-            <div class="statcard"><span class="ctitle">殖民者：銀行</span><strong>@S.BankColonists</strong></div>
-            <div class="statcard"><span class="ctitle">殖民者：移民船</span><strong>@S.ShipColonists</strong></div>
+
+        <div class="groupbox">
+            <h4>貨船</h4>
+            @for (int i = 0; i < GameConstants.ShipCount; i++)
+            {
+                <div class="shiprow">
+                    @if (S.ShipLoad[i] > 0)
+                    {
+                        for (int k = 0; k < S.ShipLoad[i]; k++) { <span class="good" style="background:var(--good-@S.ShipGood[i])" title="@GoodName(S.ShipGood[i])"></span> }
+                        for (int k = S.ShipLoad[i]; k < S.ShipCap[i]; k++) { <span class="good empty"></span> }
+                        <span class="muted">　@GoodName(S.ShipGood[i]) @S.ShipLoad[i]/@S.ShipCap[i]</span>
+                    }
+                    else
+                    {
+                        for (int k = 0; k < S.ShipCap[i]; k++) { <span class="good empty"></span> }
+                        <span class="muted">　空 0/@S.ShipCap[i]</span>
+                    }
+                </div>
+            }
+            <h4>交易所（@S.TradeCount/@GameConstants.TradeSlots）</h4>
+            <div class="shiprow">
+                @for (int i = 0; i < GameConstants.TradeSlots; i++)
+                {
+                    if (i < S.TradeCount) { <span class="good" style="background:var(--good-@S.TradeHouse[i])" title="@GoodName(S.TradeHouse[i])"></span> }
+                    else { <span class="good empty"></span> }
+                }
+                <span class="muted">　@(S.TradeCount > 0 ? string.Join("、", Enumerable.Range(0, S.TradeCount).Select(i => GoodName(S.TradeHouse[i]))) : "空")</span>
+            </div>
         </div>
     </div>
 
@@ -82,54 +78,62 @@
         {
             int seat = p;
             <div class="boardplayer area-p@(seat + 1) @(!S.IsOver && S.Actor == seat ? "acting" : "")">
-                <div class="boardhead centered">
-                    <strong>座位 @(seat + 1)</strong> · @SeatName(seat)
-                    @if (S.Governor == seat) { <span class="pill">總督</span> }
-                    @for (int r = 0; r < S.RoleCount; r++) { if (S.RoleOwner[r] == seat) { <span class="pill role">@RoleName(r)</span> } }
-                </div>
-                <div class="cardrow">
-                    <div class="statcard"><span class="ctitle">金幣</span><strong>@S.Coins[seat]</strong></div>
-                    <div class="statcard"><span class="ctitle">勝利點</span><strong>@S.VpChips[seat]</strong></div>
-                    <div class="statcard"><span class="ctitle">聖胡安殖民者</span><strong>@S.SanJuan[seat]</strong></div>
+                <div class="playerhead">
+                    <div class="boardhead">
+                        <strong>座位 @(seat + 1)</strong> · @SeatName(seat)
+                        @if (S.Governor == seat) { <span class="pill">總督</span> }
+                        @for (int r = 0; r < S.RoleCount; r++) { if (S.RoleOwner[r] == seat) { <span class="pill role">@RoleName(r)</span> } }
+                    </div>
+                    <div class="cardrow">
+                        <div class="statcard"><span class="ctitle">金幣</span><strong>@S.Coins[seat]</strong></div>
+                        <div class="statcard"><span class="ctitle">勝利點</span><strong>@S.VpChips[seat]</strong></div>
+                        <div class="statcard"><span class="ctitle">聖胡安</span><strong>@S.SanJuan[seat]</strong></div>
+                    </div>
                 </div>
 
-                <h4>種植園（● 有殖民者）</h4>
-                <div class="tilesrow">
-                    @for (int t = 0; t < GameConstants.TileTypes; t++)
-                    {
-                        int count = S.Tiles[seat * GameConstants.TileTypes + t];
-                        int occ = S.TilesOcc[seat * GameConstants.TileTypes + t];
-                        for (int k = 0; k < count; k++)
+                <div class="brow">
+                    <span class="blabel">種植園</span>
+                    <div class="tilesrow">
+                        @for (int t = 0; t < GameConstants.TileTypes; t++)
                         {
-                            <span class="tile" style="background:@(t == GameConstants.QuarryType ? "var(--good-q)" : $"var(--good-{t})")" title="@(t == GameConstants.QuarryType ? "採石場" : GoodName(t))">@(k < occ ? "●" : "")</span>
+                            int count = S.Tiles[seat * GameConstants.TileTypes + t];
+                            int occ = S.TilesOcc[seat * GameConstants.TileTypes + t];
+                            for (int k = 0; k < count; k++)
+                            {
+                                <span class="tile" style="background:@(t == GameConstants.QuarryType ? "var(--good-q)" : $"var(--good-{t})")" title="@(t == GameConstants.QuarryType ? "採石場" : GoodName(t))">@(k < occ ? "●" : "")</span>
+                            }
                         }
-                    }
-                    @if (S.TileCount(seat) == 0) { <span class="muted">（沒有）</span> }
+                        @if (S.TileCount(seat) == 0) { <span class="muted">（沒有）</span> }
+                    </div>
                 </div>
 
-                <h4>建築</h4>
-                <div class="bldrow">
-                    @for (int b = 0; b < GameConstants.BuildingCount; b++)
-                    {
-                        if (S.BuildingOwned[seat * GameConstants.BuildingCount + b] == 0) continue;
-                        var info = Buildings.All[b];
-                        int occ = S.BuildingOcc[seat * GameConstants.BuildingCount + b];
-                        <span class="bld @(info.Large ? "large" : "") @(info.IsProduction ? "prod" : "")" title="費用 @info.Cost · @info.Vp 分">
-                            @info.Name
-                            <span class="dots">@string.Concat(Enumerable.Repeat("●", Math.Min(occ, info.Capacity)))@string.Concat(Enumerable.Repeat("○", Math.Max(0, info.Capacity - occ)))</span>
-                        </span>
-                    }
-                    @if (!HasBuildings(seat)) { <span class="muted">（沒有）</span> }
+                <div class="brow">
+                    <span class="blabel">建築</span>
+                    <div class="bldrow">
+                        @for (int b = 0; b < GameConstants.BuildingCount; b++)
+                        {
+                            if (S.BuildingOwned[seat * GameConstants.BuildingCount + b] == 0) continue;
+                            var info = Buildings.All[b];
+                            int occ = S.BuildingOcc[seat * GameConstants.BuildingCount + b];
+                            <span class="bld @(info.Large ? "large" : "") @(info.IsProduction ? "prod" : "")" title="費用 @info.Cost · @info.Vp 分">
+                                @info.Name
+                                <span class="dots">@string.Concat(Enumerable.Repeat("●", Math.Min(occ, info.Capacity)))@string.Concat(Enumerable.Repeat("○", Math.Max(0, info.Capacity - occ)))</span>
+                            </span>
+                        }
+                        @if (!HasBuildings(seat)) { <span class="muted">（沒有）</span> }
+                    </div>
                 </div>
 
-                <h4>貨物</h4>
-                <div class="shiprow">
-                    @for (int g = 0; g < GameConstants.GoodCount; g++)
-                    {
-                        int n = S.Goods[seat * GameConstants.GoodCount + g];
-                        for (int k = 0; k < n; k++) { <span class="good" style="background:var(--good-@g)" title="@GoodName(g)"></span> }
-                    }
-                    @if (S.GoodTotal(seat) == 0) { <span class="muted">（沒有）</span> }
+                <div class="brow">
+                    <span class="blabel">貨物</span>
+                    <div class="shiprow">
+                        @for (int g = 0; g < GameConstants.GoodCount; g++)
+                        {
+                            int n = S.Goods[seat * GameConstants.GoodCount + g];
+                            for (int k = 0; k < n; k++) { <span class="good" style="background:var(--good-@g)" title="@GoodName(g)"></span> }
+                        }
+                        @if (S.GoodTotal(seat) == 0) { <span class="muted">（沒有）</span> }
+                    </div>
                 </div>
             </div>
         }
