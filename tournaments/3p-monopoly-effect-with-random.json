@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-monopoly-effect-with-random",
+  "players": 3,
+  "games": 10002,
+  "seed": 4141,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "random",
+      "strategy": "random",
+      "params": {}
+    }
+  ]
+}

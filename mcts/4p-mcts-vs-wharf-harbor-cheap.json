@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-mcts-vs-wharf-harbor-cheap",
+  "players": 4,
+  "games": 480,
+  "seed": 6363,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "mcts",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "wharf",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "cheap",
+      "strategy": "cheap-engine",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": true
+  }
+}

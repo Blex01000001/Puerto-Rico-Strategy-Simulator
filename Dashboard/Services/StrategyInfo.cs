@@ -102,6 +102,11 @@ public static class StrategyInfo
                 new ParamInfo("quarryTarget", "3", "起跑後最多拿幾個採石場（Wharf 折價上限 3 元）。", "3 以上都一樣；0 差很多"),
                 new ParamInfo("wharfReadyTiles", "7", "種植園／採石場拿到幾塊就開始買 Wharf。", "7 以上差不多；3～5 較差"),
                 new ParamInfo("wharfReadyRound", "4 人 6／3 人 4", "到第幾回合就開始買 Wharf（與上一項先到的算）。", "4 人局 6～8；3 人局 4～6"),
+                new ParamInfo("smallPlant", "4 人 5.5／3 人 8", "買 Wharf 之前，小靛藍工廠／小糖廠的價值（賣貨湊錢的來源）。", "3 人局 8 較好（+1.5 個百分點）；4 人局無差"),
+                new ParamInfo("traderWeight", "4 人 1／3 人 3", "存錢買 Wharf 時，Trader 角色價值的倍率。", "3 人局 2～3；4 人局 1"),
+                new ParamInfo("moneyTile", "5", "靛藍／糖種植園的價值（起跑後 +1）。", "5 最好；9 會崩"),
+                new ParamInfo("cornTile", "9", "玉米種植園的價值。", "9 以上一樣"),
+                new ParamInfo("earlyQuarry", "6", "起跑前採石場的價值。", "6；提早搶採石場（9 以上）沒有幫助"),
                 new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可"),
             }),
 

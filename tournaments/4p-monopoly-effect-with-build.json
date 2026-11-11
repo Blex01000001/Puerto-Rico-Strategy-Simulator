@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-monopoly-effect-with-build",
+  "players": 4,
+  "games": 10008,
+  "seed": 4141,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}

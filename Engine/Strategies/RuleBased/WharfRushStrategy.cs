@@ -12,7 +12,7 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// then it buys nothing but the Wharf, selling indigo/sugar for coins and taking <c>quarryTarget</c> quarries for the discount.
 /// After the Wharf: warehouses (the stack survives the end of the Captain phase), then Harbor, and the Captain role whenever
 /// a big stack is waiting. The Wharf shipment is always loaded first, the largest stack on it (the Wharf takes everything, ships do not).
-/// Parameters (defaults from sweeps/round6: three quarries save 3 of the 9 coins; more quarries or a later start change nothing, an earlier start is worse): <c>quarryTarget</c> (default 3), <c>wharfReadyTiles</c> (default 7), <c>wharfReadyRound</c> (default 4 with 3 players / 6 with 4), <c>buildThreshold</c> (default 4).
+/// Parameters (defaults from sweeps/round6: three quarries save 3 of the 9 coins; more quarries or a later start change nothing, an earlier start is worse): <c>quarryTarget</c> (default 3), <c>wharfReadyTiles</c> (default 7), <c>wharfReadyRound</c> (default 4 with 3 players / 6 with 4), <c>buildThreshold</c> (default 4). Coin sources before the Wharf (sweeps/round6 coins and quarry sweeps): <c>smallPlant</c> (value of Small Indigo Plant / Sugar Mill, default 8 with 3 players / 5.5 with 4), <c>traderWeight</c> (multiplier on the Trader role while saving for the Wharf, default 3 / 1), <c>moneyTile</c> (indigo/sugar plantation value, default 5), <c>cornTile</c> (default 9), <c>earlyQuarry</c> (quarry value before the race, default 6); only the 3-player values of the first two helped (+1.5 points), the rest found no gain.
 /// </summary>
 public sealed class WharfRushStrategy : HeuristicStrategy
 {
@@ -23,6 +23,11 @@ public sealed class WharfRushStrategy : HeuristicStrategy
     private int _quarryTarget;
     private int _readyTiles;
     private int _readyRound;
+    private double _cornTile;
+    private double _moneyTile;
+    private double _smallPlant;
+    private double _traderWeight;
+    private double _earlyQuarry;
 
     public WharfRushStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0) { }
 
@@ -31,6 +36,11 @@ public sealed class WharfRushStrategy : HeuristicStrategy
         _quarryTarget = (int)Param("quarryTarget", players, 3, 3);
         _readyTiles = (int)Param("wharfReadyTiles", players, 7, 7);
         _readyRound = (int)Param("wharfReadyRound", players, 4, 6);
+        _cornTile = Param("cornTile", players, 9, 9);
+        _moneyTile = Param("moneyTile", players, 5, 5);
+        _smallPlant = Param("smallPlant", players, 8, 5.5);
+        _traderWeight = Param("traderWeight", players, 3.0, 1.0);
+        _earlyQuarry = Param("earlyQuarry", players, 6, 6);
     }
 
     private static bool Owns(GameState s, int me, int b) => s.BuildingOwned[me * B + b] != 0;
@@ -48,13 +58,13 @@ public sealed class WharfRushStrategy : HeuristicStrategy
 
     protected override double TileValue(GameState s, int me, int good)
     {
-        if (good == Corn) return 9;
-        if (good <= Sugar) return SeekingWharf(s, me) ? 6 : 5;
+        if (good == Corn) return _cornTile;
+        if (good <= Sugar) return _moneyTile + (SeekingWharf(s, me) ? 1 : 0);
         return 2.5;
     }
 
     protected override double QuarryValue(GameState s, int me) =>
-        QuarriesOwned(s, me) < _quarryTarget ? (SeekingWharf(s, me) ? 9 : 6) : 3;
+        QuarriesOwned(s, me) < _quarryTarget ? (SeekingWharf(s, me) ? 9 : _earlyQuarry) : 3;
 
     protected override double BuildingWanted(GameState s, int me, int building)
     {
@@ -65,8 +75,8 @@ public sealed class WharfRushStrategy : HeuristicStrategy
             {
                 (int)BuildingId.Hacienda => 7.5,
                 (int)BuildingId.Hospice => 7,
-                (int)BuildingId.SmallIndigoPlant => 5.5,
-                (int)BuildingId.SmallSugarMill => 5.5,
+                (int)BuildingId.SmallIndigoPlant => _smallPlant,
+                (int)BuildingId.SmallSugarMill => _smallPlant,
                 _ => BaseBuildingValue[building],
             };
         return building switch
@@ -84,7 +94,7 @@ public sealed class WharfRushStrategy : HeuristicStrategy
     {
         if (slot < T)
         {
-            if (slot == Quarry) return SeekingWharf(s, me) && QuarriesOwned(s, me) <= _quarryTarget ? 9.5 : 5;
+            if (slot == Quarry) return SeekingWharf(s, me) && QuarriesOwned(s, me) <= _quarryTarget ? 9.5 : (_earlyQuarry >= 9 ? 9.5 : 5);
             if (slot == Corn) return 8;
             if (slot == Indigo || slot == Sugar) return OwnsAnyProducer(s, me, slot) ? 7 : 2;
             return base.SlotValue(s, me, slot);
@@ -120,7 +130,7 @@ public sealed class WharfRushStrategy : HeuristicStrategy
         double v = 0.3;
         for (int g = 1; g < G; g++)
             if (s.Goods[me * G + g] > 0) v += 1.0 + GameConstants.BasePrice[g];
-        return v;
+        return v * _traderWeight;
     }
 
     protected override double RoleCoinWeight(GameState s, int me) => SeekingWharf(s, me) ? 1.5 : 1.0;
