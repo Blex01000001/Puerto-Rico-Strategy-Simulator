@@ -87,6 +87,76 @@ public static class StrategyInfo
                 new ParamInfo("smallValue", "8", "便宜的 1 分建築（小靛藍、小糖廠、小市場）的價值。", "8 以上都一樣；6 以下較差"),
             }),
 
+        new("wharf-rush", "Wharf 私船流",
+            "先農一陣子，湊到錢（採石場折價）買 Wharf，之後每次船長階段把最大的一堆貨全數丟上私船。",
+            new[]
+            {
+                "前期（種植園不到 wharfReadyTiles 塊且未到 wharfReadyRound 回合）：玉米為主，加靛藍／糖，用預設經濟，不急著買 Wharf。",
+                "起跑後：除了 Wharf 什麼都不買；拿 quarryTarget 個採石場（每個折 1 元，最多折 3 元），賣靛藍／糖等換金幣，一湊到 9 元就選 Builder。",
+                "Wharf 買到後：優先派殖民者給 Wharf，再買倉庫（讓大堆貨撐過船長階段）與 Harbor（每次出貨 +1 分）；不一定要買 Harbor。",
+                "出貨：私船永遠先裝最大的一堆（無視容量與公家船，整堆都算分），其餘貨再裝公家船；倉庫保留數量最多的那堆；手上有大堆貨時多選 Captain。",
+                "玉米不賣（那是私船要出的主力）。",
+            },
+            new[]
+            {
+                new ParamInfo("quarryTarget", "3", "起跑後最多拿幾個採石場（Wharf 折價上限 3 元）。", "3 以上都一樣；0 差很多"),
+                new ParamInfo("wharfReadyTiles", "7", "種植園／採石場拿到幾塊就開始買 Wharf。", "7 以上差不多；3～5 較差"),
+                new ParamInfo("wharfReadyRound", "4 人 6／3 人 4", "到第幾回合就開始買 Wharf（與上一項先到的算）。", "4 人局 6～8；3 人局 4～6"),
+                new ParamInfo("smallPlant", "4 人 5.5／3 人 8", "買 Wharf 之前，小靛藍工廠／小糖廠的價值（賣貨湊錢的來源）。", "3 人局 8 較好（+1.5 個百分點）；4 人局無差"),
+                new ParamInfo("traderWeight", "4 人 1／3 人 3", "存錢買 Wharf 時，Trader 角色價值的倍率。", "3 人局 2～3；4 人局 1"),
+                new ParamInfo("moneyTile", "5", "靛藍／糖種植園的價值（起跑後 +1）。", "5 最好；9 會崩"),
+                new ParamInfo("cornTile", "9", "玉米種植園的價值。", "9 以上一樣"),
+                new ParamInfo("earlyQuarry", "6", "起跑前採石場的價值。", "6；提早搶採石場（9 以上）沒有幫助"),
+                new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可"),
+            }),
+
+        new("wharf-premium", "Wharf 私船流（菸草／咖啡籌錢）",
+            "Wharf 流的變體：先建立菸草或咖啡的生產，賣給交易所籌 9 元買 Wharf，之後照樣把最大一堆貨丟上私船。",
+            new[]
+            {
+                "第一階段：在菸草與咖啡中挑比較容易拿到的一種，拿它的種植園（也拿玉米），先買對應的生產建築（Tobacco Storage／Coffee Roaster）。",
+                "第二階段（有生產建築、還沒 Wharf）：除了 Wharf 什麼都不買；菸草／咖啡一律賣掉換金幣，Trader 價值乘上 traderWeight；最多拿 quarryTarget 個採石場。",
+                "第三階段（有 Wharf）：私船先裝最大的一堆，其餘裝公家船；買倉庫與 Harbor；sellAfterWharf=1 時售價 3 元以上的貨仍會賣。",
+                "買 Wharf 之前，選 Captain 只看玉米能出多少（菸草／咖啡留著賣錢）。",
+            },
+            new[]
+            {
+                new ParamInfo("traderWeight", "2.5", "還沒買到 Wharf 時 Trader 角色價值的倍率。", "1～2.5 幾乎相同"),
+                new ParamInfo("quarryTarget", "1", "最多拿幾個採石場。", "0～3 幾乎相同"),
+                new ParamInfo("sellAfterWharf", "1", "買到 Wharf 後是否仍賣高價貨（1 = 賣，0 = 全留著出貨）。", "1 略好（+0.5 個百分點）"),
+                new ParamInfo("cornTile", "7", "玉米種植園的價值（目標貨種的種植園是 9.5）。", "7～9；5 較差"),
+                new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可"),
+            }),
+
+        new("corn-monopoly", "玉米壟斷派（搗亂）",
+            "只想參加的搗亂者：霸占所有玉米種植園，玉米囤著不賣也不出貨，把有限的玉米供應區吃光。",
+            new[]
+            {
+                "種植園只拿玉米（連翻開的玉米也搶），選 Settler 的價值在有玉米可拿時最高。",
+                "玉米貨物不賣、不主動出貨；Captain 角色價值為 0，被迫出貨時先出別的貨，最後才出玉米。",
+                "只買倉庫（把玉米囤過船長階段）、Hacienda、Hospice；其他建築一概不買。",
+                "派殖民者給玉米種植園與倉庫；選 Craftsman 時看重玉米產量（供應區只有 10 個玉米，囤光了別人就沒有）。",
+            },
+            new[] { new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可") }),
+
+        new("corn-monopoly-tiles", "玉米壟斷派：只搶種植園",
+            "壟斷派的變體，用來拆開兩種搗亂手段：只霸占玉米種植園，貨物照常出貨與販賣。",
+            new[]
+            {
+                "種植園只拿玉米（翻開的玉米也搶），有玉米可拿時搶著選 Settler。",
+                "其餘行為與玉米出貨流相同：照常出貨、照常買建築。",
+            },
+            new[] { new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可") }),
+
+        new("corn-monopoly-hoard", "玉米壟斷派：只囤貨",
+            "壟斷派的變體，用來拆開兩種搗亂手段：種植園照玉米出貨流的方式拿，但玉米囤著不賣、不出貨。",
+            new[]
+            {
+                "種植園的選擇與玉米出貨流相同（沒有特別搶）。",
+                "玉米不賣、不主動出貨；Captain 價值為 0，被迫出貨時先出別的貨；只買倉庫、Hacienda、Hospice。",
+            },
+            new[] { new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可") }),
+
         new("mcts", "MCTS 樹搜尋",
             "每個決策都用大量隨機模擬找出最好的動作；最強但很慢，適合只跑數百局。",
             new[]
@@ -115,4 +185,26 @@ public static class StrategyInfo
             new[] { "實驗中當 MCTS 的模擬策略反而比純隨機差（有偏好的模擬評估較不準）。" },
             Array.Empty<ParamInfo>()),
     };
+
+    /// <summary>Tabs of the strategy descriptions: strategies grouped by their main good / plan.</summary>
+    public sealed record StrategyGroup(string Key, string Title, string Hint, string[] Ids);
+
+    public static readonly IReadOnlyList<StrategyGroup> Groups = new StrategyGroup[]
+    {
+        new("corn", "🌽 玉米", "主貨是玉米：出貨、轉高價貨，或霸占玉米搗亂。",
+            new[] { "corn-shipper", "corn-to-premium", "corn-monopoly", "corn-monopoly-tiles", "corn-monopoly-hoard" }),
+        new("ship", "⚓ 港口／私船", "靠 Harbor 或 Wharf 的出貨加成拿分。",
+            new[] { "harbor-rush", "wharf-rush", "wharf-premium" }),
+        new("build", "🏗️ 建築", "把金幣變成建築：大型建築的終局加分，或便宜的 1 分建築。",
+            new[] { "build-first", "cheap-engine" }),
+        new("search", "🎲 搜尋／隨機", "不是手寫規則：樹搜尋與當基準的隨機玩家。",
+            new[] { "mcts", "random", "guided-random" }),
+    };
+
+    /// <summary>Strategies of a group in group order; a key that is not a group (e.g. "all") returns every strategy.</summary>
+    public static IEnumerable<StrategyDoc> InGroup(string key)
+    {
+        var g = Groups.FirstOrDefault(x => x.Key == key);
+        return g == null ? All : g.Ids.Select(id => All.First(d => d.Id == id));
+    }
 }

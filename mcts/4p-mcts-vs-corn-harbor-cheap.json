@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-mcts-vs-corn-harbor-cheap",
+  "players": 4,
+  "games": 480,
+  "seed": 6363,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "mcts",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "harbor",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "cheap",
+      "strategy": "cheap-engine",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": true
+  }
+}

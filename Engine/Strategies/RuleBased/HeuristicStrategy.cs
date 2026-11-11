@@ -109,10 +109,10 @@ public abstract class HeuristicStrategy : IStrategy
                 {
                     int room = s.ShipCap[a.B] - s.ShipLoad[a.B];
                     int vp = Math.Min(s.Goods[me * G + a.A], room);
-                    return vp * 10 + (a.A == Corn ? 1 : 0) - s.ShipCap[a.B] * 0.01;
+                    return vp * 10 + ShipGoodBias(s, me, a.A) - s.ShipCap[a.B] * 0.01;
                 }
             case ActionType.LoadWharf:
-                return s.Goods[me * G + a.A] * 10 + (a.A == Corn ? 1 : 0) - 0.5;
+                return WharfLoadValue(s, me, a.A, s.Goods[me * G + a.A]);
             case ActionType.KeepGoods: return KeepValue(s, me, a.A, s.Goods[me * G + a.A]);
             case ActionType.KeepBarrel: return KeepValue(s, me, a.A, 1);
             default: return 0;
@@ -123,6 +123,12 @@ public abstract class HeuristicStrategy : IStrategy
 
     protected virtual double TileValue(GameState s, int me, int good) =>
         good == Corn ? 10 : 2 + 0.1 * good + (CornTiles(s, me) >= 8 ? 3 : 0);
+
+    /// <summary>Tie-break added to the score of loading a good (10 points per barrel come first): positive = ship it first.</summary>
+    protected virtual double ShipGoodBias(GameState s, int me, int good) => good == Corn ? 1 : 0;
+
+    /// <summary>Score of putting all <paramref name="count"/> barrels of a good on the private Wharf ship (a public ship scores barrels × 10).</summary>
+    protected virtual double WharfLoadValue(GameState s, int me, int good, int count) => count * 10 + ShipGoodBias(s, me, good) - 0.5;
 
     protected virtual double QuarryValue(GameState s, int me) => QuarriesOwned(s, me) >= 3 ? 3 : 6.5;
 

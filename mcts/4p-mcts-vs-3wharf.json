@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-mcts-vs-3wharf",
+  "players": 4,
+  "games": 480,
+  "seed": 6363,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "mcts",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "wharf1",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "wharf2",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "wharf3",
+      "strategy": "wharf-rush",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": true
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep10-3p-wharf-coins",
+  "players": 3,
+  "games": 4002,
+  "seed": 8080,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "wharf",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "wharf",
+    "gamesPerPoint": 4002,
+    "parameters": {
+      "moneyTile": [
+        5,
+        7,
+        9
+      ],
+      "smallPlant": [
+        5.5,
+        8
+      ],
+      "traderWeight": [
+        1,
+        2,
+        3
+      ],
+      "cornTile": [
+        7,
+        9,
+        11
+      ]
+    }
+  }
+}

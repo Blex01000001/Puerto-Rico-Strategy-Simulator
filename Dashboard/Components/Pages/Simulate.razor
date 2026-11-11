@@ -133,7 +133,16 @@
 
 <h2 id="strategies">流派介紹</h2>
 <p class="note">預設值寫成「4 人／3 人」的，表示策略會依玩家數自動採用不同預設；你在座位的參數欄位明確填的值永遠優先。「建議範圍」來自參數掃描實驗（見 <code>docs/strategy-analysis.md</code>）。</p>
-@foreach (var doc in StrategyInfo.All)
+<div class="tabs" role="tablist">
+    @foreach (var g in StrategyInfo.Groups)
+    {
+        string key = g.Key;
+        <button role="tab" aria-selected="@(docTab == key)" class="tab @(docTab == key ? "active" : "")" @onclick="@(() => docTab = key)">@g.Title <span class="count">@g.Ids.Length</span></button>
+    }
+    <button role="tab" aria-selected="@(docTab == "all")" class="tab @(docTab == "all" ? "active" : "")" @onclick="@(() => docTab = "all")">全部 <span class="count">@StrategyInfo.All.Count</span></button>
+</div>
+@if (StrategyInfo.Groups.FirstOrDefault(g => g.Key == docTab) is { } group) { <p class="note">@group.Hint</p> }
+@foreach (var doc in StrategyInfo.InGroup(docTab))
 {
     <section class="stratdoc">
         <h3 class="stratname"><span class="sicon">@Palette.Icon(doc.Id)</span>@Palette.DisplayName(doc.Id) <span class="muted">@doc.Title</span></h3>
@@ -166,6 +175,7 @@
 
 @code {
     private static readonly string[] Choices = StrategyRegistry.Names.Where(n => n != "rule-based").OrderBy(n => n == "random" ? 1 : 0).ThenBy(n => n).ToArray();
+    private string docTab = StrategyInfo.Groups[0].Key;
     private int players = 4;
     private int games = 10000;
     /// <summary>Games as text with thousands separators; typed commas are ignored, invalid or non-positive input keeps the old value.</summary>

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep11-3p-wharf-quarry",
+  "players": 3,
+  "games": 4002,
+  "seed": 8080,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "wharf",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "wharf",
+    "gamesPerPoint": 4002,
+    "parameters": {
+      "earlyQuarry": [
+        6,
+        9,
+        11
+      ],
+      "wharfReadyTiles": [
+        3,
+        5,
+        7
+      ],
+      "wharfReadyRound": [
+        3,
+        4,
+        6
+      ],
+      "traderWeight": [
+        1,
+        2
+      ]
+    }
+  }
+}

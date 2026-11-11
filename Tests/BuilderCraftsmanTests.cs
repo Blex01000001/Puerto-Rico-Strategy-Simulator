@@ -195,6 +195,28 @@ public class CraftsmanTests
     }
 
     [Fact]
+    public void Empty_Supply_Gives_Nothing_And_No_Compensation()
+    {
+        // rules.md section 4 (Craftsman): goods are limited; an exhausted supply means no goods, no coins, no VP instead
+        var s = New();
+        SetTiles(s, 0, (int)Good.Corn, 3, occupied: 3);
+        SetTiles(s, 1, (int)Good.Corn, 2, occupied: 2);
+        s.GoodsSupply[(int)Good.Corn] = 0;
+        int coins0 = s.Coins[0], coins1 = s.Coins[1];
+        int vp0 = s.VpChips[0], vp1 = s.VpChips[1], vpSupply = s.VpSupply;
+        Start(s, 0, Role.Craftsman);
+        Do(s, A(ActionType.CraftsmanBonus, (int)Good.Corn));
+        Assert.Equal(0, s.Goods[0 * G + (int)Good.Corn]);
+        Assert.Equal(0, s.Goods[1 * G + (int)Good.Corn]);
+        Assert.Equal(0, s.GoodsSupply[(int)Good.Corn]);
+        Assert.Equal(coins0, s.Coins[0]);
+        Assert.Equal(coins1, s.Coins[1]);
+        Assert.Equal(vp0, s.VpChips[0]);
+        Assert.Equal(vp1, s.VpChips[1]);
+        Assert.Equal(vpSupply, s.VpSupply);
+    }
+
+    [Fact]
     public void Factory_Pays_By_Number_Of_Kinds_Produced()
     {
         var s = New();

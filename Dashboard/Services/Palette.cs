@@ -12,6 +12,11 @@ public static class Palette
         ["random"] = 5,           // magenta
         ["mcts"] = 6,             // green
         ["cheap-engine"] = 7,     // violet
+        ["wharf-rush"] = 8,       // red
+        ["corn-monopoly"] = 9,    // lime
+        ["wharf-premium"] = 10,   // brown
+        ["corn-monopoly-tiles"] = 11, // teal
+        ["corn-monopoly-hoard"] = 12, // grey-blue
     };
 
     /// <summary>CSS variable for the series colour (1..8); unknown strategies take the remaining slots by position.</summary>
@@ -26,6 +31,11 @@ public static class Palette
         "harbor-rush" => "⚓",
         "build-first" => "🏗️",
         "cheap-engine" => "⚙️",
+        "wharf-rush" => "🚢",
+        "corn-monopoly" => "😈",
+        "wharf-premium" => "⛵",
+        "corn-monopoly-tiles" => "🧺",
+        "corn-monopoly-hoard" => "📦",
         "mcts" => "🌳",
         "random" => "🎲",
         "guided-random" => "🧭",
@@ -47,7 +57,7 @@ public static class Palette
         strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)
             ? "MCTS"
             : strategy.Equals("random", StringComparison.OrdinalIgnoreCase)
-            ? "完全隨機" // not just "Random": guided-random is also random
+            ? "Full-Random" // not just "Random": guided-random is also random
             : string.Join("-", strategy.Split('-').Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..]));
 
     public static string Label(string seatId, string strategy) =>

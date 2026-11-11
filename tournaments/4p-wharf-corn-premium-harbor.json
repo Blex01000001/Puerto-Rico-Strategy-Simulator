@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-wharf-corn-premium-harbor",
+  "players": 4,
+  "games": 10008,
+  "seed": 777,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "wharf-rush",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ]
+}

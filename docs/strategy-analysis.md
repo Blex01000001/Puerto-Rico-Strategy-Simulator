@@ -173,6 +173,92 @@ MCTS 最常蓋的建築（取得率＠平均回合）：小靛藍工廠 94%＠4�
 
 - 手寫策略只有五個原型；階層（4 人局 build ≈ cheap > harbor > premium > corn）只代表這些實作。調參是「對固定對手」，改強一個流派會改變別人的最佳值，所以要持續交替；最佳值對座位排列穩健（第五輪）。
 - **座位順序**：`rotate` 會帶入排列偏差（第 0 節），比較請用 `random`（預設）或 `balanced`；3 人局只有兩種循環順序、4 人局三種，差異仍然很大。`balanced` 是絕對公平的做法；`random` 在大量局數下偏差也很小（4 人局 10 萬局的估計：約 0.03 個百分點，未實測）。
-- 「Wharf 流」與港口流是同一個流派（買 Wharf 的價值 9.5、派殖民者 11）；目前 harbor-rush 只有約 3% 的局蓋到 Wharf（Wharf 費用 9，蓋港口之後金幣常常不夠），若要加強可以調整後期購買的優先順序。
+- harbor-rush 只有約 3% 的局蓋到 Wharf（Wharf 費用 9，蓋港口之後金幣常常不夠）；以 Wharf 為核心的打法另外做成 `wharf-rush`（第 7 節）。
 - MCTS：只對手寫策略與自我對戰測過；每個決策重新建樹；rollout 的職業選擇完全隨機；搜尋樹重用在現有介面做不到（第 5 節）。
 - 建議的下一輪：(1) 用 MCTS 當「陪練」找手寫策略的弱點（例如讓 cheap-engine 對 MCTS）；(2) 繼續把 MCTS 的行為寫進手寫策略（cheap-engine 仍遠不如 MCTS，缺的是什麼？）；(3) 用 `balanced` 重跑對戰（`tournaments/`，局數用 24／6 的倍數）；(4) 3 人局的 cheap-engine 另外調參。
+
+## 7. Wharf 私船流（`wharf-rush`）與玉米壟斷派（`corn-monopoly`）
+
+動機：Wharf 的私船可把 1 種貨物全數出貨（無視容量與公家船），實際玩覺得太強，所以做成專用策略來驗證（`WharfRushStrategy`）。座位用 `balanced`，局數 10,008（4 人）／10,002（3 人），設定在 `tournaments/*wharf*`、`tournaments/*monopoly*`，調參在 `sweeps/round6/`。
+
+- **打法**：前期農玉米與靛藍／糖，種植園湊到 `wharfReadyTiles` 塊或到 `wharfReadyRound` 回合後，除了 Wharf 什麼都不買（拿 `quarryTarget` 個採石場折價、賣貨湊 9 元）；買到後私船永遠先裝最大的一堆貨，再買倉庫（讓大堆撐過船長階段）與 Harbor。不依賴 Harbor。
+- **對戰（預設參數）**：4 人局與 corn／premium／harbor 同桌：wharf 18.5%、premium 33.0%、harbor 41.9%、corn 6.6%；與 build／cheap／harbor 同桌：wharf 18.1%、cheap 41.0%、harbor 29.2%、build 11.7%。3 人局與 corn／build 同桌：wharf 39.0%、build 37.5%、corn 23.5%（均分基準 33.3%；此為調過前期金幣來源後的數字，見 7.1）。
+- **結論**：以這份實作，Wharf **沒有**強到失衡：4 人局低於均分（25%），3 人局略高於均分。原因是 Wharf 太晚才買到：99% 的局最後都有蓋，但平均要到第 9～10 回合（金幣來源只有賣貨與角色獎勵，4 人局 9 元要等很久），私船只用得到後半場，已蓋 Wharf 的局勝率也只約 15%（沒蓋的局反而更高，因為那些局是被別的建築路線帶走）。
+- **調參**（`sweeps/round6/`）：`quarryTarget` 3 以上持平、0 明顯差（8.8%）；起跑條件 7 塊種植園以上平台；更早起跑（3～5 塊）較差。預設值：quarryTarget 3、wharfReadyTiles 7、wharfReadyRound 4 人 6／3 人 4。
+- **限制**：這是手寫啟發式的結果，不是 Wharf 強度的上限；MCTS 陪練的結論見 7.2。
+- **確認：貨物供應有限**：Craftsman 結算以供應區為上限（`Rules.Craftsman.cs`），供應區歸零時拿不到貨、沒有金幣或分數補償；不變量檢查（貨物守恆）與 `Empty_Supply_Gives_Nothing_And_No_Compensation` 測試確認。
+
+### 7.1 改進 Wharf-Rush 的前期金幣來源
+
+新增可調參數：`smallPlant`（買 Wharf 前小靛藍／小糖廠的價值）、`traderWeight`（存錢時 Trader 角色的倍率）、`moneyTile`（靛藍／糖種植園價值）、`cornTile`、`earlyQuarry`（起跑前採石場價值）。掃描（`sweeps/round6/*-coins.json`、`*-quarry.json`，各 4,008／4,002 局一格，balanced）：
+
+- **4 人局**：預設值已是最佳（18.7%），提早搶採石場（`earlyQuarry` 9 以上）、提早起跑、提高 Trader 倍率、提高 `moneyTile` 全部持平或更差（`moneyTile` 9 加 `smallPlant` 8 會崩到 0.1%）。
+- **3 人局**：`smallPlant` 8＋`traderWeight` 3 把 38.7% 提到 40.2%（約 +1.5 個百分點，信賴區間 ±1.5）；其他同 4 人局。預設值因此改為 3 人局 `smallPlant` 8／`traderWeight` 3，4 人局不變。
+- **結論**：在「小建築＋賣貨＋Trader」這類金幣來源上沒有找到 4 人局的改善；瓶頸是玉米不賣錢（玉米價 0），不是參數。要再進步需要結構性改變（例如以咖啡／菸草為主貨，Wharf 才有金幣可買）。
+
+### 7.2 MCTS 當陪練（`mcts/*wharf*.json`，balanced，MCTS 300 次模擬、random rollout）
+
+| 桌子（4 人局，480 局） | MCTS 勝率 | Wharf-Rush 勝率 | MCTS 買 Wharf 的局 |
+|---|---|---|---|
+| MCTS＋wharf＋harbor＋cheap | 63.4% | 4.2% | 1% |
+| MCTS＋corn＋harbor＋cheap（對照） | 73.4% | （無） | 1% |
+| MCTS＋3 個 wharf-rush | 87.2% | 4.1～4.5% | 0% |
+| 3 人局：MCTS＋wharf＋harbor（480 局） | 82.4% | 7.1% | 1% |
+
+- **MCTS 幾乎不買 Wharf**（對手有 Wharf 或沒有都是 0～1%），而且贏很多：Wharf-Rush 自己 68～100% 的局買了 Wharf，但同桌有 MCTS 時勝率只有 4～7%。
+- 對照實驗：把 MCTS 的 rollout 策略換成 `wharf-rush`（讓模擬裡的人都會用私船，避免 random rollout 低估 Wharf；240 局）：MCTS 買 Wharf 仍只有 2%，勝率掉到 30.8%（rollout 換成手寫策略本來就會變弱，見第 5 節），cheap-engine 41.9% 最高。
+- **結論**：在這個規則實作與這批對手下，沒有證據顯示 Wharf 太強：最強的搜尋玩家不買它，專走 Wharf 的手寫策略打不過它。限制：MCTS 的 rollout 是隨機或手寫策略，若人類能把 Wharf 用得比這些策略更好（例如搭配倉庫囤大堆貨、再配合 Harbor），這裡量不到；Wharf 的分數只看桶數、不看貨價，所以用玉米當主貨並不影響這個結論。
+
+### 7.3 玉米壟斷派對同桌 Corn-Shipper 的影響（`tournaments/*monopoly-effect*`，balanced，10,008／10,002 局）
+
+同一桌其他三家固定，只換第四個座位：
+
+| 4 人局（corn＋premium＋harbor＋X） | corn-shipper | premium | harbor | X |
+|---|---|---|---|---|
+| X = corn-monopoly | 4.8%／26.6 分 | 48.4% | 44.8% | 2.1% |
+| X = random（不參與的對照） | 16.3%／35.2 分 | 33.8% | 49.5% | 0.3% |
+| X = build-first（一般對手） | 11.6%／30.1 分 | 19.8% | 28.4% | 40.1% |
+
+| 3 人局（corn＋harbor＋X） | corn-shipper | harbor | X |
+|---|---|---|---|
+| X = corn-monopoly | 9.2%／29.7 分 | 84.7% | 6.1% |
+| X = random | 38.4%／42.6 分 | 61.4% | 0.2% |
+| X = build-first | 20.3%／33.5 分 | 35.7% | 44.1% |
+
+- **有明顯搗亂效果**：和「不參與」的 random 比，壟斷派讓 corn-shipper 的勝率少 11.5（4 人）／29.2（3 人）個百分點，平均分少 8.6／12.9 分，是三個對手中受害最大的；比 build-first（真的想贏的對手）還傷。
+- 受益者是不靠玉米的策略：4 人局 premium 33.8%→48.4%，3 人局 harbor 61.4%→84.7%。
+- 壟斷派自己的分數（25.0／28.8）高於 random（22.8／20.3），但仍墊底：搗亂的代價是自己也輸。
+- 限制：沒有單獨量測「玉米供應區被囤光」的次數（結果檔沒有逐回合貨物）。兩種手段的拆解見 7.4；注意這裡的對照是 random，差距有一大部分只是「桌上多了一個搶玉米的人」（7.4）。
+
+### 7.4 拆開壟斷派的兩種手段（`corn-monopoly-tiles`、`corn-monopoly-hoard`）
+
+同 7.3 的桌子，第四個座位 X 換成：第二個 corn-shipper（對照：一個正常的玉米競爭者）、只搶種植園、只囤貨、兩者都做。數字是**原本那位 corn-shipper** 的勝率／平均分。
+
+| X | 4 人局 corn-shipper | 3 人局 corn-shipper | X 自己（4 人／3 人） |
+|---|---|---|---|
+| 第二個 corn-shipper（對照） | 7.4%／29.1 | 21.0%／32.3 | 7.0%／21.7% |
+| 只搶種植園 `corn-monopoly-tiles` | 6.6%／28.1 | 17.9%／31.4 | 10.7%／28.1% |
+| 只囤貨 `corn-monopoly-hoard` | 5.9%／28.1 | 11.5%／31.6 | 1.7%／1.5% |
+| 兩者都做 `corn-monopoly` | 4.8%／26.6 | 9.2%／29.7 | 2.1%／6.1% |
+
+- **7.3 的落差大部分來自「多一個玉米玩家」**：對照換成第二個 corn-shipper 後，corn-shipper 本來就只剩 7.4%（4 人）／21.0%（3 人）。壟斷派額外造成的損失是 2.6／11.8 個百分點。
+- **囤貨比搶種植園傷**：只搶種植園多扣 0.8／3.1 個百分點，只囤貨多扣 1.5／9.5 個百分點；兩者大致可相加。3 人局囤貨的主要受益者是 harbor（57.4%→87.0%）：囤貨者不出貨，等於少一個人搶船位與勝利點。
+- **只搶種植園反而比玉米出貨流強**：10.7% 對 6.6%（4 人）、28.1% 對 17.9%（3 人），因為它照常出貨，只是玉米拿得更積極（玉米種植園價值 20、有玉米就搶 Settler）。這暗示 corn-shipper 的 Settler／玉米估值偏低，可以回頭調。
+- 只囤貨自己最慘（1.5～1.7%）：沒有搶到額外的玉米，又不出貨。
+
+### 7.5 Wharf-Premium：用菸草／咖啡籌錢買 Wharf（`wharf-premium`）
+
+想法：玉米賣 0 元，所以 wharf-rush 的 9 元要等到第 9～10 回合；改成先建立菸草或咖啡的生產（賣 3～4 元一桶）來付 Wharf。
+
+| 桌子（balanced，10,008／10,002 局） | wharf-premium | 其他 |
+|---|---|---|
+| 4 人局：＋corn＋premium＋harbor | 23.5% | harbor 38.0%、premium 25.7%、corn 12.9% |
+| 4 人局：＋build＋cheap＋harbor | 4.8% | harbor 48.3%、cheap 38.0%、build 8.9% |
+| 4 人局：＋wharf-rush＋harbor＋cheap | 3.5% | cheap 56.5%、harbor 25.9%、wharf-rush 14.1% |
+| 3 人局：＋corn＋build | 15.2% | corn 68.8%、build 16.0% |
+| 3 人局：＋wharf-rush＋harbor | 16.3% | harbor 54.7%、wharf-rush 29.0% |
+
+- **沒有比較快，也沒有比較強**：生產建築平均第 6 回合才買到（要先花 5～6 元），Wharf 平均第 10.6～10.9 回合（wharf-rush 是 9～10），95% 的局有蓋到。交易所每種貨只收一桶、四格就滿，高價貨換錢的速度有上限。
+- 只有在對手偏玉米的桌子（corn＋premium＋harbor）贏過 wharf-rush（23.5% 對 18.5%）；對 cheap-engine／harbor 的桌子與 3 人局都更差，和 wharf-rush 同桌時直接輸給它。
+- 參數掃描（`sweeps/round7/`，72 格 × 3 桌）幾乎全平：`quarryTarget`、`traderWeight`、`sellAfterWharf` 的影響都在 1 個百分點內，只有 `cornTile` 5 明顯較差。弱點是結構性的：菸草／咖啡的堆很小（Coffee Roaster 只有 2 個圈），私船「無視容量」的優勢用不上；真正能堆大的是玉米。
+- **結論**：「先湊錢再買 Wharf」的兩條路（玉米農作、高價貨）都打不贏 harbor／cheap-engine，加上 7.2 的 MCTS 結果，三個角度都不支持「Wharf 太強」。
