@@ -36,6 +36,8 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         public int Visits;
         public int Actor = -1; // seat acting at this node (set once children exist)
         public readonly double[] Reward = new double[GameConstants.MaxPlayers];
+        /// <summary>Win share per seat (1 for a sole winner, split on ties): display only, never used by the search.</summary>
+        public readonly double[] Wins = new double[GameConstants.MaxPlayers];
     }
 
     public MctsStrategy(IReadOnlyDictionary<string, JsonElement> parameters, ulong seed)
@@ -76,7 +78,8 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             int k = root.Actions.IndexOf(a);
             double visits = k < 0 ? 0 : root.Kids[k].Visits;
             double mean = visits > 0 ? root.Kids[k].Reward[me] / visits : 0;
-            entries.Add(new SearchSummary.Entry(a, (int)visits, mean, k < 0 ? null : PrincipalLine(root.Kids[k])));
+            double winRate = visits > 0 ? root.Kids[k].Wins[me] / visits : 0;
+            entries.Add(new SearchSummary.Entry(a, (int)visits, mean, k < 0 ? null : PrincipalLine(root.Kids[k]), winRate));
             if (visits > bestVisits || (visits == bestVisits && mean > bestMean)) { best = a; bestVisits = visits; bestMean = mean; }
         }
         LastSearch = new SearchSummary(_simulations, entries, _exploration);
@@ -167,16 +170,18 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         var score = Scoring.Score(s);
         int players = s.PlayerCount;
         Span<double> reward = stackalloc double[GameConstants.MaxPlayers];
+        Span<double> wins = stackalloc double[GameConstants.MaxPlayers];
         for (int seat = 0; seat < players; seat++)
         {
             double win = Array.IndexOf(score.Winners, seat) >= 0 ? 1.0 / score.Winners.Length : 0.0;
             double rankScore = (players - score.Players[seat].Rank) / (double)(players - 1);
             reward[seat] = WinWeight * win + (1 - WinWeight) * rankScore;
+            wins[seat] = win;
         }
         foreach (var n in path)
         {
             n.Visits++;
-            for (int seat = 0; seat < players; seat++) n.Reward[seat] += reward[seat];
+            for (int seat = 0; seat < players; seat++) { n.Reward[seat] += reward[seat]; n.Wins[seat] += wins[seat]; }
         }
     }
 }

@@ -3,10 +3,17 @@
 
 @* The MCTS search behind one decision: every legal action with its visit count and mean reward for the acting seat. *@
 <div class="mcts">
-    <div class="muted">MCTS 搜尋：@Search.Simulations 次模擬；模擬次數最多的動作被選中。「佔比」= 該動作的模擬次數 ÷ 總模擬次數。「平均報酬」= 該動作之後的模擬結果對本座位的平均值（0～1，0.6×獲勝＋0.4×名次分）。「UCT 分數」= 平均報酬＋探索加成（@Search.Exploration.ToString("0.##")×√(ln 總模擬次數 ÷ 該動作模擬次數)）：搜尋時每次都往 UCT 最高的動作模擬，所以模擬次數少的動作加成較大。</div>
+    <div class="muted">MCTS 搜尋：@Search.Simulations 次模擬，模擬次數最多的動作被選中（滑鼠移到欄位名稱上有說明）。</div>
     <div class="tablewrap">
         <table class="data fit">
-            <thead><tr><th class="left">動作</th><th>模擬次數</th><th class="left">佔比</th><th>平均報酬</th><th>UCT 分數</th></tr></thead>
+            <thead><tr>
+                <th class="left">動作</th>
+                <th title="搜尋往這個動作模擬了幾次">模擬次數</th>
+                <th class="left" title="該動作的模擬次數 ÷ 總模擬次數">佔比</th>
+                <th title="該動作的模擬中，本座位獲勝的比例（並列第一平分）。模擬只往下打幾回合就停的話，是指停下時分數領先。只供顯示，搜尋不使用。">獲勝率</th>
+                <th title="0.6×獲勝＋0.4×名次分的平均（0～1）；搜尋實際比較的是這個數字。">平均報酬</th>
+                <th title="平均報酬＋探索加成（@Search.Exploration.ToString("0.##")×√(ln 總模擬次數 ÷ 該動作模擬次數)）。搜尋時每次都往 UCT 最高的動作模擬，所以模擬次數少的動作加成較大。">UCT 分數</th>
+            </tr></thead>
             <tbody>
             @foreach (var i in order)
             {
@@ -15,6 +22,7 @@
                     <td class="left">@(e.Action == Chosen ? "▶ " : "")@Actions[i]</td>
                     <td>@e.Visits</td>
                     <td class="left"><span class="bar" style="width:@((e.Visits * 100.0 / Math.Max(1, Search.Simulations)).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))px"></span> @((e.Visits / (double)Math.Max(1, Search.Simulations)).ToString("P0"))</td>
+                    <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
                     <td>@(e.Visits > 0 ? e.MeanReward.ToString("0.000") : "—")</td>
                     <td>@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")</td>
                 </tr>
