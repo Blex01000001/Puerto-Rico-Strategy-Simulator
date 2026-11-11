@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-wharfpremium-build-cheap-harbor",
+  "players": 4,
+  "games": 10008,
+  "seed": 777,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "wharf-premium",
+      "strategy": "wharf-premium",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    },
+    {
+      "id": "cheap-engine",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ]
+}

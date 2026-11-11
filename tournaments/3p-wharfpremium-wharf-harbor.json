@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-wharfpremium-wharf-harbor",
+  "players": 3,
+  "games": 10002,
+  "seed": 777,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "wharf-premium",
+      "strategy": "wharf-premium",
+      "params": {}
+    },
+    {
+      "id": "wharf-rush",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ]
+}

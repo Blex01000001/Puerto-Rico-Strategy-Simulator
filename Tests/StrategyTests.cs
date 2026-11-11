@@ -439,6 +439,50 @@ public class WharfAndMonopolyTests
 
     [Fact] public void Wharf_Rush_Plays_Legal_Games() => PlayGamesAgainstRandom(() => new WharfRushStrategy(NoParams));
     [Fact] public void Corn_Monopoly_Plays_Legal_Games() => PlayGamesAgainstRandom(() => new CornMonopolyStrategy(NoParams));
+    [Fact] public void Corn_Monopoly_Tiles_Plays_Legal_Games() => PlayGamesAgainstRandom(() => new CornMonopolyStrategy(NoParams, grab: true, hoard: false));
+    [Fact] public void Corn_Monopoly_Hoard_Plays_Legal_Games() => PlayGamesAgainstRandom(() => new CornMonopolyStrategy(NoParams, grab: false, hoard: true));
+    [Fact] public void Wharf_Premium_Plays_Legal_Games() => PlayGamesAgainstRandom(() => new WharfPremiumStrategy(NoParams));
+
+    [Fact]
+    public void Monopoly_Variants_Split_The_Two_Means()
+    {
+        // tiles-only: ships corn like the corn shipper; hoard-only: ships the other good first and keeps the corn
+        GameState Captain()
+        {
+            var s = New();
+            SetGoods(s, 0, (int)Good.Corn, 3);
+            SetGoods(s, 0, (int)Good.Indigo, 1);
+            return Start(s, 0, Role.Captain);
+        }
+        var s1 = Captain();
+        Assert.Equal((int)Good.Corn, new CornMonopolyStrategy(NoParams, grab: true, hoard: false).ChooseAction(s1, Legal(s1)).A);
+        var s2 = Captain();
+        Assert.Equal((int)Good.Indigo, new CornMonopolyStrategy(NoParams, grab: false, hoard: true).ChooseAction(s2, Legal(s2)).A);
+    }
+
+    [Fact]
+    public void Wharf_Premium_Buys_The_Producer_First_Then_Only_The_Wharf_And_Sells_The_Premium_Good()
+    {
+        var s = New();
+        SetTiles(s, 0, (int)Good.Coffee, 1, occupied: 1);
+        s.Coins[0] = 9;
+        Start(s, 0, Role.Builder);
+        Assert.Equal(new GameAction(ActionType.Build, (int)BuildingId.CoffeeRoaster), new WharfPremiumStrategy(NoParams).ChooseAction(s, Legal(s)));
+
+        var s2 = New();
+        SetTiles(s2, 0, (int)Good.Coffee, 1, occupied: 1);
+        Own(s2, 0, BuildingId.CoffeeRoaster, occupied: 1);
+        s2.Coins[0] = 9;
+        Start(s2, 0, Role.Builder);
+        Assert.Equal(new GameAction(ActionType.Build, (int)BuildingId.Wharf), new WharfPremiumStrategy(NoParams).ChooseAction(s2, Legal(s2)));
+
+        var s3 = New();
+        Own(s3, 0, BuildingId.CoffeeRoaster, occupied: 1);
+        SetGoods(s3, 0, (int)Good.Coffee, 1);
+        SetGoods(s3, 0, (int)Good.Corn, 1);
+        Start(s3, 0, Role.Trader);
+        Assert.Equal(new GameAction(ActionType.Sell, (int)Good.Coffee), new WharfPremiumStrategy(NoParams).ChooseAction(s3, Legal(s3)));
+    }
 
     [Fact]
     public void Wharf_Rush_Ships_The_Biggest_Stack_On_The_Wharf_First()

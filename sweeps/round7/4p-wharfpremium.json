@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep12-4p-wharfpremium",
+  "players": 4,
+  "games": 4008,
+  "seed": 8181,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "wp",
+      "strategy": "wharf-premium",
+      "params": {}
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "wp",
+    "gamesPerPoint": 4008,
+    "parameters": {
+      "quarryTarget": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "traderWeight": [
+        1,
+        1.5,
+        2.5
+      ],
+      "sellAfterWharf": [
+        0,
+        1
+      ],
+      "cornTile": [
+        5,
+        7,
+        9
+      ]
+    }
+  }
+}

@@ -110,6 +110,24 @@ public static class StrategyInfo
                 new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可"),
             }),
 
+        new("wharf-premium", "Wharf 私船流（菸草／咖啡籌錢）",
+            "Wharf 流的變體：先建立菸草或咖啡的生產，賣給交易所籌 9 元買 Wharf，之後照樣把最大一堆貨丟上私船。",
+            new[]
+            {
+                "第一階段：在菸草與咖啡中挑比較容易拿到的一種，拿它的種植園（也拿玉米），先買對應的生產建築（Tobacco Storage／Coffee Roaster）。",
+                "第二階段（有生產建築、還沒 Wharf）：除了 Wharf 什麼都不買；菸草／咖啡一律賣掉換金幣，Trader 價值乘上 traderWeight；最多拿 quarryTarget 個採石場。",
+                "第三階段（有 Wharf）：私船先裝最大的一堆，其餘裝公家船；買倉庫與 Harbor；sellAfterWharf=1 時售價 3 元以上的貨仍會賣。",
+                "買 Wharf 之前，選 Captain 只看玉米能出多少（菸草／咖啡留著賣錢）。",
+            },
+            new[]
+            {
+                new ParamInfo("traderWeight", "2.5", "還沒買到 Wharf 時 Trader 角色價值的倍率。", "1～2.5 幾乎相同"),
+                new ParamInfo("quarryTarget", "1", "最多拿幾個採石場。", "0～3 幾乎相同"),
+                new ParamInfo("sellAfterWharf", "1", "買到 Wharf 後是否仍賣高價貨（1 = 賣，0 = 全留著出貨）。", "1 略好（+0.5 個百分點）"),
+                new ParamInfo("cornTile", "7", "玉米種植園的價值（目標貨種的種植園是 9.5）。", "7～9；5 較差"),
+                new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可"),
+            }),
+
         new("corn-monopoly", "玉米壟斷派（搗亂）",
             "只想參加的搗亂者：霸占所有玉米種植園，玉米囤著不賣也不出貨，把有限的玉米供應區吃光。",
             new[]
@@ -118,6 +136,24 @@ public static class StrategyInfo
                 "玉米貨物不賣、不主動出貨；Captain 角色價值為 0，被迫出貨時先出別的貨，最後才出玉米。",
                 "只買倉庫（把玉米囤過船長階段）、Hacienda、Hospice；其他建築一概不買。",
                 "派殖民者給玉米種植園與倉庫；選 Craftsman 時看重玉米產量（供應區只有 10 個玉米，囤光了別人就沒有）。",
+            },
+            new[] { new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可") }),
+
+        new("corn-monopoly-tiles", "玉米壟斷派：只搶種植園",
+            "壟斷派的變體，用來拆開兩種搗亂手段：只霸占玉米種植園，貨物照常出貨與販賣。",
+            new[]
+            {
+                "種植園只拿玉米（翻開的玉米也搶），有玉米可拿時搶著選 Settler。",
+                "其餘行為與玉米出貨流相同：照常出貨、照常買建築。",
+            },
+            new[] { new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可") }),
+
+        new("corn-monopoly-hoard", "玉米壟斷派：只囤貨",
+            "壟斷派的變體，用來拆開兩種搗亂手段：種植園照玉米出貨流的方式拿，但玉米囤著不賣、不出貨。",
+            new[]
+            {
+                "種植園的選擇與玉米出貨流相同（沒有特別搶）。",
+                "玉米不賣、不主動出貨；Captain 價值為 0，被迫出貨時先出別的貨；只買倉庫、Hacienda、Hospice。",
             },
             new[] { new ParamInfo("buildThreshold", "4.0", Threshold, "預設即可") }),
 

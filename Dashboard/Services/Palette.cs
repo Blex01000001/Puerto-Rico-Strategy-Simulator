@@ -14,6 +14,9 @@ public static class Palette
         ["cheap-engine"] = 7,     // violet
         ["wharf-rush"] = 8,       // red
         ["corn-monopoly"] = 9,    // lime
+        ["wharf-premium"] = 10,   // brown
+        ["corn-monopoly-tiles"] = 11, // teal
+        ["corn-monopoly-hoard"] = 12, // grey-blue
     };
 
     /// <summary>CSS variable for the series colour (1..8); unknown strategies take the remaining slots by position.</summary>
@@ -30,6 +33,9 @@ public static class Palette
         "cheap-engine" => "⚙️",
         "wharf-rush" => "🚢",
         "corn-monopoly" => "😈",
+        "wharf-premium" => "⛵",
+        "corn-monopoly-tiles" => "🧺",
+        "corn-monopoly-hoard" => "📦",
         "mcts" => "🌳",
         "random" => "🎲",
         "guided-random" => "🧭",
