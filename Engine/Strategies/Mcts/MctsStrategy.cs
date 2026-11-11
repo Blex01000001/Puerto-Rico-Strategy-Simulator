@@ -79,7 +79,7 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             entries.Add(new SearchSummary.Entry(a, (int)visits, mean, k < 0 ? null : PrincipalLine(root.Kids[k])));
             if (visits > bestVisits || (visits == bestVisits && mean > bestMean)) { best = a; bestVisits = visits; bestMean = mean; }
         }
-        LastSearch = new SearchSummary(_simulations, entries);
+        LastSearch = new SearchSummary(_simulations, entries, _exploration);
         return best;
     }
 

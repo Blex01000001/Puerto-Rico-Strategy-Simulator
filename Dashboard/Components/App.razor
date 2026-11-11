@@ -15,6 +15,19 @@
 <body>
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
+    <script>
+        // Replay page: left / right arrow = previous / next step (not while typing in a field or dragging the slider).
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+            var t = e.target, tag = t && t.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+            var button = document.getElementById(e.key === 'ArrowLeft' ? 'replay-prev' : 'replay-next');
+            if (!button || button.disabled) return;
+            e.preventDefault();
+            button.click();
+        });
+    </script>
 </body>
 
 </html>

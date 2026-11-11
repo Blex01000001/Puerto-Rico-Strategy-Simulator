@@ -41,6 +41,13 @@ public class MctsTests
         foreach (var (_, action, search) in sink.Items.Where(i => i.Search != null))
         {
             Assert.Equal(8, search!.Simulations);
+            Assert.Equal(0.7, search.Exploration); // default UCT constant
+            foreach (var e in search.Actions)
+            {
+                // UCT = mean + exploration bonus: never below the mean, undefined for unvisited actions
+                if (e.Visits == 0) Assert.Null(search.Uct(e));
+                else Assert.True(search.Uct(e) >= e.MeanReward);
+            }
             Assert.True(search.Actions.Count >= 2);
             Assert.Contains(search.Actions, e => e.Action == action);
             Assert.Equal(search.Actions.Max(e => e.Visits), search.Actions.First(e => e.Action == action).Visits);

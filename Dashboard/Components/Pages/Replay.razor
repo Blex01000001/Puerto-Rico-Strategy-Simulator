@@ -47,13 +47,13 @@
     </div>
 
     <h2>盤面</h2>
-    <p class="note">顯示「第 @step 個決策之前」的盤面（輪到的玩家以藍框標示）；拉到最右邊是終局盤面。種植園方塊裡的 ● 代表有殖民者，建築名稱下的 ●○ 是殖民者／空位。</p>
+    <p class="note">顯示「第 @step 個決策之前」的盤面（輪到的玩家以藍框標示）；拉到最右邊是終局盤面；鍵盤 ←／→ 可切換上一步／下一步。種植園方塊裡的 ● 代表有殖民者，建築名稱下的 ●○ 是殖民者／空位。</p>
     <div class="stepdock">
     <div class="stepbar">
         <button class="secondary" @onclick="@(() => Go(0))" disabled="@(step == 0)">⏮ 開頭</button>
-        <button class="secondary" @onclick="@(() => Go(step - 1))" disabled="@(step == 0)">◀ 上一步</button>
+        <button class="secondary" id="replay-prev" title="鍵盤 ←" @onclick="@(() => Go(step - 1))" disabled="@(step == 0)">◀ 上一步</button>
         <input type="range" min="0" max="@events.Count" value="@step" @oninput="@(e => Go(int.Parse(e.Value?.ToString() ?? "0")))" />
-        <button class="secondary" @onclick="@(() => Go(step + 1))" disabled="@(step >= events.Count)">下一步 ▶</button>
+        <button class="secondary" id="replay-next" title="鍵盤 →" @onclick="@(() => Go(step + 1))" disabled="@(step >= events.Count)">下一步 ▶</button>
         <button class="secondary" @onclick="@(() => Go(events.Count))" disabled="@(step >= events.Count)">⏭ 終局</button>
         <span>第 <input type="number" min="0" max="@events.Count" value="@step" @onchange="@(e => Go(int.TryParse(e.Value?.ToString(), out var v) ? v : step))" style="width:5.5rem" /> / @events.Count 步</span>
     </div>
