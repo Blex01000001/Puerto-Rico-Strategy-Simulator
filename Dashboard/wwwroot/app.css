@@ -355,4 +355,20 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .mcts { font-size: .82rem; margin: 0; }
 .mcts table.data td, .mcts table.data th { padding-top: .04rem; padding-bottom: .04rem; line-height: 1.35; }
 .board { margin: .3rem 0 .2rem; }
-.mcts th[title] { cursor: help; text-decoration: underline dotted var(--text-3); text-underline-offset: 3px; }
+
+/* MCTS panel: table on the left, column explanations on the right */
+.mcts { display: flex; gap: 1.2rem; align-items: flex-start; }
+.mctstable { flex: none; max-width: 100%; }
+.mcts table.data td.mid, .mcts table.data th.mid { text-align: center; }
+/* the ▶ of the chosen action sits in a reserved gutter, so every action name starts at the same place */
+.mcts table.data td.act, .mcts table.data th.act { position: relative; padding-left: 1.5rem; white-space: nowrap; }
+.mcts .mark { position: absolute; left: .35rem; }
+.mcts td.share { white-space: nowrap; text-align: left; }
+.mcts .track { display: inline-block; width: 5rem; height: .6rem; vertical-align: middle; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+.mcts .track .bar { display: block; height: 100%; max-width: 100%; }
+.mcts .pct { display: inline-block; width: 3.2rem; text-align: right; }
+.mctshelp { flex: 1 1 0; min-width: 14rem; margin: 1.2rem 0 0; padding: 0; list-style: none; font-size: .78rem; line-height: 1.4; color: var(--text-2); }
+.mctshelp li { margin-bottom: .35rem; }
+.mctshelp strong { color: var(--text); }
+.mctshelp em { font-style: normal; color: var(--accent); }
+@media (max-width: 1100px) { .mcts { flex-direction: column; } }

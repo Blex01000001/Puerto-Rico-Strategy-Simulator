@@ -3,33 +3,42 @@
 
 @* The MCTS search behind one decision: every legal action with its visit count and mean reward for the acting seat. *@
 <div class="mcts">
-    <div class="muted">MCTS 搜尋：@Search.Simulations 次模擬，模擬次數最多的動作被選中（滑鼠移到欄位名稱上有說明）。</div>
-    <div class="tablewrap">
-        <table class="data fit">
-            <thead><tr>
-                <th class="left">動作</th>
-                <th title="搜尋往這個動作模擬了幾次">模擬次數</th>
-                <th class="left" title="該動作的模擬次數 ÷ 總模擬次數">佔比</th>
-                <th title="該動作的模擬中，本座位獲勝的比例（並列第一平分）。模擬只往下打幾回合就停的話，是指停下時分數領先。只供顯示，搜尋不使用。">獲勝率</th>
-                <th title="0.6×獲勝＋0.4×名次分的平均（0～1）；搜尋實際比較的是這個數字。">平均報酬</th>
-                <th title="平均報酬＋探索加成（@Search.Exploration.ToString("0.##")×√(ln 總模擬次數 ÷ 該動作模擬次數)）。搜尋時每次都往 UCT 最高的動作模擬，所以模擬次數少的動作加成較大。">UCT 分數</th>
-            </tr></thead>
-            <tbody>
-            @foreach (var i in order)
-            {
-                var e = Search.Actions[i];
-                <tr class="@(e.Action == Chosen ? "chosen" : "")">
-                    <td class="left">@(e.Action == Chosen ? "▶ " : "")@Actions[i]</td>
-                    <td>@e.Visits</td>
-                    <td class="left"><span class="bar" style="width:@((e.Visits * 100.0 / Math.Max(1, Search.Simulations)).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))px"></span> @((e.Visits / (double)Math.Max(1, Search.Simulations)).ToString("P0"))</td>
-                    <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
-                    <td>@(e.Visits > 0 ? e.MeanReward.ToString("0.000") : "—")</td>
-                    <td>@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")</td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    <div class="mctstable">
+        <div class="muted">MCTS 搜尋：@Search.Simulations 次模擬，模擬次數最多的動作被選中（▶）。</div>
+        <div class="tablewrap">
+            <table class="data fit">
+                <thead><tr>
+                    <th class="left act">動作</th>
+                    <th class="mid">模擬次數</th>
+                    <th class="left">佔比</th>
+                    <th>勝率</th>
+                    <th>平均報酬</th>
+                    <th>UCT</th>
+                </tr></thead>
+                <tbody>
+                @foreach (var i in order)
+                {
+                    var e = Search.Actions[i];
+                    double share = e.Visits / (double)Math.Max(1, Search.Simulations);
+                    <tr class="@(e.Action == Chosen ? "chosen" : "")">
+                        <td class="left act">@if (e.Action == Chosen) { <span class="mark">▶</span> }@Actions[i]</td>
+                        <td class="mid">@e.Visits</td>
+                        <td class="share"><span class="track"><span class="bar" style="width:@((share * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span><span class="pct">@share.ToString("P0")</span></td>
+                        <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
+                        <td>@(e.Visits > 0 ? e.MeanReward.ToString("0.000") : "—")</td>
+                        <td>@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     </div>
+    <ul class="mctshelp">
+        <li><strong>模擬次數／佔比</strong>：搜尋試了這個動作幾次。越大越被看好，最大的被選中。</li>
+        <li><strong>勝率</strong>：這些模擬中本座位獲勝的比例。只供參考，搜尋不用它。</li>
+        <li><strong>平均報酬</strong>：0.6×獲勝＋0.4×名次分（0～1）。<em>越大＝選它之後的結果越好</em>，搜尋比的就是它。</li>
+        <li><strong>UCT</strong>：平均報酬＋探索加成。<em>越大＝下一次模擬越會選它</em>（結果好，或試得還不夠多）。</li>
+    </ul>
 </div>
 
 @code {
