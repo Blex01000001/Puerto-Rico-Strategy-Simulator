@@ -21,39 +21,44 @@
 </section>
 <p class="note">這不是可以玩的遊戲，沒有玩家介面，只有策略互打。</p>
 
-<h2>三步驟上手</h2>
+<h2 class="promo">三步驟上手</h2>
+<p class="promosub">不用懂程式，三下就有答案</p>
 <div class="steps">
-    <a class="step" href="simulate"><span class="stepno">1</span><strong>排一桌</strong><span>選 3 或 4 人、每個座位放一個流派，按「開始模擬」。</span></a>
-    <a class="step" href="results"><span class="stepno">2</span><strong>看誰贏</strong><span>勝率、平均分、分數從哪來、買了哪些建築，一頁看完。</span></a>
-    <a class="step" href="replay"><span class="stepno">3</span><strong>挖原因</strong><span>挑一局重播，逐步看盤面；或換參數、換對手再比一次。</span></a>
+    <a class="step" href="simulate"><span class="stepno">1</span><strong>湊一桌</strong><span>選 3 或 4 人、每個座位放一個流派，按「開始模擬」。</span><span class="go">立刻開桌 →</span></a>
+    <a class="step" href="results"><span class="stepno">2</span><strong>輸贏?</strong><span>勝率、平均分、分數從哪來、買了哪些建築，一頁看完。</span><span class="go">看結果 →</span></a>
+    <a class="step" href="replay"><span class="stepno">3</span><strong>抓戰犯</strong><span>挑一局重播，逐步看盤面；或換參數、換對手再比一次。</span><span class="go">看重播 →</span></a>
 </div>
 
-<h2>還能做什麼</h2>
+<h2 class="promo">還能做什麼</h2>
+<p class="promosub">五個工具，把「感覺很強」變成「數字證明」</p>
 <div class="cards">
-    <a class="card" href="overview"><span class="cicon">🏆</span><strong>對戰總覽</strong>把好幾桌的結果合起來排名，還有兩兩對戰矩陣看誰剋誰。</a>
-    <a class="card" href="compare"><span class="cicon">⚖️</span><strong>結果並排比較</strong>改了參數有沒有變強？A、B 兩份並排，告訴你差異算不算數。</a>
-    <a class="card" href="replay"><span class="cicon">🎬</span><strong>模擬重播</strong>重看任何一局的每一步；MCTS 玩家還會攤開它的搜尋過程。</a>
-    <a class="card" href="sweep"><span class="cicon">🎛️</span><strong>參數掃描</strong>對手固定，只轉一個流派的旋鈕，找出最好的設定。</a>
-    <a class="card" href="config"><span class="cicon">📝</span><strong>設定檔</strong>編輯並檢查 JSON 設定，下載後交給命令列跑更大的局數。</a>
+    <a class="card" href="overview"><span class="cicon">🏆</span><strong>對戰總覽</strong>把好幾桌的結果合起來排名，看誰剋誰。</a>
+    <a class="card" href="compare"><span class="cicon">⚖️</span><strong>結果並排比較</strong>改了參數有沒有變強？A、B 並排見真章。</a>
+    <a class="card" href="replay"><span class="cicon">🎬</span><strong>模擬重播</strong>重看任何一局的每一步。</a>
+    <a class="card" href="sweep"><span class="cicon">🎛️</span><strong>參數掃描</strong>只轉一個旋鈕，找出最好的設定。</a>
+    <a class="card" href="config"><span class="cicon">📝</span><strong>設定檔</strong>編輯 JSON，交給命令列跑更大的局數。</a>
 </div>
 
-<h2>登場流派（@StrategyInfo.All.Count 位）</h2>
-<p class="note">點任何一位可以到「策略模擬」頁看它的行為規則與可調參數。</p>
+<h2 class="promo">登場流派（@StrategyInfo.All.Count 位）</h2>
+<p class="promosub">挑一位你看好的，讓它上桌證明自己</p>
 @foreach (var g in StrategyInfo.Groups)
 {
-    <h3 class="rostergroup">@g.Title <span class="muted">@g.Hint</span></h3>
+    <h3 class="rostergroup">@g.Title</h3>
     <div class="roster">
         @foreach (var s in StrategyInfo.InGroup(g.Key))
         {
-            <a class="fighter" href="simulate#strategies" style="--c:@Palette.Color(s.Id, 0)">
+            var pitch = Pitch.TryGetValue(s.Id, out var pv) ? pv : ("", s.Summary);
+            <a class="fighter" href="simulate#strategies" style="--c:@Palette.Color(s.Id, 0)" title="@s.Summary">
+                @if (pitch.Item1 != "") { <span class="badge">@pitch.Item1</span> }
                 <span class="ficon">@Palette.Icon(s.Id)</span>
-                <span class="fbody"><strong>@Palette.DisplayName(s.Id)</strong><em>@s.Title</em><span>@s.Summary</span></span>
+                <span class="fbody"><strong>@Palette.DisplayName(s.Id)</strong><em>@s.Title</em><span>@pitch.Item2</span></span>
             </a>
         }
     </div>
 }
 
-<h2>看結果前的小提醒</h2>
+<h2 class="promo">看結果前的小提醒</h2>
+<p class="promosub">五件事，讓你不被數字騙</p>
 <div class="tips">
     <div class="tip"><span class="ticon">📏</span><div><strong>差距要大於誤差線</strong>勝率旁的誤差線是 95% 信賴區間；兩個策略差得比它小，就別急著說誰強。</div></div>
     <div class="tip"><span class="ticon">🪑</span><div><strong>座位很重要</strong>坐哪裡、旁邊是誰都會影響勝率。預設「隨機」夠公平；要絕對公平選「完全平衡」（局數用 6 或 24 的倍數）。別用「輪換」「固定」比較策略。</div></div>
@@ -72,5 +77,23 @@
 </details>
 
 @code {
+    /// <summary>Badge and one-line pitch per strategy for the home page (badges follow docs/strategy-analysis.md).</summary>
+    private static readonly Dictionary<string, (string, string)> Pitch = new()
+    {
+        ["corn-shipper"] = ("入門款", "狂種玉米，每次出貨都拿分。"),
+        ["corn-to-premium"] = ("3 人局前段班", "先玉米，再改賣菸草／咖啡換金幣。"),
+        ["corn-monopoly"] = ("志在參加", "霸占玉米，囤著不賣也不出貨。"),
+        ["corn-monopoly-tiles"] = ("搶地專家", "只搶玉米種植園，貨照常出。"),
+        ["corn-monopoly-hoard"] = ("囤貨專家", "不搶地，但玉米囤到天荒地老。"),
+        ["harbor-rush"] = ("3 人局強權", "先蓋出港口，之後每次出貨多 1 分。"),
+        ["wharf-rush"] = ("爭議角色", "湊錢買 Wharf，整堆貨一次丟上私船。"),
+        ["wharf-premium"] = ("實驗款", "先賣高價貨，再買 Wharf。"),
+        ["build-first"] = ("4 人局熱門", "金幣全變建築，拚大型建築的終局加分。"),
+        ["cheap-engine"] = ("MCTS 親傳", "早買便宜建築，頻繁小量出貨。"),
+        ["mcts"] = ("最強但最慢", "每一步都先模擬幾百次再出手。"),
+        ["random"] = ("墊底基準", "完全亂選，用來確認別人真的比亂打強。"),
+        ["guided-random"] = ("陪練用", "有偏好的亂選：愛出貨、愛蓋房。"),
+    };
+
     private static readonly string[] GoodNames = { "玉米", "靛藍", "糖", "菸草", "咖啡" };
 }

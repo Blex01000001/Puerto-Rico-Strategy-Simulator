@@ -273,3 +273,23 @@ a.fighter:hover { background: var(--surface-3); border-color: var(--c); }
 .tip { display: flex; gap: .7rem; padding: .75rem .9rem; background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; color: var(--text-2); font-size: .88rem; }
 .tip strong { display: block; color: var(--text); margin-bottom: .1rem; } .ticon { font-size: 1.4rem; line-height: 1.2; flex: none; }
 details.folders { margin: 1.5rem 0 1rem; color: var(--text-2); font-size: .88rem; } details.folders summary { cursor: pointer; color: var(--text-3); }
+
+/* home page: centred "promo" sections */
+h2.promo { border: 0; padding: 0; text-align: center; font-size: 1.5rem; margin: 2.6rem 0 .2rem; }
+p.promosub { text-align: center; color: var(--text-2); margin: 0 0 1rem; }
+a.step { padding: 1.4rem 1rem 1.2rem; align-items: center; text-align: center; min-height: 0; }
+a.step .stepno { position: static; width: 3.2rem; height: 3.2rem; font-size: 1.5rem; margin-bottom: .5rem; }
+a.step strong { font-size: 1.25rem; }
+a.step .go { display: inline-block; margin-top: .8rem; padding: .35rem 1rem; font-weight: 700; font-size: .88rem; color: var(--accent); border: 1.5px solid var(--accent); border-radius: 999px; }
+a.step:hover .go { background: var(--accent); color: var(--accent-ink); }
+.cards a.card { text-align: center; padding: 1.3rem 1rem; }
+.cards a.card .cicon { font-size: 2.4rem; margin-bottom: .6rem; }
+.cards a.card strong { font-size: 1.1rem; margin-bottom: .35rem; }
+h3.rostergroup { text-align: center; }
+.roster { grid-template-columns: repeat(auto-fit, minmax(210px, 250px)); justify-content: center; }
+a.fighter { flex-direction: column; align-items: center; text-align: center; border-left: 1px solid var(--line); border-top: 4px solid var(--c); padding: 1.1rem .9rem; }
+a.fighter .ficon { font-size: 2.6rem; margin-bottom: .3rem; }
+a.fighter .fbody { align-items: center; } a.fighter .fbody strong { font-size: 1.1rem; }
+a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; padding: .1rem .5rem; border-radius: 999px; background: var(--c); color: #111; margin-bottom: .4rem; }
+.tip { flex-direction: column; align-items: center; text-align: center; } .tip .ticon { font-size: 2rem; }
+.tips { grid-template-columns: repeat(auto-fit, minmax(280px, 340px)); justify-content: center; }
