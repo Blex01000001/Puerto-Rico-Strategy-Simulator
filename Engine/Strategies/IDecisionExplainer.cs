@@ -5,8 +5,16 @@ namespace PuertoRico.Engine.Strategies;
 /// <summary>Search result of one MCTS decision, for display only (replay). Never read by strategies.</summary>
 /// <param name="Root">Number of simulations run for this decision.</param>
 /// <param name="Actions">Every legal action with its visit count and mean reward (0..1) for the acting seat.</param>
-public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.Entry> Actions)
+/// <param name="Exploration">UCT exploration constant used by the search (0 when unknown).</param>
+public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.Entry> Actions, double Exploration = 0)
 {
+    /// <summary>
+    /// UCT score of an action at the end of the search: mean reward + exploration × sqrt(ln(simulations) / visits).
+    /// It is what the search compares when it picks the next action to simulate; null for an action never visited.
+    /// </summary>
+    public double? Uct(Entry e) =>
+        e.Visits <= 0 ? null : e.MeanReward + Exploration * Math.Sqrt(Math.Log(Math.Max(1, Simulations)) / e.Visits);
+
     /// <param name="Line">Principal variation after this action: the most visited reply at each following node (may be empty).</param>
     public sealed record Entry(GameAction Action, int Visits, double MeanReward, IReadOnlyList<LineStep>? Line = null);
 
