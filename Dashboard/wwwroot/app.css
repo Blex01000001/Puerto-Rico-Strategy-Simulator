@@ -386,3 +386,4 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .mcts td.uct, .mcts th.uct { text-align: center; padding-left: .3rem; padding-right: .3rem; }
 .mcts .next { display: inline-block; width: 1.3rem; text-align: center; font-size: .8rem; }
 .mcts table.data { width: 100%; }
+.mcts td.dgood { color: #6fdc6f; } .mcts td.dbad { color: #f58a8a; }
