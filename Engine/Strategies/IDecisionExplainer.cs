@@ -10,21 +10,21 @@ namespace PuertoRico.Engine.Strategies;
 /// <param name="RolloutRounds">Rounds played after the tree before the players are ranked by points (0 = to the end of the game).</param>
 public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.Entry> Actions, double Exploration = 0, string RolloutStrategy = "", int RolloutRounds = 0)
 {
-    /// <summary>z value used to call a difference between two mean rewards "more than noise" (about 95 %).</summary>
-    public const double NoiseZ = 2.0;
+    /// <summary>z value used to call a difference between two mean rewards "more than noise" (about 87 %).</summary>
+    public const double NoiseZ = 1.5;
 
     /// <summary>Traffic light for the chosen action: how it compares with the next most visited actions.</summary>
     public enum PickSignal
     {
-        /// <summary>Beats every compared rival by more than the noise.</summary>
+        /// <summary>Beats the compared rival by more than the noise.</summary>
         Green,
-        /// <summary>No rival is clearly ahead of it, but it does not clearly beat all of them either (gap within the noise, or too few visits to tell).</summary>
+        /// <summary>Slightly ahead: no rival is clearly ahead of it, but it does not clearly beat them either (gap within the noise, or too few visits to tell).</summary>
         Yellow,
-        /// <summary>At least one rival has a clearly higher mean reward although the chosen action has more visits.</summary>
+        /// <summary>A rival has a clearly higher mean reward although the chosen action has more visits (its visits / reward are low compared with the rival).</summary>
         Red,
     }
 
-    /// <summary>Traffic light of <paramref name="chosen"/> against its <paramref name="rivals"/> (normally the 2nd and 3rd most visited actions).</summary>
+    /// <summary>Traffic light of <paramref name="chosen"/> against its <paramref name="rivals"/> (the display passes only the 2nd most visited action).</summary>
     public static PickSignal Assess(Entry chosen, IReadOnlyList<Entry> rivals)
     {
         if (rivals.Count == 0) return PickSignal.Yellow;
