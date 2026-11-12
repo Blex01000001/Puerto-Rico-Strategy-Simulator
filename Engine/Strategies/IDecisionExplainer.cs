@@ -13,6 +13,25 @@ public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.
     /// <summary>z value used to call a difference between two mean rewards "more than noise" (about 95 %).</summary>
     public const double NoiseZ = 2.0;
 
+    /// <summary>Traffic light for the chosen action: how it compares with the next most visited actions.</summary>
+    public enum PickSignal
+    {
+        /// <summary>Beats every compared rival by more than the noise.</summary>
+        Green,
+        /// <summary>No rival is clearly ahead of it, but it does not clearly beat all of them either (gap within the noise, or too few visits to tell).</summary>
+        Yellow,
+        /// <summary>At least one rival has a clearly higher mean reward although the chosen action has more visits.</summary>
+        Red,
+    }
+
+    /// <summary>Traffic light of <paramref name="chosen"/> against its <paramref name="rivals"/> (normally the 2nd and 3rd most visited actions).</summary>
+    public static PickSignal Assess(Entry chosen, IReadOnlyList<Entry> rivals)
+    {
+        if (rivals.Count == 0) return PickSignal.Yellow;
+        if (rivals.Any(r => ClearlyAhead(r, chosen))) return PickSignal.Red;
+        return rivals.All(r => ClearlyAhead(chosen, r)) ? PickSignal.Green : PickSignal.Yellow;
+    }
+
     /// <summary>
     /// True when <paramref name="a"/> beats <paramref name="b"/> by more than the noise: the difference of the mean rewards is larger than
     /// <see cref="NoiseZ"/> × the standard error of that difference (both actions need at least 2 visits).

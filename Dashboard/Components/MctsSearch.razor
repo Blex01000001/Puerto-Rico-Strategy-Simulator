@@ -15,8 +15,10 @@
             @if (Search.Exploration > 0) { <span class="chip" title="UCT 的探索係數：越大越願意試冷門動作。">探索係數 @Search.Exploration.ToString("0.##")</span> }
         </div>
         <div class="mctslegend">
-            <span class="sw sw-chosen"></span>被選中（模擬次數最多）
-            <span class="sw sw-clear"></span>被選中，且平均報酬明顯勝過第 2、3 名（差距大於雜訊）
+            被選中的動作（與模擬次數第 2、3 名比平均報酬）：
+            <span class="sw sw-green"></span>明顯領先
+            <span class="sw sw-yellow"></span>差距在雜訊內或樣本太少，無法確定
+            <span class="sw sw-red"></span>有對手明顯更高
         </div>
         <div class="tablewrap">
             <table class="data fit">
@@ -33,7 +35,7 @@
                 {
                     var e = Search.Actions[i];
                     double share = e.Visits / (double)Math.Max(1, Search.Simulations);
-                    <tr class="@(e.Action == Chosen ? (clear ? "chosen clear" : "chosen") : "")">
+                    <tr class="@(e.Action == Chosen ? "chosen " + signalClass : "")">
                         <td class="left act">@if (e.Action == Chosen) { <span class="mark">▶</span> }@Actions[i]</td>
                         <td class="mid">@e.Visits</td>
                         <td class="share"><span class="track"><span class="bar" style="width:@((share / maxShare * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span><span class="pct">@share.ToString("P0")</span></td>
@@ -50,7 +52,7 @@
         <li><strong>模擬次數／佔比</strong>：搜尋試了這個動作幾次。越大越被看好，最大的被選中。</li>
         <li><strong>勝率</strong>：這些模擬中本座位獲勝的比例。只供參考，搜尋不用它。</li>
         <li><strong>平均報酬</strong>：0.6×獲勝＋0.4×名次分（0～1）。<em>越大＝選它之後的結果越好</em>，搜尋比的就是它。</li>
-        <li><strong>綠色</strong>：被選中的動作，平均報酬比第 2、3 名都高出「雜訊」（兩者標準誤差合併後的 @SearchSummary.NoiseZ.ToString("0") 倍）以上，代表領先不是運氣；藍色則表示領先幅度還在雜訊之內。</li>
+        <li><strong>紅黃綠燈</strong>（只看被選中的那一列，拿它和模擬次數第 2、3 名比平均報酬，雜訊＝兩者標準誤差合併後的 @SearchSummary.NoiseZ.ToString("0") 倍）：<span class="lg">綠</span>＝比兩者都高出雜訊以上，領先不是運氣；<span class="ly">黃</span>＝沒有人明顯領先，差距在雜訊內或樣本太少，無法確定；<span class="lr">紅</span>＝有一個對手的平均報酬明顯更高（它被選中只因為模擬次數較多），要小心。</li>
         <li><strong>UCT</strong>：平均報酬＋探索加成。<em>越大＝下一次模擬越會選它</em>（結果好，或試得還不夠多）。</li>
     </ul>
 </div>
@@ -63,16 +65,21 @@
     /// <summary>Largest visit share: the bars are scaled to it, so the longest bar is always full.</summary>
     private double maxShare => Math.Max(1e-9, Search.Actions.Max(a => a.Visits) / (double)Math.Max(1, Search.Simulations));
 
-    /// <summary>True when the chosen action's mean reward beats the 2nd and 3rd most visited actions by more than the noise.</summary>
-    private bool clear
+    /// <summary>Traffic light of the chosen action against the 2nd and 3rd most visited actions.</summary>
+    private string signalClass
     {
         get
         {
             var ranked = order.Select(i => Search.Actions[i]).ToList();
             var first = ranked.FirstOrDefault(e => e.Action == Chosen);
-            if (first == null) return false;
+            if (first == null) return "";
             var rivals = ranked.Where(e => e.Action != Chosen).Take(2).ToList();
-            return rivals.Count > 0 && rivals.All(r => SearchSummary.ClearlyAhead(first, r));
+            return SearchSummary.Assess(first, rivals) switch
+            {
+                SearchSummary.PickSignal.Green => "green",
+                SearchSummary.PickSignal.Red => "red",
+                _ => "yellow",
+            };
         }
     }
 

@@ -89,6 +89,19 @@ public class MctsTests
         Assert.False(SearchSummary.ClearlyAhead(ahead, new SearchSummary.Entry(a, 1, 0.0, null, 0, 0)));  // too few visits to tell
     }
 
+    [Fact]
+    public void Assess_Gives_A_Traffic_Light_For_The_Chosen_Action()
+    {
+        var a = GameAction.Pass;
+        SearchSummary.Entry E(int visits, double mean) => new(a, visits, mean, null, 0, 0.02);
+        var chosen = E(100, 0.60);
+        Assert.Equal(SearchSummary.PickSignal.Green, SearchSummary.Assess(chosen, new[] { E(50, 0.40), E(40, 0.35) }));
+        Assert.Equal(SearchSummary.PickSignal.Yellow, SearchSummary.Assess(chosen, new[] { E(50, 0.40), E(40, 0.59) })); // 3rd within the noise
+        Assert.Equal(SearchSummary.PickSignal.Yellow, SearchSummary.Assess(chosen, new[] { E(50, 0.40), E(1, 0.10) }));  // too few visits to tell
+        Assert.Equal(SearchSummary.PickSignal.Red, SearchSummary.Assess(chosen, new[] { E(50, 0.80), E(40, 0.35) }));    // a rival is clearly better
+        Assert.Equal(SearchSummary.PickSignal.Yellow, SearchSummary.Assess(chosen, Array.Empty<SearchSummary.Entry>()));
+    }
+
     [Theory]
     [InlineData(3)]
     [InlineData(4)]
