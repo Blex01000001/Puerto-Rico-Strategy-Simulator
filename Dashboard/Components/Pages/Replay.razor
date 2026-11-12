@@ -1,7 +1,9 @@
 @page "/replay"
 @using PuertoRico.Engine.Events
 @using PuertoRico.Engine.Game
+@implements IDisposable
 @inject IConfiguration Config
+@inject PageMemory Memory
 
 <PageTitle>模擬重播 · 波多黎各策略模擬器</PageTitle>
 <h1>模擬重播</h1>
@@ -143,15 +145,33 @@
     [SupplyParameterFromQuery(Name = "file")] public string? FileParam { get; set; }
     [SupplyParameterFromQuery(Name = "game")] public int? GameParam { get; set; }
 
+    private sealed record Snap(List<string> Files, string Path, int Index, string? Error, SimulationConfig? Cfg, GameRecord? Record, List<GameEvent> Events,
+        List<GameState> Snaps, List<GameAction> Actions, List<PuertoRico.Engine.Strategies.SearchSummary?> Searches, GameState? FinalState, int Step,
+        int SeatFilter, int RoundFilter, string TextFilter);
+
     protected override async Task OnInitializedAsync()
     {
         dir = AppState.ResultsDirectory(Config);
+        bool deepLink = !string.IsNullOrEmpty(FileParam) && GameParam is int;
+        // coming back from another page without a link: the game is still there, at the same step (it is not replayed again)
+        if (!deepLink && Memory.Get<Snap>("replay") is { } m)
+        {
+            files = m.Files; path = m.Path; index = m.Index; error = m.Error; cfg = m.Cfg; record = m.Record; events = m.Events; snaps = m.Snaps;
+            actions = m.Actions; searches = m.Searches; finalState = m.FinalState; step = m.Step; seatFilter = m.SeatFilter; roundFilter = m.RoundFilter; textFilter = m.TextFilter;
+            return;
+        }
         Refresh();
-        if (!string.IsNullOrEmpty(FileParam) && GameParam is int g)
+        if (deepLink)
         {
             var match = files.FirstOrDefault(f => string.Equals(Path.GetFileName(f), FileParam, StringComparison.OrdinalIgnoreCase));
-            if (match != null) { path = match; index = g; await Run(); }
+            if (match != null) { path = match; index = GameParam!.Value; await Run(); }
         }
+    }
+
+    public void Dispose()
+    {
+        if (loading) { Memory.Forget("replay"); return; } // left while the game was being replayed: nothing complete to remember
+        Memory.Set("replay", new Snap(files, path, index, error, cfg, record, events, snaps, actions, searches, finalState, step, seatFilter, roundFilter, textFilter));
     }
 
     private void Refresh() =>

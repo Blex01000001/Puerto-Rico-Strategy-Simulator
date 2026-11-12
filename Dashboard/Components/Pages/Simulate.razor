@@ -6,6 +6,7 @@
 @inject SimulationService Sim
 @inject NavigationManager Nav
 @inject IConfiguration AppConfig
+@inject PageMemory Memory
 
 <PageTitle>策略模擬 · 波多黎各策略模擬器</PageTitle>
 <h1>策略模擬</h1>
@@ -205,9 +206,19 @@
     /// <summary>Number of seat permutations (3! or 4!) that <c>balanced</c> cycles through.</summary>
     private int BalancedStep => players == 3 ? 6 : players == 4 ? 24 : 0;
 
+    private sealed record Snap(string DocTab, int Players, int Games, string FileNameText, ulong Seed, string SeatOrder, string[] Strategies, string[] ParamText,
+        bool Sweep, int Target, string SweepText, string? Error, string TemplateFile, string? TemplateNote, string? TemplateError);
+
     protected override void OnInitialized()
     {
         Sim.Changed += OnChanged;
+        // coming back from another page: the form is as it was left (a result template handed over by another page still wins below)
+        if (Memory.Get<Snap>("simulate") is { } m)
+        {
+            docTab = m.DocTab; players = m.Players; games = m.Games; fileNameText = m.FileNameText; seed = m.Seed; seatOrder = m.SeatOrder;
+            strategies = (string[])m.Strategies.Clone(); paramText = (string[])m.ParamText.Clone(); sweep = m.Sweep; target = m.Target; sweepText = m.SweepText;
+            error = m.Error; templateFile = m.TemplateFile; templateNote = m.TemplateNote; templateError = m.TemplateError;
+        }
         RefreshTemplates();
         if (State.TakeTemplate() is { } t) ApplyConfig(t.Config, t.Source);
     }
@@ -324,7 +335,12 @@
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
-    public void Dispose() => Sim.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Sim.Changed -= OnChanged;
+        Memory.Set("simulate", new Snap(docTab, players, games, fileNameText, seed, seatOrder, (string[])strategies.Clone(), (string[])paramText.Clone(),
+            sweep, target, sweepText, error, templateFile, templateNote, templateError));
+    }
 
     private void OnPlayers(ChangeEventArgs e) => players = int.Parse(e.Value?.ToString() ?? "4");
     private void GoResults() => Nav.NavigateTo("results");

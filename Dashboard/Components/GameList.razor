@@ -117,7 +117,8 @@ else
         <button class="secondary" @onclick="@(() => page = PageCount - 1)" disabled="@(page >= PageCount - 1)">⏭</button>
     </div>
 }
-
+@implements IDisposable
+@inject PageMemory Memory
 @code {
     [Parameter, EditorRequired] public SimulationResult Result { get; set; } = default!;
     [Parameter, EditorRequired] public ResultAnalysis Analysis { get; set; } = default!;
@@ -142,12 +143,29 @@ else
     private int PageCount => Math.Max(1, (matched.Count + PageSize - 1) / PageSize);
     private IEnumerable<GameRecord> PageItems => matched.Skip(page * PageSize).Take(PageSize);
 
+    private sealed record Snap(SimulationResult Loaded, GameFilter F, string EndReason, string WinnerStrategy, string Tie, string PlayerStrategy,
+        int WinnerSeat, int PlayerRank, int Building, int TileType, List<GameRecord> Matched, Dictionary<string, string> Map, string SortKey, bool Desc, int Page);
+
     protected override void OnParametersSet()
     {
         if (ReferenceEquals(loaded, Result)) return;
         loaded = Result;
+        // coming back to the same result: keep the filters, the sorting and the page the user had
+        if (Memory.Get<Snap>("gamelist") is { } m && ReferenceEquals(m.Loaded, Result))
+        {
+            f = m.F; endReason = m.EndReason; winnerStrategy = m.WinnerStrategy; tie = m.Tie; playerStrategy = m.PlayerStrategy;
+            winnerSeat = m.WinnerSeat; playerRank = m.PlayerRank; building = m.Building; tileType = m.TileType;
+            matched = m.Matched; map = m.Map; sortKey = m.SortKey; desc = m.Desc; page = m.Page;
+            return;
+        }
         map = GameFilter.StrategyMap(Result.Config);
         Clear();
+    }
+
+    public void Dispose()
+    {
+        if (loaded != null)
+            Memory.Set("gamelist", new Snap(loaded, f, endReason, winnerStrategy, tie, playerStrategy, winnerSeat, playerRank, building, tileType, matched, map, sortKey, desc, page));
     }
 
     private void Clear()

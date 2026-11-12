@@ -2,6 +2,7 @@
 @using System.Text.Json
 @implements IDisposable
 @inject AppState State
+@inject PageMemory Memory
 
 <PageTitle>設定檔 · 波多黎各策略模擬器</PageTitle>
 <h1>設定檔</h1>
@@ -39,11 +40,18 @@ dotnet run -c Release --project Runner -- --config config.json --sweep --out res
     protected override void OnInitialized()
     {
         State.Changed += OnChanged;
+        if (Memory.Get<Snap>("config") is { } m) { text = m.Text; error = m.Error; message = m.Message; return; }
         text = Template(3);
     }
 
+    private sealed record Snap(string Text, string? Error, string? Message);
+
     private void OnChanged() => InvokeAsync(StateHasChanged);
-    public void Dispose() => State.Changed -= OnChanged;
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        Memory.Set("config", new Snap(text, error, message));
+    }
 
     private void Set(string json) { text = json; error = null; message = null; }
 
