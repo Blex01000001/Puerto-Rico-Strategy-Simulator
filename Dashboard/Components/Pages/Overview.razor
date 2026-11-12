@@ -16,9 +16,6 @@
         </label>
         <label>檔名或策略含 <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="例如 harbor、4p" /></label>
         <button class="secondary" @onclick="Refresh">重新整理</button>
-        <span class="grow"></span>
-        <span class="muted">已選 <strong>@selected.Count</strong> 份 / 共 @metas.Count 份（目前列出 @shown.Count 份）</span>
-        <button @onclick="Build" disabled="@(loading || !selected.Any())">產生總覽</button>
     </div>
     <div class="row" style="margin-top:.5rem">
         <label>預設組合
@@ -52,7 +49,7 @@
                     <td>@m.Players</td>
                     <td>@m.Games.ToString("N0")</td>
                     <td class="left">@m.SeatOrder</td>
-                    <td class="left">@m.Strategies</td>
+                    <td class="left wrapok">@m.Strategies</td>
                     <td>@m.Size</td>
                     <td class="left">@m.Modified</td>
                 </tr>
@@ -63,6 +60,11 @@
             }
             </tbody>
         </table>
+    </div>
+    <div class="actionbar">
+        <span class="muted">已選 <strong>@selected.Count</strong> 份 / 共 @metas.Count 份（目前列出 @shown.Count 份）</span>
+        <span class="grow"></span>
+        <button class="go" @onclick="Build" disabled="@(loading || !selected.Any())">@(loading ? "產生中…" : $"產生總覽（{selected.Count} 份）")</button>
     </div>
     <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。點整列或勾選方塊即可選取；表頭的方塊會全選／取消目前列出的檔案（先用上方篩選縮小範圍）。參數掃描檔（sweep）與無法讀取的檔案不會列出；每份大檔載入需要幾秒。</p>
     @if (loading) { <p>載入中…（@done / @selected.Count）</p> }
