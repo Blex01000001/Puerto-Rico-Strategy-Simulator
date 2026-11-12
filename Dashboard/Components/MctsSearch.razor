@@ -29,6 +29,7 @@
                     <th>勝率</th>
                     <th class="mid">Q</th>
                     <th class="mid">SE</th>
+                    <th class="mid">ΔQ</th>
                     <th class="mid">Noise</th>
                     <th class="uct">UCT<span class="next"></span></th>
                 </tr></thead>
@@ -44,6 +45,7 @@
                         <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
                         <td class="mid">@(e.Visits > 0 ? e.MeanReward.ToString("0.000") : "—")</td>
                         <td class="mid">@(e.Visits > 1 ? e.StdError.ToString("0.000") : "—")</td>
+                        <td class="mid @DeltaClass(e)" title="被選中的動作 Q − 這一列 Q">@(DeltaText(e))</td>
                         <td class="mid" title="被選中的動作與這一列比較時，Q 差距要超過的門檻">@(NoiseText(e))</td>
                         <td class="uct">@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")<span class="next" title="@NextTitle">@(i == nextIndex ? "🎯" : "")</span></td>
                     </tr>
@@ -56,6 +58,7 @@
             <li><strong>單次報酬 r</strong>：0.6×獲勝(1、0) + 0.4×名次分(1、0.67、0.33、0)</li>
             <li><strong>平均報酬 Q（Average Reward）</strong>：所有經過此節點的 r 的平均，介於 0~1；對「該節點的決策玩家」而言，Q 越大代表結果平均越好</li>
             <li><strong>標準誤差 SE（Standard Error）</strong>：平均報酬 Q 的不確定程度，SE = σ ÷ √N；SE 越小，代表 Q 越穩定、越可靠（N 越大，SE 越小）</li>
+            <li><strong>差距 ΔQ</strong>：被選中的動作 Q 減去該列 Q（被選中的那一列不顯示）；ΔQ 超過 Noise 顯示綠色（被選中的明顯較好），低於 −Noise 顯示紅色（該列明顯較好），其餘不上色</li>
             <li><strong>雜訊 Noise</strong>：被選中的動作與該列動作比較時，兩者 Q 的差距至少要超過的門檻，Noise = @SearchSummary.NoiseZ.ToString("0.#") × √(SE選中² + SE該列²)；Q 差距沒超過 Noise，就可能只是運氣（被選中的那一列不顯示）</li>
             <li><strong>UCT</strong>：Q + C×√(ln N父 ÷ N子)；選擇時挑 UCT 最高的子節點往下走，探索加成讓少被試的動作有機會被選到</li>
             <li><strong>燈號</strong>（被選中的列 vs 第 2 名，雜訊＝合併標準誤差的 @SearchSummary.NoiseZ.ToString("0.#") 倍）：<span class="lg">綠</span>:明顯非運氣；<span class="ly">黃</span>:稍微領先，存在雜訊或樣本過少；<span class="lr">紅</span>:模擬次數不足或報酬偏低。</li>
@@ -100,6 +103,27 @@
                 if (Search.Uct(Search.Actions[i]) is { } u && u > bestUct) { bestUct = u; best = i; }
             return best;
         }
+    }
+
+    private SearchSummary.Entry? chosenEntry => Search.Actions.FirstOrDefault(a => a.Action == Chosen);
+
+    /// <summary>ΔQ column: Q of the chosen action minus Q of this row (blank for the chosen row and for unvisited rows).</summary>
+    private string DeltaText(SearchSummary.Entry e)
+    {
+        var c = chosenEntry;
+        if (c == null || e.Action == Chosen || c.Visits < 1 || e.Visits < 1) return "—";
+        double d = c.MeanReward - e.MeanReward;
+        return (d >= 0 ? "+" : "−") + Math.Abs(d).ToString("0.000");
+    }
+
+    /// <summary>Colour class of ΔQ: green when it exceeds Noise, red when it is below −Noise (needs 2+ visits on both sides).</summary>
+    private string DeltaClass(SearchSummary.Entry e)
+    {
+        var c = chosenEntry;
+        if (c == null || e.Action == Chosen) return "";
+        if (SearchSummary.ClearlyAhead(c, e)) return "dgood";
+        if (SearchSummary.ClearlyAhead(e, c)) return "dbad";
+        return "";
     }
 
     /// <summary>Noise column: 1.5 × combined SE against the chosen action (blank for the chosen row and for actions with too few visits).</summary>
