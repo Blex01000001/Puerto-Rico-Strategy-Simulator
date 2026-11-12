@@ -16,11 +16,11 @@ public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.
     /// <summary>Traffic light for the chosen action: how it compares with the next most visited actions.</summary>
     public enum PickSignal
     {
-        /// <summary>Beats the compared rival by more than the noise.</summary>
+        /// <summary>Clearly not luck: beats the compared rival by more than the noise.</summary>
         Green,
-        /// <summary>Slightly ahead: no rival is clearly ahead of it, but it does not clearly beat them either (gap within the noise, or too few visits to tell).</summary>
+        /// <summary>Slightly ahead: no rival is clearly ahead of it, but it does not clearly beat it either (noise in the gap, or too few visits to tell).</summary>
         Yellow,
-        /// <summary>A rival has a clearly higher mean reward although the chosen action has more visits (its visits / reward are low compared with the rival).</summary>
+        /// <summary>A rival has a clearly higher mean reward although the chosen action has more visits (visits not enough, or the reward is low compared with the rival).</summary>
         Red,
     }
 
