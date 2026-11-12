@@ -28,7 +28,7 @@
                     <th class="left">佔比</th>
                     <th>勝率</th>
                     <th class="mid">平均報酬±標準誤差</th>
-                    <th>UCT</th>
+                    <th class="uct">UCT</th>
                 </tr></thead>
                 <tbody>
                 @foreach (var i in order)
@@ -41,7 +41,7 @@
                         <td class="share"><span class="track"><span class="bar" style="width:@((share / maxShare * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span><span class="pct">@share.ToString("P0")</span></td>
                         <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
                         <td class="mid reward">@if (e.Visits > 0) { <span>@e.MeanReward.ToString("0.000")</span><span class="se"> ±@e.StdError.ToString("0.000")</span> } else { <span>—</span> }</td>
-                        <td>@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")</td>
+                        <td class="uct">@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")<span class="next" title="@NextTitle">@(i == nextIndex ? "🎯" : "")</span></td>
                     </tr>
                 }
                 </tbody>
@@ -52,7 +52,7 @@
         <li><strong>模擬次數／佔比</strong>：搜尋試了這個動作幾次，越大越被看好，最大的被選中。</li>
         <li><strong>勝率</strong>：這些模擬中本座位獲勝的比例，只供參考。</li>
         <li><strong>平均報酬±標準誤差</strong>：平均報酬＝0.6×獲勝＋0.4×名次分（0～1），<em>越大＝選它之後結果越好</em>；± 是它的不確定範圍（標準誤差），次數越少越大。</li>
-        <li><strong>UCT</strong>：平均報酬＋探索加成，<em>越大＝下一次模擬越會選它</em>。</li>
+        <li><strong>UCT</strong>：平均報酬＋探索加成，<em>越大＝下一次模擬越會選它</em>；🎯 標示 UCT 最大、下一次模擬會選的動作。</li>
         <li><strong>燈號</strong>（被選中的列 vs 第 2 名，雜訊＝合併標準誤差的 @SearchSummary.NoiseZ.ToString("0.#") 倍）：<span class="lg">綠</span>明顯非運氣；<span class="ly">黃</span>稍微領先，存在雜訊或樣本過少；<span class="lr">紅</span>模擬次數不足或報酬偏低。</li>
     </ul>
 </div>
@@ -82,6 +82,23 @@
             };
         }
     }
+
+    /// <summary>Index of the action with the largest UCT: the one the next simulation would pick (-1 when nothing was visited).</summary>
+    private int nextIndex
+    {
+        get
+        {
+            int best = -1;
+            double bestUct = double.NegativeInfinity;
+            for (int i = 0; i < Search.Actions.Count; i++)
+                if (Search.Uct(Search.Actions[i]) is { } u && u > bestUct) { bestUct = u; best = i; }
+            return best;
+        }
+    }
+
+    private string NextTitle => Search.Actions.Any(a => a.Visits == 0)
+        ? "下一次模擬會選它（UCT 最大）；另有尚未模擬的動作，搜尋會先試它們"
+        : "下一次模擬會選它（UCT 最大）";
 
     private IEnumerable<int> order => Enumerable.Range(0, Search.Actions.Count).OrderByDescending(i => Search.Actions[i].Visits);
 }
