@@ -42,11 +42,14 @@ public class MctsTests
         {
             Assert.Equal(8, search!.Simulations);
             Assert.Equal(0.7, search.Exploration); // default UCT constant
+            Assert.Equal("random", search.RolloutStrategy);
+            Assert.Equal(8, search.RolloutRounds);
             foreach (var e in search.Actions)
             {
                 // UCT = mean + exploration bonus: never below the mean, undefined for unvisited actions
                 // reward = 0.6 × win + 0.4 × rank score, so the win rate is between 0 and reward / 0.6
                 Assert.InRange(e.WinRate, 0, 1);
+                Assert.True(e.StdError >= 0 && e.StdError <= 0.5 + 1e-9); // rewards lie in [0,1]
                 Assert.True(0.6 * e.WinRate <= e.MeanReward + 1e-9);
                 if (e.Visits == 0) Assert.Null(search.Uct(e));
                 else Assert.True(search.Uct(e) >= e.MeanReward);
@@ -71,6 +74,34 @@ public class MctsTests
             int prev = e.Visits;
             foreach (var step in e.Line) { Assert.InRange(step.Seat, 0, 2); Assert.True(step.Visits <= prev); prev = step.Visits; }
         }
+    }
+
+    [Fact]
+    public void ClearlyAhead_Needs_A_Gap_Larger_Than_The_Noise()
+    {
+        var a = GameAction.Pass;
+        var ahead = new SearchSummary.Entry(a, 100, 0.60, null, 0, 0.02);
+        var close = new SearchSummary.Entry(a, 100, 0.58, null, 0, 0.02);
+        var far = new SearchSummary.Entry(a, 100, 0.40, null, 0, 0.02);
+        Assert.False(SearchSummary.ClearlyAhead(ahead, close)); // gap 0.02 < 2 × sqrt(0.02² + 0.02²) = 0.057
+        Assert.True(SearchSummary.ClearlyAhead(ahead, far));    // gap 0.20
+        Assert.False(SearchSummary.ClearlyAhead(far, ahead));   // never the other way round
+        Assert.False(SearchSummary.ClearlyAhead(ahead, new SearchSummary.Entry(a, 1, 0.0, null, 0, 0)));  // too few visits to tell
+    }
+
+    [Fact]
+    public void Assess_Gives_A_Traffic_Light_For_The_Chosen_Action()
+    {
+        var a = GameAction.Pass;
+        SearchSummary.Entry E(int visits, double mean) => new(a, visits, mean, null, 0, 0.02);
+        var chosen = E(100, 0.60);
+        // noise = 1.5 × sqrt(0.02² + 0.02²) = 0.042
+        Assert.Equal(SearchSummary.PickSignal.Green, SearchSummary.Assess(chosen, new[] { E(50, 0.40) }));
+        Assert.Equal(SearchSummary.PickSignal.Yellow, SearchSummary.Assess(chosen, new[] { E(50, 0.57) })); // gap 0.03 < 0.042
+        Assert.Equal(SearchSummary.PickSignal.Green, SearchSummary.Assess(chosen, new[] { E(50, 0.55) }));  // gap 0.05 > 0.042
+        Assert.Equal(SearchSummary.PickSignal.Yellow, SearchSummary.Assess(chosen, new[] { E(1, 0.10) }));  // too few visits to tell
+        Assert.Equal(SearchSummary.PickSignal.Red, SearchSummary.Assess(chosen, new[] { E(50, 0.80) }));    // the rival is clearly better
+        Assert.Equal(SearchSummary.PickSignal.Yellow, SearchSummary.Assess(chosen, Array.Empty<SearchSummary.Entry>()));
     }
 
     [Theory]

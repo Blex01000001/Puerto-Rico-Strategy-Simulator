@@ -3,39 +3,103 @@
 
 @* The MCTS search behind one decision: every legal action with its visit count and mean reward for the acting seat. *@
 <div class="mcts">
-    <div class="muted">MCTS 搜尋：@Search.Simulations 次模擬，模擬次數最多的動作被選中（滑鼠移到欄位名稱上有說明）。</div>
-    <div class="tablewrap">
-        <table class="data fit">
-            <thead><tr>
-                <th class="left">動作</th>
-                <th title="搜尋往這個動作模擬了幾次">模擬次數</th>
-                <th class="left" title="該動作的模擬次數 ÷ 總模擬次數">佔比</th>
-                <th title="該動作的模擬中，本座位獲勝的比例（並列第一平分）。模擬只往下打幾回合就停的話，是指停下時分數領先。只供顯示，搜尋不使用。">獲勝率</th>
-                <th title="0.6×獲勝＋0.4×名次分的平均（0～1）；搜尋實際比較的是這個數字。">平均報酬</th>
-                <th title="平均報酬＋探索加成（@Search.Exploration.ToString("0.##")×√(ln 總模擬次數 ÷ 該動作模擬次數)）。搜尋時每次都往 UCT 最高的動作模擬，所以模擬次數少的動作加成較大。">UCT 分數</th>
-            </tr></thead>
-            <tbody>
-            @foreach (var i in order)
+    <div class="mctstable">
+        <div class="mctshead">
+            <strong>MCTS 搜尋</strong>
+            <span class="chip">@Search.Simulations 次模擬</span>
+            @if (Search.RolloutStrategy != "")
             {
-                var e = Search.Actions[i];
-                <tr class="@(e.Action == Chosen ? "chosen" : "")">
-                    <td class="left">@(e.Action == Chosen ? "▶ " : "")@Actions[i]</td>
-                    <td>@e.Visits</td>
-                    <td class="left"><span class="bar" style="width:@((e.Visits * 100.0 / Math.Max(1, Search.Simulations)).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))px"></span> @((e.Visits / (double)Math.Max(1, Search.Simulations)).ToString("P0"))</td>
-                    <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
-                    <td>@(e.Visits > 0 ? e.MeanReward.ToString("0.000") : "—")</td>
-                    <td>@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")</td>
-                </tr>
+                <span class="chip" title="樹搜尋之後，所有座位（含對手與自己）都用這個策略往下打到停止點；它決定模擬裡對手怎麼出牌。">模擬對手：@Palette.DisplayName(Search.RolloutStrategy)</span>
+                <span class="chip" title="往下打這麼多回合後，以當時的分數排名當作結果；打到終局最準但最慢。">@(Search.RolloutRounds == 0 ? "打到終局" : $"往下打 {Search.RolloutRounds} 回合")</span>
             }
-            </tbody>
-        </table>
+            @if (Search.Exploration > 0) { <span class="chip" title="UCT 的探索係數：越大越願意試冷門動作。">探索係數 @Search.Exploration.ToString("0.##")</span> }
+        </div>
+        <div class="mctslegend">
+            被選中的動作（與模擬次數第 2 名比平均報酬）：
+            <span class="sw sw-green"></span>明顯領先
+            <span class="sw sw-yellow"></span>稍微領先
+            <span class="sw sw-red"></span>模擬次數／報酬偏低
+        </div>
+        <div class="tablewrap">
+            <table class="data fit">
+                <thead><tr>
+                    <th class="left act">動作</th>
+                    <th class="mid">N</th>
+                    <th class="left">佔比</th>
+                    <th>勝率</th>
+                    <th class="mid">Q ± SE</th>
+                    <th class="uct">UCT<span class="next"></span></th>
+                </tr></thead>
+                <tbody>
+                @foreach (var i in order)
+                {
+                    var e = Search.Actions[i];
+                    double share = e.Visits / (double)Math.Max(1, Search.Simulations);
+                    <tr class="@(e.Action == Chosen ? "chosen " + signalClass : "")">
+                        <td class="left act">@if (e.Action == Chosen) { <span class="mark">▶</span> }@Actions[i]</td>
+                        <td class="mid">@e.Visits</td>
+                        <td class="share"><span class="track"><span class="bar" style="width:@((share / maxShare * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span><span class="pct">@share.ToString("P0")</span></td>
+                        <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
+                        <td class="mid reward">@if (e.Visits > 0) { <span>@e.MeanReward.ToString("0.000")</span><span class="se"> ±@e.StdError.ToString("0.000")</span> } else { <span>—</span> }</td>
+                        <td class="uct">@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")<span class="next" title="@NextTitle">@(i == nextIndex ? "🎯" : "")</span></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     </div>
+    <ul class="mctshelp">
+        <li><strong>模擬次數 N（Visits）</strong>：這個節點被模擬經過的次數，N 越大結論越可靠；迭代結束後，選根節點下 N 最大的子節點作為最終動作</li>
+        <li><strong>單次報酬 r</strong>：0.6×獲勝(1,0) + 0.4×名次分(1,0.67,0.33,0)</li>
+        <li><strong>平均報酬 Q（Average Reward）</strong>：所有經過此節點的 r 的平均，介於 0~1；對「該節點的決策玩家」而言，Q 越大代表結果平均越好</li>
+        <li><strong>標準誤差 SE（Standard Error）</strong>：平均報酬 Q 的不確定程度，SE = σ ÷ √N；SE 越小，代表 Q 越穩定、越可靠（N 越大，SE 越小）</li>
+        <li><strong>UCT</strong>：Q + C×√(ln N父 ÷ N子)；選擇時挑 UCT 最高的子節點往下走，探索加成讓少被試的動作有機會被選到</li>
+        <li><strong>燈號</strong>（被選中的列 vs 第 2 名，雜訊＝合併標準誤差的 @SearchSummary.NoiseZ.ToString("0.#") 倍）：<span class="lg">綠</span>:明顯非運氣；<span class="ly">黃</span>:稍微領先，存在雜訊或樣本過少；<span class="lr">紅</span>:模擬次數不足或報酬偏低。</li>
+    </ul>
 </div>
 
 @code {
     [Parameter, EditorRequired] public SearchSummary Search { get; set; } = default!;
     [Parameter, EditorRequired] public IReadOnlyList<string> Actions { get; set; } = default!;
     [Parameter] public GameAction Chosen { get; set; }
+
+    /// <summary>Largest visit share: the bars are scaled to it, so the longest bar is always full.</summary>
+    private double maxShare => Math.Max(1e-9, Search.Actions.Max(a => a.Visits) / (double)Math.Max(1, Search.Simulations));
+
+    /// <summary>Traffic light of the chosen action against the 2nd most visited action.</summary>
+    private string signalClass
+    {
+        get
+        {
+            var ranked = order.Select(i => Search.Actions[i]).ToList();
+            var first = ranked.FirstOrDefault(e => e.Action == Chosen);
+            if (first == null) return "";
+            var rivals = ranked.Where(e => e.Action != Chosen).Take(1).ToList();
+            return SearchSummary.Assess(first, rivals) switch
+            {
+                SearchSummary.PickSignal.Green => "green",
+                SearchSummary.PickSignal.Red => "red",
+                _ => "yellow",
+            };
+        }
+    }
+
+    /// <summary>Index of the action with the largest UCT: the one the next simulation would pick (-1 when nothing was visited).</summary>
+    private int nextIndex
+    {
+        get
+        {
+            int best = -1;
+            double bestUct = double.NegativeInfinity;
+            for (int i = 0; i < Search.Actions.Count; i++)
+                if (Search.Uct(Search.Actions[i]) is { } u && u > bestUct) { bestUct = u; best = i; }
+            return best;
+        }
+    }
+
+    private string NextTitle => Search.Actions.Any(a => a.Visits == 0)
+        ? "下一次模擬會選它（UCT 最大）；另有尚未模擬的動作，搜尋會先試它們"
+        : "下一次模擬會選它（UCT 最大）";
 
     private IEnumerable<int> order => Enumerable.Range(0, Search.Actions.Count).OrderByDescending(i => Search.Actions[i].Visits);
 }
