@@ -357,8 +357,8 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .board { margin: .3rem 0 .2rem; }
 
 /* MCTS panel: table on the left, column explanations on the right */
-.mcts { display: flex; gap: 1.2rem; align-items: flex-start; }
-.mctstable { flex: none; max-width: 100%; }
+.mcts { display: block; }
+.mctstable { max-width: 100%; }
 .mcts table.data td.mid, .mcts table.data th.mid { text-align: center; }
 /* the ▶ of the chosen action sits in a reserved gutter, so every action name starts at the same place */
 .mcts table.data td.act, .mcts table.data th.act { position: relative; padding-left: 1.5rem; white-space: nowrap; }
@@ -367,11 +367,10 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .mcts .track { display: inline-block; width: 3.6rem; height: .6rem; vertical-align: middle; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
 .mcts .track .bar { display: block; height: 100%; max-width: 100%; }
 .mcts .pct { display: inline-block; width: 3.2rem; text-align: right; }
-.mctshelp { flex: 1 1 0; min-width: 14rem; margin: 1.1rem 0 0; padding: 0; list-style: none; font-size: .76rem; line-height: 1.35; color: var(--text-2); }
-.mctshelp li { margin-bottom: .25rem; }
+.mctshelp { margin: .9rem 0 .4rem; padding: 0 0 0 1.4rem; list-style: disc; font-size: .92rem; line-height: 1.55; color: var(--text-2); }
+.mctshelp li { margin-bottom: .3rem; }
 .mctshelp strong { color: var(--text); }
 .mctshelp em { font-style: normal; color: var(--accent); }
-@media (max-width: 1100px) { .mcts { flex-direction: column; } }
 
 .mctshead { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; margin: 0 0 .15rem; font-size: .9rem; }
 .mctshead strong { color: #fff; margin-right: .2rem; }
@@ -384,7 +383,6 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .mcts tr.chosen.yellow td { color: #f0c23a; } .mcts tr.chosen.yellow .bar { background: var(--series-4); }
 .mcts tr.chosen.red td { color: #f58a8a; } .mcts tr.chosen.red .bar { background: var(--series-8); }
 .mctshelp .lg { color: #6fdc6f; font-weight: 700; } .mctshelp .ly { color: #f0c23a; font-weight: 700; } .mctshelp .lr { color: #f58a8a; font-weight: 700; }
-.mcts td.reward .se { color: var(--text-3); font-size: .9em; }
-.mcts tr.chosen td.reward .se { color: inherit; opacity: .8; }
 .mcts td.uct, .mcts th.uct { text-align: center; padding-left: .3rem; padding-right: .3rem; }
 .mcts .next { display: inline-block; width: 1.3rem; text-align: center; font-size: .8rem; }
+.mcts table.data { width: 100%; }

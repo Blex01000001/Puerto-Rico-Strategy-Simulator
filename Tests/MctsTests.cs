@@ -96,6 +96,7 @@ public class MctsTests
         SearchSummary.Entry E(int visits, double mean) => new(a, visits, mean, null, 0, 0.02);
         var chosen = E(100, 0.60);
         // noise = 1.5 × sqrt(0.02² + 0.02²) = 0.042
+        Assert.Equal(0.0424, SearchSummary.Noise(E(100, 0.6), E(50, 0.4)), 4);
         Assert.Equal(SearchSummary.PickSignal.Green, SearchSummary.Assess(chosen, new[] { E(50, 0.40) }));
         Assert.Equal(SearchSummary.PickSignal.Yellow, SearchSummary.Assess(chosen, new[] { E(50, 0.57) })); // gap 0.03 < 0.042
         Assert.Equal(SearchSummary.PickSignal.Green, SearchSummary.Assess(chosen, new[] { E(50, 0.55) }));  // gap 0.05 > 0.042
