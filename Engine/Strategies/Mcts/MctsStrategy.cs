@@ -38,6 +38,8 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         public readonly double[] Reward = new double[GameConstants.MaxPlayers];
         /// <summary>Win share per seat (1 for a sole winner, split on ties): display only, never used by the search.</summary>
         public readonly double[] Wins = new double[GameConstants.MaxPlayers];
+        /// <summary>Sum of squared rewards per seat: display only (standard error of the mean).</summary>
+        public readonly double[] RewardSq = new double[GameConstants.MaxPlayers];
     }
 
     public MctsStrategy(IReadOnlyDictionary<string, JsonElement> parameters, ulong seed)
@@ -79,10 +81,16 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             double visits = k < 0 ? 0 : root.Kids[k].Visits;
             double mean = visits > 0 ? root.Kids[k].Reward[me] / visits : 0;
             double winRate = visits > 0 ? root.Kids[k].Wins[me] / visits : 0;
-            entries.Add(new SearchSummary.Entry(a, (int)visits, mean, k < 0 ? null : PrincipalLine(root.Kids[k]), winRate));
+            double stdError = 0;
+            if (visits > 1)
+            {
+                double variance = Math.Max(0, (root.Kids[k].RewardSq[me] - visits * mean * mean) / (visits - 1));
+                stdError = Math.Sqrt(variance / visits);
+            }
+            entries.Add(new SearchSummary.Entry(a, (int)visits, mean, k < 0 ? null : PrincipalLine(root.Kids[k]), winRate, stdError));
             if (visits > bestVisits || (visits == bestVisits && mean > bestMean)) { best = a; bestVisits = visits; bestMean = mean; }
         }
-        LastSearch = new SearchSummary(_simulations, entries, _exploration);
+        LastSearch = new SearchSummary(_simulations, entries, _exploration, _rolloutName, _rolloutRounds);
         return best;
     }
 
@@ -181,7 +189,7 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         foreach (var n in path)
         {
             n.Visits++;
-            for (int seat = 0; seat < players; seat++) { n.Reward[seat] += reward[seat]; n.Wins[seat] += wins[seat]; }
+            for (int seat = 0; seat < players; seat++) { n.Reward[seat] += reward[seat]; n.Wins[seat] += wins[seat]; n.RewardSq[seat] += reward[seat] * reward[seat]; }
         }
     }
 }
