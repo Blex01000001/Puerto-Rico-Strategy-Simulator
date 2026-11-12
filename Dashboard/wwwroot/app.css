@@ -386,5 +386,5 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .mctshelp .lg { color: #6fdc6f; font-weight: 700; } .mctshelp .ly { color: #f0c23a; font-weight: 700; } .mctshelp .lr { color: #f58a8a; font-weight: 700; }
 .mcts td.reward .se { color: var(--text-3); font-size: .9em; }
 .mcts tr.chosen td.reward .se { color: inherit; opacity: .8; }
-.mcts td.uct, .mcts th.uct { padding-right: .2rem; }
+.mcts td.uct, .mcts th.uct { text-align: center; padding-left: .3rem; padding-right: .3rem; }
 .mcts .next { display: inline-block; width: 1.3rem; text-align: center; font-size: .8rem; }

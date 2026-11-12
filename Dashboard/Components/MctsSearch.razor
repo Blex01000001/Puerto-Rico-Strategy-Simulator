@@ -24,11 +24,11 @@
             <table class="data fit">
                 <thead><tr>
                     <th class="left act">動作</th>
-                    <th class="mid">模擬次數</th>
+                    <th class="mid">N</th>
                     <th class="left">佔比</th>
                     <th>勝率</th>
-                    <th class="mid">平均報酬±標準誤差</th>
-                    <th class="uct">UCT</th>
+                    <th class="mid">Q ± SE</th>
+                    <th class="uct">UCT<span class="next"></span></th>
                 </tr></thead>
                 <tbody>
                 @foreach (var i in order)
@@ -49,11 +49,12 @@
         </div>
     </div>
     <ul class="mctshelp">
-        <li><strong>模擬次數／佔比</strong>：搜尋試了這個動作幾次，越大越被看好，最大的被選中。</li>
-        <li><strong>勝率</strong>：這些模擬中本座位獲勝的比例，只供參考。</li>
-        <li><strong>平均報酬±標準誤差</strong>：平均報酬＝0.6×獲勝＋0.4×名次分（0～1），<em>越大＝選它之後結果越好</em>；± 是它的不確定範圍（標準誤差），次數越少越大。</li>
-        <li><strong>UCT</strong>：平均報酬＋探索加成，<em>越大＝下一次模擬越會選它</em>；🎯 標示 UCT 最大、下一次模擬會選的動作。</li>
-        <li><strong>燈號</strong>（被選中的列 vs 第 2 名，雜訊＝合併標準誤差的 @SearchSummary.NoiseZ.ToString("0.#") 倍）：<span class="lg">綠</span>明顯非運氣；<span class="ly">黃</span>稍微領先，存在雜訊或樣本過少；<span class="lr">紅</span>模擬次數不足或報酬偏低。</li>
+        <li><strong>模擬次數 N（Visits）</strong>：這個節點被模擬經過的次數，N 越大結論越可靠；迭代結束後，選根節點下 N 最大的子節點作為最終動作</li>
+        <li><strong>單次報酬 r</strong>：0.6×獲勝(1,0) + 0.4×名次分(1,0.67,0.33,0)</li>
+        <li><strong>平均報酬 Q（Average Reward）</strong>：所有經過此節點的 r 的平均，介於 0~1；對「該節點的決策玩家」而言，Q 越大代表結果平均越好</li>
+        <li><strong>標準誤差 SE（Standard Error）</strong>：平均報酬 Q 的不確定程度，SE = σ ÷ √N；SE 越小，代表 Q 越穩定、越可靠（N 越大，SE 越小）</li>
+        <li><strong>UCT</strong>：Q + C×√(ln N父 ÷ N子)；選擇時挑 UCT 最高的子節點往下走，探索加成讓少被試的動作有機會被選到</li>
+        <li><strong>燈號</strong>（被選中的列 vs 第 2 名，雜訊＝合併標準誤差的 @SearchSummary.NoiseZ.ToString("0.#") 倍）：<span class="lg">綠</span>:明顯非運氣；<span class="ly">黃</span>:稍微領先，存在雜訊或樣本過少；<span class="lr">紅</span>:模擬次數不足或報酬偏低。</li>
     </ul>
 </div>
 
