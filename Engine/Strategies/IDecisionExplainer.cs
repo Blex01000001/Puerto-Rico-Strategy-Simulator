@@ -39,9 +39,14 @@ public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.
     public static bool ClearlyAhead(Entry a, Entry b)
     {
         if (a.Visits < 2 || b.Visits < 2) return false;
-        double se = Math.Sqrt(a.StdError * a.StdError + b.StdError * b.StdError);
-        return a.MeanReward - b.MeanReward > NoiseZ * se;
+        return a.MeanReward - b.MeanReward > Noise(a, b);
     }
+
+    /// <summary>
+    /// Noise band when comparing two actions: <see cref="NoiseZ"/> × sqrt(SE_a² + SE_b²). A gap between the two mean rewards has to exceed it
+    /// to count as more than luck.
+    /// </summary>
+    public static double Noise(Entry a, Entry b) => NoiseZ * Math.Sqrt(a.StdError * a.StdError + b.StdError * b.StdError);
 
     /// <summary>
     /// UCT score of an action at the end of the search: mean reward + exploration × sqrt(ln(simulations) / visits).

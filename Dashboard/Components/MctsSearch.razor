@@ -21,13 +21,15 @@
             <span class="sw sw-red"></span>模擬次數／報酬偏低
         </div>
         <div class="tablewrap">
-            <table class="data fit">
+            <table class="data">
                 <thead><tr>
                     <th class="left act">動作</th>
                     <th class="mid">N</th>
                     <th class="left">佔比</th>
                     <th>勝率</th>
-                    <th class="mid">Q ± SE</th>
+                    <th class="mid">Q</th>
+                    <th class="mid">SE</th>
+                    <th class="mid">Noise</th>
                     <th class="uct">UCT<span class="next"></span></th>
                 </tr></thead>
                 <tbody>
@@ -40,22 +42,25 @@
                         <td class="mid">@e.Visits</td>
                         <td class="share"><span class="track"><span class="bar" style="width:@((share / maxShare * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span><span class="pct">@share.ToString("P0")</span></td>
                         <td>@(e.Visits > 0 ? e.WinRate.ToString("P0") : "—")</td>
-                        <td class="mid reward">@if (e.Visits > 0) { <span>@e.MeanReward.ToString("0.000")</span><span class="se"> ±@e.StdError.ToString("0.000")</span> } else { <span>—</span> }</td>
+                        <td class="mid">@(e.Visits > 0 ? e.MeanReward.ToString("0.000") : "—")</td>
+                        <td class="mid">@(e.Visits > 1 ? e.StdError.ToString("0.000") : "—")</td>
+                        <td class="mid" title="被選中的動作與這一列比較時，Q 差距要超過的門檻">@(NoiseText(e))</td>
                         <td class="uct">@(Search.Uct(e) is { } u ? u.ToString("0.000") : "—")<span class="next" title="@NextTitle">@(i == nextIndex ? "🎯" : "")</span></td>
                     </tr>
                 }
                 </tbody>
             </table>
         </div>
+        <ul class="mctshelp">
+            <li><strong>模擬次數 N（Visits）</strong>：這個節點被模擬經過的次數，N 越大結論越可靠；迭代結束後，選根節點下 N 最大的子節點作為最終動作</li>
+            <li><strong>單次報酬 r</strong>：0.6×獲勝(1、0) + 0.4×名次分(1、0.67、0.33、0)</li>
+            <li><strong>平均報酬 Q（Average Reward）</strong>：所有經過此節點的 r 的平均，介於 0~1；對「該節點的決策玩家」而言，Q 越大代表結果平均越好</li>
+            <li><strong>標準誤差 SE（Standard Error）</strong>：平均報酬 Q 的不確定程度，SE = σ ÷ √N；SE 越小，代表 Q 越穩定、越可靠（N 越大，SE 越小）</li>
+            <li><strong>雜訊 Noise</strong>：被選中的動作與該列動作比較時，兩者 Q 的差距至少要超過的門檻，Noise = @SearchSummary.NoiseZ.ToString("0.#") × √(SE選中² + SE該列²)；Q 差距沒超過 Noise，就可能只是運氣（被選中的那一列不顯示）</li>
+            <li><strong>UCT</strong>：Q + C×√(ln N父 ÷ N子)；選擇時挑 UCT 最高的子節點往下走，探索加成讓少被試的動作有機會被選到</li>
+            <li><strong>燈號</strong>（被選中的列 vs 第 2 名，雜訊＝合併標準誤差的 @SearchSummary.NoiseZ.ToString("0.#") 倍）：<span class="lg">綠</span>:明顯非運氣；<span class="ly">黃</span>:稍微領先，存在雜訊或樣本過少；<span class="lr">紅</span>:模擬次數不足或報酬偏低。</li>
+        </ul>
     </div>
-    <ul class="mctshelp">
-        <li><strong>模擬次數 N（Visits）</strong>：這個節點被模擬經過的次數，N 越大結論越可靠；迭代結束後，選根節點下 N 最大的子節點作為最終動作</li>
-        <li><strong>單次報酬 r</strong>：0.6×獲勝(1,0) + 0.4×名次分(1,0.67,0.33,0)</li>
-        <li><strong>平均報酬 Q（Average Reward）</strong>：所有經過此節點的 r 的平均，介於 0~1；對「該節點的決策玩家」而言，Q 越大代表結果平均越好</li>
-        <li><strong>標準誤差 SE（Standard Error）</strong>：平均報酬 Q 的不確定程度，SE = σ ÷ √N；SE 越小，代表 Q 越穩定、越可靠（N 越大，SE 越小）</li>
-        <li><strong>UCT</strong>：Q + C×√(ln N父 ÷ N子)；選擇時挑 UCT 最高的子節點往下走，探索加成讓少被試的動作有機會被選到</li>
-        <li><strong>燈號</strong>（被選中的列 vs 第 2 名，雜訊＝合併標準誤差的 @SearchSummary.NoiseZ.ToString("0.#") 倍）：<span class="lg">綠</span>:明顯非運氣；<span class="ly">黃</span>:稍微領先，存在雜訊或樣本過少；<span class="lr">紅</span>:模擬次數不足或報酬偏低。</li>
-    </ul>
 </div>
 
 @code {
@@ -95,6 +100,14 @@
                 if (Search.Uct(Search.Actions[i]) is { } u && u > bestUct) { bestUct = u; best = i; }
             return best;
         }
+    }
+
+    /// <summary>Noise column: 1.5 × combined SE against the chosen action (blank for the chosen row and for actions with too few visits).</summary>
+    private string NoiseText(SearchSummary.Entry e)
+    {
+        var chosen = Search.Actions.FirstOrDefault(a => a.Action == Chosen);
+        if (chosen == null || e.Action == Chosen || chosen.Visits < 2 || e.Visits < 2) return "—";
+        return SearchSummary.Noise(chosen, e).ToString("0.000");
     }
 
     private string NextTitle => Search.Actions.Any(a => a.Visits == 0)
