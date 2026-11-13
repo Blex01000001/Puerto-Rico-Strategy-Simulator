@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-mcts-vs-3cheap-coin2",
+  "players": 4,
+  "games": 480,
+  "seed": 9191,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "mcts",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "cheap1",
+      "strategy": "cheap-engine",
+      "params": {
+        "roleCoinWeight": 2
+      }
+    },
+    {
+      "id": "cheap2",
+      "strategy": "cheap-engine",
+      "params": {
+        "roleCoinWeight": 2
+      }
+    },
+    {
+      "id": "cheap3",
+      "strategy": "cheap-engine",
+      "params": {
+        "roleCoinWeight": 2
+      }
+    }
+  ],
+  "output": {
+    "perGameRecords": true
+  }
+}

@@ -9,7 +9,8 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// corn / indigo / sugar plantations instead of a big one, never pays for a Hacienda, and ships often (many small shipments)
 /// rather than waiting for big loads.
 /// Parameters: <c>buildThreshold</c> (default 2.0: cheap buildings clear it), <c>tileCap</c> (default 4: stop choosing Settler once it owns that many tiles;
-/// 4-player sweeps: 8 gave 15%, 4 gave 29%), <c>smallValue</c> (default 8: value of the cheap early buildings; 8 or more behave the same).
+/// 4-player sweeps: 8 gave 15%, 4 gave 29%), <c>smallValue</c> (default 8: value of the cheap early buildings; 8 or more behave the same),
+/// <c>roleCoinWeight</c> (default 1: value of one coin on a role card, and of the Prospector's coin, when choosing a role).
 /// </summary>
 public sealed class CheapEngineStrategy : HeuristicStrategy
 {
@@ -18,6 +19,7 @@ public sealed class CheapEngineStrategy : HeuristicStrategy
 
     private int _tileCap;
     private double _smallValue;
+    private double _roleCoinWeight;
 
     public CheapEngineStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 2.0) { }
 
@@ -25,6 +27,7 @@ public sealed class CheapEngineStrategy : HeuristicStrategy
     {
         _tileCap = (int)Param("tileCap", players, 4, 4);
         _smallValue = Param("smallValue", players, 8, 8);
+        _roleCoinWeight = Param("roleCoinWeight", players, 1, 1);
     }
 
     private static bool Owns(GameState s, int me, int b) => s.BuildingOwned[me * B + b] != 0;
@@ -36,6 +39,9 @@ public sealed class CheapEngineStrategy : HeuristicStrategy
         double have = s.Tiles[me * T + good];
         return 7 - have * 0.8 + (good == Indigo ? 0.3 : 0);
     }
+
+    /// <summary>Experimental (analysis section 9): MCTS collects about twice the coins from role cards and the Prospector.</summary>
+    protected override double RoleCoinWeight(GameState s, int me) => _roleCoinWeight;
 
     protected override double QuarryValue(GameState s, int me) => QuarriesOwned(s, me) >= 1 ? 2 : 4;
 

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-cheap-corn-build",
+  "players": 3,
+  "games": 24000,
+  "seed": 1313,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "cheap",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "corn",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "cheap",
+    "gamesPerPoint": 24000,
+    "parameters": {
+      "roleCoinWeight": [
+        1,
+        1.5,
+        2,
+        2.5,
+        3,
+        4,
+        6
+      ]
+    }
+  }
+}

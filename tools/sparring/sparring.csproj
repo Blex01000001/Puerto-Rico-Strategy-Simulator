@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Analysis tool, not part of PuertoRico.sln: compares how the strategies at one table play (roles, tempo per round, shipping, selling, spoilage, buildings). See Program.cs for how to run it. -->
+  <PropertyGroup><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../Engine/Engine.csproj" /></ItemGroup>
+</Project>

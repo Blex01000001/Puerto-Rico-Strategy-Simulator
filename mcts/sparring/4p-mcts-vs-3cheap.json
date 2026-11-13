@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-mcts-vs-3cheap",
+  "players": 4,
+  "games": 480,
+  "seed": 9191,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "mcts",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300
+      }
+    },
+    {
+      "id": "cheap1",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "cheap2",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "cheap3",
+      "strategy": "cheap-engine",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": true
+  }
+}

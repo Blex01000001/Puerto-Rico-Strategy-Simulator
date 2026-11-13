@@ -219,6 +219,16 @@ public class PrototypeStrategyTests
     }
 
     [Fact]
+    public void Cheap_Engine_RoleCoinWeight_Makes_Coins_On_A_Role_Card_Count_More()
+    {
+        var s = New();
+        s.RoleCoins[(int)Role.Trader] = 2; // nothing to sell: the Trader is only worth its coins
+        var heavy = new Dictionary<string, JsonElement> { ["roleCoinWeight"] = JsonDocument.Parse("10").RootElement.Clone() };
+        Assert.Equal(A(ActionType.ChooseRole, (int)Role.Trader), StrategyRegistry.Create("cheap-engine", heavy, 1, 0).ChooseAction(s, Legal(s)));
+        Assert.NotEqual(A(ActionType.ChooseRole, (int)Role.Trader), Choose("cheap-engine", s)); // default weight 1
+    }
+
+    [Fact]
     public void Harbor_Rush_Takes_Quarries_Buys_Only_The_Harbor_And_Builds_When_Affordable()
     {
         var s = New();

@@ -4,10 +4,12 @@
 
 ## 待辦
 
-1. 【先討論】手寫策略下一步：3 人局 build-first 在新同分預設下變弱（第 2 節），可考慮依對手調整採石場策略（8.6）；corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；用 MCTS 當陪練找弱點（例如 cheap-engine 對 MCTS）；繼續把 MCTS 行為寫進手寫策略（cheap-engine 仍遠不如 MCTS）；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
-2. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
-3. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
-4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
+1. 【先討論】cheap-engine 的 `roleCoinWeight` 預設要不要改成 4 人局 2、3 人局 2.5（分析文件第 9 節：四桌勝率 +6～+14 個百分點，對 MCTS 的差距少約 26 個百分點）；改了之後 `tournaments/` 含 cheap-engine 的桌子、第 1、2 節與 README 的數字都要重跑。
+2. 【先討論】cheap-engine 其餘弱點（第 9 節）：貨爛掉太多（每局 4～5 桶，早買小倉庫或少生產靛藍）、小市場買了幾乎不賣、菸草／咖啡種植園不蓋工廠、建築只買到第 2 階、前期少選 Craftsman／Mayor；其他手寫策略的 `RoleCoinWeight` 也都只有 1～1.6，可用同樣方法（`tools/sparring`）各掃一次。
+3. 【先討論】手寫策略其他方向：3 人局 build-first 在新同分預設下變弱（第 2 節），可考慮依對手調整採石場策略（8.6）；corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
+4. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
+5. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
+6. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
 
 ## 已知問題／限制
 
@@ -15,6 +17,7 @@
 
 - 策略模擬頁（`Simulate.razor`）的「完全平衡」選項與局數提示、局數千分位輸入、MCTS 耗時警告、自訂結果檔名、策略下拉選單名稱只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。
 - 分析文件第 1、2、7 節的數字是 `balanced` 座位 + 新同分預設（`tournaments/` 4 人 100,008／3 人 100,002 局）；第 3～4 節的調參與第 5 節 MCTS 實驗是舊預設下做的（第一到第三輪調參是 `rotate`、未重跑，MCTS 的對手 build-first／harbor-rush 也是舊同分順序）；總覽頁的「座位順序」欄會標示每份結果用哪種。
+- 陪練實驗（第 9 節）MCTS 每桌只有 480 局，勝率誤差約 ±4 個百分點；`tools/sparring` 不在 `PuertoRico.sln`，改了 Engine 後要另外 `dotnet build -c Release tools/sparring`（否則會用到舊的 Engine）。
 - 規則中未明說、引擎採用的詮釋（請使用者確認，或提供反例）：
   - Factory 的金幣依「公式產量 > 0 的貨種數」計算，不看實際領到多少（供應不足時也照給）。
   - Guild Hall／City Hall 計算的建築不要求有殖民者（只有大型建築本身要）；可由 `Scoring.CountedBuildingsNeedColonist` 切換。
