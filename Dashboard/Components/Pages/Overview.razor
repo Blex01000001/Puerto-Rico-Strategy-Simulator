@@ -1,5 +1,7 @@
 @page "/overview"
+@implements IDisposable
 @inject IConfiguration Config
+@inject PageMemory Memory
 
 <PageTitle>對戰總覽 · 波多黎各策略模擬器</PageTitle>
 <h1>對戰總覽</h1>
@@ -164,14 +166,15 @@
     private string dir = "";
     private sealed record FileMeta(string Path, string Name, int Players, int Games, string SeatOrder, string Strategies, string Size, string Modified);
     private List<FileMeta> metas = new();
+    private bool metasReady;
     private int playersFilter;
     private string textFilter = "";
     private Dictionary<string, List<string>> presets = new();
     private string presetName = "", newPresetName = "";
     private string? presetNote;
-    private readonly HashSet<string> selected = new();
-    private readonly List<OverviewTable> tables = new();
-    private readonly List<string> skipped = new();
+    private HashSet<string> selected = new();
+    private List<OverviewTable> tables = new();
+    private List<string> skipped = new();
     private bool loading;
     private int done;
     private List<OverviewPairRow> pairs = new();
@@ -201,10 +204,29 @@
 
     private bool AllShownSelected => shown.Count > 0 && shown.All(m => selected.Contains(m.Path));
 
+    private sealed record Snap(List<FileMeta> Metas, int PlayersFilter, string TextFilter, Dictionary<string, List<string>> Presets,
+        string PresetName, string NewPresetName, string? PresetNote, HashSet<string> Selected, List<OverviewTable> Tables, List<string> Skipped, List<OverviewPairRow> Pairs);
+
     protected override async Task OnInitializedAsync()
     {
         dir = AppState.ResultsDirectory(Config);
+        // coming back from another page: show what was there (the file list is not scanned again, "重新整理" does that)
+        if (Memory.Get<Snap>("overview") is { } m)
+        {
+            metas = m.Metas; playersFilter = m.PlayersFilter; textFilter = m.TextFilter; presets = m.Presets;
+            presetName = m.PresetName; newPresetName = m.NewPresetName; presetNote = m.PresetNote; selected = m.Selected;
+            tables = m.Tables; skipped = m.Skipped; pairs = m.Pairs;
+            metasReady = true;
+            return;
+        }
         await Refresh();
+    }
+
+    /// <summary>A page left while its file list was still being read has nothing worth remembering: the next visit reads it again.</summary>
+    public void Dispose()
+    {
+        if (!metasReady || loading) { Memory.Forget("overview"); return; }
+        Memory.Set("overview", new Snap(metas, playersFilter, textFilter, presets, presetName, newPresetName, presetNote, selected, tables, skipped, pairs));
     }
 
     /// <summary>Lists the result files with their settings (read from each file's config only, which is fast even for big files).</summary>
@@ -232,6 +254,7 @@
             }
         }
         metas = list;
+        metasReady = true;
         presets = OverviewPresets.Load(dir);
         selected.RemoveWhere(f => !metas.Any(m => m.Path == f));
     }

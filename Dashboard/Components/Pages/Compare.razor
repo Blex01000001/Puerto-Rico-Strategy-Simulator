@@ -1,5 +1,7 @@
 @page "/compare"
+@implements IDisposable
 @inject IConfiguration Config
+@inject PageMemory Memory
 
 <PageTitle>結果並排比較 · 波多黎各策略模擬器</PageTitle>
 <h1>結果並排比較</h1>
@@ -74,11 +76,21 @@
     private ResultAnalysis? ra, rb;
     private List<ComparisonRow>? rows;
 
+    private sealed record Snap(List<string> Files, string PathA, string PathB, string? Error, SimulationResult? ResA, SimulationResult? ResB,
+        ResultAnalysis? Ra, ResultAnalysis? Rb, List<ComparisonRow>? Rows);
+
     protected override void OnInitialized()
     {
         dir = AppState.ResultsDirectory(Config);
+        if (Memory.Get<Snap>("compare") is { } m)
+        {
+            files = m.Files; pathA = m.PathA; pathB = m.PathB; error = m.Error; resA = m.ResA; resB = m.ResB; ra = m.Ra; rb = m.Rb; rows = m.Rows;
+            return;
+        }
         Refresh();
     }
+
+    public void Dispose() => Memory.Set("compare", new Snap(files, pathA, pathB, error, resA, resB, ra, rb, rows));
 
     private void Refresh() =>
         files = Directory.Exists(dir)

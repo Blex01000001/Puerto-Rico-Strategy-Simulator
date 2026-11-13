@@ -1,0 +1,88 @@
+@using PuertoRico.Engine.Game
+@using PuertoRico.Engine.Strategies
+@using Dashboard.Services
+
+@* A decision without a search (hand-written or random strategy, or a forced move): every legal action of that moment, the chosen one marked. *@
+<div class="legal">
+    <div class="mctshead">
+        <strong>座位 @(State.Actor + 1) · @SeatName</strong>
+        <span class="chip" title="這個座位的策略沒有搜尋（或這一步沒有選擇），所以沒有分數，只列出當時所有的合法動作。">無搜尋</span>
+        <span class="chip">合法動作 @actions.Count 個</span>
+        @if (scored != null) { <span class="chip" title="手寫策略替每個合法動作打分，分數最高的被選中（同分取先列出的）。">分數由高到低</span> }
+        @if (actions.Count == 1) { <span class="chip" title="只有一個合法動作時，引擎直接執行，不會問策略。">唯一合法動作，自動執行</span> }
+    </div>
+    @if (State.Phase == Phase.Mayor)
+    {
+        <div class="mctslegend">市長階段：殖民者一個一個放，且位置只能由小排到大（避免同一種分配重複），所以這裡列的是「下一個殖民者放哪裡」，不是整套分配。</div>
+    }
+    @if (scored != null)
+    {
+        <div class="mctslegend">Score 是這個策略自訂的啟發式分數，沒有 0～1 的意義，不能和 MCTS 的 Q 比，也可以是負的，只有相對高低有意義。@(State.Phase == Phase.Mayor ? "市長階段的 Score 是「這個位置的價值」；實際是先挑出最佳的一組位置，再從中依序放，所以選中的不一定是最高分。" : "")</div>
+    }
+    @if (scored != null)
+    {
+        @* with scores: a table with a header row; long lists are split in two tables side by side *@
+        <div class="legaltables">
+            @foreach (var chunk in Chunks())
+            {
+                <table class="legaltable">
+                    <thead><tr><th class="mk"></th><th class="sc">Score</th>@if (showTie) { <th class="tie" title="分數相同時，策略的固定順序（1 = 最優先）">Tie</th> }@if (showOpp) { <th class="tie" title="分數相同時的第二個鍵：對手目前生產的桶數 × tieOpponent 權重">Opp</th> }<th class="act">動作</th></tr></thead>
+                    <tbody>
+                    @foreach (var (a, score, tieRank, tieOpp) in chunk)
+                    {
+                        <tr class="@(a == Chosen ? "chosen" : "")"><td class="mk">@(a == Chosen ? "▶" : "")</td><td class="sc">@score.ToString("0.00")</td>@if (showTie) { <td class="tie">@(tieRank >= 0 ? (tieRank + 1).ToString() : "—")</td> }@if (showOpp) { <td class="tie">@tieOpp.ToString("0.##")</td> }<td class="act">@ActionText.Describe(State, a)</td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+    else
+    {
+        <ul class="legallist @(actions.Count == 1 ? "forced" : "")">
+            @foreach (var (a, _, _, _) in rows)
+            {
+                <li class="@(a == Chosen ? "chosen" : "")">@if (a == Chosen) { <span class="mark">▶</span> }@ActionText.Describe(State, a)</li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>The state before the decision.</summary>
+    [Parameter, EditorRequired] public GameState State { get; set; } = default!;
+    [Parameter, EditorRequired] public string SeatName { get; set; } = "";
+    [Parameter] public GameAction Chosen { get; set; }
+    /// <summary>Scores of the legal actions when the strategy reported them (hand-written strategies); null otherwise.</summary>
+    [Parameter] public IReadOnlyList<ScoredAction>? Scores { get; set; }
+
+    private List<GameAction> actions = new();
+    private IReadOnlyList<ScoredAction>? scored;
+    private List<(GameAction Action, double Score, int TieRank, double TieOpp)> rows = new();
+    private bool showTie, showOpp;
+
+    /// <summary>One table up to 9 actions, two tables (halves of the sorted list) beyond that.</summary>
+    private IEnumerable<List<(GameAction Action, double Score, int TieRank, double TieOpp)>> Chunks()
+    {
+        if (rows.Count <= 9) { yield return rows; yield break; }
+        int half = (rows.Count + 1) / 2;
+        yield return rows.Take(half).ToList();
+        yield return rows.Skip(half).ToList();
+    }
+
+    protected override void OnParametersSet()
+    {
+        actions = new List<GameAction>(32);
+        Rules.GetLegalActions(State.Clone(), actions); // on a copy, the replay snapshot stays untouched
+        // with scores: highest first (stable, so equal scores keep the engine order); without: the engine order
+        scored = Scores is { Count: > 0 } ? Scores : null;
+        // equal scores: the strategy's tie order (rank 0 first), then the opponent-dependence part, then the engine order
+        rows = scored != null
+            ? scored.Select((x, i) => (x, i)).OrderByDescending(t => t.x.Score)
+                .ThenBy(t => t.x.TieRank < 0 ? int.MaxValue : t.x.TieRank).ThenByDescending(t => t.x.TieOpponent).ThenBy(t => t.i)
+                .Select(t => (t.x.Action, t.x.Score, t.x.TieRank, t.x.TieOpponent)).ToList()
+            : actions.Select(a => (a, 0.0, -1, 0.0)).ToList();
+        showTie = scored != null && scored.Any(x => x.TieRank >= 0);
+        showOpp = scored != null && scored.Any(x => x.TieOpponent != 0);
+    }
+}

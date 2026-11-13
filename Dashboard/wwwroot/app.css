@@ -394,3 +394,23 @@ a.fighter .badge { display: inline-block; font-size: .68rem; font-weight: 800; p
 .actionbar button.go { padding: .55rem 1.6rem; font-size: 1rem; font-weight: 700; }
 table.data.filetable td.left, table.data.filetable th.left { white-space: nowrap; }
 table.data.filetable td.wrapok { white-space: normal; }
+
+/* legal-action list for decisions without a search */
+.legal { font-size: .88rem; }
+.legallist { list-style: none; margin: .35rem 0 .2rem; padding: 0; columns: 26rem; column-gap: 1.2rem; }
+.legallist li { position: relative; padding: .08rem .4rem .08rem 1.5rem; break-inside: avoid; line-height: 1.4; }
+.legallist li .mark { position: absolute; left: .4rem; }
+.legallist li.chosen { color: var(--accent); font-weight: 600; }
+.legallist.forced li { color: var(--text-2); }
+.legallist.forced li.chosen { color: var(--text); }
+.legallist li .sc { display: inline-block; width: 3.6rem; margin-right: .5rem; text-align: right; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.legallist li.chosen .sc { color: inherit; }
+.legaltables { display: flex; gap: 1.4rem; align-items: flex-start; margin: .35rem 0 .2rem; }
+.legaltable { flex: 1 1 0; min-width: 0; border-collapse: collapse; }
+.legaltable th { text-align: left; font-size: .74rem; font-weight: 600; color: var(--text-3); letter-spacing: .04em; padding: .1rem .4rem; border-bottom: 1px solid var(--line); }
+.legaltable td { padding: .08rem .4rem; line-height: 1.4; }
+.legaltable .mk { width: 1.4rem; padding-right: 0; text-align: center; }
+.legaltable th.sc, .legaltable td.sc { width: 4.4rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.legaltable tr.chosen td { color: var(--accent); font-weight: 600; }
+.legaltable th.tie, .legaltable td.tie { width: 3rem; text-align: center; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.legaltable tr.chosen td.tie { color: inherit; }

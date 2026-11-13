@@ -10,6 +10,8 @@ public interface IGameEventSink
     void OnDecision(GameState before, GameAction action);
     /// <summary>Called right before <see cref="OnDecision"/> when the acting strategy reports a search (MCTS). Default: ignore.</summary>
     void OnSearch(SearchSummary search) { }
+    /// <summary>Called right before <see cref="OnDecision"/> when the acting strategy reports action scores (hand-written strategies). Default: ignore.</summary>
+    void OnScores(IReadOnlyList<ScoredAction> scores) { }
 }
 
 public sealed class NullEventSink : IGameEventSink

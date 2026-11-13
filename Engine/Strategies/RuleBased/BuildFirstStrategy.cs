@@ -17,6 +17,9 @@ public sealed class BuildFirstStrategy : HeuristicStrategy
 
     public BuildFirstStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.5, 3.5) { }
 
+    // docs/strategy-analysis.md 8.3: sugar before indigo is clearly better; corn stays before quarry; coffee/tobacco make no difference
+    protected override string DefaultTieTile => "hacienda>corn>sugar>indigo>tobacco>coffee>quarry";
+
     protected override void Configure(int players) => _quarryTarget = (int)Param("quarryTarget", players, 3, 3);
 
     private static bool Owns(GameState s, int me, BuildingId b) => s.BuildingOwned[me * B + (int)b] != 0;

@@ -538,3 +538,260 @@ public class WharfAndMonopolyTests
         Assert.Equal((int)Good.Indigo, a.A);
     }
 }
+
+public class ActionScoreTests
+{
+    private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
+
+    private sealed class ScoreSink : PuertoRico.Engine.Events.IGameEventSink
+    {
+        public int Decisions, Scored, Violations;
+        private IReadOnlyList<ScoredAction>? _scores;
+        public bool Enabled => true;
+        public void OnScores(IReadOnlyList<ScoredAction> scores) => _scores = scores;
+        public void OnDecision(GameState before, GameAction action)
+        {
+            Decisions++;
+            if (_scores != null)
+            {
+                Scored++;
+                // outside the Mayor phase the chosen action is the first one with the highest score
+                if (before.Phase != Phase.Mayor && _scores.First(x => x.Score == _scores.Max(y => y.Score)).Action != action) Violations++;
+                if (_scores.All(x => x.Action != action)) Violations++;
+            }
+            _scores = null;
+        }
+    }
+
+    [Fact]
+    public void Heuristic_Reports_Scores_Only_When_Asked_And_The_Choice_Never_Changes()
+    {
+        var s = Sc.Start(Sc.New(), 0, Role.Builder);
+        Sc.Own(s, 0, BuildingId.Hacienda);
+        s.Coins[0] = 9;
+        var legal = Sc.Legal(s);
+        var quiet = new HarborRushStrategy(NoParams);
+        var loud = new HarborRushStrategy(NoParams) { RecordScores = true };
+        var a = quiet.ChooseAction(s, legal);
+        var b = loud.ChooseAction(s, legal);
+        Assert.Equal(a, b);                      // recording scores never changes the decision
+        Assert.Null(quiet.LastScores);
+        Assert.Equal(legal.Count, loud.LastScores!.Count);
+        Assert.Equal(legal, loud.LastScores.Select(x => x.Action));
+        Assert.Equal(loud.LastScores.Max(x => x.Score), loud.LastScores.First(x => x.Action == b).Score);
+    }
+
+    [Fact]
+    public void Replay_Sink_Gets_The_Scores_Of_Hand_Written_Strategies_And_Mass_Runs_Record_None()
+    {
+        var cfg = new SimulationConfig { Name = "scores", Players = 3, Games = 2, Seed = 4, Seats = new List<SeatConfig>
+        {
+            new() { Id = "h", Strategy = "harbor-rush" }, new() { Id = "c", Strategy = "corn-shipper" }, new() { Id = "r", Strategy = "random" },
+        } };
+        var sink = new ScoreSink();
+        GameRunner.Play(cfg, 0, sink, out _);
+        Assert.True(sink.Scored > 20);
+        Assert.True(sink.Scored < sink.Decisions);   // random seat, forced moves: no scores
+        Assert.Equal(0, sink.Violations);
+        // a normal run without a sink never switches recording on
+        var strategy = new CornShipperStrategy(NoParams);
+        Assert.False(strategy.RecordScores);
+    }
+}
+
+public class RandomTieTests
+{
+    private static IReadOnlyDictionary<string, JsonElement> Params(double randomTies) =>
+        new Dictionary<string, JsonElement> { ["randomTies"] = JsonSerializer.SerializeToElement(randomTies) };
+
+    [Fact]
+    public void Default_Breaks_Ties_By_Engine_Order_And_Random_Ties_Spread_The_Choice_Over_The_Tied_Plantations()
+    {
+        // the corn monopolist values every non-corn plantation at 1: with no corn and no quarry on offer they all tie for the top score
+        GameState Settler()
+        {
+            var s = Sc.New();
+            Array.Clear(s.FaceUp);
+            for (int g = (int)Good.Indigo; g <= (int)Good.Coffee; g++) s.FaceUp[g] = 1;
+            s.QuarrySupply = 0;
+            return Sc.Start(s, 0, Role.Settler);
+        }
+        var state = Settler();
+        var legal = Sc.Legal(state);
+        Assert.Equal(4, legal.Count(a => a.Type == ActionType.TakePlantation));
+
+        var first = new CornMonopolyStrategy(NoParamsOf()).ChooseAction(state, legal);
+        Assert.Equal(new GameAction(ActionType.TakePlantation, (int)Good.Indigo), first); // engine order: the lowest good
+        for (ulong seed = 1; seed <= 20; seed++)
+            Assert.Equal(first, new CornMonopolyStrategy(NoParamsOf()) { Seed = seed }.ChooseAction(state, legal)); // the default ignores the seed
+
+        var counts = new Dictionary<GameAction, int>();
+        for (ulong seed = 1; seed <= 400; seed++)
+        {
+            var a = new CornMonopolyStrategy(Params(1)) { Seed = seed }.ChooseAction(state, legal);
+            Assert.Contains(a, legal);
+            counts[a] = counts.GetValueOrDefault(a) + 1;
+        }
+        Assert.Equal(4, counts.Count);                    // every tied plantation gets chosen sometimes
+        Assert.All(counts.Values, n => Assert.InRange(n, 60, 140)); // roughly a quarter each (400 draws)
+        Assert.Equal(new CornMonopolyStrategy(Params(1)) { Seed = 5 }.ChooseAction(state, legal),
+                     new CornMonopolyStrategy(Params(1)) { Seed = 5 }.ChooseAction(state, legal)); // same seed, same choice
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> NoParamsOf() => new Dictionary<string, JsonElement>();
+
+    [Fact]
+    public void Random_Ties_Keep_Games_Legal_And_Reproducible()
+    {
+        var cfg = new SimulationConfig { Name = "rt", Players = 3, Games = 3, Seed = 9, Seats = new List<SeatConfig>
+        {
+            new() { Id = "a", Strategy = "corn-monopoly", Params = new Dictionary<string, JsonElement> { ["randomTies"] = JsonSerializer.SerializeToElement(1.0) } },
+            new() { Id = "b", Strategy = "harbor-rush", Params = new Dictionary<string, JsonElement> { ["randomTies"] = JsonSerializer.SerializeToElement(2.0) } },
+            new() { Id = "c", Strategy = "build-first" },
+        } };
+        var r1 = GameRunner.Play(cfg, 1, null, out var f1);
+        var r2 = GameRunner.Play(cfg, 1, null, out var f2);
+        Assert.Equal(r1.Decisions, r2.Decisions);
+        Assert.Equal(r1.Winners, r2.Winners);
+        Assert.Null(Invariants.Check(f1));
+        Assert.True(f1.IsOver && f2.IsOver);
+    }
+}
+
+public class TieBreakRuleTests
+{
+    private static IReadOnlyDictionary<string, JsonElement> P(params (string Key, object Value)[] items) =>
+        items.ToDictionary(x => x.Key, x => JsonSerializer.SerializeToElement(x.Value));
+
+    /// <summary>Settler phase where indigo, sugar, tobacco and coffee are face up (no corn, no quarry): the corn monopolist values them all at 1.</summary>
+    private static GameState Settler(bool cornFaceUp = false)
+    {
+        var s = Sc.New();
+        Array.Clear(s.FaceUp);
+        for (int g = (int)Good.Indigo; g <= (int)Good.Coffee; g++) s.FaceUp[g] = 1;
+        if (cornFaceUp) s.FaceUp[(int)Good.Corn] = 1;
+        s.QuarrySupply = 0;
+        return Sc.Start(s, 0, Role.Settler);
+    }
+
+    private static GameAction Take(Good g) => new(ActionType.TakePlantation, (int)g);
+
+    [Fact]
+    public void Fixed_Order_Decides_Between_Equal_Scores_And_Default_Is_Unchanged()
+    {
+        var s = Settler();
+        var legal = Sc.Legal(s);
+        Assert.Equal(Take(Good.Indigo), new CornMonopolyStrategy(P()).ChooseAction(s, legal));                                 // default: engine order
+        Assert.Equal(Take(Good.Sugar), new CornMonopolyStrategy(P(("tieTile", "sugar>indigo"))).ChooseAction(s, legal));
+        Assert.Equal(Take(Good.Coffee), new CornMonopolyStrategy(P(("tieTile", "coffee,tobacco"))).ChooseAction(s, legal));    // commas work too
+        Assert.Equal(Take(Good.Coffee), new CornMonopolyStrategy(P(("tieTile", "coffee"))).ChooseAction(s, legal));            // unlisted tokens rank last
+        Assert.Equal(Take(Good.Indigo), new CornMonopolyStrategy(P(("tieGood", "coffee"))).ChooseAction(s, legal));            // another category: no effect here
+    }
+
+    [Fact]
+    public void Build_Harbor_And_Wharf_Default_To_Sugar_Before_Indigo_And_The_Default_Can_Be_Overridden_Or_Disabled()
+    {
+        var s = Settler();
+        var legal = Sc.Legal(s);
+        var makers = new Func<IReadOnlyDictionary<string, JsonElement>, IStrategy>[]
+        {
+            p => new BuildFirstStrategy(p), p => new HarborRushStrategy(p), p => new WharfRushStrategy(p),
+        };
+        foreach (var make in makers)
+        {
+            var off = make(P(("tieTile", ""))).ChooseAction(s, legal);                      // explicit empty = engine order
+            var sugarFirst = make(P()).ChooseAction(s, legal);                              // the strategy's own default
+            var indigoFirst = make(P(("tieTile", "indigo>sugar"))).ChooseAction(s, legal);  // a seat param wins over the default
+            var sugarExplicit = make(P(("tieTile", "sugar>indigo"))).ChooseAction(s, legal);
+            Assert.Equal(sugarExplicit, sugarFirst);
+            if (off == Take(Good.Indigo)) Assert.Equal(Take(Good.Indigo), indigoFirst);     // only when indigo and sugar really tie
+            Assert.Equal(Take(Good.Sugar), sugarFirst == Take(Good.Sugar) ? sugarFirst : sugarExplicit);
+        }
+    }
+
+    [Fact]
+    public void The_Second_Criterion_Never_Overrides_A_Real_Score_Difference()
+    {
+        var s = Settler(cornFaceUp: true);   // corn is worth 20 to the monopolist, the others 1
+        var legal = Sc.Legal(s);
+        Assert.Equal(Take(Good.Corn), new CornMonopolyStrategy(P(("tieTile", "coffee>sugar"))).ChooseAction(s, legal));
+    }
+
+    [Fact]
+    public void Unknown_Tokens_Are_Rejected_With_The_List_Of_Known_Ones()
+    {
+        var s = Settler();
+        var e = Assert.Throws<ArgumentException>(() => new CornMonopolyStrategy(P(("tieTile", "suagr>indigo"))).ChooseAction(s, Sc.Legal(s)));
+        Assert.Contains("suagr", e.Message);
+        Assert.Contains("hacienda", e.Message);
+    }
+
+    private static GameState Craftsman()
+    {
+        var s = Sc.New();
+        SetTiles(s, 0, (int)Good.Corn, 1, occupied: 1);
+        SetTiles(s, 0, (int)Good.Indigo, 1, occupied: 1);
+        SetTiles(s, 0, (int)Good.Sugar, 1, occupied: 1);
+        Own(s, 0, BuildingId.SmallIndigoPlant, occupied: 1);
+        Own(s, 0, BuildingId.SmallSugarMill, occupied: 1);
+        // the opponent in seat 1 produces 2 indigo and 1 sugar
+        SetTiles(s, 1, (int)Good.Indigo, 2, occupied: 2);
+        SetTiles(s, 1, (int)Good.Sugar, 1, occupied: 1);
+        Own(s, 1, BuildingId.LargeIndigoPlant, occupied: 2);
+        Own(s, 1, BuildingId.LargeSugarMill, occupied: 1);
+        return Sc.Start(s, 0, Role.Craftsman);
+    }
+
+    private static GameAction Bonus(Good g) => new(ActionType.CraftsmanBonus, (int)g);
+
+    [Fact]
+    public void Bonus_Good_Order_And_The_Reserved_Opponent_Dependence_Feature()
+    {
+        var s = Craftsman();
+        var legal = Sc.Legal(s);
+        Assert.Equal(3, legal.Count(a => a.Type == ActionType.CraftsmanBonus));
+        // the harbor rush scores corn, indigo and sugar equally for the bonus: engine order picks corn
+        Assert.Equal(Bonus(Good.Corn), new HarborRushStrategy(P()).ChooseAction(s, legal));
+        Assert.Equal(Bonus(Good.Sugar), new HarborRushStrategy(P(("tieGood", "sugar>indigo"))).ChooseAction(s, legal));
+
+        // opponent dependence = barrels the opponents produce: indigo 2, sugar 1, corn 0 (public information only)
+        Assert.Equal(2, TieBreakRules.OpponentDependence(s, 0, (int)Good.Indigo));
+        Assert.Equal(1, TieBreakRules.OpponentDependence(s, 0, (int)Good.Sugar));
+        Assert.Equal(0, TieBreakRules.OpponentDependence(s, 0, (int)Good.Corn));
+        Assert.Equal(Bonus(Good.Indigo), new HarborRushStrategy(P(("tieOpponent", 1))).ChooseAction(s, legal));   // blocking: the good they need most
+        Assert.Equal(Bonus(Good.Corn), new HarborRushStrategy(P(("tieOpponent", -1))).ChooseAction(s, legal));    // avoiding it
+        // the fixed order is the first key, the opponent feature only the second
+        Assert.Equal(Bonus(Good.Sugar), new HarborRushStrategy(P(("tieGood", "sugar"), ("tieOpponent", 1))).ChooseAction(s, legal));
+    }
+
+    [Fact]
+    public void Tie_Rules_Keep_Games_Legal_And_Reproducible_And_Are_Reported_To_The_Replay()
+    {
+        var parameters = new Dictionary<string, JsonElement>
+        {
+            ["tieTile"] = JsonSerializer.SerializeToElement("sugar>indigo>coffee"), ["tieGood"] = JsonSerializer.SerializeToElement("coffee>sugar"),
+            ["tieRole"] = JsonSerializer.SerializeToElement("builder>settler"), ["tieBuild"] = JsonSerializer.SerializeToElement("pass"),
+            ["tieOpponent"] = JsonSerializer.SerializeToElement(0.5),
+        };
+        var cfg = new SimulationConfig { Name = "tie", Players = 3, Games = 3, Seed = 11, Seats = new List<SeatConfig>
+        {
+            new() { Id = "a", Strategy = "build-first", Params = parameters }, new() { Id = "b", Strategy = "harbor-rush", Params = parameters }, new() { Id = "c", Strategy = "corn-shipper" },
+        } };
+        var r1 = GameRunner.Play(cfg, 2, null, out var f1);
+        var r2 = GameRunner.Play(cfg, 2, null, out _);
+        Assert.Equal(r1.Winners, r2.Winners);
+        Assert.Null(Invariants.Check(f1));
+
+        var sink = new CollectScores();
+        GameRunner.Play(cfg, 2, sink, out _);
+        Assert.Contains(sink.All, x => x.TieRank >= 0);   // the rank in the tie order reaches the replay
+    }
+
+    private sealed class CollectScores : PuertoRico.Engine.Events.IGameEventSink
+    {
+        public List<ScoredAction> All { get; } = new();
+        public bool Enabled => true;
+        public void OnScores(IReadOnlyList<ScoredAction> scores) => All.AddRange(scores);
+        public void OnDecision(GameState before, GameAction action) { }
+    }
+}

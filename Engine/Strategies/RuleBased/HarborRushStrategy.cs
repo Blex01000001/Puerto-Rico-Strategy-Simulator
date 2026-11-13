@@ -26,6 +26,9 @@ public sealed class HarborRushStrategy : HeuristicStrategy
 
     public HarborRushStrategy(IReadOnlyDictionary<string, JsonElement> parameters) : base(parameters, 4.0) { }
 
+    // docs/strategy-analysis.md 8.3: sugar before indigo is clearly better; corn stays before quarry; coffee/tobacco make no difference
+    protected override string DefaultTieTile => "hacienda>corn>sugar>indigo>tobacco>coffee>quarry";
+
     protected override void Configure(int players)
     {
         _quarryTarget = (int)Param("quarryTarget", players, 0, 0);

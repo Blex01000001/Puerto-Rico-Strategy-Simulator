@@ -9,7 +9,7 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// as a whole set of circles and then emitted in slot order (see Rules.Mayor). Only public information is read:
 /// never opponents' VP chips. The defaults describe the "corn shipper"; subclasses override the hooks they care about.
 /// </summary>
-public abstract class HeuristicStrategy : IStrategy
+public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
 {
     protected const int T = GameConstants.TileTypes;
     protected const int B = GameConstants.BuildingCount;
@@ -65,25 +65,75 @@ public abstract class HeuristicStrategy : IStrategy
     protected double Param(string key, int players, double default3p, double default4p) =>
         StrategyRegistry.GetDouble(_parameters, key, players == 3 ? default3p : default4p);
 
+    /// <summary>Seed for the optional random tie-break (set by <see cref="StrategyRegistry"/> from the game seed and the seat).</summary>
+    public ulong Seed { get; set; }
+    private ulong _tieRng;
+    private int _tieMode;
+    private TieBreakRules _tie = null!;
+
+    /// <summary>The strategy's own order for equal-score Settler choices (empty = engine order). A seat's <c>tieTile</c> param overrides it; <c>""</c> disables it.</summary>
+    protected virtual string DefaultTieTile => "";
+
+    public bool RecordScores { get; set; }
+    public IReadOnlyList<ScoredAction>? LastScores { get; private set; }
+
     public GameAction ChooseAction(GameState s, IReadOnlyList<GameAction> legalActions)
     {
+        LastScores = null;
         if (_players == 0)
         {
             _players = s.PlayerCount;
             BuildThreshold = StrategyRegistry.GetDouble(_parameters, "buildThreshold", _players == 3 ? _defaultThreshold3 : _defaultThreshold4);
+            // experimental, off by default: equal top scores are broken at random in 1 = the Settler and Craftsman-bonus phases, 2 = every phase but Mayor,
+            // 3 = the Settler phase only, 4 = the Craftsman bonus only
+            // (default 0: the first action in engine order wins, the behaviour of every published result). docs/strategy-analysis.md section 8.
+            _tieMode = (int)StrategyRegistry.GetDouble(_parameters, "randomTies", 0);
+            _tieRng = Seed;
+            _tie = TieBreakRules.From(_parameters, DefaultTieTile); // second criterion for equal scores (TieBreakRules); only the strategy's DefaultTieTile unless the seat sets tie* params
             Configure(_players);
         }
         if (legalActions.Count == 1) return legalActions[0];
-        if (s.Phase == Phase.Mayor) return ChooseMayorPlacement(s);
+        if (s.Phase == Phase.Mayor)
+        {
+            // the Mayor set is chosen as a whole (see ChooseMayorPlacement); the reported score of an action is the value of its circle
+            if (RecordScores)
+            {
+                var slots = new List<ScoredAction>(legalActions.Count);
+                foreach (var a in legalActions) slots.Add(new ScoredAction(a, SlotValue(s, s.Actor, a.A)));
+                LastScores = slots;
+            }
+            return ChooseMayorPlacement(s);
+        }
 
         int me = s.Actor;
         int best = 0;
         double bestScore = double.NegativeInfinity;
+        List<ScoredAction>? recorded = RecordScores ? new List<ScoredAction>(legalActions.Count) : null;
+        bool randomTie = _tieMode == 2
+                         || (_tieMode == 1 && (s.Phase == Phase.Settler || s.Phase == Phase.CraftsmanBonus))
+                         || (_tieMode == 3 && s.Phase == Phase.Settler)
+                         || (_tieMode == 4 && s.Phase == Phase.CraftsmanBonus);
+        int tied = 0;
+        TieScore bestTie = TieScore.None;
         for (int i = 0; i < legalActions.Count; i++)
         {
             double score = Score(s, me, legalActions[i]);
-            if (score > bestScore) { bestScore = score; best = i; }
+            var tie = _tie.Active ? _tie.Score(s, me, legalActions[i]) : TieScore.None;
+            recorded?.Add(new ScoredAction(legalActions[i], score, tie.Rank, tie.Opponent));
+            if (score > bestScore) { bestScore = score; bestTie = tie; best = i; tied = 1; }
+            else if (score == bestScore)
+            {
+                // equal main scores: the strategy's second criterion first (fixed order, then opponent dependence), then random or engine order
+                int c = tie.CompareTo(bestTie);
+                if (c > 0) { bestTie = tie; best = i; tied = 1; }
+                else if (c == 0)
+                {
+                    tied++; // reservoir sampling: every action of the tied top group ends up chosen with the same probability
+                    if (randomTie && Rng.NextInt(ref _tieRng, tied) == 0) best = i;
+                }
+            }
         }
+        LastScores = recorded;
         return legalActions[best];
     }
 

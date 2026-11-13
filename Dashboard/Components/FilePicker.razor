@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject AppState State
 @inject IConfiguration Config
+@inject PageMemory Memory
 
 <div class="panel">
     <div class="row picker">
@@ -35,6 +36,7 @@
         State.Changed += OnChanged;
         dir = AppState.ResultsDirectory(Config);
         Refresh();
+        selected = Memory.Get<string>("filepicker") ?? "";
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
@@ -52,5 +54,9 @@
 
     private Task LoadSelected() => State.LoadPathAsync(selected);
 
-    public void Dispose() => State.Changed -= OnChanged;
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        Memory.Set("filepicker", selected);
+    }
 }
