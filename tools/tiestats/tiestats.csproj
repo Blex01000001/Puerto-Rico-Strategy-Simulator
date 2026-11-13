@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Analysis tool, not part of PuertoRico.sln: counts exact ties at the top score of the hand-written strategies decisions. See Program.cs for how to run it. -->
+  <PropertyGroup><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../Engine/Engine.csproj" /></ItemGroup>
+</Project>
