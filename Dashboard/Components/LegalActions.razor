@@ -17,14 +17,35 @@
     }
     @if (scored != null)
     {
-        <div class="mctslegend">Score 是這個策略自訂的啟發式分數，沒有 0～1 的意義，不能和 MCTS 的 Q 比。@(State.Phase == Phase.Mayor ? "市長階段的 Score 是「這個位置的價值」；實際是先挑出最佳的一組位置，再從中依序放，所以選中的不一定是最高分。" : "")</div>
+        <div class="mctslegend">Score 是這個策略自訂的啟發式分數，沒有 0～1 的意義，不能和 MCTS 的 Q 比，也可以是負的，只有相對高低有意義。@(State.Phase == Phase.Mayor ? "市長階段的 Score 是「這個位置的價值」；實際是先挑出最佳的一組位置，再從中依序放，所以選中的不一定是最高分。" : "")</div>
     }
-    <ul class="legallist @(actions.Count == 1 ? "forced" : "")">
-        @foreach (var (a, score) in rows)
-        {
-            <li class="@(a == Chosen ? "chosen" : "")">@if (a == Chosen) { <span class="mark">▶</span> }@if (scored != null) { <span class="sc">@score.ToString("0.00")</span> }@ActionText.Describe(State, a)</li>
-        }
-    </ul>
+    @if (scored != null)
+    {
+        @* with scores: a table with a header row; long lists are split in two tables side by side *@
+        <div class="legaltables">
+            @foreach (var chunk in Chunks())
+            {
+                <table class="legaltable">
+                    <thead><tr><th class="mk"></th><th class="sc">Score</th><th class="act">動作</th></tr></thead>
+                    <tbody>
+                    @foreach (var (a, score) in chunk)
+                    {
+                        <tr class="@(a == Chosen ? "chosen" : "")"><td class="mk">@(a == Chosen ? "▶" : "")</td><td class="sc">@score.ToString("0.00")</td><td class="act">@ActionText.Describe(State, a)</td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+    else
+    {
+        <ul class="legallist @(actions.Count == 1 ? "forced" : "")">
+            @foreach (var (a, _) in rows)
+            {
+                <li class="@(a == Chosen ? "chosen" : "")">@if (a == Chosen) { <span class="mark">▶</span> }@ActionText.Describe(State, a)</li>
+            }
+        </ul>
+    }
 </div>
 
 @code {
@@ -38,6 +59,15 @@
     private List<GameAction> actions = new();
     private IReadOnlyList<ScoredAction>? scored;
     private List<(GameAction Action, double Score)> rows = new();
+
+    /// <summary>One table up to 9 actions, two tables (halves of the sorted list) beyond that.</summary>
+    private IEnumerable<List<(GameAction Action, double Score)>> Chunks()
+    {
+        if (rows.Count <= 9) { yield return rows; yield break; }
+        int half = (rows.Count + 1) / 2;
+        yield return rows.Take(half).ToList();
+        yield return rows.Skip(half).ToList();
+    }
 
     protected override void OnParametersSet()
     {
