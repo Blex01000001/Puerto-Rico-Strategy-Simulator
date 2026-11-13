@@ -78,7 +78,7 @@
             }
             else
             {
-                <LegalActions State="snaps[step]" SeatName="@SeatNameFn(events[step].Seat)" Chosen="@actions[step]" />
+                <LegalActions State="snaps[step]" SeatName="@SeatNameFn(events[step].Seat)" Chosen="@actions[step]" Scores="scores[step]" />
             }
         </div>
     }
@@ -123,6 +123,7 @@
     private List<GameState> snaps = new();
     private List<GameAction> actions = new();
     private List<PuertoRico.Engine.Strategies.SearchSummary?> searches = new();
+    private List<IReadOnlyList<PuertoRico.Engine.Strategies.ScoredAction>?> scores = new();
     private GameState? finalState;
     private int step;
     private string SeatNameFn(int seat) => record == null || cfg == null ? "" : Palette.DisplayName(cfg.Seats.First(s => s.Id == record.Players.First(p => p.Seat == seat).SeatId).Strategy);
@@ -146,7 +147,7 @@
     [SupplyParameterFromQuery(Name = "game")] public int? GameParam { get; set; }
 
     private sealed record Snap(List<string> Files, string Path, int Index, string? Error, SimulationConfig? Cfg, GameRecord? Record, List<GameEvent> Events,
-        List<GameState> Snaps, List<GameAction> Actions, List<PuertoRico.Engine.Strategies.SearchSummary?> Searches, GameState? FinalState, int Step,
+        List<GameState> Snaps, List<GameAction> Actions, List<PuertoRico.Engine.Strategies.SearchSummary?> Searches, List<IReadOnlyList<PuertoRico.Engine.Strategies.ScoredAction>?> Scores, GameState? FinalState, int Step,
         int SeatFilter, int RoundFilter, string TextFilter);
 
     protected override async Task OnInitializedAsync()
@@ -157,7 +158,7 @@
         if (!deepLink && Memory.Get<Snap>("replay") is { } m)
         {
             files = m.Files; path = m.Path; index = m.Index; error = m.Error; cfg = m.Cfg; record = m.Record; events = m.Events; snaps = m.Snaps;
-            actions = m.Actions; searches = m.Searches; finalState = m.FinalState; step = m.Step; seatFilter = m.SeatFilter; roundFilter = m.RoundFilter; textFilter = m.TextFilter;
+            actions = m.Actions; searches = m.Searches; scores = m.Scores; finalState = m.FinalState; step = m.Step; seatFilter = m.SeatFilter; roundFilter = m.RoundFilter; textFilter = m.TextFilter;
             return;
         }
         Refresh();
@@ -171,7 +172,7 @@
     public void Dispose()
     {
         if (loading) { Memory.Forget("replay"); return; } // left while the game was being replayed: nothing complete to remember
-        Memory.Set("replay", new Snap(files, path, index, error, cfg, record, events, snaps, actions, searches, finalState, step, seatFilter, roundFilter, textFilter));
+        Memory.Set("replay", new Snap(files, path, index, error, cfg, record, events, snaps, actions, searches, scores, finalState, step, seatFilter, roundFilter, textFilter));
     }
 
     private void Refresh() =>
@@ -189,7 +190,7 @@
             var sink = new SnapshotEventSink();
             GameState end = null!;
             record = await Task.Run(() => GameRunner.Play(cfg, index, sink, out end));
-            events = sink.Events; snaps = sink.Before; actions = sink.Actions; searches = sink.Searches; finalState = end; step = 0;
+            events = sink.Events; snaps = sink.Before; actions = sink.Actions; searches = sink.Searches; scores = sink.Scores; finalState = end; step = 0;
             seatFilter = -1; roundFilter = 0; textFilter = "";
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)

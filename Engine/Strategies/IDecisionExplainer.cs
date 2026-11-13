@@ -70,3 +70,20 @@ public interface IDecisionExplainer
     /// <summary>Summary of the latest <c>ChooseAction</c> call; null when that call needed no search (single legal action).</summary>
     SearchSummary? LastSearch { get; }
 }
+
+/// <summary>One legal action with the score a score-based strategy gave it (display only).</summary>
+public sealed record ScoredAction(GameAction Action, double Score);
+
+/// <summary>
+/// Optional: a score-based strategy (the hand-written ones) can report the score of every legal action of its latest decision.
+/// Recording is off by default (mass simulations pay nothing); the game runner switches it on when a replay sink is attached.
+/// The chosen action never depends on whether scores are recorded.
+/// </summary>
+public interface IScoreExplainer
+{
+    /// <summary>Switch on to keep the scores of every decision in <see cref="LastScores"/>.</summary>
+    bool RecordScores { get; set; }
+
+    /// <summary>Scores of the latest <c>ChooseAction</c> call, in the order of the legal actions; null when not recording or when no choice was made.</summary>
+    IReadOnlyList<ScoredAction>? LastScores { get; }
+}

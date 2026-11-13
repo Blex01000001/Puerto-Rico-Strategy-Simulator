@@ -79,6 +79,11 @@ public static class GameRunner
             strategies[seat] = StrategyRegistry.Create(sc.Strategy, sc.Params, SeedDeriver.StrategySeed(gameSeed, ci), seat);
         }
 
+        // a replay sink also gets the action scores of the score-based strategies (never during mass simulations)
+        if (sink.Enabled)
+            foreach (var st in strategies)
+                if (st is IScoreExplainer ex) ex.RecordScores = true;
+
         var state = Setup.NewGame(gameSeed, cfg.Limits.MaxRounds, cfg.Players);
         var legal = new List<GameAction>(32);
         bool auto = cfg.Options.AutoAdvanceForced;
@@ -96,6 +101,7 @@ public static class GameRunner
             if (sink.Enabled)
             {
                 if (!forced && strategies[state.Actor] is IDecisionExplainer { LastSearch: { } search }) sink.OnSearch(search);
+                if (!forced && strategies[state.Actor] is IScoreExplainer { LastScores: { } scores }) sink.OnScores(scores);
                 sink.OnDecision(state, action);
             }
             // statistics for the result file (read before Apply: actor and round are those of the decision)

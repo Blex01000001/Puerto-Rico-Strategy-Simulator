@@ -403,3 +403,5 @@ table.data.filetable td.wrapok { white-space: normal; }
 .legallist li.chosen { color: var(--accent); font-weight: 600; }
 .legallist.forced li { color: var(--text-2); }
 .legallist.forced li.chosen { color: var(--text); }
+.legallist li .sc { display: inline-block; width: 3.6rem; margin-right: .5rem; text-align: right; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.legallist li.chosen .sc { color: inherit; }

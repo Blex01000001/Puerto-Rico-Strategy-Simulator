@@ -538,3 +538,63 @@ public class WharfAndMonopolyTests
         Assert.Equal((int)Good.Indigo, a.A);
     }
 }
+
+public class ActionScoreTests
+{
+    private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
+
+    private sealed class ScoreSink : PuertoRico.Engine.Events.IGameEventSink
+    {
+        public int Decisions, Scored, Violations;
+        private IReadOnlyList<ScoredAction>? _scores;
+        public bool Enabled => true;
+        public void OnScores(IReadOnlyList<ScoredAction> scores) => _scores = scores;
+        public void OnDecision(GameState before, GameAction action)
+        {
+            Decisions++;
+            if (_scores != null)
+            {
+                Scored++;
+                // outside the Mayor phase the chosen action is the first one with the highest score
+                if (before.Phase != Phase.Mayor && _scores.First(x => x.Score == _scores.Max(y => y.Score)).Action != action) Violations++;
+                if (_scores.All(x => x.Action != action)) Violations++;
+            }
+            _scores = null;
+        }
+    }
+
+    [Fact]
+    public void Heuristic_Reports_Scores_Only_When_Asked_And_The_Choice_Never_Changes()
+    {
+        var s = Sc.Start(Sc.New(), 0, Role.Builder);
+        Sc.Own(s, 0, BuildingId.Hacienda);
+        s.Coins[0] = 9;
+        var legal = Sc.Legal(s);
+        var quiet = new HarborRushStrategy(NoParams);
+        var loud = new HarborRushStrategy(NoParams) { RecordScores = true };
+        var a = quiet.ChooseAction(s, legal);
+        var b = loud.ChooseAction(s, legal);
+        Assert.Equal(a, b);                      // recording scores never changes the decision
+        Assert.Null(quiet.LastScores);
+        Assert.Equal(legal.Count, loud.LastScores!.Count);
+        Assert.Equal(legal, loud.LastScores.Select(x => x.Action));
+        Assert.Equal(loud.LastScores.Max(x => x.Score), loud.LastScores.First(x => x.Action == b).Score);
+    }
+
+    [Fact]
+    public void Replay_Sink_Gets_The_Scores_Of_Hand_Written_Strategies_And_Mass_Runs_Record_None()
+    {
+        var cfg = new SimulationConfig { Name = "scores", Players = 3, Games = 2, Seed = 4, Seats = new List<SeatConfig>
+        {
+            new() { Id = "h", Strategy = "harbor-rush" }, new() { Id = "c", Strategy = "corn-shipper" }, new() { Id = "r", Strategy = "random" },
+        } };
+        var sink = new ScoreSink();
+        GameRunner.Play(cfg, 0, sink, out _);
+        Assert.True(sink.Scored > 20);
+        Assert.True(sink.Scored < sink.Decisions);   // random seat, forced moves: no scores
+        Assert.Equal(0, sink.Violations);
+        // a normal run without a sink never switches recording on
+        var strategy = new CornShipperStrategy(NoParams);
+        Assert.False(strategy.RecordScores);
+    }
+}

@@ -9,7 +9,7 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// as a whole set of circles and then emitted in slot order (see Rules.Mayor). Only public information is read:
 /// never opponents' VP chips. The defaults describe the "corn shipper"; subclasses override the hooks they care about.
 /// </summary>
-public abstract class HeuristicStrategy : IStrategy
+public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
 {
     protected const int T = GameConstants.TileTypes;
     protected const int B = GameConstants.BuildingCount;
@@ -65,8 +65,12 @@ public abstract class HeuristicStrategy : IStrategy
     protected double Param(string key, int players, double default3p, double default4p) =>
         StrategyRegistry.GetDouble(_parameters, key, players == 3 ? default3p : default4p);
 
+    public bool RecordScores { get; set; }
+    public IReadOnlyList<ScoredAction>? LastScores { get; private set; }
+
     public GameAction ChooseAction(GameState s, IReadOnlyList<GameAction> legalActions)
     {
+        LastScores = null;
         if (_players == 0)
         {
             _players = s.PlayerCount;
@@ -74,16 +78,29 @@ public abstract class HeuristicStrategy : IStrategy
             Configure(_players);
         }
         if (legalActions.Count == 1) return legalActions[0];
-        if (s.Phase == Phase.Mayor) return ChooseMayorPlacement(s);
+        if (s.Phase == Phase.Mayor)
+        {
+            // the Mayor set is chosen as a whole (see ChooseMayorPlacement); the reported score of an action is the value of its circle
+            if (RecordScores)
+            {
+                var slots = new List<ScoredAction>(legalActions.Count);
+                foreach (var a in legalActions) slots.Add(new ScoredAction(a, SlotValue(s, s.Actor, a.A)));
+                LastScores = slots;
+            }
+            return ChooseMayorPlacement(s);
+        }
 
         int me = s.Actor;
         int best = 0;
         double bestScore = double.NegativeInfinity;
+        List<ScoredAction>? recorded = RecordScores ? new List<ScoredAction>(legalActions.Count) : null;
         for (int i = 0; i < legalActions.Count; i++)
         {
             double score = Score(s, me, legalActions[i]);
+            recorded?.Add(new ScoredAction(legalActions[i], score));
             if (score > bestScore) { bestScore = score; best = i; }
         }
+        LastScores = recorded;
         return legalActions[best];
     }
 
