@@ -30,7 +30,7 @@
 - Runner、Dashboard、Tests 只參考 Engine（Dashboard 的「模擬」頁直接呼叫 Engine 的 `BatchSimulator`，結果寫進結果資料夾）。Engine 不得引用 Blazor、任何 UI 或 Windows 專用 API。
 - 不使用 EF Core；存資料用 JSON 檔，或 SQLite + Dapper。
 - 路徑一律用 `Path.Combine`，不寫死 Windows 路徑。
-- 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`（4 人局第一輪）、`sweeps/round2/`、`sweeps/3p/`（3 人局，每個目標對三種對手組合）、`sweeps/round3/`、`sweeps/3p-round3/`、`sweeps/round4/`（cheap-engine）、`sweeps/round5/`（座位 random 重掃）、`sweeps/round6/`（wharf-rush，balanced）、`sweeps/round7/`（wharf-premium）、`sweeps/round8/`（`randomTies` 同分對照實驗）、`sweeps/round9/`（開拓者同分順序 2×2，設定檔含 `tieTile` 文字參數）；MCTS 實驗設定在 `mcts/`。
+- 策略分析與結論：`docs/strategy-analysis.md`；對戰設定在 `tournaments/`（`tournaments/run.sh` 重跑，結果進 git 忽略的 `results/`），調參設定在 `sweeps/`（4 人局第一輪）、`sweeps/round2/`、`sweeps/3p/`（3 人局，每個目標對三種對手組合）、`sweeps/round3/`、`sweeps/3p-round3/`、`sweeps/round4/`（cheap-engine）、`sweeps/round5/`（座位 random 重掃）、`sweeps/round6/`（wharf-rush，balanced）、`sweeps/round7/`（wharf-premium）、`sweeps/round8/`（`randomTies` 同分對照實驗）、`sweeps/round9/`（開拓者同分順序 2×2，設定檔含 `tieTile` 文字參數）、`sweeps/round10/`（corn-shipper／cheap-engine／premium 的同分順序 2×2，結果無效果；`run.sh` 重跑）；MCTS 實驗設定在 `mcts/`。
 
 ## 建置、測試、Runner
 ```bash

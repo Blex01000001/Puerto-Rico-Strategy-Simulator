@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "round10-4p-cheap-engine-i-t-b",
+  "players": 4,
+  "games": 40008,
+  "seed": 42042,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "target",
+      "strategy": "cheap-engine",
+      "params": {
+        "tieTile": "hacienda>corn>indigo>sugar>tobacco>coffee>quarry"
+      }
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}

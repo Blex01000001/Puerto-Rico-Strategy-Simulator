@@ -8,14 +8,13 @@
 2. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 3. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
 4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
-5. 【直接做】`tournaments/` 目前仍是 `random` 座位（已用新同分預設重跑，分析文件第 1、2 節已更新）；改用 `balanced`（局數用 6／24 的倍數，例如 4 人局 100,008 局）並重跑，更新 `docs/strategy-analysis.md` 的數字（目前對戰是 `random`、第一到第三輪調參是 `rotate`；MCTS 實驗已是 `balanced`）。
 
 ## 已知問題／限制
 
 - `wharf-rush` 在這份實作下偏弱（4 人局約 18%、3 人局約 39%）：Wharf 平均到第 9～10 回合才買到；MCTS 陪練（random 或 wharf-rush rollout）都不買 Wharf、也打贏它，目前沒有證據顯示 Wharf 太強（分析文件 7.2）；前期金幣來源的參數掃描在 4 人局沒有進步（7.1）。`wharf-premium`（菸草／咖啡籌錢）也沒有更強（7.5）。`corn-monopoly` 的搗亂效果已量化並拆成兩種手段（7.3、7.4：囤貨比搶種植園傷，且大部分落差只是多一個玉米玩家）。
 
 - 策略模擬頁（`Simulate.razor`）的「完全平衡」選項與局數提示、局數千分位輸入、MCTS 耗時警告、自訂結果檔名、策略下拉選單名稱只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。
-- 分析文件第 1、2 節的絕對數字是 `random` 座位順序的結果，MCTS 實驗（第 5 節）是 `balanced`，第一到第三輪調參是 `rotate`；總覽頁的「座位順序」欄會標示每份結果用哪種。
+- 分析文件第 1、2、7 節的數字是 `balanced` 座位 + 新同分預設（`tournaments/` 4 人 100,008／3 人 100,002 局）；第 3～4 節的調參與第 5 節 MCTS 實驗是舊預設下做的（第一到第三輪調參是 `rotate`、未重跑，MCTS 的對手 build-first／harbor-rush 也是舊同分順序）；總覽頁的「座位順序」欄會標示每份結果用哪種。
 - 規則中未明說、引擎採用的詮釋（請使用者確認，或提供反例）：
   - Factory 的金幣依「公式產量 > 0 的貨種數」計算，不看實際領到多少（供應不足時也照給）。
   - Guild Hall／City Hall 計算的建築不要求有殖民者（只有大型建築本身要）；可由 `Scoring.CountedBuildingsNeedColonist` 切換。
@@ -39,7 +38,7 @@
 
 ## 想法
 
-- 手寫策略同分的第二準則：機制在 `tieTile`／`tieGood`／`tieRole`／`tieBuild`（分析文件 8.2），build-first、harbor-rush、wharf-rush 的預設已是「糖先於靛藍、玉米先於採石場」（8.3；`DefaultTieTile`，`tieTile: ""` 關閉）；其他策略沒有預設；特徵權重版本（貨價、建築費用、剩餘供應量、`tieOpponent` 等）之後再加；可再測 corn-shipper／cheap-engine／premium 的同分順序。
+- 手寫策略同分的第二準則：機制在 `tieTile`／`tieGood`／`tieRole`／`tieBuild`（分析文件 8.2）；build-first、harbor-rush、wharf-rush 預設「糖先於靛藍、玉米先於採石場」（8.3，`DefaultTieTile`，`tieTile: ""` 關閉）；corn-shipper、cheap-engine、corn-to-premium 的貨物順序無效果，不設預設（8.4）。下一步：cheap-engine 的建築同分（25.5%，`tieBuild`）、corn-shipper／premium 的選職業同分（4～5%，`tieRole`）；特徵權重版本（貨價、建築費用、`tieOpponent` 等）之後再加。
 - 對局列表只能用結果檔現有欄位篩選；要篩「終局手上貨物、殖民者有沒有派下去」或「某步發生過什麼」需要新增記錄欄位（先問）。重播後比對名次與分數、重播結果存附屬檔案都還沒做。
 
 - Dashboard：策略顏色目前依策略名稱固定對應前 5 個色票（藍、橘、青、黃、洋紅），超過要定義更多色票或改用小倍數圖。

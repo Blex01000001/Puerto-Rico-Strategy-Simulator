@@ -14,22 +14,22 @@
 
 ## 主要發現
 
-詳細數字、實驗設計與信賴區間見 [`docs/strategy-analysis.md`](docs/strategy-analysis.md)。以下數字為各 100,000 局、座位隨機排列，勝率誤差約 ±0.3 個百分點。
+詳細數字、實驗設計與信賴區間見 [`docs/strategy-analysis.md`](docs/strategy-analysis.md)。以下數字為各約 100,000 局、座位 balanced，勝率誤差約 ±0.3 個百分點。
 
 ### 4 人局（均分基準 25%）
 
 | 策略 | 勝率 | 平均分 | 墊底比例 |
 |---|---|---|---|
-| 建築優先 build-first | **41.5%** | 42.5 | 4.0% |
-| 港口 harbor-rush | 28.1% | 39.3 | 15.6% |
-| 玉米轉菸草／咖啡 corn-to-premium | 19.3% | 35.9 | 22.4% |
-| 玉米出貨 corn-shipper | 11.2% | 30.4 | 57.7% |
+| 建築優先 build-first | **41.2%** | 42.5 | 4.1% |
+| 港口 harbor-rush | 28.2% | 39.3 | 15.7% |
+| 玉米轉菸草／咖啡 corn-to-premium | 19.3% | 36.0 | 22.1% |
+| 玉米出貨 corn-shipper | 11.3% | 30.4 | 57.8% |
 
-加入「便宜引擎 cheap-engine」後（與 corn、premium、build 同桌）：cheap 37.4%、build 30.2%、premium 17.2%、corn 15.1%，cheap 略高於 build。
+加入「便宜引擎 cheap-engine」後（與 corn、premium、build 同桌）：cheap 37.5%、build 30.1%、premium 17.2%、corn 15.2%，cheap 略高於 build。
 
 ### 3 人局（均分基準 33.3%）
 
-沒有單一贏家，勝負取決於同桌是誰。前四桌平均勝率：港口 44.7%、玉米轉菸草 34.4%、建築優先 29.5%、玉米出貨 24.7%；便宜引擎在 cheap＋premium＋harbor 那桌拿到 50.2%。
+沒有單一贏家，勝負取決於同桌是誰。前四桌平均勝率：港口 44.7%、玉米轉菸草 34.6%、建築優先 29.4%、玉米出貨 24.7%；便宜引擎在 cheap＋premium＋harbor 那桌拿到 50.2%。
 
 ### 為什麼會這樣
 

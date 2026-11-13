@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "round10-4p-corn-shipper-s-t-b",
+  "players": 4,
+  "games": 40008,
+  "seed": 42042,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "target",
+      "strategy": "corn-shipper",
+      "params": {
+        "tieTile": "hacienda>corn>sugar>indigo>tobacco>coffee>quarry"
+      }
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}
