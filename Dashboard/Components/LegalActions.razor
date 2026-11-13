@@ -1,0 +1,37 @@
+@using PuertoRico.Engine.Game
+@using Dashboard.Services
+
+@* A decision without a search (hand-written or random strategy, or a forced move): every legal action of that moment, the chosen one marked. *@
+<div class="legal">
+    <div class="mctshead">
+        <strong>座位 @(State.Actor + 1) · @SeatName</strong>
+        <span class="chip" title="這個座位的策略沒有搜尋（或這一步沒有選擇），所以沒有分數，只列出當時所有的合法動作。">無搜尋</span>
+        <span class="chip">合法動作 @actions.Count 個</span>
+        @if (actions.Count == 1) { <span class="chip" title="只有一個合法動作時，引擎直接執行，不會問策略。">唯一合法動作，自動執行</span> }
+    </div>
+    @if (State.Phase == Phase.Mayor)
+    {
+        <div class="mctslegend">市長階段：殖民者一個一個放，且位置只能由小排到大（避免同一種分配重複），所以這裡列的是「下一個殖民者放哪裡」，不是整套分配。</div>
+    }
+    <ul class="legallist @(actions.Count == 1 ? "forced" : "")">
+        @foreach (var a in actions)
+        {
+            <li class="@(a == Chosen ? "chosen" : "")">@if (a == Chosen) { <span class="mark">▶</span> }@ActionText.Describe(State, a)</li>
+        }
+    </ul>
+</div>
+
+@code {
+    /// <summary>The state before the decision.</summary>
+    [Parameter, EditorRequired] public GameState State { get; set; } = default!;
+    [Parameter, EditorRequired] public string SeatName { get; set; } = "";
+    [Parameter] public GameAction Chosen { get; set; }
+
+    private List<GameAction> actions = new();
+
+    protected override void OnParametersSet()
+    {
+        actions = new List<GameAction>(32);
+        Rules.GetLegalActions(State.Clone(), actions); // on a copy, the replay snapshot stays untouched
+    }
+}
