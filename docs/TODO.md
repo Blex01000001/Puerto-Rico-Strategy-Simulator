@@ -4,7 +4,7 @@
 
 ## 待辦
 
-1. 【先討論】手寫策略下一步：corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；用 MCTS 當陪練找弱點（例如 cheap-engine 對 MCTS）；繼續把 MCTS 行為寫進手寫策略（cheap-engine 仍遠不如 MCTS）；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
+1. 【先討論】手寫策略下一步：3 人局 build-first 在新同分預設下變弱（第 2 節），可考慮依對手調整採石場策略（8.6）；corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；用 MCTS 當陪練找弱點（例如 cheap-engine 對 MCTS）；繼續把 MCTS 行為寫進手寫策略（cheap-engine 仍遠不如 MCTS）；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
 2. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 3. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
 4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
@@ -38,7 +38,8 @@
 
 ## 想法
 
-- 手寫策略同分的第二準則：機制在 `tieTile`／`tieGood`／`tieRole`／`tieBuild`（分析文件 8.2）；build-first、harbor-rush、wharf-rush 預設「糖先於靛藍、玉米先於採石場」（8.3，`DefaultTieTile`，`tieTile: ""` 關閉）；corn-shipper、cheap-engine、corn-to-premium 的貨物順序無效果，不設預設（8.4）。下一步：cheap-engine 的建築同分（25.5%，`tieBuild`）、corn-shipper／premium 的選職業同分（4～5%，`tieRole`）；特徵權重版本（貨價、建築費用、`tieOpponent` 等）之後再加。
+- 手寫策略同分的第二準則：機制在 `tieTile`／`tieGood`／`tieRole`／`tieBuild`（分析文件 8.2）；build-first、harbor-rush、wharf-rush 預設「糖先於靛藍、玉米先於採石場」（8.3，`DefaultTieTile`，`tieTile: ""` 關閉）；其他策略實測引擎順序已是最好或無差別（8.4、8.5：貨物、建築、選職業、出貨同分），不設預設。剩下的同分都只有零星幾次；特徵權重版本（貨價、建築費用、`tieOpponent` 等）之後再加。
+- build-first 3 人局 `quarryTarget` 的最佳值取決於對手（8.6）：對沒有 cheap-engine 的桌子 1 較好，有 cheap-engine 時 1 崩盤、2～3 較好；若要改需依對手動態決定或接受取捨。
 - 對局列表只能用結果檔現有欄位篩選；要篩「終局手上貨物、殖民者有沒有派下去」或「某步發生過什麼」需要新增記錄欄位（先問）。重播後比對名次與分數、重播結果存附屬檔案都還沒做。
 
 - Dashboard：策略顏色目前依策略名稱固定對應前 5 個色票（藍、橘、青、黃、洋紅），超過要定義更多色票或改用小倍數圖。

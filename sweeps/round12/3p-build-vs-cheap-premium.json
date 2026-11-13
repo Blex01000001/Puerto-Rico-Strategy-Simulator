@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "name": "round12-3p-build-vs-cheap-premium",
+  "players": 3,
+  "games": 12006,
+  "seed": 1313,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    },
+    {
+      "id": "cheap-engine",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "build",
+    "gamesPerPoint": 12006,
+    "parameters": {
+      "buildThreshold": [
+        3.5
+      ],
+      "quarryTarget": [
+        1,
+        2,
+        3,
+        4
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
 using PuertoRico.Engine.Events;
-// Run: dotnet run -c Release --project tools/tiestats -- 960 777   (games per table, seed)
+// Run: dotnet run -c Release --project tools/tiestats -- 960 777 [cheap-engine,corn-shipper]   (games per table, seed, optional strategies whose tied sets are listed)
 using PuertoRico.Engine.Game;
 using PuertoRico.Engine.Simulation;
 using PuertoRico.Engine.Strategies;
@@ -37,6 +37,13 @@ foreach (var (players, seats) in tables)
     }
 }
 
+if (args.Length > 2)
+    foreach (var name in args[2].Split(','))
+    {
+        if (!perStrategy.TryGetValue(name, out var st)) continue;
+        Console.WriteLine($"Most common tied sets of {name} (Mayor excluded):");
+        foreach (var kv in st.Sets.OrderByDescending(k => k.Value).Take(25)) Console.WriteLine($"  {kv.Value,7:N0}  {kv.Key}");
+    }
 Console.WriteLine($"games {games}, total decisions (incl. forced, other seats) {decisions}");
 Console.WriteLine();
 Console.WriteLine("| strategy | scored decisions | top tie | tie % | avg tied | tie of different action kinds | Mayor decisions |");
@@ -89,6 +96,7 @@ sealed class Stat
     public long Scored, Tied, TiedSizeSum, TiedMixed, Mayor;
     public Dictionary<Phase, PhaseStat> ByPhase = new();
     public Dictionary<string, long> Kinds = new();
+    public Dictionary<string, long> Sets = new();
 
     public void Add(Item d)
     {
@@ -104,6 +112,8 @@ sealed class Stat
         if (kinds.Count > 1) TiedMixed++;
         string key = string.Join("+", kinds.OrderBy(k => k.ToString())) + $" (x{top.Count})";
         Kinds[key] = Kinds.GetValueOrDefault(key) + 1;
+        string set = d.Phase + ": " + string.Join(" | ", top.Select(x => x.Action.ToString()).OrderBy(x => x, StringComparer.Ordinal));
+        Sets[set] = Sets.GetValueOrDefault(set) + 1;
     }
 
     public void Merge(Stat o)

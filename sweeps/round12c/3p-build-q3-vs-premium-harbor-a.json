@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "name": "round12c-3p-build-q3-vs-premium-harbor-a",
+  "players": 3,
+  "games": 40002,
+  "seed": 5151,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {
+        "quarryTarget": 3
+      }
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ]
+}

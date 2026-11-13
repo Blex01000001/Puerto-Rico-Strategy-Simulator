@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "name": "round12-3p-build-vs-premium-harbor",
+  "players": 3,
+  "games": 12006,
+  "seed": 1313,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "build",
+    "gamesPerPoint": 12006,
+    "parameters": {
+      "buildThreshold": [
+        2.5,
+        3,
+        3.5,
+        4,
+        4.5,
+        5.5
+      ],
+      "quarryTarget": [
+        1,
+        2,
+        3,
+        4
+      ]
+    }
+  }
+}
