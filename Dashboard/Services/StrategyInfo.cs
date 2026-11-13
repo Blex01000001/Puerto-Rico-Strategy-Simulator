@@ -87,6 +87,7 @@ public static class StrategyInfo
                 new ParamInfo("buildThreshold", "2.0", Threshold, "1～2 最好；3 以上較差"),
                 new ParamInfo("tileCap", "4", "擁有幾塊種植園後，不再選 Settler 職業（其他玩家選 Settler 時仍會拿到種植園）。", "3～4 最好；8 以上差很多"),
                 new ParamInfo("smallValue", "8", "便宜的 1 分建築（小靛藍、小糖廠、小市場）的價值。", "8 以上都一樣；6 以下較差"),
+                new ParamInfo("roleCoinWeight", "1", "選職業時，職業卡上每枚金幣（以及 Prospector 的 1 枚）值多少分。", "4 人局 2、3 人局 2.5 明顯較好（第 13 輪掃描，分析文件第 9 節）；4 以上變差"),
             }),
 
         new("wharf-rush", "Wharf 私船流",
