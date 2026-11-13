@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "round11-4p-corn-shipper-base-b",
+  "players": 4,
+  "games": 40008,
+  "seed": 42042,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "target",
+      "strategy": "corn-shipper",
+      "params": {
+        "tieRole": "settler>mayor>builder>craftsman>trader>captain>prospector"
+      }
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}

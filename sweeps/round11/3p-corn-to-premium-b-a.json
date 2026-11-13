@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "name": "round11-3p-corn-to-premium-b-a",
+  "players": 3,
+  "games": 40002,
+  "seed": 31031,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "target",
+      "strategy": "corn-to-premium",
+      "params": {
+        "tieRole": "builder>settler>mayor>craftsman>trader>captain>prospector"
+      }
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ]
+}

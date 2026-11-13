@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "name": "4p-cheap-corn-premium-build",
   "players": 4,
-  "games": 100000,
+  "games": 100008,
   "seed": 777,
-  "seatOrder": "random",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "cheap",

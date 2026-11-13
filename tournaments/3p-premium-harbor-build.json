@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "name": "tournament-3p-premium-harbor-build",
   "players": 3,
-  "games": 100000,
+  "games": 100002,
   "seed": 777,
-  "seatOrder": "random",
+  "seatOrder": "balanced",
   "seats": [
     {
       "id": "premium",

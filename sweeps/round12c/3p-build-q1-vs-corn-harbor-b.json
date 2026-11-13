@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "name": "round12c-3p-build-q1-vs-corn-harbor-b",
+  "players": 3,
+  "games": 40002,
+  "seed": 6262,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "build",
+      "strategy": "build-first",
+      "params": {
+        "quarryTarget": 1
+      }
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ]
+}
