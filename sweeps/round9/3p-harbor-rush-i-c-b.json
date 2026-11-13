@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "name": "round9-3p-harbor-rush-i-c-b",
+  "players": 3,
+  "games": 40002,
+  "seed": 42042,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "target",
+      "strategy": "harbor-rush",
+      "params": {
+        "tieTile": "hacienda>corn>indigo>sugar>coffee>tobacco>quarry"
+      }
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    }
+  ]
+}
