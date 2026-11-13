@@ -8,7 +8,7 @@
 2. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 3. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
 4. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
-5. 【直接做】`tournaments/` 改用 `balanced`（局數用 6／24 的倍數，例如 4 人局 100,008 局）並重跑，更新 `docs/strategy-analysis.md` 的數字（目前對戰是 `random`、第一到第三輪調參是 `rotate`；MCTS 實驗已是 `balanced`）。
+5. 【直接做】`tournaments/` 目前仍是 `random` 座位（已用新同分預設重跑，分析文件第 1、2 節已更新）；改用 `balanced`（局數用 6／24 的倍數，例如 4 人局 100,008 局）並重跑，更新 `docs/strategy-analysis.md` 的數字（目前對戰是 `random`、第一到第三輪調參是 `rotate`；MCTS 實驗已是 `balanced`）。
 
 ## 已知問題／限制
 
@@ -39,7 +39,7 @@
 
 ## 想法
 
-- 手寫策略同分的第二準則：機制已做好（`tieTile`／`tieGood`／`tieRole`／`tieBuild`，預設全部不設定，分析文件 8.2）；2×2 實驗（8.3）顯示 build-first、harbor-rush、wharf-rush 改成「糖優先於靛藍」都顯著變好（harbor-rush 3 人局 +6.2、4 人局 +2.5；build-first +1.6／+0.6；wharf-rush +0.6／+1.1），咖啡/菸草沒有效果，wharf-rush 的「玉米優先於採石場」必須保留：待使用者決定是否寫進這三個策略的預設（會改變已發表勝率，需重跑 `tournaments/` 並更新分析文件與 README）；特徵權重版本（貨價、建築費用、剩餘供應量、`tieOpponent` 等）之後再加。
+- 手寫策略同分的第二準則：機制在 `tieTile`／`tieGood`／`tieRole`／`tieBuild`（分析文件 8.2），build-first、harbor-rush、wharf-rush 的預設已是「糖先於靛藍、玉米先於採石場」（8.3；`DefaultTieTile`，`tieTile: ""` 關閉）；其他策略沒有預設；特徵權重版本（貨價、建築費用、剩餘供應量、`tieOpponent` 等）之後再加；可再測 corn-shipper／cheap-engine／premium 的同分順序。
 - 對局列表只能用結果檔現有欄位篩選；要篩「終局手上貨物、殖民者有沒有派下去」或「某步發生過什麼」需要新增記錄欄位（先問）。重播後比對名次與分數、重播結果存附屬檔案都還沒做。
 
 - Dashboard：策略顏色目前依策略名稱固定對應前 5 個色票（藍、橘、青、黃、洋紅），超過要定義更多色票或改用小倍數圖。

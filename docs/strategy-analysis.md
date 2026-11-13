@@ -22,25 +22,25 @@ random 的結果約等於各循環順序的平均，是對座位安排不偏的�
 
 | 流派 | 勝率 | 平均分 | 標準差 | 第 10／50／90 百分位 | 前兩名比例 | 墊底比例 | 平均名次 |
 |---|---|---|---|---|---|---|---|
-| 建築優先（build-first） | **39.9%** | **42.0** | 7.1 | 33／42／51 | **79.1%** | 3.0% | **1.84** |
-| 港口（harbor-rush） | 28.8% | 38.7 | 8.8 | 28／38／50 | 55.0% | 17.0% | 2.33 |
-| 玉米轉菸草／咖啡（corn-to-premium） | 19.9% | 35.9 | 8.3 | 25／36／47 | 43.4% | 20.9% | 2.57 |
-| 玉米出貨（corn-shipper） | 11.4% | 30.1 | 9.3 | 19／29／43 | 23.1% | 58.7% | 3.24 |
+| 建築優先（build-first） | **41.5%** | **42.5** | 7.4 | 33／42／52 | **78.8%** | 4.0% | **1.83** |
+| 港口（harbor-rush） | 28.1% | 39.3 | 8.7 | 28／39／51 | 56.9% | 15.6% | 2.31 |
+| 玉米轉菸草／咖啡（corn-to-premium） | 19.3% | 35.9 | 8.5 | 25／36／47 | 41.8% | 22.4% | 2.61 |
+| 玉米出貨（corn-shipper） | 11.2% | 30.4 | 9.3 | 19／29／43 | 23.0% | 57.7% | 3.23 |
 
-兩兩比名次（列比欄的名次高的機率）：build 對 harbor 63%、premium 69%、corn 84%；harbor 對 premium 57%、corn 72%；premium 對 corn 68%——**階層很清楚：build > harbor > premium > corn**（rotate 的固定順序下看不到這個階層）。
+兩兩比名次（列比欄的名次高的機率）：build 對 harbor 63%、premium 70%、corn 83%；harbor 對 premium 59%、corn 73%；premium 對 corn 68%——**階層很清楚：build > harbor > premium > corn**（rotate 的固定順序下看不到這個階層）。
 
 便宜引擎流（cheap-engine，第 5 節）加入後（cheap＋corn＋premium＋build）：
 
 | 流派 | 勝率 | 平均分 | 前兩名比例 | 墊底比例 | 每局出貨次數 |
 |---|---|---|---|---|---|
-| 便宜引擎（cheap-engine） | **34.9%** | 40.0 | 71.8% | 6.7% | **13.3** |
-| 建築優先（build-first） | 33.3% | 39.6 | 65.5% | 8.1% | 9.6 |
-| 玉米轉菸草／咖啡 | 16.9% | 33.8 | 34.3% | 36.6% | 8.6 |
-| 玉米出貨 | 14.9% | 32.1 | 29.0% | 48.3% | 8.0 |
+| 便宜引擎（cheap-engine） | **37.4%** | 40.7 | 74.0% | 5.9% | **13.5** |
+| 建築優先（build-first） | 30.2% | 39.1 | 60.6% | 11.4% | 9.8 |
+| 玉米轉菸草／咖啡 | 17.2% | 34.3 | 36.0% | 35.3% | 8.7 |
+| 玉米出貨 | 15.1% | 32.6 | 30.1% | 47.1% | 8.1 |
 
-cheap 對 build 53%、對 premium 72%、對 corn 75%。
+cheap 對 build 57%、對 premium 72%、對 corn 75%。
 
-分數構成（平均，上表第一桌）：build 的出貨籌碼 26.4、建築分 11.8、大型建築加成 3.8；harbor 31.3／7.5／0；premium 25.3／10.5／0.1；corn 22.6／7.5／0。終局原因約 92% 是 VP 籌碼耗盡；平均 16.7 回合，每局約 685 個決策。
+分數構成（平均，上表第一桌）：build 的出貨籌碼 25.5、建築分 12.5、大型建築加成 4.5；harbor 31.8／7.4／0；premium 25.2／10.6／0.1；corn 22.9／7.4／0.1。終局原因約 94% 含 VP 籌碼耗盡；平均 16.9 回合，每局約 690 個決策。
 
 座位優勢（絕對座位，rotate 下的數字）：座位 3（第一個玉米起手位）最強、座位 1 最弱；策略座位已隨機排列，不影響流派比較。
 
@@ -48,14 +48,16 @@ cheap 對 build 53%、對 premium 72%、對 corn 75%。
 
 | 組合 | 結果（勝率／平均分） |
 |---|---|
-| corn＋premium＋build | premium 39.7%／38.6，corn 34.3%／36.6，build 26.1%／37.3 |
-| corn＋harbor＋build | build 44.1%／41.0，harbor 35.5%／37.9，corn 20.5%／33.5 |
-| premium＋harbor＋build | harbor 48.0%／40.8，premium 26.6%／36.7，build 25.4%／37.9 |
-| corn＋premium＋harbor | premium 47.6%／39.2，harbor 35.7%／37.0，corn 16.7%／30.8 |
-| cheap＋corn＋build | build 35.1%／38.0，cheap 35.7%／40.4，corn 29.2%／36.7 |
-| cheap＋premium＋harbor | **cheap 50.1%／39.9**，harbor 28.7%／35.5，premium 21.2%／34.2 |
+| corn＋premium＋build | premium 35.4%／38.4，corn 36.8%／37.7，build 27.8%／38.1 |
+| corn＋harbor＋build | build 39.3%／40.6，harbor 39.4%／39.1，corn 21.3%／33.9 |
+| premium＋harbor＋build | harbor 53.1%／42.2，premium 25.5%／37.1，build 21.3%／37.3 |
+| corn＋premium＋harbor | premium 42.4%／38.4，harbor 41.6%／37.8，corn 16.0%／30.5 |
+| cheap＋corn＋build | build 27.7%／36.9，cheap 42.7%／41.4，corn 29.6%／37.1 |
+| cheap＋premium＋harbor | **cheap 50.2%／39.9**，harbor 29.5%／35.6，premium 20.3%／34.0 |
 
-前四桌的平均勝率：harbor 39.7%、premium 38.0%、build 31.9%、corn 23.8%（均分基準 33.3%）。**3 人局的階層與 4 人局不同：harbor、premium 領先，build 只是中間；corn 最弱**。3 人局沒有單一贏家，勝負取決於同桌是誰（premium 遇 corn＋harbor 47.6%，遇 harbor＋build 只有 26.6%）。
+前四桌的平均勝率：harbor 44.7%、premium 34.4%、build 29.5%、corn 24.7%（均分基準 33.3%）。**3 人局的階層與 4 人局不同：harbor 領先、premium 次之，build 只是中間；corn 最弱**。3 人局沒有單一贏家，勝負取決於同桌是誰（premium 遇 corn＋harbor 42.4%，遇 harbor＋build 只有 25.5%）。
+
+> 2026 更新：build-first、harbor-rush、wharf-rush 的預設加入同分順序「糖先於靛藍」（第 8.3 節），本節數字已用新預設重跑（種子相同）。舊預設的數字：4 人局 build 39.9%／harbor 28.8%／premium 19.9%／corn 11.4%；3 人局前四桌平均 harbor 39.7%、premium 38.0%、build 31.9%、corn 23.8%。變化最大的是 3 人局的 build（與 cheap 同桌 35.1%→27.7%）與 harbor（+4～5 個百分點）；cheap-engine 自己的預設沒改，勝率變動來自對手（4 人局 34.9%→37.4%，3 人局同桌 build 時 35.7%→42.7%）。
 
 ## 3. 觀察與解讀
 
@@ -182,7 +184,7 @@ MCTS 最常蓋的建築（取得率＠平均回合）：小靛藍工廠 94%＠4�
 動機：Wharf 的私船可把 1 種貨物全數出貨（無視容量與公家船），實際玩覺得太強，所以做成專用策略來驗證（`WharfRushStrategy`）。座位用 `balanced`，局數 10,008（4 人）／10,002（3 人），設定在 `tournaments/*wharf*`、`tournaments/*monopoly*`，調參在 `sweeps/round6/`。
 
 - **打法**：前期農玉米與靛藍／糖，種植園湊到 `wharfReadyTiles` 塊或到 `wharfReadyRound` 回合後，除了 Wharf 什麼都不買（拿 `quarryTarget` 個採石場折價、賣貨湊 9 元）；買到後私船永遠先裝最大的一堆貨，再買倉庫（讓大堆撐過船長階段）與 Harbor。不依賴 Harbor。
-- **對戰（預設參數）**：4 人局與 corn／premium／harbor 同桌：wharf 18.5%、premium 33.0%、harbor 41.9%、corn 6.6%；與 build／cheap／harbor 同桌：wharf 18.1%、cheap 41.0%、harbor 29.2%、build 11.7%。3 人局與 corn／build 同桌：wharf 39.0%、build 37.5%、corn 23.5%（均分基準 33.3%；此為調過前期金幣來源後的數字，見 7.1）。
+- **對戰（預設參數）**：4 人局與 corn／premium／harbor 同桌：wharf 18.5%、premium 33.0%、harbor 41.9%、corn 6.6%；與 build／cheap／harbor 同桌：wharf 18.1%、cheap 41.0%、harbor 29.2%、build 11.7%。3 人局與 corn／build 同桌：wharf 39.0%、build 37.5%、corn 23.5%（均分基準 33.3%；此為調過前期金幣來源後的數字，見 7.1）。（舊預設的數字；開拓者同分順序改成糖優先後的新值見 8.3：wharf 18.5→19.1%／16.0%、3 人局 41.3%。）
 - **結論**：以這份實作，Wharf **沒有**強到失衡：4 人局低於均分（25%），3 人局略高於均分。原因是 Wharf 太晚才買到：99% 的局最後都有蓋，但平均要到第 9～10 回合（金幣來源只有賣貨與角色獎勵，4 人局 9 元要等很久），私船只用得到後半場，已蓋 Wharf 的局勝率也只約 15%（沒蓋的局反而更高，因為那些局是被別的建築路線帶走）。
 - **調參**（`sweeps/round6/`）：`quarryTarget` 3 以上持平、0 明顯差（8.8%）；起跑條件 7 塊種植園以上平台；更早起跑（3～5 塊）較差。預設值：quarryTarget 3、wharfReadyTiles 7、wharfReadyRound 4 人 6／3 人 4。
 - **限制**：這是手寫啟發式的結果，不是 Wharf 強度的上限；MCTS 陪練的結論見 7.2。
@@ -394,6 +396,12 @@ MCTS 最常蓋的建築（取得率＠平均回合）：小靛藍工廠 94%＠4�
 - **wharf-rush 在 8.1 隨機化後的大幅下降來自「玉米 vs 採石場」**：附加實驗（`extra-*`）把採石場排到玉米前面，勝率掉 4.7（4 人局）／14.1（3 人局）個百分點（兩個種子合併，±0.4），3 人局的一半（−7.0）與隨機化的 −7.5 吻合。所以 wharf-rush 的「玉米優先於採石場」是重要的隱性偏好，要明確寫出來，不能被順序參數洗掉（上面的實驗順序已保留 `corn` 在 `quarry` 前）。
 - 糖勝過靛藍的可能原因（假設，未單獨驗證）：糖賣 2 元、靛藍 1 元，三個策略都靠賣貨換錢；wharf-rush 買 Wharf 前也需要錢。
 
-**建議**（尚未寫入預設，等使用者決定）：build-first、harbor-rush、wharf-rush 的 `tieTile` 預設改成「`hacienda>corn>sugar>indigo>tobacco>coffee>quarry`」（糖在靛藍前，其餘維持引擎順序；wharf-rush 的玉米在採石場前）。這會改變這三個策略所有已發表的勝率，需重跑 `tournaments/` 並更新本文件與 README 的數字。咖啡/菸草維持現狀。
+**已採用**：build-first、harbor-rush、wharf-rush 的 `tieTile` 預設改成「`hacienda>corn>sugar>indigo>tobacco>coffee>quarry`」（`HeuristicStrategy.DefaultTieTile`；糖在靛藍前，其餘維持引擎順序；wharf-rush 的玉米在採石場前）。座位設定檔仍可用 `tieTile` 覆寫，`"tieTile": ""` 關閉（回到引擎順序）。其他策略（corn-shipper、corn-to-premium、cheap-engine、wharf-premium、壟斷派）不變。咖啡/菸草維持現狀。
+
+**重跑 `tournaments/` 後的變化**（種子相同；第 1、2 節的表已更新，舊值見該節註記）：
+- 4 人局四原型：build 39.9→41.5%、harbor 28.8→28.1%、premium 19.9→19.3%、corn 11.4→11.2%（階層不變）。
+- 3 人局：harbor 在三桌各 +4～5 個百分點（35.5→39.4、48.0→53.1、35.7→41.6）；build 反而下降（44.1→39.3、25.4→21.3；與 cheap 同桌 35.1→27.7）。**原因不是 build 自己變差**：8.3 的對照實驗只改 build 自己、對手固定時它變好（+1.6）；這裡對手 harbor、cheap 同時變強或改變了搶種植園的時機，build 的相對位置下降。換句話說，新預設下的勝率不能直接和舊表逐格比，是整桌一起移動。
+- cheap-engine 預設沒變，但勝率隨對手改變（4 人局 34.9→37.4%；3 人局 cheap＋corn＋build 35.7→42.7%）。
+- 壟斷派與 Wharf 系列對戰（`*-monopoly-*`、`*-wharf*`）已一併重跑：wharf-rush 4 人局 18.5→19.1%（與 corn／premium／harbor 同桌）、18.1→16.0%（與 build／cheap／harbor 同桌，cheap 41.0→48.5%）；3 人局與 corn／build 同桌 39.0→41.3%。第 7 節的舊數字是舊預設的結果，結論（Wharf 沒有太強、搗亂效果的相對大小）不變，沒有逐格更新。
 
 限制：只比較了開拓者階段的這兩組貨物；對手固定且用預設順序；沒有測試其他同分（職業、出貨、工匠額外貨物，8.1 顯示工匠額外貨物的影響不顯著）；糖優先的機制是假設。

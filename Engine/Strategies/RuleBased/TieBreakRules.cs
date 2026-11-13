@@ -39,9 +39,9 @@ public sealed class TieBreakRules
     /// <summary>False when no rule is set: nothing is computed and the engine order decides.</summary>
     public bool Active { get; }
 
-    private TieBreakRules(IReadOnlyDictionary<string, JsonElement> p)
+    private TieBreakRules(IReadOnlyDictionary<string, JsonElement> p, string defaultTile)
     {
-        _tile = Parse(p, "tieTile", TileTokens);
+        _tile = Parse(p, "tieTile", TileTokens, defaultTile);
         _good = Parse(p, "tieGood", Goods);
         _role = Parse(p, "tieRole", Roles);
         _build = Parse(p, "tieBuild", BuildTokens);
@@ -49,11 +49,14 @@ public sealed class TieBreakRules
         Active = _tile != null || _good != null || _role != null || _build != null || _opponentWeight != 0;
     }
 
-    public static TieBreakRules From(IReadOnlyDictionary<string, JsonElement> parameters) => new(parameters);
+    /// <summary>
+    /// <paramref name="defaultTile"/> is the strategy's own Settler tie order, used when the seat sets no <c>tieTile</c>; an explicit empty <c>tieTile</c> turns it off.
+    /// </summary>
+    public static TieBreakRules From(IReadOnlyDictionary<string, JsonElement> parameters, string defaultTile = "") => new(parameters, defaultTile);
 
-    private static Dictionary<string, int>? Parse(IReadOnlyDictionary<string, JsonElement> p, string key, string[] vocabulary)
+    private static Dictionary<string, int>? Parse(IReadOnlyDictionary<string, JsonElement> p, string key, string[] vocabulary, string fallback = "")
     {
-        string text = StrategyRegistry.GetString(p, key, "");
+        string text = StrategyRegistry.GetString(p, key, fallback);
         if (string.IsNullOrWhiteSpace(text)) return null;
         var order = new Dictionary<string, int>();
         foreach (var raw in text.Split(new[] { '>', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))

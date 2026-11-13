@@ -689,6 +689,27 @@ public class TieBreakRuleTests
     }
 
     [Fact]
+    public void Build_Harbor_And_Wharf_Default_To_Sugar_Before_Indigo_And_The_Default_Can_Be_Overridden_Or_Disabled()
+    {
+        var s = Settler();
+        var legal = Sc.Legal(s);
+        var makers = new Func<IReadOnlyDictionary<string, JsonElement>, IStrategy>[]
+        {
+            p => new BuildFirstStrategy(p), p => new HarborRushStrategy(p), p => new WharfRushStrategy(p),
+        };
+        foreach (var make in makers)
+        {
+            var off = make(P(("tieTile", ""))).ChooseAction(s, legal);                      // explicit empty = engine order
+            var sugarFirst = make(P()).ChooseAction(s, legal);                              // the strategy's own default
+            var indigoFirst = make(P(("tieTile", "indigo>sugar"))).ChooseAction(s, legal);  // a seat param wins over the default
+            var sugarExplicit = make(P(("tieTile", "sugar>indigo"))).ChooseAction(s, legal);
+            Assert.Equal(sugarExplicit, sugarFirst);
+            if (off == Take(Good.Indigo)) Assert.Equal(Take(Good.Indigo), indigoFirst);     // only when indigo and sugar really tie
+            Assert.Equal(Take(Good.Sugar), sugarFirst == Take(Good.Sugar) ? sugarFirst : sugarExplicit);
+        }
+    }
+
+    [Fact]
     public void The_Second_Criterion_Never_Overrides_A_Real_Score_Difference()
     {
         var s = Settler(cornFaceUp: true);   // corn is worth 20 to the monopolist, the others 1

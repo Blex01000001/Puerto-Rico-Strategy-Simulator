@@ -71,6 +71,9 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
     private int _tieMode;
     private TieBreakRules _tie = null!;
 
+    /// <summary>The strategy's own order for equal-score Settler choices (empty = engine order). A seat's <c>tieTile</c> param overrides it; <c>""</c> disables it.</summary>
+    protected virtual string DefaultTieTile => "";
+
     public bool RecordScores { get; set; }
     public IReadOnlyList<ScoredAction>? LastScores { get; private set; }
 
@@ -86,7 +89,7 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
             // (default 0: the first action in engine order wins, the behaviour of every published result). docs/strategy-analysis.md section 8.
             _tieMode = (int)StrategyRegistry.GetDouble(_parameters, "randomTies", 0);
             _tieRng = Seed;
-            _tie = TieBreakRules.From(_parameters); // second criterion for equal scores (TieBreakRules); nothing is set by default
+            _tie = TieBreakRules.From(_parameters, DefaultTieTile); // second criterion for equal scores (TieBreakRules); only the strategy's DefaultTieTile unless the seat sets tie* params
             Configure(_players);
         }
         if (legalActions.Count == 1) return legalActions[0];
