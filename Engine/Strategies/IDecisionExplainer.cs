@@ -72,7 +72,9 @@ public interface IDecisionExplainer
 }
 
 /// <summary>One legal action with the score a score-based strategy gave it (display only).</summary>
-public sealed record ScoredAction(GameAction Action, double Score);
+/// <param name="TieRank">Position in the strategy's fixed tie order (0 = most preferred), -1 when no tie rule applies to the action.</param>
+/// <param name="TieOpponent">Weighted opponent-dependence part of the second criterion (0 while its weight is 0).</param>
+public sealed record ScoredAction(GameAction Action, double Score, int TieRank = -1, double TieOpponent = 0);
 
 /// <summary>
 /// Optional: a score-based strategy (the hand-written ones) can report the score of every legal action of its latest decision.

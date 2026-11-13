@@ -412,3 +412,5 @@ table.data.filetable td.wrapok { white-space: normal; }
 .legaltable .mk { width: 1.4rem; padding-right: 0; text-align: center; }
 .legaltable th.sc, .legaltable td.sc { width: 4.4rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-3); }
 .legaltable tr.chosen td { color: var(--accent); font-weight: 600; }
+.legaltable th.tie, .legaltable td.tie { width: 3rem; text-align: center; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.legaltable tr.chosen td.tie { color: inherit; }

@@ -26,11 +26,11 @@
             @foreach (var chunk in Chunks())
             {
                 <table class="legaltable">
-                    <thead><tr><th class="mk"></th><th class="sc">Score</th><th class="act">動作</th></tr></thead>
+                    <thead><tr><th class="mk"></th><th class="sc">Score</th>@if (showTie) { <th class="tie" title="分數相同時，策略的固定順序（1 = 最優先）">Tie</th> }@if (showOpp) { <th class="tie" title="分數相同時的第二個鍵：對手目前生產的桶數 × tieOpponent 權重">Opp</th> }<th class="act">動作</th></tr></thead>
                     <tbody>
-                    @foreach (var (a, score) in chunk)
+                    @foreach (var (a, score, tieRank, tieOpp) in chunk)
                     {
-                        <tr class="@(a == Chosen ? "chosen" : "")"><td class="mk">@(a == Chosen ? "▶" : "")</td><td class="sc">@score.ToString("0.00")</td><td class="act">@ActionText.Describe(State, a)</td></tr>
+                        <tr class="@(a == Chosen ? "chosen" : "")"><td class="mk">@(a == Chosen ? "▶" : "")</td><td class="sc">@score.ToString("0.00")</td>@if (showTie) { <td class="tie">@(tieRank >= 0 ? (tieRank + 1).ToString() : "—")</td> }@if (showOpp) { <td class="tie">@tieOpp.ToString("0.##")</td> }<td class="act">@ActionText.Describe(State, a)</td></tr>
                     }
                     </tbody>
                 </table>
@@ -40,7 +40,7 @@
     else
     {
         <ul class="legallist @(actions.Count == 1 ? "forced" : "")">
-            @foreach (var (a, _) in rows)
+            @foreach (var (a, _, _, _) in rows)
             {
                 <li class="@(a == Chosen ? "chosen" : "")">@if (a == Chosen) { <span class="mark">▶</span> }@ActionText.Describe(State, a)</li>
             }
@@ -58,10 +58,11 @@
 
     private List<GameAction> actions = new();
     private IReadOnlyList<ScoredAction>? scored;
-    private List<(GameAction Action, double Score)> rows = new();
+    private List<(GameAction Action, double Score, int TieRank, double TieOpp)> rows = new();
+    private bool showTie, showOpp;
 
     /// <summary>One table up to 9 actions, two tables (halves of the sorted list) beyond that.</summary>
-    private IEnumerable<List<(GameAction Action, double Score)>> Chunks()
+    private IEnumerable<List<(GameAction Action, double Score, int TieRank, double TieOpp)>> Chunks()
     {
         if (rows.Count <= 9) { yield return rows; yield break; }
         int half = (rows.Count + 1) / 2;
@@ -75,8 +76,13 @@
         Rules.GetLegalActions(State.Clone(), actions); // on a copy, the replay snapshot stays untouched
         // with scores: highest first (stable, so equal scores keep the engine order); without: the engine order
         scored = Scores is { Count: > 0 } ? Scores : null;
+        // equal scores: the strategy's tie order (rank 0 first), then the opponent-dependence part, then the engine order
         rows = scored != null
-            ? scored.Select((x, i) => (x, i)).OrderByDescending(t => t.x.Score).ThenBy(t => t.i).Select(t => (t.x.Action, t.x.Score)).ToList()
-            : actions.Select(a => (a, 0.0)).ToList();
+            ? scored.Select((x, i) => (x, i)).OrderByDescending(t => t.x.Score)
+                .ThenBy(t => t.x.TieRank < 0 ? int.MaxValue : t.x.TieRank).ThenByDescending(t => t.x.TieOpponent).ThenBy(t => t.i)
+                .Select(t => (t.x.Action, t.x.Score, t.x.TieRank, t.x.TieOpponent)).ToList()
+            : actions.Select(a => (a, 0.0, -1, 0.0)).ToList();
+        showTie = scored != null && scored.Any(x => x.TieRank >= 0);
+        showOpp = scored != null && scored.Any(x => x.TieOpponent != 0);
     }
 }

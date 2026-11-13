@@ -69,6 +69,7 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
     public ulong Seed { get; set; }
     private ulong _tieRng;
     private int _tieMode;
+    private TieBreakRules _tie = null!;
 
     public bool RecordScores { get; set; }
     public IReadOnlyList<ScoredAction>? LastScores { get; private set; }
@@ -85,6 +86,7 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
             // (default 0: the first action in engine order wins, the behaviour of every published result). docs/strategy-analysis.md section 8.
             _tieMode = (int)StrategyRegistry.GetDouble(_parameters, "randomTies", 0);
             _tieRng = Seed;
+            _tie = TieBreakRules.From(_parameters); // second criterion for equal scores (TieBreakRules); nothing is set by default
             Configure(_players);
         }
         if (legalActions.Count == 1) return legalActions[0];
@@ -109,15 +111,23 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
                          || (_tieMode == 3 && s.Phase == Phase.Settler)
                          || (_tieMode == 4 && s.Phase == Phase.CraftsmanBonus);
         int tied = 0;
+        TieScore bestTie = TieScore.None;
         for (int i = 0; i < legalActions.Count; i++)
         {
             double score = Score(s, me, legalActions[i]);
-            recorded?.Add(new ScoredAction(legalActions[i], score));
-            if (score > bestScore) { bestScore = score; best = i; tied = 1; }
-            else if (randomTie && score == bestScore)
+            var tie = _tie.Active ? _tie.Score(s, me, legalActions[i]) : TieScore.None;
+            recorded?.Add(new ScoredAction(legalActions[i], score, tie.Rank, tie.Opponent));
+            if (score > bestScore) { bestScore = score; bestTie = tie; best = i; tied = 1; }
+            else if (score == bestScore)
             {
-                tied++; // reservoir sampling: every action of the tied top group ends up chosen with the same probability
-                if (Rng.NextInt(ref _tieRng, tied) == 0) best = i;
+                // equal main scores: the strategy's second criterion first (fixed order, then opponent dependence), then random or engine order
+                int c = tie.CompareTo(bestTie);
+                if (c > 0) { bestTie = tie; best = i; tied = 1; }
+                else if (c == 0)
+                {
+                    tied++; // reservoir sampling: every action of the tied top group ends up chosen with the same probability
+                    if (randomTie && Rng.NextInt(ref _tieRng, tied) == 0) best = i;
+                }
             }
         }
         LastScores = recorded;
