@@ -598,3 +598,62 @@ public class ActionScoreTests
         Assert.False(strategy.RecordScores);
     }
 }
+
+public class RandomTieTests
+{
+    private static IReadOnlyDictionary<string, JsonElement> Params(double randomTies) =>
+        new Dictionary<string, JsonElement> { ["randomTies"] = JsonSerializer.SerializeToElement(randomTies) };
+
+    [Fact]
+    public void Default_Breaks_Ties_By_Engine_Order_And_Random_Ties_Spread_The_Choice_Over_The_Tied_Plantations()
+    {
+        // the corn monopolist values every non-corn plantation at 1: with no corn and no quarry on offer they all tie for the top score
+        GameState Settler()
+        {
+            var s = Sc.New();
+            Array.Clear(s.FaceUp);
+            for (int g = (int)Good.Indigo; g <= (int)Good.Coffee; g++) s.FaceUp[g] = 1;
+            s.QuarrySupply = 0;
+            return Sc.Start(s, 0, Role.Settler);
+        }
+        var state = Settler();
+        var legal = Sc.Legal(state);
+        Assert.Equal(4, legal.Count(a => a.Type == ActionType.TakePlantation));
+
+        var first = new CornMonopolyStrategy(NoParamsOf()).ChooseAction(state, legal);
+        Assert.Equal(new GameAction(ActionType.TakePlantation, (int)Good.Indigo), first); // engine order: the lowest good
+        for (ulong seed = 1; seed <= 20; seed++)
+            Assert.Equal(first, new CornMonopolyStrategy(NoParamsOf()) { Seed = seed }.ChooseAction(state, legal)); // the default ignores the seed
+
+        var counts = new Dictionary<GameAction, int>();
+        for (ulong seed = 1; seed <= 400; seed++)
+        {
+            var a = new CornMonopolyStrategy(Params(1)) { Seed = seed }.ChooseAction(state, legal);
+            Assert.Contains(a, legal);
+            counts[a] = counts.GetValueOrDefault(a) + 1;
+        }
+        Assert.Equal(4, counts.Count);                    // every tied plantation gets chosen sometimes
+        Assert.All(counts.Values, n => Assert.InRange(n, 60, 140)); // roughly a quarter each (400 draws)
+        Assert.Equal(new CornMonopolyStrategy(Params(1)) { Seed = 5 }.ChooseAction(state, legal),
+                     new CornMonopolyStrategy(Params(1)) { Seed = 5 }.ChooseAction(state, legal)); // same seed, same choice
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> NoParamsOf() => new Dictionary<string, JsonElement>();
+
+    [Fact]
+    public void Random_Ties_Keep_Games_Legal_And_Reproducible()
+    {
+        var cfg = new SimulationConfig { Name = "rt", Players = 3, Games = 3, Seed = 9, Seats = new List<SeatConfig>
+        {
+            new() { Id = "a", Strategy = "corn-monopoly", Params = new Dictionary<string, JsonElement> { ["randomTies"] = JsonSerializer.SerializeToElement(1.0) } },
+            new() { Id = "b", Strategy = "harbor-rush", Params = new Dictionary<string, JsonElement> { ["randomTies"] = JsonSerializer.SerializeToElement(2.0) } },
+            new() { Id = "c", Strategy = "build-first" },
+        } };
+        var r1 = GameRunner.Play(cfg, 1, null, out var f1);
+        var r2 = GameRunner.Play(cfg, 1, null, out var f2);
+        Assert.Equal(r1.Decisions, r2.Decisions);
+        Assert.Equal(r1.Winners, r2.Winners);
+        Assert.Null(Invariants.Check(f1));
+        Assert.True(f1.IsOver && f2.IsOver);
+    }
+}

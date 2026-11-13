@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep13-3p-corn-monopoly-randomties",
+  "players": 3,
+  "games": 40002,
+  "seed": 13013,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "target",
+      "strategy": "corn-monopoly",
+      "params": {}
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "target",
+    "gamesPerPoint": 40002,
+    "parameters": {
+      "randomTies": [
+        0,
+        1,
+        2
+      ]
+    }
+  }
+}

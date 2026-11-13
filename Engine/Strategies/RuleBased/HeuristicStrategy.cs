@@ -65,6 +65,11 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
     protected double Param(string key, int players, double default3p, double default4p) =>
         StrategyRegistry.GetDouble(_parameters, key, players == 3 ? default3p : default4p);
 
+    /// <summary>Seed for the optional random tie-break (set by <see cref="StrategyRegistry"/> from the game seed and the seat).</summary>
+    public ulong Seed { get; set; }
+    private ulong _tieRng;
+    private int _tieMode;
+
     public bool RecordScores { get; set; }
     public IReadOnlyList<ScoredAction>? LastScores { get; private set; }
 
@@ -75,6 +80,11 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
         {
             _players = s.PlayerCount;
             BuildThreshold = StrategyRegistry.GetDouble(_parameters, "buildThreshold", _players == 3 ? _defaultThreshold3 : _defaultThreshold4);
+            // experimental, off by default: equal top scores are broken at random in 1 = the Settler and Craftsman-bonus phases, 2 = every phase but Mayor,
+            // 3 = the Settler phase only, 4 = the Craftsman bonus only
+            // (default 0: the first action in engine order wins, the behaviour of every published result). docs/strategy-analysis.md section 8.
+            _tieMode = (int)StrategyRegistry.GetDouble(_parameters, "randomTies", 0);
+            _tieRng = Seed;
             Configure(_players);
         }
         if (legalActions.Count == 1) return legalActions[0];
@@ -94,11 +104,21 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
         int best = 0;
         double bestScore = double.NegativeInfinity;
         List<ScoredAction>? recorded = RecordScores ? new List<ScoredAction>(legalActions.Count) : null;
+        bool randomTie = _tieMode == 2
+                         || (_tieMode == 1 && (s.Phase == Phase.Settler || s.Phase == Phase.CraftsmanBonus))
+                         || (_tieMode == 3 && s.Phase == Phase.Settler)
+                         || (_tieMode == 4 && s.Phase == Phase.CraftsmanBonus);
+        int tied = 0;
         for (int i = 0; i < legalActions.Count; i++)
         {
             double score = Score(s, me, legalActions[i]);
             recorded?.Add(new ScoredAction(legalActions[i], score));
-            if (score > bestScore) { bestScore = score; best = i; }
+            if (score > bestScore) { bestScore = score; best = i; tied = 1; }
+            else if (randomTie && score == bestScore)
+            {
+                tied++; // reservoir sampling: every action of the tied top group ends up chosen with the same probability
+                if (Rng.NextInt(ref _tieRng, tied) == 0) best = i;
+            }
         }
         LastScores = recorded;
         return legalActions[best];

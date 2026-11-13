@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "name": "sweep13rep-4p-wharf-premium",
+  "players": 4,
+  "games": 40008,
+  "seed": 24024,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "target",
+      "strategy": "wharf-premium",
+      "params": {}
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush",
+      "strategy": "harbor-rush",
+      "params": {}
+    }
+  ],
+  "sweep": {
+    "target": "target",
+    "gamesPerPoint": 40008,
+    "parameters": {
+      "randomTies": [
+        0,
+        1
+      ]
+    }
+  }
+}

@@ -143,6 +143,7 @@
     <button role="tab" aria-selected="@(docTab == "all")" class="tab @(docTab == "all" ? "active" : "")" @onclick="@(() => docTab = "all")">全部 <span class="count">@StrategyInfo.All.Count</span></button>
 </div>
 @if (StrategyInfo.Groups.FirstOrDefault(g => g.Key == docTab) is { } group) { <p class="note">@group.Hint</p> }
+<p class="note">所有手寫策略另有實驗參數 <code>randomTies</code>（預設 0）：分數完全相同時，0 = 選引擎順序最前面的動作，1 = 開拓者與工匠額外貨物同分時隨機，2 = 市長以外所有階段同分時隨機（3 = 只有開拓者、4 = 只有工匠額外貨物）。會改變勝率，見 <code>docs/strategy-analysis.md</code> 8.1。</p>
 @foreach (var doc in StrategyInfo.InGroup(docTab))
 {
     <section class="stratdoc">
