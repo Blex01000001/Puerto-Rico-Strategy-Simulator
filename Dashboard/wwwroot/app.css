@@ -213,6 +213,10 @@ th.sortable:hover { color: var(--text); }
 /* simulate: seat table with headings */
 .seatgrid { display: grid; grid-template-columns: 5rem minmax(11rem, 14rem) 1fr; gap: .45rem .75rem; align-items: center; }
 .seatgrid.withtarget { grid-template-columns: 5rem 6.5rem minmax(11rem, 14rem) 1fr; }
+.paramcell { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.paramcell > input { width: 100%; box-sizing: border-box; }
+.modelpick { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--text-2); }
+.modelpick select { flex: 1; min-width: 0; }
 .seathead { font-size: .8rem; font-weight: 700; color: var(--text-2); padding-bottom: .15rem; border-bottom: 1px solid var(--line); }
 /* overview: file picker table */
 .filetable tbody tr { cursor: pointer; }

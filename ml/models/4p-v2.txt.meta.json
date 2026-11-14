@@ -1,0 +1,280 @@
+{
+  "format": "pr-model-meta",
+  "formatVersion": 1,
+  "model": "4p-v2.txt",
+  "kind": "lightgbm",
+  "created": null,
+  "players": 4,
+  "featureVersion": 1,
+  "featureCount": 430,
+  "data": [
+    {
+      "path": "results/ml/4p-hand-a.bin",
+      "rows": 495200,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-a.bin",
+      "seed": 101,
+      "strategies": [
+        "cheap-engine",
+        "build-first",
+        "harbor-rush",
+        "corn-to-premium"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-hand-b.bin",
+      "rows": 474436,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-b.bin",
+      "seed": 102,
+      "strategies": [
+        "corn-shipper",
+        "wharf-rush",
+        "cheap-engine",
+        "build-first"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-hand-c.bin",
+      "rows": 501960,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-c.bin",
+      "seed": 103,
+      "strategies": [
+        "harbor-rush",
+        "corn-monopoly",
+        "wharf-premium",
+        "guided-random"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-random.bin",
+      "rows": 606968,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-random.bin",
+      "seed": 104,
+      "strategies": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-selfplay-v1.bin",
+      "rows": 493424,
+      "games": 4000,
+      "status": "completed",
+      "rate": 0.05,
+      "source": "4p-selfplay-v1.bin",
+      "seed": 201,
+      "strategies": [
+        "mcts",
+        "mcts",
+        "mcts",
+        "mcts"
+      ],
+      "valueModels": [
+        "ml/models/4p-v1.txt"
+      ]
+    }
+  ],
+  "params": {
+    "objective": "cross_entropy",
+    "num_iterations": 400,
+    "learning_rate": 0.05,
+    "num_leaves": 63,
+    "seed": 1,
+    "min_data_in_leaf": 200,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 1,
+    "feature_fraction": 0.8,
+    "note": "backfilled: model trained before .meta.json existed"
+  },
+  "training": {
+    "note": "not recorded"
+  },
+  "validation": {
+    "rows": null,
+    "crossEntropy": null,
+    "mse": 0.073,
+    "constantMse": 0.1489,
+    "r2": 0.51,
+    "byRound": [],
+    "note": "backfilled from the training log"
+  },
+  "topFeatures": [],
+  "environment": {
+    "note": "not recorded"
+  },
+  "matches": [
+    {
+      "result": "results/ml/4p-v2-vs-default.json",
+      "config": "4p-v2-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.68125,
+      "winShareCi95": 0.058956107879082384,
+      "avgScore": 47.954166666666666,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.29791666666666666,
+          "avgScore": 39.40833333333333
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.020833333333333332,
+          "avgScore": 35.49166666666667
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0,
+          "avgScore": 24.3
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v2-vs-default-seed2.json",
+      "config": "4p-v2-vs-default-seed2",
+      "status": "completed",
+      "games": 240,
+      "seed": 4242,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.6479166666666667,
+      "winShareCi95": 0.060427240214606055,
+      "avgScore": 47.829166666666666,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.3125,
+          "avgScore": 38.9
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.03958333333333333,
+          "avgScore": 35.78333333333333
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0,
+          "avgScore": 24.370833333333334
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v2s180-vs-default.json",
+      "config": "4p-v2s180-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 180,
+      "leafRollout": 0,
+      "winShare": 0.65,
+      "winShareCi95": 0.060344980459576474,
+      "avgScore": 48.09166666666667,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.3125,
+          "avgScore": 40.2125
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.0375,
+          "avgScore": 36.15416666666667
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0,
+          "avgScore": 25.05
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v2-vs-hand.json",
+      "config": "4p-v2-vs-hand",
+      "status": "completed",
+      "games": 408,
+      "seed": 5151,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.946078431372549,
+      "winShareCi95": 0.02191648080623426,
+      "avgScore": 52.26470588235294,
+      "others": [
+        {
+          "seatId": "corn-shipper",
+          "strategy": "corn-shipper",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.02696078431372549,
+          "avgScore": 31.193627450980394
+        },
+        {
+          "seatId": "corn-to-premium",
+          "strategy": "corn-to-premium",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.0196078431372549,
+          "avgScore": 31.791666666666668
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.007352941176470588,
+          "avgScore": 33.35294117647059
+        }
+      ]
+    }
+  ]
+}

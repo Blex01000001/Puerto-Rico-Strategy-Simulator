@@ -15,12 +15,13 @@
 - `RuleBased/` 子類別：`CornShipper`（玉米出貨）、`CornToPremium`（前期玉米、中後期菸草／咖啡）、`HarborRush`（先港口，後期加 Wharf）、`BuildFirst`（採石場折扣、依終局加成挑大型建築）、`CheapEngine`（便宜 1 分建築、少種植園、頻繁出貨；實驗參數 `roleCoinWeight` 預設 1）、`WharfRush`、`WharfPremium`、`CornMonopoly`（搗亂；`grab`／`hoard` 旗標分出 `-tiles`、`-hoard` 變體）。
 - `RuleBased/TieBreakRules.cs`：同分的第二準則（字典式，只在主要分數完全相同時生效）。文字參數 `tieTile`／`tieGood`／`tieRole`／`tieBuild`，`tieOpponent` 預留。預設＝引擎順序；只有 build-first／harbor-rush／wharf-rush 有 `DefaultTieTile`＝`hacienda>corn>sugar>indigo>tobacco>coffee>quarry`（`tieTile: ""` 關閉）。策略的偏好寫在自己的規則裡，基底不內建「常理」。
 - 實驗參數 `randomTies`（預設 0；1＝開拓者＋工匠額外貨物、2＝市長以外所有階段、3＝只有開拓者、4＝只有工匠額外貨物，同分時隨機）。
-- `Mcts/MctsStrategy.cs`：UCT，`params.simulations`／`rolloutStrategy`／`rolloutRounds`／`exploration`。
+- `Mcts/MctsStrategy.cs`：UCT，`params.simulations`／`rolloutStrategy`／`rolloutRounds`／`exploration`／`valueModel`（葉節點改用模型估值）／`leafRollout`。
+- `Mcts/ValueFeatures.cs`（局面特徵，從某座位視角；改了要重訓）、`Mcts/ValueModel.cs`（`IValueModel`：LightGBM 文字模型與 MLP JSON 的純 C# 推論，依路徑快取；`ValueModels.Resolve`：相對路徑找不到時往目前目錄與程式目錄的上層找）。
 - 選用介面：`IDecisionExplainer`（MCTS 回報 `SearchSummary` → `IGameEventSink.OnSearch`）、`IScoreExplainer`（手寫策略回報每個動作的分數 → `OnScores`；`RecordScores` 只有回放 sink 會由 `GameRunner` 打開，不影響大量模擬與選擇結果）。
 
 **`Simulation/`**
 - `SimulationConfig.cs`、`SimulationResult.cs`（`PlayerRecord`：分數構成、`Buildings`／`BuiltRounds`、`Tiles`、金幣、出貨次數；舊檔這些欄位為 null）、`SeedDeriver.cs`。
-- `GameRunner.cs`（單局＋座位分配）、`BatchSimulator.cs`（Parallel／checkpoint／取消／續跑）、`Sweep.cs`（參數掃描）。
+- `GameRunner.cs`（單局＋座位分配）、`BatchSimulator.cs`（Parallel／checkpoint／取消／續跑）、`Sweep.cs`（參數掃描）、`PositionDump.cs`（價值函數的訓練資料，Runner `--dump-positions`）。
 - Dashboard 用的統計（UI 無關，有單元測試）：`ResultAnalysis.cs`、`GameFilter.cs`（對局列表篩選）、`ResultComparison.cs`（兩份結果並排）、`TournamentOverview.cs`（多檔彙整、兩兩對戰矩陣）。
 
 **`Events/`**：`IGameEventSink`、`NullEventSink`（大量模擬）、`ListEventSink`（回放）。
@@ -51,4 +52,6 @@
 - 玩家陣列固定開 4 個座位，3 人局第 4 座位全是 0：迴圈與模數用 `s.PlayerCount`、`s.RoleCount`、`s.ShipCap`；`GameConstants.XXX(players)` 是依人數查的函式。
 - 手寫策略預設參數依人數不同，且在第一次 `ChooseAction` 才解析；`StrategyTests` 多半是 3 人局，用到 4 人預設值（如 premium 的 `switchRound`、harbor 的 `harborReadyTiles`）要明確傳參數。設定檔寫明的參數永遠優先。
 - 隨機玩家座位 3（玉米起手）勝率約 49% 不是 bug（三家都改染料起手後各 33%）。
+- 改 `ValueFeatures` 的特徵清單後，舊模型載入時會因特徵名稱不符被拒（刻意的）：要重新產生資料、重訓（`ml/README.md`）。
+- 長時間的 Runner 背景工作用發佈版（`dotnet publish Runner -c Release -o publish/runner` 後執行 `./publish/runner/Runner`，Windows 是 `publish\runner\Runner.exe`）；用 `dotnet run` 跑時不要同時 `dotnet build`（會覆寫執行中的 dll）。發佈版不會自動跟著 Engine 更新：改了 Engine 要重新發佈。
 - 測試建情境用 `Tests/Sc.cs`（`New`、`Start`、`Own`、`SetTiles`、`SetGoods`、`Legal`、`A`）。

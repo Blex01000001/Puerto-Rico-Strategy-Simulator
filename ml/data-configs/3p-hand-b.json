@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-hand-b",
+  "players": 3,
+  "games": 20000,
+  "seed": 302,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "corn-shipper-0",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium-1",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "wharf-rush-2",
+      "strategy": "wharf-rush",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

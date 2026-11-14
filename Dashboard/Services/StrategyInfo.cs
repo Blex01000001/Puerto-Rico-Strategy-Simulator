@@ -177,6 +177,8 @@ public static class StrategyInfo
                 new ParamInfo("rolloutRounds", "8", "模擬時往下打幾回合就停止並以當時分數排名；0 = 打到終局。", "5～8；3 太短；8 與打到終局一樣強但快一倍"),
                 new ParamInfo("rolloutStrategy", "random（文字參數，填 rolloutStrategy=random）", "模擬時所有座位使用的策略名稱，不能是 mcts。隨機最準，手寫策略與 guided-random 反而較差。", "random"),
                 new ParamInfo("rolloutMaxDecisions", "3000", "單次模擬最多決策數（安全上限）。", "一般不用改"),
+                new ParamInfo("valueModel", "空白（文字參數，填 valueModel=ml/models/4p-v1.txt）", "學習得到的局面價值函數（LightGBM 文字模型 .txt 或 MLP .json，見 ml/README.md）。設定後葉節點不再 rollout 到第 rolloutRounds 回合，改由模型估計每個座位的回傳值；rolloutRounds 被忽略。", "依人數用對應的模型"),
+                new ParamInfo("leafRollout", "0", "有 valueModel 時，展開後先由 rolloutStrategy 打幾個決策再估值；0 = 直接估值。", "0 或 20"),
             }),
 
         new("random", "亂選動作",

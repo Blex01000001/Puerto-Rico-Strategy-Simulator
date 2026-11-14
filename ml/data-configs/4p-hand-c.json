@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-hand-c",
+  "players": 4,
+  "games": 20000,
+  "seed": 103,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "harbor-rush-0",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "corn-monopoly-1",
+      "strategy": "corn-monopoly",
+      "params": {}
+    },
+    {
+      "id": "wharf-premium-2",
+      "strategy": "wharf-premium",
+      "params": {}
+    },
+    {
+      "id": "guided-random-3",
+      "strategy": "guided-random",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

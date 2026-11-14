@@ -10,12 +10,14 @@
 - `MctsSearch.razor`：MCTS 每個合法動作的 N／Q／SE／ΔQ／Noise／UCT 與佔比、勝率（`Entry.WinRate` 只供顯示）；UCT 最大的動作標 🎯；被選中的動作用紅黃綠燈（`SearchSummary.Assess`，只與第 2 名比，雜訊＝1.5 倍標準誤差 `NoiseZ`）；標題列顯示模擬次數、rollout 策略、回合數、探索係數。**表格下方的說明文字大部分是使用者寫的，改動前先問。** `Entry.Line` 引擎仍保留但畫面不顯示。
 - `LegalActions.razor`：沒有 MCTS 搜尋的決策，列出當時所有合法動作並標示選中的（手寫策略有分數時依分數排序）；用決策前的盤面快照重列，不改引擎。
 - `GameList.razor`：結果頁的對局列表（`GameFilter` 篩選、排序、分頁，「重播」連到 `replay?file=&game=`）。
+- `Layout/MainLayout.razor` 的側欄最後有「機器學習 → ML UI ↗」：連到另外啟動的 Python 程式（`ml/ui.py`，localhost:8501，新分頁），Dashboard 不依賴它。
 - `FilePicker.razor`、`Charts/`（純 SVG：BarChart／StackedBars／LineChart）、`App.razor`（含一小段 JS：回放頁 ←／→ 會點 `#replay-prev`／`#replay-next`）、`Layout/`。
 
 **`Services/`**
 - `AppState.cs`：載入結果／掃描檔；`ReadConfigAsync` 只讀 config（跳過逐局記錄，大檔很快）；`SetTemplate`（用這份設定再模擬）；畫面上的路徑一律用 `DisplayPath`／`Scrub` 顯示成相對專案根目錄。
 - `SimulationService.cs`（背景執行、進度、取消）、`SnapshotEventSink.cs`（回放：每個決策前的狀態、動作、搜尋摘要）。
 - `ActionText.cs`（動作的中文說明）、`StrategyInfo.cs`（流派介紹與參數文字；`Groups` 決定頁籤分組）、`Palette.cs`（策略顏色與名稱）、`OverviewPresets.cs`。
+- `ValueModelCatalog.cs`：列出 `ml/models/` 的價值模型（讀 `.meta.json` 的人數、種類、對原版 MCTS 最佳勝率；不依賴 Python）；「策略模擬」頁 MCTS 座位參數欄下的「價值模型」下拉選單用它，選擇結果寫回參數文字（`valueModel=ml/models/…`），參數文字仍是唯一的來源。
 - `PageMemory.cs`：每個瀏覽器分頁一份的頁面記憶（Results／Sweep 的資料在 `AppState`，本來就保留）。
 
 **`wwwroot/`**：`app.css`（色票 token；只有一套扁平深色主題，沒有淺色模式）、`favicon.svg`。

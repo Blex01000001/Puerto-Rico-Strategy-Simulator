@@ -80,8 +80,23 @@
             <select @bind="strategies[seat]" disabled="@Sim.Running">
                 @foreach (var n in Choices) { <option value="@n">@Palette.DisplayName(n)</option> }
             </select>
-            <input type="text" placeholder="例如 buildThreshold=3, quarryTarget=2"
-                   @bind="paramText[seat]" disabled="@Sim.Running" />
+            <div class="paramcell">
+                <input type="text" placeholder="例如 buildThreshold=3, quarryTarget=2"
+                       @bind="paramText[seat]" disabled="@Sim.Running" />
+                @if (strategies[seat] == "mcts")
+                {
+                    var models = ValueModelCatalog.List(players);
+                    string current = CurrentValueModel(seat);
+                    <label class="modelpick" title="學習得到的局面價值模型（ML UI 訓練，放在 ml/models/）：葉節點改用模型估值，不再 rollout。會寫進左邊的參數欄（valueModel=…）。">
+                        價值模型
+                        <select value="@current" @onchange="e => SetValueModel(seat, e.Value?.ToString() ?? string.Empty)" disabled="@Sim.Running">
+                            <option value="">不用（隨機 rollout）</option>
+                            @foreach (var m in models) { <option value="@m.Path">@m.Label</option> }
+                            @if (current != "" && models.All(m => m.Path != current)) { <option value="@current">@current（找不到或人數不符）</option> }
+                        </select>
+                    </label>
+                }
+            </div>
         }
     </div>
     <p class="note">每個策略的行為規則與可調參數見頁面下方「流派介紹」。參數欄位格式：<code>名稱=值</code>（數字，或像 <code>rolloutStrategy=random</code> 這樣的文字），多個用逗號分隔，例如 <code>buildThreshold=3.5, quarryTarget=2</code>。</p>
@@ -414,6 +429,23 @@
         const int maxPoints = 500;
         if (result.Values.Aggregate(1L, (acc, v) => acc * v.Count) > maxPoints) throw new FormatException($"格點超過 {maxPoints} 個，請縮小範圍");
         return result;
+    }
+
+    /// <summary>valueModel=… of the seat's parameter text ("" when absent or unparsable).</summary>
+    private string CurrentValueModel(int seat)
+    {
+        try { return ParseParams(paramText[seat]).TryGetValue("valueModel", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : ""; }
+        catch (FormatException) { return ""; }
+    }
+
+    /// <summary>Puts (or removes, for "") valueModel=… into the seat's parameter text, keeping the other parameters as typed.</summary>
+    private void SetValueModel(int seat, string path)
+    {
+        var parts = (paramText[seat] ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(p => !p.StartsWith("valueModel", StringComparison.Ordinal) || !p.Split('=', 2)[0].Trim().Equals("valueModel", StringComparison.Ordinal))
+            .ToList();
+        if (path.Length > 0) parts.Add("valueModel=" + path);
+        paramText[seat] = string.Join(", ", parts);
     }
 
     private static Dictionary<string, JsonElement> ParseParams(string text)

@@ -13,6 +13,10 @@ namespace PuertoRico.Engine.Strategies.Mcts;
 /// Parameters: <c>simulations</c> (default 200 per decision), <c>exploration</c> (UCT constant, default 0.7, rewards are in [0,1]),
 /// <c>rolloutStrategy</c> (any registered strategy name except mcts, default <c>random</c>: with 300 simulations random rollouts won 90% against three hand-written strategies, build-first rollouts only 57%, see docs/strategy-analysis.md), <c>rolloutMaxDecisions</c> (default 3000), <c>rolloutRounds</c> (default 8; 0 = play to the end; N = stop N rounds after the leaf and
 /// rank the players by their current points: as strong as full rollouts at about half the cost, see docs/strategy-analysis.md).
+/// <c>valueModel</c> (default empty = rollouts as above): path of a learned value function (LightGBM text model or MLP JSON, see
+/// <see cref="IValueModel"/> and ml/README.md). With a model the leaf is not rolled out to the end: after <c>leafRollout</c> decisions
+/// of the rollout policy (default 0) the model estimates every seat's reward; <c>rolloutRounds</c> is then ignored.
+/// Selection, expansion and back-up are unchanged. Terminal leaves always use the real score.
 /// The tree search sees the full state (opponents' VP chips included) as the architecture notes allow for MCTS.
 /// </summary>
 public sealed class MctsStrategy : IStrategy, IDecisionExplainer
@@ -25,6 +29,11 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
     private readonly string _rolloutName;
     private readonly int _rolloutMaxDecisions;
     private readonly int _rolloutRounds;
+    private readonly IValueModel? _value;
+    private readonly int _leafRollout;
+    private readonly string _valueName = "";
+    private float[][]? _featRows;
+    private float[]? _featScratch;
     private ulong _rng;
     private IStrategy[]? _rollout;
     private readonly List<GameAction> _legal = new(32);
@@ -51,6 +60,10 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         _rolloutRounds = Math.Max(0, (int)StrategyRegistry.GetDouble(parameters, "rolloutRounds", 8));
         if (!StrategyRegistry.IsKnown(_rolloutName) || _rolloutName.Equals("mcts", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException($"Unknown or recursive rolloutStrategy '{_rolloutName}'.");
+        string model = StrategyRegistry.GetString(parameters, "valueModel", "");
+        _value = model.Length > 0 ? ValueModels.Load(model) : null;
+        if (_value != null) _valueName = Path.GetFileName(model);
+        _leafRollout = Math.Max(0, (int)StrategyRegistry.GetDouble(parameters, "leafRollout", 0));
         _rng = seed;
     }
 
@@ -90,7 +103,7 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             entries.Add(new SearchSummary.Entry(a, (int)visits, mean, k < 0 ? null : PrincipalLine(root.Kids[k]), winRate, stdError));
             if (visits > bestVisits || (visits == bestVisits && mean > bestMean)) { best = a; bestVisits = visits; bestMean = mean; }
         }
-        LastSearch = new SearchSummary(_simulations, entries, _exploration, _rolloutName, _rolloutRounds);
+        LastSearch = new SearchSummary(_simulations, entries, _exploration, _rolloutName, _rolloutRounds, _valueName, _leafRollout);
         return best;
     }
 
@@ -163,11 +176,12 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             path.Add(node);
         }
 
-        // rollout
+        // rollout (with a value model: only leafRollout decisions, then the model values the leaf)
         var buf = new List<GameAction>(32);
         int decisions = 0;
-        int stopRound = _rolloutRounds > 0 ? s.Round + _rolloutRounds : int.MaxValue;
-        while (!s.IsOver && s.Round < stopRound)
+        int stopRound = _value == null && _rolloutRounds > 0 ? s.Round + _rolloutRounds : int.MaxValue;
+        int maxDecisions = _value != null ? _leafRollout : int.MaxValue;
+        while (!s.IsOver && s.Round < stopRound && decisions < maxDecisions)
         {
             Rules.GetLegalActions(s, buf);
             var action = buf.Count == 1 ? buf[0] : _rollout![s.Actor].ChooseAction(s, buf);
@@ -175,10 +189,40 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             if (++decisions >= _rolloutMaxDecisions && !s.IsOver) Rules.ForceEnd(s, EndFlags.DecisionLimit);
         }
 
-        var score = Scoring.Score(s);
         int players = s.PlayerCount;
         Span<double> reward = stackalloc double[GameConstants.MaxPlayers];
         Span<double> wins = stackalloc double[GameConstants.MaxPlayers];
+        if (_value != null && !s.IsOver) ValueLeaf(s, reward, wins);
+        else ScoreLeaf(s, reward, wins);
+        foreach (var n in path)
+        {
+            n.Visits++;
+            for (int seat = 0; seat < players; seat++) { n.Reward[seat] += reward[seat]; n.Wins[seat] += wins[seat]; n.RewardSq[seat] += reward[seat] * reward[seat]; }
+        }
+    }
+
+    /// <summary>Model estimate of every seat's reward. The display-only win share is estimated as reward too (no separate win model).</summary>
+    private void ValueLeaf(GameState s, Span<double> reward, Span<double> wins)
+    {
+        if (_featRows == null)
+        {
+            _featRows = new float[GameConstants.MaxPlayers][];
+            for (int i = 0; i < _featRows.Length; i++) _featRows[i] = new float[ValueFeatures.Count];
+            _featScratch = new float[ValueFeatures.ScratchLength];
+        }
+        ValueFeatures.ExtractAll(s, _featRows, _featScratch!);
+        for (int seat = 0; seat < s.PlayerCount; seat++)
+        {
+            double v = Math.Clamp(_value!.Predict(_featRows[seat]), 0, 1);
+            reward[seat] = v;
+            wins[seat] = v;
+        }
+    }
+
+    private static void ScoreLeaf(GameState s, Span<double> reward, Span<double> wins)
+    {
+        var score = Scoring.Score(s);
+        int players = s.PlayerCount;
         for (int seat = 0; seat < players; seat++)
         {
             double win = Array.IndexOf(score.Winners, seat) >= 0 ? 1.0 / score.Winners.Length : 0.0;
@@ -186,10 +230,8 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
             reward[seat] = WinWeight * win + (1 - WinWeight) * rankScore;
             wins[seat] = win;
         }
-        foreach (var n in path)
-        {
-            n.Visits++;
-            for (int seat = 0; seat < players; seat++) { n.Reward[seat] += reward[seat]; n.Wins[seat] += wins[seat]; n.RewardSq[seat] += reward[seat] * reward[seat]; }
-        }
     }
+
+    /// <summary>Reward of every seat at a finished game (the training label of the value model, see <see cref="ValueFeatures"/>).</summary>
+    public static void TerminalReward(GameState s, Span<double> reward, Span<double> wins) => ScoreLeaf(s, reward, wins);
 }

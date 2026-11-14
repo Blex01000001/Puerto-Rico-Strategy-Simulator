@@ -9,12 +9,21 @@
 3. 【先討論】手寫策略其他方向：3 人局 build-first 在新同分預設下變弱（第 2 節），可考慮依對手調整採石場策略（8.6）；corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
 4. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 5. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
-6. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項。
+6. 【使用者】在真正的 RunPod pod 上照 `docs/runpod.md` 跑一次（`setup.sh --test`、`start.sh`、SSH 通道、帶回模型），回報不同的地方；視需要再加 `--summary-only` 之類的輸出選項。
+
+### 機器學習（`ml/`，分析文件第 10 節）
+目前：4 人局 v2／v3（LightGBM）同時間對原版 MCTS 約 65%／32%、對手寫 91～95%，第二輪自我對戰（v3）沒有再進步；MLP v2（PyTorch）與 LightGBM v2 一樣強；3 人局 3p-v3（兩輪自我對戰）對原版 53.5%／36.9%、對手寫 55.8%（原版 MCTS 67.5%）。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、`ml/` 當獨立子專案（名稱不改，見 `ml/CLAUDE.md`）、MLP 改用 PyTorch（輸出格式不變）。第 0 階段（requirements、`.meta.json`、萬用字元、版本檢查、pytest、取消後的 dump、Runner 發佈版）、第 1 階段（ML UI 的「訓練」「模型清單」、背景工作、啟動檔、Dashboard 連結）、第 2 階段（「資料」「對戰驗證」「工作」頁、Dashboard 的價值模型下拉選單與路徑修正）、第 3 階段（v3、PyTorch MLP、3 人局模型）與第 4 階段（RunPod 腳本與說明，`docs/runpod.md`）已完成。
+
+模型改進
+7. 【直接做】3 人局繼續改進：對手寫桌仍不如原版 MCTS（55.8% 對 67.5%，平均分波動大）；可試第三輪自我對戰、`leafRollout`、或 3 人局專用特徵。4 人局已到頂（v3≈v2）：要再進步需換方向（更多模擬、更大的模型或特徵、不同的自我對戰設定），先討論。
+8. 【直接做】推論成本：更少／更淺的樹、更小的 MLP，比同時間勝率（MLP 256-128 比 LightGBM 慢 1.5～3 倍）；選做：勝負模型（回放顯示真實勝率估計）、`leafRollout` 0 對 20、用 v2 當陪練找手寫策略弱點。
+9. 【先討論】要不要把模型設成 `mcts` 的預設（4 人局 v2、3 人局 3p-v3；依人數選模型；改了第 5、7、9 節含 MCTS 的數字都要重跑）。
 
 ## 已知問題／限制
 
 - `wharf-rush` 在這份實作下偏弱（4 人局約 18%、3 人局約 39%）：Wharf 平均到第 9～10 回合才買到；MCTS 陪練（random 或 wharf-rush rollout）都不買 Wharf、也打贏它，目前沒有證據顯示 Wharf 太強（分析文件 7.2）；前期金幣來源的參數掃描在 4 人局沒有進步（7.1）。`wharf-premium`（菸草／咖啡籌錢）也沒有更強（7.5）。`corn-monopoly` 的搗亂效果已量化並拆成兩種手段（7.3、7.4：囤貨比搶種植園傷，且大部分落差只是多一個玉米玩家）。
 
+- ML UI 只在 Linux（Chromium）實際操作驗證過；Windows 上的背景程序（`DETACHED_PROCESS`）、`start-ui.cmd` 與 Ctrl+C 後工作繼續執行，還沒在 Windows 實測。Windows 上取消資料／對戰工作是直接結束 Runner（沒有共用的主控台可送 Ctrl+C），不會保留已完成的局數。
 - 策略模擬頁（`Simulate.razor`）的「完全平衡」選項與局數提示、局數千分位輸入、MCTS 耗時警告、自訂結果檔名、策略下拉選單名稱只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。
 - 分析文件第 1、2、7 節的數字是 `balanced` 座位 + 新同分預設（`tournaments/` 4 人 100,008／3 人 100,002 局）；第 3～4 節的調參與第 5 節 MCTS 實驗是舊預設下做的（第一到第三輪調參是 `rotate`、未重跑，MCTS 的對手 build-first／harbor-rush 也是舊同分順序）；總覽頁的「座位順序」欄會標示每份結果用哪種。
 - 陪練實驗（第 9 節）MCTS 每桌只有 480 局，勝率誤差約 ±4 個百分點；`tools/sparring` 不在 `PuertoRico.sln`，改了 Engine 後要另外 `dotnet build -c Release tools/sparring`（否則會用到舊的 Engine）。
@@ -31,13 +40,14 @@
 - 手寫策略的對戰結論見 `docs/strategy-analysis.md`；3 人與 4 人階層不同（4 人局 build > harbor > premium > corn，3 人局 harbor ≈ premium > build > corn；random 座位）；手寫策略的預設參數依人數分開（3 人局另外調過，`HeuristicStrategy.Configure`／`Param`）。座位優勢仍在（4 人局座位 1／2／3／4 勝率約 17%／24%／37%／23%）。
 - 引擎玩家數 3 或 4（`players`）；5 人局與擴充不支援。4 人局職業 Prospector 在手寫策略裡的估值很簡單（約等於 1 枚金幣）。
 - 沒有 lint 工具（`dotnet format --verify-no-changes` 可用）。Dashboard 沒有自動化測試（Tests 只參考 Engine）；以 Playwright 截圖驗證過三個頁面（淺色／深色）。分析邏輯在 `Engine/Simulation/ResultAnalysis.cs`，有單元測試。
+- 價值模型的推論成本與一次 8 回合隨機 rollout 同級（LightGBM 400 棵樹約 20 µs、MLP 256-128 約 30 µs，每個座位一次），所以同樣模擬次數下時間沒有省；模型依人數分開，目前只有 4 人局。
 - MCTS 比手寫策略慢很多（4 人局預設 300 次模擬、截斷 8 回合：400 局約 92 秒，4 核心），只適合數百局的實驗；它看得到完整狀態（含對手 VP），不偷看牌堆（每次模擬重洗）；實驗結果在 `docs/strategy-analysis.md` 第 5 節，設定在 `mcts/`。
 - Dashboard「模擬」頁可跑一般對戰與參數掃描，但沒有續跑；比較頁只比一般結果檔的勝率與平均分（不比建築等細項），顯著性假設兩份獨立，一個瀏覽器分頁同時一個任務；模擬與 Dashboard 同一程序，跑大量局數時建議仍用 Runner。
 - Dashboard 會把整份結果檔讀進記憶體（10 萬局約 50 MB 沒問題，百萬局以上要改成只讀摘要），並可讀取伺服器上任意路徑：只在本機執行（預設綁 localhost:5080），不要對外開放。
 - 效能：4 核心約 21,000 局／秒（約 5,000 局／秒／核心，隨機玩家，一局約 500 個決策）。
 - 隨機玩家下座位 3（玉米起手）勝率約 49%，座位 1、2 各約 24%；已驗證不是引擎不對稱（三家都改染料起手後各 33%）。
 - SessionStart hook 已在 main；其「dotnet 不存在時 apt 安裝」分支在已安裝的容器中無法重測（新 session 若沒有 dotnet，請確認 hook 有執行，必要時手動 `apt-get install -y dotnet-sdk-8.0`）。
-- `builds.dotnet.microsoft.com` 被網路代理擋住，`dotnet-install.sh` 不可用，只能用 apt 安裝 .NET。
+- `builds.dotnet.microsoft.com` 被這個雲端環境的網路代理擋住，`dotnet-install.sh` 在這裡不可用，只能用 apt 安裝 .NET（RunPod 上 `deploy/runpod/setup.sh` 會在 apt 失敗時改用它）。
 
 ## 想法
 

@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 
 # Simulation output (large)
 results/
+
+# pytest
+.pytest_cache/

@@ -8,7 +8,7 @@
 
 ## 讀檔規則（省 token）
 - 先用下面的地圖決定讀哪裡，只讀相關檔案，不要整個 repo 掃過。
-- `Engine/CLAUDE.md`、`Dashboard/CLAUDE.md` 有該資料夾的細部檔案地圖、改法、架構決策與雷；讀到該資料夾的檔案時會自動載入，動手前不用另外找。
+- `Engine/CLAUDE.md`、`Dashboard/CLAUDE.md`、`ml/CLAUDE.md` 有該資料夾的細部檔案地圖、改法、架構決策與雷；讀到該資料夾的檔案時會自動載入，動手前不用另外找。
 - `docs/strategy-analysis.md` 很長（60 KB 以上）：先 `grep -n '^#' docs/strategy-analysis.md` 找節，再只讀那一節。
 - `results/` 的結果檔（每個數十 MB）不要用 Read 打開；要數字就用 Runner 的輸出、`tools/` 的工具或 `python3`／`jq` 只取摘要欄位。
 - 實驗設定（`tournaments/`、`sweeps/`、`mcts/`）各資料夾做了什麼：查 `docs/experiments.md`，不用逐一打開設定檔。
@@ -19,13 +19,16 @@
 |---|---|
 | `README.md` | 給第一次看的人：目的、主要結論（數字來自分析文件，分析更新時同步）、快速開始 |
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
-| `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練） |
+| `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數） |
+| `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
 | `docs/experiments.md` | 實驗設定索引：`tournaments/`、`sweeps/round*`、`mcts/` 各是什麼、怎麼重跑 |
 | `rules.md` | 遊戲規則（第 1～6 節 3 人局，第 7 節 4 人局差異） |
 | `Engine/` | 規則引擎 `Game/`、策略 `Strategies/`、模擬與統計 `Simulation/`、事件 `Events/`；細節見 `Engine/CLAUDE.md` |
-| `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep` |
+| `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep --dump-positions --dump-rate` |
 | `Dashboard/` | Blazor Web App（八頁：HOME、模擬、結果、總覽、比較、回放、參數掃描、設定檔）；細節見 `Dashboard/CLAUDE.md` |
-| `Tests/` | xUnit，只參考 Engine：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消）、`StrategyTests`；情境用 `Tests/Sc.cs`（`Sc.Start` 指定總督與職業） |
+| `Tests/` | xUnit，只參考 Engine：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消）、`StrategyTests`、`ValueModelTests`（推論與 Python 一致、特徵視角、dump 可重現；固定資料在 `Tests/Data/`）；情境用 `Tests/Sc.cs`（`Sc.Start` 指定總督與職業） |
+| `deploy/runpod/` | RunPod（或任何 Linux）：`setup.sh`（.NET 8、Python 套件、建置、發佈 Runner，可重複執行）、`start.sh`（背景啟動／停止 ML UI 與 Dashboard，只綁 localhost）；說明在 `docs/runpod.md` |
+| `ml/` | MCTS 的學習型價值函數（Python 子專案）：ML UI（Streamlit，`ml/start-ui.sh`／`.cmd`，localhost:8501，另外啟動）、訓練（LightGBM、NumPy MLP，背景工作）、產生資料的設定、模型檔＋`.meta.json`、pytest；流程見 `ml/README.md`，細節與契約見 `ml/CLAUDE.md`（資料檔放 `results/ml/`） |
 | `tools/tiestats/`、`tools/sparring/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
 | `config*.json` | 設定檔範例（Runner 與 Dashboard 共用格式） |
 | `PuertoRico.sln`、`Directory.Build.props` | net8.0、Nullable、TreatWarningsAsErrors（csproj 內不要重複設；新程式碼要零警告） |
@@ -37,6 +40,8 @@ dotnet build -c Release
 dotnet test -c Release
 dotnet run -c Release --project Runner -- --config config.example.json --games 100000 --out results/x.json   # 加 --sweep 跑參數掃描、--resume 續跑、--replay N 看第 N 局
 dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 results/
+python3 -m pytest ml/tests   # ml/ 的測試（先 pip install -r ml/requirements.txt）
+dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 被 git 忽略）；長時間背景工作用 ./publish/runner/Runner，之後建置不會覆寫它
 ```
 - 沒有 `dotnet` 時：`apt-get update && apt-get install -y dotnet-sdk-8.0`（`dotnet-install.sh` 被網路擋住，不可用）。
 - 指令輸出很長時接 `| tail` 或 `grep`，只看需要的行。

@@ -1,0 +1,8 @@
+# Python packages for ml/ (training, ML UI, tests). Versions tested: lightgbm 4.7.0, numpy 2.5.3, pytest 9.2.0, streamlit 1.67.0, Python 3.13.
+#   pip install -r ml/requirements.txt
+lightgbm>=4.7,<5
+numpy>=2.0,<3
+pytest>=8
+streamlit>=1.40
+# Optional: PyTorch for train_mlp.py (otherwise it trains with NumPy). CPU only: pip install torch --index-url https://download.pytorch.org/whl/cpu
+# GPU (RunPod images usually have it): pip install torch. Tested with torch 2.15.0.  # ML UI (ml/ui.py); tested with 1.67 (brings pandas and altair)

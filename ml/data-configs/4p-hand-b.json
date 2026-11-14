@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-hand-b",
+  "players": 4,
+  "games": 20000,
+  "seed": 102,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "corn-shipper-0",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "wharf-rush-1",
+      "strategy": "wharf-rush",
+      "params": {}
+    },
+    {
+      "id": "cheap-engine-2",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "build-first-3",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}
