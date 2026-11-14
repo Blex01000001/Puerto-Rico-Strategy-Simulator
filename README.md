@@ -84,6 +84,14 @@ dotnet run -c Release --project Dashboard
 
 > 若 Dashboard 版面看起來沒有套用樣式，請按 Ctrl+F5 強制重新整理。Dashboard 可讀取伺服器上任意路徑，只在本機使用。
 
+機器學習（ML UI，訓練 MCTS 的局面價值模型）需要 Python 3。**新裝置第一次使用前，先在專案根目錄執行一次：**
+
+```bash
+pip install -r ml/requirements.txt
+```
+
+之後在 Dashboard 左側選單「機器學習」按「啟動 ML UI」（Windows 會跳出 cmd 視窗；狀態綠色「● 執行中」／紅色「○ 未啟動」），或自己執行 `ml/start-ui.cmd`（Windows）／`ml/start-ui.sh`。細節見 `ml/README.md`。
+
 ### Dashboard 功能
 
 | 頁面 | 用途 |

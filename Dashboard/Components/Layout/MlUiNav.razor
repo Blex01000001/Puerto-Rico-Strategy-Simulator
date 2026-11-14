@@ -1,0 +1,80 @@
+@* Sidebar entry for the ML UI (a separate Python program, ml/ui.py on localhost:8501): status, link, start button. *@
+@implements IDisposable
+@inject IJSRuntime JS
+
+@if (state == State.Running)
+{
+    <a href="@MlUiLauncher.Url" target="_blank" rel="noopener" title="在新分頁打開 ML UI（訓練、產生資料、對戰驗證、模型清單）"><span class="ni">🌱</span><span class="nl">ML UI ↗</span></a>
+}
+else
+{
+    <button type="button" class="navbtn" @onclick="StartAsync" disabled="@(state is State.Starting or State.Unknown)"
+            title="ML UI 是另一個 Python 程式：按下後由 Dashboard 執行 ml/start-ui（Windows 會跳出 cmd 視窗，關掉它就停止 ML UI），好了自動在新分頁打開。@MlUiLauncher.InstallHint">
+        <span class="ni">🌱</span><span class="nl">@(state == State.Starting ? "ML UI 啟動中…" : "啟動 ML UI")</span>
+    </button>
+}
+<div class="mlstatus @StatusClass" title="@StatusTitle"><span class="dot">@(state == State.Running ? "●" : "○")</span><span class="nl">@StatusText</span></div>
+@if (state == State.Stopped && error == null)
+{
+    <div class="mlnote nl">@MlUiLauncher.InstallHint</div>
+}
+@if (error != null)
+{
+    <div class="mlerror nl">@error</div>
+}
+
+@code {
+    private enum State { Unknown, Running, Stopped, Starting, Failed }
+    private State state = State.Unknown;
+    private string? error;
+    private Timer? timer;
+    private readonly CancellationTokenSource cts = new();
+
+    private string StatusClass => state switch { State.Running => "running", State.Starting => "starting", State.Unknown => "", _ => "stopped" };
+    private string StatusText => state switch { State.Running => "執行中", State.Starting => "啟動中", State.Unknown => "檢查中", _ => "未啟動" };
+    private string StatusTitle => state == State.Running ? $"ML UI 在 {MlUiLauncher.Url} 執行中" : "ML UI 沒有在執行（每 5 秒檢查一次）";
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender) timer = new Timer(_ => _ = InvokeAsync(PollAsync), null, 0, 5000);
+    }
+
+    private async Task PollAsync()
+    {
+        if (state == State.Starting) return;
+        bool up = await MlUiLauncher.IsRunningAsync(cts.Token);
+        var next = up ? State.Running : (state == State.Failed ? State.Failed : State.Stopped);
+        if (up) error = null;
+        if (next != state) { state = next; StateHasChanged(); }
+    }
+
+    private async Task StartAsync()
+    {
+        state = State.Starting;
+        error = null;
+        StateHasChanged();
+        try { await JS.InvokeVoidAsync("prMlTab.open"); } catch (JSException) { }
+        string? problem;
+        try { problem = await MlUiLauncher.StartAsync(cts.Token); }
+        catch (OperationCanceledException) { return; }
+        if (problem == null)
+        {
+            state = State.Running;
+            try { await JS.InvokeVoidAsync("prMlTab.go", MlUiLauncher.Url); } catch (JSException) { }
+        }
+        else
+        {
+            state = State.Failed;
+            error = problem;
+            try { await JS.InvokeVoidAsync("prMlTab.close"); } catch (JSException) { }
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+        cts.Cancel();
+        cts.Dispose();
+    }
+}
