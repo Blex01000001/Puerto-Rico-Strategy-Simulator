@@ -51,12 +51,12 @@ h1 + p.note + * { margin-top: .6rem; }
 .sidebar .navbtn .ni { flex: none; width: 1.5rem; text-align: center; font-size: 1.05rem; line-height: 1; }
 .sidebar .navbtn:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
 .sidebar .navbtn:disabled { cursor: progress; opacity: .75; }
-.mlstatus { display: flex; align-items: center; gap: .4rem; margin: 0 .5rem .2rem 1.2rem; font-size: .8rem; color: var(--text-3); }
+.mlstatus { display: flex; align-items: center; gap: .35rem; margin: 0 .5rem .2rem 3.35rem; font-size: .8rem; color: var(--text-3); }
 .mlstatus.running { color: var(--series-6); }
 .mlstatus.stopped { color: var(--neg); }
 .mlstatus.starting { color: var(--series-4); }
-.mlstatus .dot { width: 1.5rem; text-align: center; margin-left: -.35rem; }
-.mlnote, .mlerror { margin: .15rem .7rem .4rem 1.2rem; font-size: .72rem; line-height: 1.35; color: var(--text-3); white-space: normal; }
+.mlstatus .dot { line-height: 1; }
+.mlnote, .mlerror { margin: .15rem .7rem .4rem 3.35rem; font-size: .72rem; line-height: 1.35; color: var(--text-3); white-space: normal; }
 .mlerror { color: var(--neg); }
 .sidebar a.active { color: #fff; background: var(--accent-dim); box-shadow: inset 3px 0 0 var(--accent); }
 /* collapsed: an icon rail, the toggle stays at the top */

@@ -13,7 +13,7 @@ else
         <span class="ni">🌱</span><span class="nl">@(state == State.Starting ? "ML UI 啟動中…" : "啟動 ML UI")</span>
     </button>
 }
-<div class="mlstatus @StatusClass" title="@StatusTitle"><span class="dot">@(state == State.Running ? "●" : "○")</span><span class="nl">@StatusText</span></div>
+<div class="mlstatus @StatusClass" title="@StatusTitle"><span class="nl">@StatusText</span><span class="dot">@(state == State.Running ? "●" : "○")</span></div>
 @if (state == State.Stopped && error == null)
 {
     <div class="mlnote nl">@MlUiLauncher.InstallHint</div>

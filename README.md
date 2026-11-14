@@ -90,7 +90,7 @@ dotnet run -c Release --project Dashboard
 pip install -r ml/requirements.txt
 ```
 
-之後在 Dashboard 左側選單「機器學習」按「啟動 ML UI」（Windows 會跳出 cmd 視窗；狀態綠色「● 執行中」／紅色「○ 未啟動」），或自己執行 `ml/start-ui.cmd`（Windows）／`ml/start-ui.sh`。細節見 `ml/README.md`。
+之後在 Dashboard 左側選單「機器學習」按「啟動 ML UI」（Windows 會跳出 cmd 視窗；狀態綠色「執行中 ●」／紅色「未啟動 ○」），或自己執行 `ml/start-ui.cmd`（Windows）／`ml/start-ui.sh`。細節見 `ml/README.md`。
 
 ### Dashboard 功能
 

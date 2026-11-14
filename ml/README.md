@@ -11,7 +11,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 ```
 瀏覽器開 `http://localhost:8501`（只有本機連得到）。不需要 Visual Studio，也不需要開 Dashboard。**新裝置第一次使用前，先在專案根目錄執行一次 `pip install -r ml/requirements.txt`。**
 
-也可以從 Dashboard 啟動：左側選單「機器學習」顯示 ML UI 的狀態（綠色「● 執行中」／紅色「○ 未啟動」）；沒執行時按「啟動 ML UI」，Dashboard 會檢查 Python 與套件，在 Windows 跳出一個 cmd 視窗執行 `ml\start-ui.cmd`（關掉這個視窗就停止 ML UI；已開始的工作不受影響），好了自動在新分頁打開。缺套件時會顯示要執行的 `pip install` 指令。
+也可以從 Dashboard 啟動：左側選單「機器學習」顯示 ML UI 的狀態（綠色「執行中 ●」／紅色「未啟動 ○」）；沒執行時按「啟動 ML UI」，Dashboard 會檢查 Python 與套件，在 Windows 跳出一個 cmd 視窗執行 `ml\start-ui.cmd`（關掉這個視窗就停止 ML UI；已開始的工作不受影響），好了自動在新分頁打開。缺套件時會顯示要執行的 `pip install` 指令。
 - **訓練**：勾選 `results/ml/` 的資料（依人數分開；正在產生的資料會標「產生中」）、選 LightGBM 或 MLP、填參數（標籤是中文說明＋命令列參數名稱）、取名稱 → 開始訓練。進度條與驗證 loss 曲線每 2 秒更新，結束時顯示驗證成績；同一時間只跑一個工作。
 - **模型清單**：`ml/models/` 每個模型的種類、資料、R²、對原版 MCTS 的最佳勝率；點選看參數、資料來源、各回合段誤差、loss 曲線、特徵重要度、所有對戰結果；「並排比較」最多 4 個模型，標出不同的參數。
 - 訓練在**獨立的背景程序**執行（`ml/jobs.py`）：關掉瀏覽器、關掉 UI（Ctrl+C）都不會中斷，重開 UI 會接著顯示進度；要停就按「取消這個工作」（不會留下半成品模型）。電腦睡眠或關機造成的中斷會標成「中斷」。工作紀錄在 `results/ml/jobs/<編號>/`（`job.json`、`events.jsonl`、`log.txt`）。
