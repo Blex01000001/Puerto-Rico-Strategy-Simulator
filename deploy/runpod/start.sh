@@ -35,8 +35,7 @@ stop_one() {
 
 case "${1:-start}" in
   start)
-    start_one ml-ui python3 -m streamlit run ml/ui.py --server.address localhost --server.port 8501 \
-      --server.headless true --client.toolbarMode viewer --browser.gatherUsageStats false
+    start_one ml-ui sh ml/start-ui.sh --server.headless true   # picks a Python with the packages (ml/check_env.py)
     start_one dashboard dotnet run -c Release --project Dashboard
     echo "ML UI http://localhost:8501   Dashboard http://localhost:5080   (through the SSH tunnel)"
     ;;

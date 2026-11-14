@@ -13,15 +13,28 @@ import json
 import os
 import time
 
-import altair as alt
-import pandas as pd
 import streamlit as st
 
-import jobs
-import modelmeta
-import positions
-import train_lgbm
-import train_mlp
+import check_env
+
+if check_env.missing_modules():
+    # started with a Python that lacks the packages (e.g. pip installed them into another Python): say so plainly
+    st.set_page_config(page_title="波多黎各 ML", page_icon="🌱")
+    st.error(f"這個 Python 缺少 ML UI 需要的套件：{', '.join(check_env.missing_modules())}")
+    st.markdown(f"ML UI 現在用的 Python：`{check_env.sys.executable}`")
+    st.markdown("在終端機執行下面這一行（指定同一個 Python，套件才會裝到對的地方），然後關掉 ML UI 再啟動一次：")
+    st.code(check_env.fix_command(), language=None)
+    st.caption("電腦上有好幾個 Python（例如 Anaconda 和 python.org）時，直接打 `pip install` 可能裝到另一個 Python。")
+    st.stop()
+
+import altair as alt  # noqa: E402
+import pandas as pd  # noqa: E402
+
+import jobs  # noqa: E402
+import modelmeta  # noqa: E402
+import positions  # noqa: E402
+import train_lgbm  # noqa: E402
+import train_mlp  # noqa: E402
 
 ROOT = jobs.ROOT
 MODELS_DIR = os.path.join(ROOT, "ml", "models")

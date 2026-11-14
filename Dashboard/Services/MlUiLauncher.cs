@@ -12,7 +12,7 @@ namespace Dashboard.Services;
 public static class MlUiLauncher
 {
     public const string Url = "http://localhost:8501";
-    public const string InstallHint = "新裝置第一次使用前，先在專案根目錄執行一次：pip install -r ml/requirements.txt";
+    public const string InstallHint = "新裝置第一次使用前，先在專案根目錄執行一次：python -m pip install -r ml/requirements.txt";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(1) };
 
     /// <summary>True when the ML UI answers its health check.</summary>
@@ -80,25 +80,36 @@ public static class MlUiLauncher
             : "ML UI 在 60 秒內沒有回應：請看 results/logs/ml-ui.log。";
     }
 
-    /// <summary>Null when a Python with the ML UI's packages is found (the same order as the start scripts use).</summary>
+    /// <summary>
+    /// Null when a Python with the ML UI's packages is found, tried in the same order as the start scripts
+    /// (PR_PYTHON first, then python and py on Windows, python3 and python elsewhere). Otherwise the message of
+    /// ml/check_env.py for the first Python found: it names that interpreter and the exact pip command for it.
+    /// </summary>
     private static async Task<string?> CheckPythonAsync(bool windows, CancellationToken cancel)
     {
-        string[] candidates = windows ? new[] { "py", "python" } : new[] { "python3", "python" };
-        bool anyPython = false;
+        string root = AppState.RepoRoot();
+        string check = Path.Combine(root, "ml", "check_env.py");
+        var candidates = new List<string>();
+        string? forced = Environment.GetEnvironmentVariable("PR_PYTHON");
+        if (!string.IsNullOrWhiteSpace(forced)) candidates.Add(forced);
+        else candidates.AddRange(windows ? new[] { "python", "py" } : new[] { "python3", "python" });
+
+        string? firstReport = null;
         foreach (var exe in candidates)
         {
-            var psi = new ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
-            psi.ArgumentList.Add("-c");
-            psi.ArgumentList.Add("import streamlit, lightgbm, numpy");
+            var psi = new ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, WorkingDirectory = root };
+            psi.ArgumentList.Add(check);
+            psi.Environment["PYTHONIOENCODING"] = "utf-8"; // the report contains Chinese text
             try
             {
                 using var p = Process.Start(psi);
                 if (p == null) continue;
-                anyPython = true;
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
                 timeout.CancelAfter(TimeSpan.FromSeconds(30));
+                string output = await p.StandardOutput.ReadToEndAsync(timeout.Token);
                 await p.WaitForExitAsync(timeout.Token);
                 if (p.ExitCode == 0) return null;
+                firstReport ??= output.Trim();
             }
             catch (System.ComponentModel.Win32Exception)
             {
@@ -109,8 +120,10 @@ public static class MlUiLauncher
                 return "檢查 Python 套件逾時（30 秒）。";
             }
         }
-        return anyPython
-            ? "缺少 ML UI 需要的 Python 套件。" + InstallHint
-            : "找不到 Python：請先安裝 Python 3（安裝時勾選 Add to PATH），然後" + InstallHint.Replace("新裝置第一次使用前，先", "");
+        if (firstReport == null)
+            return "找不到 Python：請先安裝 Python 3（安裝時勾選 Add to PATH），然後在專案根目錄執行：python -m pip install -r ml/requirements.txt";
+        if (string.IsNullOrEmpty(firstReport)) return "缺少 ML UI 需要的 Python 套件。" + InstallHint;
+        // the project path is shown relative to the root (Dashboard rule); the Python path stays: it is the point of the message
+        return AppState.Scrub(firstReport) + "\n（在專案根目錄執行；裝好後再按一次「ML UI」）";
     }
 }

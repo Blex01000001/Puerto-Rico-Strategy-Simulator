@@ -87,10 +87,10 @@ dotnet run -c Release --project Dashboard
 機器學習（ML UI，訓練 MCTS 的局面價值模型）需要 Python 3。**新裝置第一次使用前，先在專案根目錄執行一次：**
 
 ```bash
-pip install -r ml/requirements.txt
+python -m pip install -r ml/requirements.txt
 ```
 
-之後在 Dashboard 左側選單「機器學習」按「啟動 ML UI」（Windows 會跳出 cmd 視窗；狀態綠色「執行中 ●」／紅色「未啟動 ○」），或自己執行 `ml/start-ui.cmd`（Windows）／`ml/start-ui.sh`。細節見 `ml/README.md`。
+（用 `python -m pip` 而不是直接打 `pip`：電腦上有好幾個 Python 時（例如 Anaconda 和 python.org），`pip` 可能裝到另一個 Python。）之後在 Dashboard 左側選單「機器學習」點「ML UI 未啟動 ○」啟動（Windows 會跳出 cmd 視窗；啟動後變成綠色「ML UI 執行中 ●」），或自己執行 `ml/start-ui.cmd`（Windows）／`ml/start-ui.sh`。缺套件時兩者都會顯示是哪個 Python、要執行的那一行指令。細節見 `ml/README.md`。
 
 ### Dashboard 功能
 

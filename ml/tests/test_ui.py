@@ -48,3 +48,12 @@ def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
     assert not at.exception
     assert next(b for b in at.button if b.label == "開始對戰").disabled
     assert any("局數要是 24 的倍數" in c.value for c in at.caption)
+
+
+def test_missing_packages_show_the_fix_command(results, monkeypatch):
+    import check_env
+    monkeypatch.setattr(check_env, "missing_modules", lambda: ["lightgbm"])
+    at = run_app()
+    assert any("lightgbm" in e.value for e in at.error)
+    assert any("-m pip install -r" in c.value for c in at.code)
+    assert not at.tabs  # nothing else is drawn

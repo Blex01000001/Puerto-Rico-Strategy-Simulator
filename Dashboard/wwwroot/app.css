@@ -51,13 +51,18 @@ h1 + p.note + * { margin-top: .6rem; }
 .sidebar .navbtn .ni { flex: none; width: 1.5rem; text-align: center; font-size: 1.05rem; line-height: 1; }
 .sidebar .navbtn:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
 .sidebar .navbtn:disabled { cursor: progress; opacity: .75; }
-.mlstatus { display: flex; align-items: center; gap: .35rem; margin: 0 .5rem .2rem 3.35rem; font-size: .8rem; color: var(--text-3); }
-.mlstatus.running { color: var(--series-6); }
-.mlstatus.stopped { color: var(--neg); }
-.mlstatus.starting { color: var(--series-4); }
-.mlstatus .dot { line-height: 1; }
-.mlnote, .mlerror { margin: .15rem .7rem .4rem 3.35rem; font-size: .72rem; line-height: 1.35; color: var(--text-3); white-space: normal; }
-.mlerror { color: var(--neg); }
+.mlentry .mlstate { display: inline-flex; align-items: center; gap: .15rem; margin-left: .1rem; font-size: .78rem; font-weight: 500; }
+.mlentry.running .mlstate { color: var(--series-6); }
+.mlentry.stopped .mlstate { color: var(--neg); }
+.mlentry.starting .mlstate { color: var(--series-4); }
+.mlentry .mlstate .dot { line-height: 1; }
+.mlentry .ni { box-sizing: border-box; border: 2px solid transparent; border-radius: 7px; }
+.shell.collapsed .mlentry .ni { width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center; }
+.shell.collapsed .mlentry.running .ni { border-color: var(--series-6); }
+.shell.collapsed .mlentry.stopped .ni { border-color: var(--neg); }
+.shell.collapsed .mlentry.starting .ni { border-color: var(--series-4); }
+.mlnote, .mlerror { margin: .05rem .7rem .4rem 3.35rem; font-size: .72rem; line-height: 1.35; color: var(--text-3); white-space: normal; }
+.mlerror { color: var(--neg); white-space: pre-line; overflow-wrap: anywhere; user-select: text; }
 .sidebar a.active { color: #fff; background: var(--accent-dim); box-shadow: inset 3px 0 0 var(--accent); }
 /* collapsed: an icon rail, the toggle stays at the top */
 .shell.collapsed .sidebar { width: 58px; }
@@ -65,8 +70,6 @@ h1 + p.note + * { margin-top: .6rem; }
 .shell.collapsed .brandlink, .shell.collapsed .nl { display: none; }
 .shell.collapsed .navsec { height: 0; padding: 0; margin: .45rem .8rem; border-top: 1px solid var(--line); overflow: hidden; }
 .shell.collapsed .sidebar a, .shell.collapsed .sidebar .navbtn { justify-content: center; padding: .55rem 0; margin: 1px .45rem; width: auto; }
-.shell.collapsed .mlstatus { justify-content: center; margin: 0 0 .3rem; }
-.shell.collapsed .mlstatus .dot { margin: 0; }
 .shell.collapsed .mlnote, .shell.collapsed .mlerror { display: none; }
 .shell > main { flex: 1; min-width: 0; }
 @media (max-width: 760px) {
