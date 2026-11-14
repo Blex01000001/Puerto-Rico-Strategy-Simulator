@@ -158,5 +158,45 @@
     "numpy": "2.5.3",
     "torch": "2.15.0+cu132"
   },
-  "matches": []
+  "matches": [
+    {
+      "result": "results/ml/4p-mlp2-vs-default.json",
+      "config": "4p-mlp2-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.6645833333333333,
+      "winShareCi95": 0.05973343539759075,
+      "avgScore": 48.3,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.30833333333333335,
+          "avgScore": 38.4625
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.022916666666666665,
+          "avgScore": 35.145833333333336
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.004166666666666667,
+          "avgScore": 23.520833333333332
+        }
+      ]
+    }
+  ]
 }
