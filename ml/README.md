@@ -12,11 +12,12 @@
    dotnet run -c Release --project Runner -- --config ml/data-configs/4p-hand-a.json --dump-positions results/ml/4p-hand-a.bin --dump-rate 0.01
    ```
    輸出 `<檔>`（固定長度紀錄：float32 reward、float32 win、int32 局號、int16×特徵數）＋ `<檔>.json`（特徵名稱、設定）。結果與執行緒數無關。中途取消（Ctrl+C）時，已完成的局數仍可讀（`.bin.json` 的 `status` 為 `cancelled`）。檔案很大（約 870 bytes／列，2 萬局約 43 萬～60 萬列），放 `results/ml/`（已被 git 忽略）。
-2. **訓練**（需要 `pip install lightgbm numpy`）：
+2. **訓練**（需要 `pip install -r ml/requirements.txt`）：
    ```bash
-   python3 ml/train_lgbm.py --out ml/models/4p-v1.txt results/ml/4p-*.bin
-   python3 ml/train_mlp.py --out ml/models/4p-mlp-v1.json results/ml/4p-*.bin
+   python3 ml/train_lgbm.py --out ml/models/4p-v1.txt "results/ml/4p-*.bin"
+   python3 ml/train_mlp.py --out ml/models/4p-mlp-v1.json results/ml
    ```
+   資料參數可以是檔案、萬用字元（腳本自己展開，Windows 也能用；加引號避免 shell 先展開）或資料夾（裡面所有 `.bin`）。參數用 `--help` 看。每個模型旁會寫 `<模型>.meta.json`：訓練參數、用了哪些資料（來源、局數、是否為自我對戰與用了哪個模型）、驗證成績、loss 曲線、特徵重要度、套件版本，以及 `matches`（對戰勝率，用 `modelmeta.add_match` 加入）。
    驗證集依「局」切（同一局的局面不會同時出現在訓練與驗證）。`train_mlp.py` 只用 NumPy（PyTorch 的下載站被網路擋住）。兩者都另存 `<模型>.check.txt`（5 列 Python 的預測值＋特徵），可用來確認 C# 推論一致。
 3. **使用**：MCTS 參數 `valueModel`（模型路徑，相對於執行目錄）、`leafRollout`（展開後先由 `rolloutStrategy` 打幾個決策再估值，預設 0）。設定 `valueModel` 後 `rolloutRounds` 不再使用。
 4. **長時間工作**（自我對戰動輒一小時）：先發佈 Runner（`dotnet publish Runner -c Release -o publish/runner`），再用 `./publish/runner/Runner <同樣的參數>` 執行；這段時間內修改、建置程式都不會影響它。改了 Engine 要重新發佈。
@@ -25,7 +26,10 @@
 ## 檔案
 | 檔案 | 用途 |
 |---|---|
-| `positions.py` | 讀 dump（檢查格式與檔案大小）、依局切驗證集 |
+| `positions.py` | 讀 dump（檢查格式、版本、檔案大小；展開萬用字元與資料夾）、依局切驗證集 |
+| `modelmeta.py` | `<模型>.meta.json` 的寫入／讀取、把對戰結果記到模型 |
+| `tests/` | pytest（`python3 -m pytest ml/tests`，不需要 .NET） |
+| `requirements.txt` | Python 套件 |
 | `train_lgbm.py` | LightGBM（`cross_entropy` 目標，標籤 0～1） |
 | `train_mlp.py` | MLP（ReLU 隱藏層＋sigmoid 輸出，Adam），匯出 JSON |
 | `data-configs/` | 產生資料用的設定檔（手寫策略混桌、隨機、MCTS 自我對戰） |

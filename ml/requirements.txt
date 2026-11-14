@@ -1,0 +1,5 @@
+# Python packages for ml/ (training and its tests). Versions tested: lightgbm 4.7.0, numpy 2.5.3, pytest 9.2.0, Python 3.13.
+#   pip install -r ml/requirements.txt
+lightgbm>=4.7,<5
+numpy>=2.0,<3
+pytest>=8

@@ -115,6 +115,7 @@ public static class PositionDump
             positions,
             games = done,
             rate,
+            name = cfg.Name,
             players = cfg.Players,
             seed = cfg.Seed,
             seatOrder = cfg.SeatOrder.ToString(),

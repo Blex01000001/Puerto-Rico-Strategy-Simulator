@@ -1,0 +1,99 @@
+{
+  "format": "pr-model-meta",
+  "formatVersion": 1,
+  "model": "4p-v2sp.txt",
+  "kind": "lightgbm",
+  "created": null,
+  "players": 4,
+  "featureVersion": 1,
+  "featureCount": 430,
+  "data": [
+    {
+      "path": "results/ml/4p-selfplay-v1.bin",
+      "rows": 493424,
+      "games": 4000,
+      "status": "completed",
+      "rate": 0.05,
+      "source": "4p-selfplay-v1.bin",
+      "seed": 201,
+      "strategies": [
+        "mcts",
+        "mcts",
+        "mcts",
+        "mcts"
+      ],
+      "valueModels": [
+        "ml/models/4p-v1.txt"
+      ]
+    }
+  ],
+  "params": {
+    "objective": "cross_entropy",
+    "num_iterations": 400,
+    "learning_rate": 0.05,
+    "num_leaves": 63,
+    "seed": 1,
+    "min_data_in_leaf": 200,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 1,
+    "feature_fraction": 0.8,
+    "note": "backfilled: model trained before .meta.json existed"
+  },
+  "training": {
+    "note": "not recorded"
+  },
+  "validation": {
+    "rows": null,
+    "crossEntropy": null,
+    "mse": 0.0848,
+    "constantMse": 0.1477,
+    "r2": 0.426,
+    "byRound": [],
+    "note": "backfilled from the training log"
+  },
+  "topFeatures": [],
+  "environment": {
+    "note": "not recorded"
+  },
+  "matches": [
+    {
+      "result": "results/ml/4p-v2sp-vs-default.json",
+      "config": "4p-v2sp-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.41041666666666665,
+      "winShareCi95": 0.06223512181824247,
+      "avgScore": 42.3875,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.5083333333333333,
+          "avgScore": 41.63333333333333
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.07708333333333334,
+          "avgScore": 37.766666666666666
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.004166666666666667,
+          "avgScore": 27.191666666666666
+        }
+      ]
+    }
+  ]
+}

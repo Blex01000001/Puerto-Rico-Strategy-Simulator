@@ -1,0 +1,223 @@
+{
+  "format": "pr-model-meta",
+  "formatVersion": 1,
+  "model": "4p-v1.txt",
+  "kind": "lightgbm",
+  "created": null,
+  "players": 4,
+  "featureVersion": 1,
+  "featureCount": 430,
+  "data": [
+    {
+      "path": "results/ml/4p-hand-a.bin",
+      "rows": 495200,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-a.bin",
+      "seed": 101,
+      "strategies": [
+        "cheap-engine",
+        "build-first",
+        "harbor-rush",
+        "corn-to-premium"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-hand-b.bin",
+      "rows": 474436,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-b.bin",
+      "seed": 102,
+      "strategies": [
+        "corn-shipper",
+        "wharf-rush",
+        "cheap-engine",
+        "build-first"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-hand-c.bin",
+      "rows": 501960,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-c.bin",
+      "seed": 103,
+      "strategies": [
+        "harbor-rush",
+        "corn-monopoly",
+        "wharf-premium",
+        "guided-random"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-random.bin",
+      "rows": 606968,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-random.bin",
+      "seed": 104,
+      "strategies": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "valueModels": []
+    }
+  ],
+  "params": {
+    "objective": "cross_entropy",
+    "num_iterations": 400,
+    "learning_rate": 0.05,
+    "num_leaves": 63,
+    "seed": 1,
+    "min_data_in_leaf": 200,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 1,
+    "feature_fraction": 0.8,
+    "note": "backfilled: model trained before .meta.json existed"
+  },
+  "training": {
+    "note": "not recorded"
+  },
+  "validation": {
+    "rows": null,
+    "crossEntropy": 0.451383,
+    "mse": 0.0699,
+    "constantMse": 0.1494,
+    "r2": 0.532,
+    "byRound": [],
+    "note": "backfilled from the training log"
+  },
+  "topFeatures": [],
+  "environment": {
+    "note": "not recorded"
+  },
+  "matches": [
+    {
+      "result": "results/ml/4p-v1-vs-default.json",
+      "config": "4p-v1-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.5229166666666667,
+      "winShareCi95": 0.06319224942769074,
+      "avgScore": 44.458333333333336,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.46041666666666664,
+          "avgScore": 40.45
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.0125,
+          "avgScore": 35.891666666666666
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.004166666666666667,
+          "avgScore": 25.475
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v1leaf20-vs-default.json",
+      "config": "4p-v1leaf20-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 20,
+      "winShare": 0.5729166666666666,
+      "winShareCi95": 0.06258243984234213,
+      "avgScore": 44.704166666666666,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.4166666666666667,
+          "avgScore": 38.53333333333333
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.010416666666666666,
+          "avgScore": 33.8625
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0,
+          "avgScore": 23.6125
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v1s180-vs-default.json",
+      "config": "4p-v1s180-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 180,
+      "leafRollout": 0,
+      "winShare": 0.45,
+      "winShareCi95": 0.06294163963545914,
+      "avgScore": 43.329166666666666,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.50625,
+          "avgScore": 40.6
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.04375,
+          "avgScore": 36.770833333333336
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0,
+          "avgScore": 24.933333333333334
+        }
+      ]
+    }
+  ]
+}

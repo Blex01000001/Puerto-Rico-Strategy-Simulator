@@ -1,0 +1,33 @@
+# ml/（學習型局面價值函數：訓練端）
+
+Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 Engine（C#）。讀到這個資料夾的檔案時自動載入；全專案規則在根目錄 `CLAUDE.md`，流程與指令在 `ml/README.md`。
+
+## 檔案地圖
+- `positions.py`：讀 Runner 的 dump（`.bin`＋`.bin.json`）；`expand`（萬用字元／資料夾展開）、`read_meta`（格式、版本檢查）、`load`（多檔需同特徵清單、`featureVersion`、人數）、`split`（依局切驗證集）。
+- `modelmeta.py`：`<模型>.meta.json`（參數、資料來源、驗證成績、特徵重要度、環境、`matches` 對戰勝率）；`write`／`read`／`match_entry`／`add_match`。
+- `train_lgbm.py`、`train_mlp.py`：`train(data, out, progress=None, log=print, **options)` 可匯入（ML UI 用），命令列只是包一層；都寫 `<模型>`、`.meta.json`、`.check.txt`。
+- `data-configs/`：產生資料的 Runner 設定檔（手寫混桌、隨機、`4p-selfplay-*`＝MCTS＋模型自我對戰）。
+- `models/`：模型＋`.meta.json`＋`.check.txt`（進 git）。早期模型的 `.meta.json` 是補寫的（`params.note`、`training.note` 會註明）。
+- `tests/`：pytest（`conftest.py` 產生假 dump，不需要 .NET）：`python3 -m pytest ml/tests`。
+- `requirements.txt`：`pip install -r ml/requirements.txt`。
+- `make_test_fixture.py`：重產 C# 測試用的小模型 `Tests/Data/tiny-lgbm.*`（改特徵後要跑）。
+
+## 契約（兩邊要一起改）
+| 契約 | 定義在 | 讀的人 |
+|---|---|---|
+| 特徵清單（名稱、順序、`featureVersion`） | `Engine/Strategies/Mcts/ValueFeatures.cs` | dump、`positions.py`、模型（訓練時寫入特徵名稱）、C# 推論（載入時逐一比對） |
+| dump 格式（`formatVersion`、紀錄排列） | `Engine/Simulation/PositionDump.cs` | `positions.py`（`FORMAT_VERSION`、`record_dtype`） |
+| 模型格式（LightGBM 文字檔、MLP JSON） | 訓練腳本寫出 | `Engine/Strategies/Mcts/ValueModel.cs` |
+
+## 常見修改
+- **改特徵**：改 `ValueFeatures.cs`（遞增 `Version`）→ 重新產生所有資料 → 重訓；舊模型在 Engine 會被拒（刻意）。`Tests/Data/tiny-lgbm.*` 也要用新資料重產：`python3 ml/make_test_fixture.py results/ml/<任一新 dump>.bin`。
+- **改 dump 格式**：C# 遞增 `PositionDump.FormatVersion`，同步 `positions.FORMAT_VERSION` 與 `record_dtype`，兩邊測試一起跑。
+- **加訓練參數**：加進 `DEFAULTS`、`train()` 的 `params`（會寫進 `.meta.json`）與 argparse；測試在 `tests/test_train.py`。
+- **新模型種類**：Engine 要先能推論（`ValueModel.cs` 加類別＋與 Python 一致的測試），再寫訓練腳本；輸出格式不變的改寫（例如 MLP 改 PyTorch）只要 `.check.txt` 與 C# 比對一致。
+- **對戰結果記到模型**：`modelmeta.add_match(<模型>, <Runner 結果檔>)`（同一結果檔重覆加只會取代）。
+
+## 雷
+- 訓練資料很大（約 870 bytes／列）：LightGBM 會轉成 float32（257 萬列約 4.4 GB），MLP 保持 int16 逐批標準化；不要在 MLP 先整份轉 float（第一次就因記憶體不足被系統停掉）。
+- 驗證集 MSE／R² 和勝率對不上（資料分布換了 R² 就會變），判斷模型只看對戰勝率（`matches`）。
+- 長時間產生資料用發佈版 Runner（`./publish/runner/Runner`），見 `ml/README.md`。
+- 這個雲端環境擋住 PyTorch 的 CPU 版下載站；在使用者電腦或 RunPod 才能裝。
