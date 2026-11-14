@@ -9,7 +9,10 @@
             <span class="chip">@Search.Simulations 次模擬</span>
             @if (Search.RolloutStrategy != "")
             {
-                <span class="chip" title="樹搜尋之後，所有座位（含對手與自己）都用這個策略往下打到停止點；它決定模擬裡對手怎麼出牌。">模擬對手：@Palette.DisplayName(Search.RolloutStrategy)</span>
+                @if (Search.ValueModel == "" || Search.LeafRollout > 0)
+                {
+                    <span class="chip" title="樹搜尋之後，所有座位（含對手與自己）都用這個策略往下打到停止點；它決定模擬裡對手怎麼出牌。">模擬對手：@Palette.DisplayName(Search.RolloutStrategy)</span>
+                }
                 @if (Search.ValueModel != "")
                 {
                     <span class="chip" title="葉節點不打到停止點，改由學習得到的局面價值模型估計每個座位的結果（勝率欄位此時也是模型估值）。">價值模型：@Search.ValueModel@(Search.LeafRollout > 0 ? $"（先打 {Search.LeafRollout} 步）" : "")</span>

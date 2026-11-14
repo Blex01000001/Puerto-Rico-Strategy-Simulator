@@ -16,7 +16,7 @@
 - `RuleBased/TieBreakRules.cs`：同分的第二準則（字典式，只在主要分數完全相同時生效）。文字參數 `tieTile`／`tieGood`／`tieRole`／`tieBuild`，`tieOpponent` 預留。預設＝引擎順序；只有 build-first／harbor-rush／wharf-rush 有 `DefaultTieTile`＝`hacienda>corn>sugar>indigo>tobacco>coffee>quarry`（`tieTile: ""` 關閉）。策略的偏好寫在自己的規則裡，基底不內建「常理」。
 - 實驗參數 `randomTies`（預設 0；1＝開拓者＋工匠額外貨物、2＝市長以外所有階段、3＝只有開拓者、4＝只有工匠額外貨物，同分時隨機）。
 - `Mcts/MctsStrategy.cs`：UCT，`params.simulations`／`rolloutStrategy`／`rolloutRounds`／`exploration`／`valueModel`（葉節點改用模型估值）／`leafRollout`。
-- `Mcts/ValueFeatures.cs`（局面特徵，從某座位視角；改了要重訓）、`Mcts/ValueModel.cs`（`IValueModel`：LightGBM 文字模型與 MLP JSON 的純 C# 推論，依路徑快取）。
+- `Mcts/ValueFeatures.cs`（局面特徵，從某座位視角；改了要重訓）、`Mcts/ValueModel.cs`（`IValueModel`：LightGBM 文字模型與 MLP JSON 的純 C# 推論，依路徑快取；`ValueModels.Resolve`：相對路徑找不到時往目前目錄與程式目錄的上層找）。
 - 選用介面：`IDecisionExplainer`（MCTS 回報 `SearchSummary` → `IGameEventSink.OnSearch`）、`IScoreExplainer`（手寫策略回報每個動作的分數 → `OnScores`；`RecordScores` 只有回放 sink 會由 `GameRunner` 打開，不影響大量模擬與選擇結果）。
 
 **`Simulation/`**

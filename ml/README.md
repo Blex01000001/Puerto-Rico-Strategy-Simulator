@@ -14,7 +14,10 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 - **模型清單**：`ml/models/` 每個模型的種類、資料、R²、對原版 MCTS 的最佳勝率；點選看參數、資料來源、各回合段誤差、loss 曲線、特徵重要度、所有對戰結果；「並排比較」最多 4 個模型，標出不同的參數。
 - 訓練在**獨立的背景程序**執行（`ml/jobs.py`）：關掉瀏覽器、關掉 UI（Ctrl+C）都不會中斷，重開 UI 會接著顯示進度；要停就按「取消這個工作」（不會留下半成品模型）。電腦睡眠或關機造成的中斷會標成「中斷」。工作紀錄在 `results/ml/jobs/<編號>/`（`job.json`、`events.jsonl`、`log.txt`）。
 - 資料與結果資料夾跟 Dashboard 相同（`results/`；環境變數 `PR_RESULTS_DIR` 可改，對應 Dashboard 的 `Dashboard:ResultsDirectory`）。
-- 「資料」（產生訓練資料、自我對戰）與「對戰驗證」頁是第 2 階段；目前用 Runner 命令列（見下）。
+- **資料**：選 `ml/data-configs/` 的設定檔（手寫策略、隨機），或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
+- **對戰驗證**：選模型與對手桌（「對原版 MCTS」：同桌 cheap-engine、build-first（3 人局只有 cheap-engine）；「對手寫策略」：corn-shipper、corn-to-premium、build-first（3 人局 corn-shipper、build-first）），模擬次數、`leafRollout`、局數（24／6 的倍數＝balanced 完全平衡）→ 設定檔寫進 `mcts/value/<名稱>.json`、結果 `results/ml/<名稱>.json`，完成後勝率自動記進模型的 `.meta.json`（`matches`），模型清單與 Dashboard 都看得到。
+- **工作**：所有工作的進度、紀錄、取消；側欄隨時顯示目前的工作。
+- 資料與對戰工作呼叫**發佈版 Runner**（`publish/runner`，環境變數 `PR_RUNNER_DIR` 可改）；C# 原始碼比發佈版新時會先自動 `dotnet publish`（需要 .NET 8 SDK）。取消時對 Runner 送 Ctrl+C：產生資料保留已完成的局數、對戰寫出部分結果（不記到模型）；**Windows 上是直接結束 Runner，不會保留部分結果**。
 
 ## 流程
 
@@ -30,7 +33,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
    ```
    資料參數可以是檔案、萬用字元（腳本自己展開，Windows 也能用；加引號避免 shell 先展開）或資料夾（裡面所有 `.bin`）。參數用 `--help` 看。每個模型旁會寫 `<模型>.meta.json`：訓練參數、用了哪些資料（來源、局數、是否為自我對戰與用了哪個模型）、驗證成績、loss 曲線、特徵重要度、套件版本，以及 `matches`（對戰勝率，用 `modelmeta.add_match` 加入）。
    驗證集依「局」切（同一局的局面不會同時出現在訓練與驗證）。`train_mlp.py` 只用 NumPy（PyTorch 的下載站被網路擋住）。兩者都另存 `<模型>.check.txt`（5 列 Python 的預測值＋特徵），可用來確認 C# 推論一致。
-3. **使用**：MCTS 參數 `valueModel`（模型路徑，相對於執行目錄）、`leafRollout`（展開後先由 `rolloutStrategy` 打幾個決策再估值，預設 0）。設定 `valueModel` 後 `rolloutRounds` 不再使用。
+3. **使用**：MCTS 參數 `valueModel`（模型路徑；相對路徑先找目前目錄，找不到再往上層找，所以從專案根目錄、`Dashboard/`（VS F5）或 `publish/runner` 執行都能用 `ml/models/x.txt`；Dashboard「策略模擬」頁的 MCTS 座位有下拉選單）、`leafRollout`（展開後先由 `rolloutStrategy` 打幾個決策再估值，預設 0）。設定 `valueModel` 後 `rolloutRounds` 不再使用。
 4. **長時間工作**（自我對戰動輒一小時）：先發佈 Runner（`dotnet publish Runner -c Release -o publish/runner`），再用 `./publish/runner/Runner <同樣的參數>` 執行；這段時間內修改、建置程式都不會影響它。改了 Engine 要重新發佈。
 5. **迭代**：用「MCTS＋模型」自我對戰產生新資料（`ml/data-configs/4p-selfplay-*.json`），和舊資料一起重訓，再對戰比較。
 

@@ -22,7 +22,7 @@ ML_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(ML_DIR)
 HEARTBEAT_SECONDS = 2
 HEARTBEAT_STALE = 30
-KINDS = ("train_lgbm", "train_mlp")
+KINDS = ("train_lgbm", "train_mlp", "dump", "match")
 
 
 def results_dir():

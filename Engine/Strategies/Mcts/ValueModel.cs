@@ -20,10 +20,15 @@ public static class ValueModels
     // Immutable, read-only models keyed by full path: safe to share (no randomness, no mutable state).
     private static readonly ConcurrentDictionary<string, IValueModel> Cache = new();
 
-    /// <summary>Loads (once per path) a LightGBM text model (*.txt) or an MLP exported as JSON (*.json).</summary>
+    /// <summary>
+    /// Loads (once per path) a LightGBM text model (*.txt) or an MLP exported as JSON (*.json).
+    /// A relative path is looked up from the current directory first, then from its parent folders and those of the
+    /// program, so <c>ml/models/x.txt</c> also works when a program starts inside its project folder (Visual Studio F5)
+    /// or from <c>publish/runner</c>.
+    /// </summary>
     public static IValueModel Load(string path)
     {
-        string full = Path.GetFullPath(path);
+        string full = Resolve(path, Directory.GetCurrentDirectory(), AppContext.BaseDirectory);
         return Cache.GetOrAdd(full, p =>
         {
             if (!File.Exists(p)) throw new ArgumentException($"valueModel '{path}' does not exist");
@@ -31,6 +36,25 @@ public static class ValueModels
                 ? MlpValueModel.Parse(File.ReadAllText(p))
                 : LightGbmValueModel.Parse(File.ReadAllLines(p));
         });
+    }
+
+    /// <summary>Full path of a model file: <paramref name="path"/> itself if rooted or found under <paramref name="currentDirectory"/>,
+    /// else the first parent of <paramref name="currentDirectory"/>, then of <paramref name="programDirectory"/>, that contains it.
+    /// Unchanged (and later reported as missing) when it is found nowhere.</summary>
+    public static string Resolve(string path, string currentDirectory, string programDirectory)
+    {
+        if (Path.IsPathRooted(path)) return Path.GetFullPath(path);
+        string direct = Path.GetFullPath(Path.Combine(currentDirectory, path));
+        if (File.Exists(direct)) return direct;
+        foreach (var start in new[] { currentDirectory, programDirectory })
+        {
+            for (var dir = Directory.GetParent(Path.GetFullPath(start)); dir != null; dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, path);
+                if (File.Exists(candidate)) return Path.GetFullPath(candidate);
+            }
+        }
+        return direct;
     }
 
     internal static void CheckFeatureNames(IReadOnlyList<string> names, string what)

@@ -7,10 +7,11 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - `modelmeta.py`：`<模型>.meta.json`（參數、資料來源、驗證成績、特徵重要度、環境、`matches` 對戰勝率）；`write`／`read`／`match_entry`／`add_match`。
 - `train_lgbm.py`、`train_mlp.py`：`train(data, out, progress=None, log=print, **options)` 可匯入（ML UI 用），命令列只是包一層；都寫 `<模型>`、`.meta.json`、`.check.txt`。
 - `ui.py`：ML UI（Streamlit，`streamlit run ml/ui.py`；頁籤「訓練」「模型清單」）。啟動檔 `start-ui.sh`／`start-ui.cmd`（綁 localhost:8501、隱藏 Deploy 鈕）。路徑一律顯示成相對專案根目錄（`rel`／`scrub`，與 Dashboard 相同規則）。
+- 工作種類（`job_runner.py`）：`train_lgbm`／`train_mlp`（取消＝結束程序）、`dump`、`match`（呼叫發佈版 Runner `dotnet publish/runner/Runner.dll`，`PR_RUNNER_DIR` 可改；原始碼較新會先自動發佈；從輸出解析 `n/total games` 當進度；取消送 SIGINT，Windows 直接結束；`match` 完成後 `modelmeta.add_match`）。UI 寫的設定檔：自我對戰 `ml/data-configs/<名稱>.json`、對戰 `mcts/value/<名稱>.json`。
 - `jobs.py`：背景工作（`results/ml/jobs/<id>/`：`job.json` 狀態與心跳、`events.jsonl` 進度、`log.txt`、`cancel` 旗標檔）；`start`／`cancel`／`list_jobs`／`active_job`／`events`／`wait`；同時只允許一個工作。`job_runner.py`：在獨立程序執行一個工作（POSIX `start_new_session`、Windows `CREATE_NEW_PROCESS_GROUP|DETACHED_PROCESS`），心跳執行緒看到 `cancel` 就結束程序。
 - `data-configs/`：產生資料的 Runner 設定檔（手寫混桌、隨機、`4p-selfplay-*`＝MCTS＋模型自我對戰）。
 - `models/`：模型＋`.meta.json`＋`.check.txt`（進 git）。早期模型的 `.meta.json` 是補寫的（`params.note`、`training.note` 會註明）。
-- `tests/`：pytest（`conftest.py` 產生假 dump，不需要 .NET）：`python3 -m pytest ml/tests`。
+- `tests/`：pytest（`conftest.py` 產生假 dump）：`python3 -m pytest ml/tests`。`test_runner_jobs.py` 需要 .NET SDK（沒有就略過），會把 Runner 發佈到暫存資料夾。
 - `requirements.txt`：`pip install -r ml/requirements.txt`。
 - `make_test_fixture.py`：重產 C# 測試用的小模型 `Tests/Data/tiny-lgbm.*`（改特徵後要跑）。
 
@@ -34,5 +35,6 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 驗證集 MSE／R² 和勝率對不上（資料分布換了 R² 就會變），判斷模型只看對戰勝率（`matches`）。
 - 長時間產生資料用發佈版 Runner（`./publish/runner/Runner`），見 `ml/README.md`。
 - Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`job_panel` 把狀態放在旁邊）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。
+- 用 UI 測試資料／對戰時若有別的 Runner 背景工作正在用 `publish/runner`，啟動 UI 前設 `PR_RUNNER_DIR=<暫存資料夾>`：自動重新發佈會覆寫執行中的 dll。測完要把 `ml/models/*.meta.json` 多出的 `matches` 還原、刪掉 UI 寫的 `mcts/value/`、`ml/data-configs/` 測試設定檔。
 - 背景工作的程序不跟著 UI 結束：測試或手動實驗後記得看 `results/ml/jobs/` 有沒有還在跑的；`ml/models/` 裡測試用的模型要刪掉再 commit。
 - 這個雲端環境擋住 PyTorch 的 CPU 版下載站；在使用者電腦或 RunPod 才能裝。

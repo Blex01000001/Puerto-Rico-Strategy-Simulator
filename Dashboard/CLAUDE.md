@@ -17,6 +17,7 @@
 - `AppState.cs`：載入結果／掃描檔；`ReadConfigAsync` 只讀 config（跳過逐局記錄，大檔很快）；`SetTemplate`（用這份設定再模擬）；畫面上的路徑一律用 `DisplayPath`／`Scrub` 顯示成相對專案根目錄。
 - `SimulationService.cs`（背景執行、進度、取消）、`SnapshotEventSink.cs`（回放：每個決策前的狀態、動作、搜尋摘要）。
 - `ActionText.cs`（動作的中文說明）、`StrategyInfo.cs`（流派介紹與參數文字；`Groups` 決定頁籤分組）、`Palette.cs`（策略顏色與名稱）、`OverviewPresets.cs`。
+- `ValueModelCatalog.cs`：列出 `ml/models/` 的價值模型（讀 `.meta.json` 的人數、種類、對原版 MCTS 最佳勝率；不依賴 Python）；「策略模擬」頁 MCTS 座位參數欄下的「價值模型」下拉選單用它，選擇結果寫回參數文字（`valueModel=ml/models/…`），參數文字仍是唯一的來源。
 - `PageMemory.cs`：每個瀏覽器分頁一份的頁面記憶（Results／Sweep 的資料在 `AppState`，本來就保留）。
 
 **`wwwroot/`**：`app.css`（色票 token；只有一套扁平深色主題，沒有淺色模式）、`favicon.svg`。

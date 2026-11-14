@@ -187,3 +187,31 @@ public class PositionDumpCancelTests
         }
     }
 }
+
+public class ValueModelPathTests
+{
+    [Fact]
+    public void Relative_model_path_is_found_from_a_project_subfolder()
+    {
+        // Visual Studio F5 starts the Dashboard inside Dashboard/: "ml/models/x.txt" must still resolve against the root
+        var root = Path.Combine(Path.GetTempPath(), "pr-root-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "ml", "models"));
+            Directory.CreateDirectory(Path.Combine(root, "Dashboard", "bin", "Release"));
+            string model = Path.Combine(root, "ml", "models", "x.txt");
+            File.WriteAllText(model, "");
+            string rel = Path.Combine("ml", "models", "x.txt");
+            Assert.Equal(model, ValueModels.Resolve(rel, root, root));                                           // from the root
+            Assert.Equal(model, ValueModels.Resolve(rel, Path.Combine(root, "Dashboard"), "/elsewhere"));        // VS F5
+            Assert.Equal(model, ValueModels.Resolve(rel, "/elsewhere", Path.Combine(root, "Dashboard", "bin", "Release"))); // program folder
+            Assert.Equal(model, ValueModels.Resolve(model, "/elsewhere", "/elsewhere"));                         // absolute
+            string missing = Path.Combine("ml", "models", "nope.txt");
+            Assert.Equal(Path.GetFullPath(Path.Combine(root, missing)), ValueModels.Resolve(missing, root, root)); // not found: unchanged
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+}
