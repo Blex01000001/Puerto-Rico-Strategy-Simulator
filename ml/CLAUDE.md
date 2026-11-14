@@ -37,4 +37,5 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`job_panel` 把狀態放在旁邊）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。
 - 用 UI 測試資料／對戰時若有別的 Runner 背景工作正在用 `publish/runner`，啟動 UI 前設 `PR_RUNNER_DIR=<暫存資料夾>`：自動重新發佈會覆寫執行中的 dll。測完要把 `ml/models/*.meta.json` 多出的 `matches` 還原、刪掉 UI 寫的 `mcts/value/`、`ml/data-configs/` 測試設定檔。
 - 背景工作的程序不跟著 UI 結束：測試或手動實驗後記得看 `results/ml/jobs/` 有沒有還在跑的；`ml/models/` 裡測試用的模型要刪掉再 commit。
-- 這個雲端環境擋住 PyTorch 的 CPU 版下載站；在使用者電腦或 RunPod 才能裝。
+- 這個雲端環境擋住 PyTorch 的 CPU 版下載站；PyPI 的 `torch` 一定要帶 CUDA 函式庫（不帶就 import 失敗），完整安裝約 8 GB。使用者電腦裝 CPU 版即可。
+- `train_mlp.py` 兩個後端（`fit_torch`／`fit_numpy`）要維持同樣的訓練規則（He 初始化、Adam＋L2、每 4 epoch 學習率減半、提早停止取最好的一輪）；匯出一律走同一段 JSON，`tests/test_train.py` 兩個後端都測（沒有 torch 就略過）並用 NumPy 從 JSON 重算 check 列。

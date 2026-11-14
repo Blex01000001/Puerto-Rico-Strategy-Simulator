@@ -135,6 +135,8 @@ PARAM_HELP = {
     "batch": ("批次大小", "1024"),
     "l2": ("L2 正規化", "1e-5"),
     "patience": ("幾個 epoch 沒進步就停", "3"),
+    "backend": ("訓練引擎（auto＝有 PyTorch 就用）", "auto"),
+    "device": ("PyTorch 裝置（auto／cpu／cuda）", "auto"),
     "valid": ("驗證集比例（依局切）", "0.1"),
     "seed": ("亂數種子", "1"),
 }

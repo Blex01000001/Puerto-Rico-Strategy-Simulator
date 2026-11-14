@@ -32,7 +32,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
    python3 ml/train_mlp.py --out ml/models/4p-mlp-v1.json results/ml
    ```
    資料參數可以是檔案、萬用字元（腳本自己展開，Windows 也能用；加引號避免 shell 先展開）或資料夾（裡面所有 `.bin`）。參數用 `--help` 看。每個模型旁會寫 `<模型>.meta.json`：訓練參數、用了哪些資料（來源、局數、是否為自我對戰與用了哪個模型）、驗證成績、loss 曲線、特徵重要度、套件版本，以及 `matches`（對戰勝率，用 `modelmeta.add_match` 加入）。
-   驗證集依「局」切（同一局的局面不會同時出現在訓練與驗證）。`train_mlp.py` 只用 NumPy（PyTorch 的下載站被網路擋住）。兩者都另存 `<模型>.check.txt`（5 列 Python 的預測值＋特徵），可用來確認 C# 推論一致。
+   驗證集依「局」切（同一局的局面不會同時出現在訓練與驗證）。`train_mlp.py` 有 PyTorch 就用 PyTorch（`--backend auto`，有 GPU 時 `--device auto` 會用 GPU），沒有就用 NumPy；兩者輸出同一種 JSON，Engine 不分。PyTorch 是選用的（`ml/requirements.txt` 有安裝說明：只要 CPU 版用 PyTorch 的 CPU 下載站，小很多）。兩者都另存 `<模型>.check.txt`（5 列 Python 的預測值＋特徵），可用來確認 C# 推論一致。
 3. **使用**：MCTS 參數 `valueModel`（模型路徑；相對路徑先找目前目錄，找不到再往上層找，所以從專案根目錄、`Dashboard/`（VS F5）或 `publish/runner` 執行都能用 `ml/models/x.txt`；Dashboard「策略模擬」頁的 MCTS 座位有下拉選單）、`leafRollout`（展開後先由 `rolloutStrategy` 打幾個決策再估值，預設 0）。設定 `valueModel` 後 `rolloutRounds` 不再使用。
 4. **長時間工作**（自我對戰動輒一小時）：先發佈 Runner（`dotnet publish Runner -c Release -o publish/runner`），再用 `./publish/runner/Runner <同樣的參數>` 執行；這段時間內修改、建置程式都不會影響它。改了 Engine 要重新發佈。
 5. **迭代**：用「MCTS＋模型」自我對戰產生新資料（`ml/data-configs/4p-selfplay-*.json`），和舊資料一起重訓，再對戰比較。
@@ -47,7 +47,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 | `tests/` | pytest（`python3 -m pytest ml/tests`，不需要 .NET） |
 | `requirements.txt` | Python 套件 |
 | `train_lgbm.py` | LightGBM（`cross_entropy` 目標，標籤 0～1） |
-| `train_mlp.py` | MLP（ReLU 隱藏層＋sigmoid 輸出，Adam），匯出 JSON |
+| `train_mlp.py` | MLP（ReLU 隱藏層＋sigmoid 輸出，Adam，L2，學習率每 4 個 epoch 減半，提早停止）；PyTorch 或 NumPy，匯出同一種 JSON |
 | `data-configs/` | 產生資料用的設定檔（手寫策略混桌、隨機、MCTS 自我對戰） |
 | `models/` | 訓練好的模型（LightGBM 文字檔約 3 MB、MLP JSON 約 3 MB） |
 

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-hand-c",
+  "players": 3,
+  "games": 20000,
+  "seed": 303,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "harbor-rush-0",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "corn-monopoly-1",
+      "strategy": "corn-monopoly",
+      "params": {}
+    },
+    {
+      "id": "guided-random-2",
+      "strategy": "guided-random",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

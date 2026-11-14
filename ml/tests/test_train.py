@@ -2,6 +2,7 @@ import json
 import os
 
 import numpy as np
+import pytest
 
 import modelmeta
 import train_lgbm
@@ -38,21 +39,39 @@ def test_lightgbm_is_deterministic(dump, tmp_path):
     assert trees[0] == trees[1]
 
 
-def test_mlp_writes_engine_format_and_meta(dump, tmp_path):
+@pytest.mark.parametrize("backend", ["numpy", "torch"])
+def test_mlp_writes_engine_format_and_meta(dump, tmp_path, backend):
+    if backend == "torch" and not train_mlp.torch_available():
+        pytest.skip("PyTorch not installed")
     out = str(tmp_path / "m.json")
     events = []
     meta = train_mlp.train([dump(games=60)], out, progress=events.append, log=lambda *_: None,
-                           hidden="8", epochs=3, batch=64, patience=1)
+                           hidden="8", epochs=3, batch=64, patience=1, backend=backend, device="cpu")
     with open(out, encoding="utf-8") as f:
         model = json.load(f)
     assert model["format"] == "mlp" and model["features"][1] == "round"
     assert [len(layer["bias"]) for layer in model["layers"]] == [8, 1]
     assert len(model["layers"][0]["weights"][0]) == 6  # [out][in]
-    assert meta["kind"] == "mlp" and meta["params"]["hidden"] == [8]
+    assert meta["kind"] == "mlp" and meta["params"]["hidden"] == [8] and meta["params"]["backend"] == backend
     assert 1 <= meta["training"]["bestEpoch"] <= meta["training"]["epochsRun"] <= 3
     assert sum(e["stage"] == "epoch" for e in events) == meta["training"]["epochsRun"]
+    # the exported JSON alone (what the engine reads) reproduces the check rows
     check = np.loadtxt(out + ".check.txt")
     assert check.shape == (5, 7)
+    x = (check[:, 1:] - np.array(model["mean"])) / np.array(model["scale"])
+    for i, layer in enumerate(model["layers"]):
+        x = x @ np.array(layer["weights"]).T + np.array(layer["bias"])
+        if i < len(model["layers"]) - 1:
+            x = np.maximum(x, 0)
+    assert np.allclose(1 / (1 + np.exp(-x[:, 0])), check[:, 0], atol=1e-5)
+
+
+def test_mlp_torch_backend_refused_when_missing(dump, tmp_path, monkeypatch):
+    monkeypatch.setattr(train_mlp, "torch_available", lambda: False)
+    with pytest.raises(RuntimeError, match="PyTorch"):
+        train_mlp.train([dump()], str(tmp_path / "m.json"), log=lambda *_: None, backend="torch")
+    meta = train_mlp.train([dump("b.bin")], str(tmp_path / "n.json"), log=lambda *_: None, hidden="4", epochs=1, backend="auto")
+    assert meta["params"]["backend"] == "numpy"
 
 
 def test_match_results_are_appended_to_meta(dump, tmp_path):
