@@ -53,5 +53,5 @@
 - 手寫策略預設參數依人數不同，且在第一次 `ChooseAction` 才解析；`StrategyTests` 多半是 3 人局，用到 4 人預設值（如 premium 的 `switchRound`、harbor 的 `harborReadyTiles`）要明確傳參數。設定檔寫明的參數永遠優先。
 - 隨機玩家座位 3（玉米起手）勝率約 49% 不是 bug（三家都改染料起手後各 33%）。
 - 改 `ValueFeatures` 的特徵清單後，舊模型載入時會因特徵名稱不符被拒（刻意的）：要重新產生資料、重訓（`ml/README.md`）。
-- 跑長時間的 Runner 背景工作時不要 `dotnet build`（會覆寫執行中的 dll）；要驗證就 `dotnet test Tests -c Release -o <暫存目錄>`。
+- 長時間的 Runner 背景工作用發佈版（`dotnet publish Runner -c Release -o publish/runner` 後執行 `./publish/runner/Runner`，Windows 是 `publish\runner\Runner.exe`）；用 `dotnet run` 跑時不要同時 `dotnet build`（會覆寫執行中的 dll）。發佈版不會自動跟著 Engine 更新：改了 Engine 要重新發佈。
 - 測試建情境用 `Tests/Sc.cs`（`New`、`Start`、`Own`、`SetTiles`、`SetGoods`、`Legal`、`A`）。

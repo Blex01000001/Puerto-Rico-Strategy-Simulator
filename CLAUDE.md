@@ -38,6 +38,7 @@ dotnet build -c Release
 dotnet test -c Release
 dotnet run -c Release --project Runner -- --config config.example.json --games 100000 --out results/x.json   # 加 --sweep 跑參數掃描、--resume 續跑、--replay N 看第 N 局
 dotnet run -c Release --project Dashboard   # http://localhost:5080，讀 results/
+dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 被 git 忽略）；長時間背景工作用 ./publish/runner/Runner，之後建置不會覆寫它
 ```
 - 沒有 `dotnet` 時：`apt-get update && apt-get install -y dotnet-sdk-8.0`（`dotnet-install.sh` 被網路擋住，不可用）。
 - 指令輸出很長時接 `| tail` 或 `grep`，只看需要的行。

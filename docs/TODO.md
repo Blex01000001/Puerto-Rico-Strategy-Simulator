@@ -9,7 +9,7 @@
 3. 【先討論】手寫策略其他方向：3 人局 build-first 在新同分預設下變弱（第 2 節），可考慮依對手調整採石場策略（8.6）；corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
 4. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 5. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
-6. 【直接做】RunPod 部署說明與發佈指令（`dotnet publish -c Release -r linux-x64`），寫進 CLAUDE.md；視需要加 `--summary-only` 之類的輸出選項（ML 部分見 19）。
+6. 【直接做】RunPod 部署說明（發佈指令已在 CLAUDE.md：`dotnet publish Runner -c Release -o publish/runner`，RunPod 另加 `-r linux-x64`）；視需要加 `--summary-only` 之類的輸出選項（ML 部分見 19）。
 
 ### 機器學習（`ml/`，分析文件第 10 節）
 目前：4 人局 v2（LightGBM，手寫＋一輪自我對戰資料）同時間對原版 MCTS 65%／31%、對手寫 94.6%。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、每個模型另存 `.meta.json`、`ml/` 當獨立子專案（名稱不改）、MLP 改用 PyTorch（輸出格式不變）。
@@ -18,7 +18,6 @@
 7. 【直接做】`ml/requirements.txt`、`ml/CLAUDE.md`（地圖、改法、雷），根目錄地圖指過去。
 8. 【直接做】訓練腳本整理：可被呼叫的函式＋進度回報、自己展開萬用字元（Windows）、訓練完寫 `<模型>.meta.json`；命令列用法不變。
 9. 【直接做】Python 端版本檢查（`formatVersion`／`featureVersion`）與 pytest（資料讀取、切分、meta）。
-11. 【直接做】Runner 發佈指令（`dotnet publish`），ML UI 與長時間背景工作改呼叫發佈好的執行檔（建置時不會覆寫執行中的程式）。
 
 第 1 階段（ML UI 第一版）
 12. 【直接做】「訓練」頁：勾選資料、選 LightGBM／MLP、表單填參數、即時 loss 曲線、驗證成績與特徵重要度。

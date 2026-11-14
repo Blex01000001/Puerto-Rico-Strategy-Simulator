@@ -19,7 +19,8 @@
    ```
    驗證集依「局」切（同一局的局面不會同時出現在訓練與驗證）。`train_mlp.py` 只用 NumPy（PyTorch 的下載站被網路擋住）。兩者都另存 `<模型>.check.txt`（5 列 Python 的預測值＋特徵），可用來確認 C# 推論一致。
 3. **使用**：MCTS 參數 `valueModel`（模型路徑，相對於執行目錄）、`leafRollout`（展開後先由 `rolloutStrategy` 打幾個決策再估值，預設 0）。設定 `valueModel` 後 `rolloutRounds` 不再使用。
-4. **迭代**：用「MCTS＋模型」自我對戰產生新資料（`ml/data-configs/4p-selfplay-*.json`），和舊資料一起重訓，再對戰比較。
+4. **長時間工作**（自我對戰動輒一小時）：先發佈 Runner（`dotnet publish Runner -c Release -o publish/runner`），再用 `./publish/runner/Runner <同樣的參數>` 執行；這段時間內修改、建置程式都不會影響它。改了 Engine 要重新發佈。
+5. **迭代**：用「MCTS＋模型」自我對戰產生新資料（`ml/data-configs/4p-selfplay-*.json`），和舊資料一起重訓，再對戰比較。
 
 ## 檔案
 | 檔案 | 用途 |
