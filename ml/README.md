@@ -5,6 +5,17 @@
 
 訓練在 Python（離線），推論在 Engine 內用純 C#（`Engine/Strategies/Mcts/ValueModel.cs`，零 NuGet 相依、可在 RunPod Linux 執行、結果可完全重現）。
 
+## ML UI（訓練與模型清單）
+```bash
+ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
+```
+瀏覽器開 `http://localhost:8501`（只有本機連得到；Dashboard 左側選單「ML UI ↗」也會開這裡）。不需要 Visual Studio，也不需要開 Dashboard；先 `pip install -r ml/requirements.txt`。
+- **訓練**：勾選 `results/ml/` 的資料（依人數分開；正在產生的資料會標「產生中」）、選 LightGBM 或 MLP、填參數（標籤是中文說明＋命令列參數名稱）、取名稱 → 開始訓練。進度條與驗證 loss 曲線每 2 秒更新，結束時顯示驗證成績；同一時間只跑一個工作。
+- **模型清單**：`ml/models/` 每個模型的種類、資料、R²、對原版 MCTS 的最佳勝率；點選看參數、資料來源、各回合段誤差、loss 曲線、特徵重要度、所有對戰結果；「並排比較」最多 4 個模型，標出不同的參數。
+- 訓練在**獨立的背景程序**執行（`ml/jobs.py`）：關掉瀏覽器、關掉 UI（Ctrl+C）都不會中斷，重開 UI 會接著顯示進度；要停就按「取消這個工作」（不會留下半成品模型）。電腦睡眠或關機造成的中斷會標成「中斷」。工作紀錄在 `results/ml/jobs/<編號>/`（`job.json`、`events.jsonl`、`log.txt`）。
+- 資料與結果資料夾跟 Dashboard 相同（`results/`；環境變數 `PR_RESULTS_DIR` 可改，對應 Dashboard 的 `Dashboard:ResultsDirectory`）。
+- 「資料」（產生訓練資料、自我對戰）與「對戰驗證」頁是第 2 階段；目前用 Runner 命令列（見下）。
+
 ## 流程
 
 1. **產生資料**：Runner 的 `--dump-positions` 照設定檔打完整局，每個決策點以 `--dump-rate` 的機率抽樣，每個抽到的局面對每個座位各寫一列（特徵從該座位的視角，標籤＝該座位終局的回傳值與勝負）。
@@ -27,6 +38,8 @@
 | 檔案 | 用途 |
 |---|---|
 | `positions.py` | 讀 dump（檢查格式、版本、檔案大小；展開萬用字元與資料夾）、依局切驗證集 |
+| `ui.py`、`start-ui.sh`／`start-ui.cmd` | ML UI（Streamlit）與啟動檔 |
+| `jobs.py`、`job_runner.py` | 背景工作（獨立程序、心跳、取消、紀錄） |
 | `modelmeta.py` | `<模型>.meta.json` 的寫入／讀取、把對戰結果記到模型 |
 | `tests/` | pytest（`python3 -m pytest ml/tests`，不需要 .NET） |
 | `requirements.txt` | Python 套件 |

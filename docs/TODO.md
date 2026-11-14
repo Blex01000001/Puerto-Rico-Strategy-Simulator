@@ -9,30 +9,26 @@
 3. 【先討論】手寫策略其他方向：3 人局 build-first 在新同分預設下變弱（第 2 節），可考慮依對手調整採石場策略（8.6）；corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
 4. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 5. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
-6. 【直接做】RunPod 部署說明（發佈指令已在 CLAUDE.md：`dotnet publish Runner -c Release -o publish/runner`，RunPod 另加 `-r linux-x64`）；視需要加 `--summary-only` 之類的輸出選項（ML 部分見 14）。
+6. 【直接做】RunPod 部署說明（發佈指令已在 CLAUDE.md：`dotnet publish Runner -c Release -o publish/runner`，RunPod 另加 `-r linux-x64`）；視需要加 `--summary-only` 之類的輸出選項（ML 部分見 11）。
 
 ### 機器學習（`ml/`，分析文件第 10 節）
-目前：4 人局 v2（LightGBM，手寫＋一輪自我對戰資料）同時間對原版 MCTS 65%／31%、對手寫 94.6%。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、`ml/` 當獨立子專案（名稱不改，見 `ml/CLAUDE.md`）、MLP 改用 PyTorch（輸出格式不變）。第 0 階段（requirements、`.meta.json`、萬用字元、版本檢查、pytest、取消後的 dump、Runner 發佈版）已完成。
-
-第 1 階段（ML UI 第一版）
-7. 【直接做】「訓練」頁：勾選資料、選 LightGBM／MLP、表單填參數、即時 loss 曲線、驗證成績與特徵重要度。
-8. 【直接做】「模型清單」頁：讀 `.meta.json`，列參數／資料／成績，兩個模型並排比較。
-9. 【直接做】長時間工作開成獨立背景程序（紀錄檔、關掉 UI 不中斷、可取消；Windows 的 Ctrl+C 會連子程序一起停）；啟動檔 `start-ml-ui.cmd`／`.sh`、Dashboard 導覽列連結。
+目前：4 人局 v2（LightGBM，手寫＋一輪自我對戰資料）同時間對原版 MCTS 65%／31%、對手寫 94.6%。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、`ml/` 當獨立子專案（名稱不改，見 `ml/CLAUDE.md`）、MLP 改用 PyTorch（輸出格式不變）。第 0 階段（requirements、`.meta.json`、萬用字元、版本檢查、pytest、取消後的 dump、Runner 發佈版）與第 1 階段（ML UI 的「訓練」「模型清單」、背景工作、啟動檔、Dashboard 連結）已完成。
 
 第 2 階段（ML UI 第二版、Dashboard 銜接）
-10. 【直接做】「資料」頁（選設定檔或模型自我對戰、進度、已有資料清單）與「對戰驗證」頁（選模型／模擬次數／對手桌，勝率與信賴區間，回寫 `.meta.json`）。
-11. 【直接做】Dashboard：`valueModel` 改下拉選單（列出 `ml/models/`）、修相對路徑（VS F5 時目前目錄是 `Dashboard/`，找不到模型）、回放頁的價值模型顯示在瀏覽器確認。
+7. 【直接做】「資料」頁（選設定檔或模型自我對戰、進度、已有資料清單）與「對戰驗證」頁（選模型／模擬次數／對手桌，勝率與信賴區間，回寫 `.meta.json`）。
+8. 【直接做】Dashboard：`valueModel` 改下拉選單（列出 `ml/models/`）、修相對路徑（VS F5 時目前目錄是 `Dashboard/`，找不到模型）、回放頁的價值模型顯示在瀏覽器確認。
 
 第 3 階段（模型變強，可與 1、2 並行）
-12. 【直接做】v3：MCTS＋v2 自我對戰（8,000 局以上）＋舊資料重訓，同模擬次數與同時間各比一次；MLP 用 PyTorch 重寫（提早停止、正規化）並與 LightGBM 對打；3 人局模型（`ml/data-configs/3p-*`、`mcts/value/3p-*`）。
-13. 【直接做】推論成本：更少／更淺的樹、更小的 MLP，比同時間勝率；選做：勝負模型（回放顯示真實勝率估計）、`leafRollout` 0 對 20、用 v2 當陪練找手寫策略弱點。
-14. 【直接做】第 4 階段 RunPod：setup 腳本（.NET 8、Python 套件）、SSH 通道連 ML UI、模型帶回本機的流程；先用多核心 CPU pod，MLP 改 PyTorch 且資料變大後才考慮 GPU。
-15. 【先討論】v2／v3 要不要設成 `mcts` 的預設（改了第 5、7、9 節含 MCTS 的數字都要重跑）；等 12 之後再決定。
+9. 【直接做】v3：MCTS＋v2 自我對戰（8,000 局以上）＋舊資料重訓，同模擬次數與同時間各比一次；MLP 用 PyTorch 重寫（提早停止、正規化）並與 LightGBM 對打；3 人局模型（`ml/data-configs/3p-*`、`mcts/value/3p-*`）。
+10. 【直接做】推論成本：更少／更淺的樹、更小的 MLP，比同時間勝率；選做：勝負模型（回放顯示真實勝率估計）、`leafRollout` 0 對 20、用 v2 當陪練找手寫策略弱點。
+11. 【直接做】第 4 階段 RunPod：setup 腳本（.NET 8、Python 套件）、SSH 通道連 ML UI、模型帶回本機的流程；先用多核心 CPU pod，MLP 改 PyTorch 且資料變大後才考慮 GPU。
+12. 【先討論】v2／v3 要不要設成 `mcts` 的預設（改了第 5、7、9 節含 MCTS 的數字都要重跑）；等 9 之後再決定。
 
 ## 已知問題／限制
 
 - `wharf-rush` 在這份實作下偏弱（4 人局約 18%、3 人局約 39%）：Wharf 平均到第 9～10 回合才買到；MCTS 陪練（random 或 wharf-rush rollout）都不買 Wharf、也打贏它，目前沒有證據顯示 Wharf 太強（分析文件 7.2）；前期金幣來源的參數掃描在 4 人局沒有進步（7.1）。`wharf-premium`（菸草／咖啡籌錢）也沒有更強（7.5）。`corn-monopoly` 的搗亂效果已量化並拆成兩種手段（7.3、7.4：囤貨比搶種植園傷，且大部分落差只是多一個玉米玩家）。
 
+- ML UI 只在 Linux（Chromium）實際操作驗證過；Windows 上的背景程序（`DETACHED_PROCESS`）、`start-ui.cmd` 與 Ctrl+C 後工作繼續執行，還沒在 Windows 實測。
 - 策略模擬頁（`Simulate.razor`）的「完全平衡」選項與局數提示、局數千分位輸入、MCTS 耗時警告、自訂結果檔名、策略下拉選單名稱只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。
 - 分析文件第 1、2、7 節的數字是 `balanced` 座位 + 新同分預設（`tournaments/` 4 人 100,008／3 人 100,002 局）；第 3～4 節的調參與第 5 節 MCTS 實驗是舊預設下做的（第一到第三輪調參是 `rotate`、未重跑，MCTS 的對手 build-first／harbor-rush 也是舊同分順序）；總覽頁的「座位順序」欄會標示每份結果用哪種。
 - 陪練實驗（第 9 節）MCTS 每桌只有 480 局，勝率誤差約 ±4 個百分點；`tools/sparring` 不在 `PuertoRico.sln`，改了 Engine 後要另外 `dotnet build -c Release tools/sparring`（否則會用到舊的 Engine）。

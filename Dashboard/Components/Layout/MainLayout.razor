@@ -26,6 +26,10 @@
         <div class="navsec">進階</div>
         <NavLink href="sweep" ActiveClass="active" title="參數掃描"><span class="ni">🎛️</span><span class="nl">參數掃描</span></NavLink>
         <NavLink href="config" ActiveClass="active" title="設定檔"><span class="ni">📝</span><span class="nl">設定檔</span></NavLink>
+
+        <div class="navsec">機器學習</div>
+        @* Separate Python app (ml/ui.py); it must be started on its own: ml/start-ui.cmd (Windows) or ml/start-ui.sh *@
+        <a href="http://localhost:8501" target="_blank" rel="noopener" title="ML UI：訓練與瀏覽局面價值模型（新分頁；要先另外啟動 ml/start-ui.cmd 或 ml/start-ui.sh）"><span class="ni">🌱</span><span class="nl">ML UI ↗</span></a>
     </nav>
     <main>
         @Body
