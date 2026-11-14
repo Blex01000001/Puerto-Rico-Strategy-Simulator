@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-hand-a",
+  "players": 4,
+  "games": 20000,
+  "seed": 101,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "cheap-engine-0",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "build-first-1",
+      "strategy": "build-first",
+      "params": {}
+    },
+    {
+      "id": "harbor-rush-2",
+      "strategy": "harbor-rush",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium-3",
+      "strategy": "corn-to-premium",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

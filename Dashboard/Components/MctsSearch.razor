@@ -10,7 +10,14 @@
             @if (Search.RolloutStrategy != "")
             {
                 <span class="chip" title="樹搜尋之後，所有座位（含對手與自己）都用這個策略往下打到停止點；它決定模擬裡對手怎麼出牌。">模擬對手：@Palette.DisplayName(Search.RolloutStrategy)</span>
-                <span class="chip" title="往下打這麼多回合後，以當時的分數排名當作結果；打到終局最準但最慢。">@(Search.RolloutRounds == 0 ? "打到終局" : $"往下打 {Search.RolloutRounds} 回合")</span>
+                @if (Search.ValueModel != "")
+                {
+                    <span class="chip" title="葉節點不打到停止點，改由學習得到的局面價值模型估計每個座位的結果（勝率欄位此時也是模型估值）。">價值模型：@Search.ValueModel@(Search.LeafRollout > 0 ? $"（先打 {Search.LeafRollout} 步）" : "")</span>
+                }
+                else
+                {
+                    <span class="chip" title="往下打這麼多回合後，以當時的分數排名當作結果；打到終局最準但最慢。">@(Search.RolloutRounds == 0 ? "打到終局" : $"往下打 {Search.RolloutRounds} 回合")</span>
+                }
             }
             @if (Search.Exploration > 0) { <span class="chip" title="UCT 的探索係數：越大越願意試冷門動作。">探索係數 @Search.Exploration.ToString("0.##")</span> }
         </div>

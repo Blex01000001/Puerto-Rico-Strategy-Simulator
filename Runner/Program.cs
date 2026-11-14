@@ -20,6 +20,8 @@ public static class Program
           --resume             continue from an existing --out file of the same config
           --replay <index>     play one game with the event log on and write the events to --out
           --sweep              parameter sweep from config.sweep (see config.sweep.example.json); result in --out (default sweep.json)
+          --dump-positions <file>  play the games and write sampled positions (training data for a value model, see ml/README.md)
+          --dump-rate <p>      share of decision points sampled by --dump-positions (default 0.02)
           --help
         """;
 
@@ -42,6 +44,8 @@ public static class Program
         int? games = null, threads = null, replay = null;
         ulong? seed = null;
         bool resume = false, sweep = false;
+        string? dumpPath = null;
+        double dumpRate = 0.02;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -56,6 +60,8 @@ public static class Program
                 case "--resume": resume = true; break;
                 case "--replay": replay = int.Parse(Next()); break;
                 case "--sweep": sweep = true; break;
+                case "--dump-positions": dumpPath = Next(); break;
+                case "--dump-rate": dumpRate = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--help" or "-h": Console.WriteLine(Usage); return 0;
                 default: throw new ArgumentException($"unknown argument '{args[i]}'\n\n{Usage}");
             }
@@ -70,6 +76,7 @@ public static class Program
 
         if (replay != null) return Replay(cfg, replay.Value, outPath);
         if (sweep) return Sweep(cfg, outPath);
+        if (dumpPath != null) return Dump(cfg, dumpPath, dumpRate);
 
         var options = new BatchOptions { OutPath = outPath };
         if (resume)
@@ -112,6 +119,18 @@ public static class Program
         foreach (var p in result.Points.OrderByDescending(p => p.WinShare))
             Console.WriteLine($"  {p.WinShare,6:P1} ± {p.WinShareCi95:P1}  avg {p.AvgScore,5:F1}  {SweepRunner.Describe(p.Params)}");
         return result.Status == "completed" ? 0 : 130;
+    }
+
+    private static int Dump(SimulationConfig cfg, string path, double rate)
+    {
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var progress = new Progress<int>(n => Console.Error.Write($"\r{n}/{cfg.Games} games  {n / Math.Max(0.001, sw.Elapsed.TotalSeconds):F0} games/s   "));
+        var r = PositionDump.Run(cfg, path, rate, progress, cts.Token);
+        Console.Error.WriteLine();
+        Console.WriteLine($"{r.Games} games, {r.Positions} positions, {r.Rows} rows ({PositionDump.RecordBytes} bytes each) -> {path} (+ .json)");
+        return 0;
     }
 
     private static int Replay(SimulationConfig cfg, int index, string outPath)

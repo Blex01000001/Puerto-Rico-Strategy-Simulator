@@ -8,7 +8,9 @@ namespace PuertoRico.Engine.Strategies;
 /// <param name="Exploration">UCT exploration constant used by the search (0 when unknown).</param>
 /// <param name="RolloutStrategy">Strategy every seat plays after the tree, i.e. how the opponents are modelled in the simulations ("" when unknown).</param>
 /// <param name="RolloutRounds">Rounds played after the tree before the players are ranked by points (0 = to the end of the game).</param>
-public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.Entry> Actions, double Exploration = 0, string RolloutStrategy = "", int RolloutRounds = 0)
+/// <param name="ValueModel">File name of the value model that values the leaves ("" = rollouts); then <paramref name="RolloutRounds"/> is unused.</param>
+/// <param name="LeafRollout">With a value model: decisions of the rollout strategy played before the model values the leaf.</param>
+public sealed record SearchSummary(int Simulations, IReadOnlyList<SearchSummary.Entry> Actions, double Exploration = 0, string RolloutStrategy = "", int RolloutRounds = 0, string ValueModel = "", int LeafRollout = 0)
 {
     /// <summary>z value used to call a difference between two mean rewards "more than noise" (about 87 %).</summary>
     public const double NoiseZ = 1.5;

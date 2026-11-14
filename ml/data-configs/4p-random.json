@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-random",
+  "players": 4,
+  "games": 20000,
+  "seed": 104,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "random-0",
+      "strategy": "random",
+      "params": {}
+    },
+    {
+      "id": "random-1",
+      "strategy": "random",
+      "params": {}
+    },
+    {
+      "id": "random-2",
+      "strategy": "random",
+      "params": {}
+    },
+    {
+      "id": "random-3",
+      "strategy": "random",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}
