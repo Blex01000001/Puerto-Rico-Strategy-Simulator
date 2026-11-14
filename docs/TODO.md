@@ -18,7 +18,6 @@
 7. 【直接做】`ml/requirements.txt`、`ml/CLAUDE.md`（地圖、改法、雷），根目錄地圖指過去。
 8. 【直接做】訓練腳本整理：可被呼叫的函式＋進度回報、自己展開萬用字元（Windows）、訓練完寫 `<模型>.meta.json`；命令列用法不變。
 9. 【直接做】Python 端版本檢查（`formatVersion`／`featureVersion`）與 pytest（資料讀取、切分、meta）。
-10. 【直接做】產生資料被取消時也寫出已完成局數的 `.bin.json`（現在取消會留下讀不了的檔）。
 11. 【直接做】Runner 發佈指令（`dotnet publish`），ML UI 與長時間背景工作改呼叫發佈好的執行檔（建置時不會覆寫執行中的程式）。
 
 第 1 階段（ML UI 第一版）

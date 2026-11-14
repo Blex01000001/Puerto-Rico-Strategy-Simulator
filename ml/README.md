@@ -11,7 +11,7 @@
    ```bash
    dotnet run -c Release --project Runner -- --config ml/data-configs/4p-hand-a.json --dump-positions results/ml/4p-hand-a.bin --dump-rate 0.01
    ```
-   輸出 `<檔>`（固定長度紀錄：float32 reward、float32 win、int32 局號、int16×特徵數）＋ `<檔>.json`（特徵名稱、設定）。結果與執行緒數無關。檔案很大（約 870 bytes／列，2 萬局約 43 萬～60 萬列），放 `results/ml/`（已被 git 忽略）。
+   輸出 `<檔>`（固定長度紀錄：float32 reward、float32 win、int32 局號、int16×特徵數）＋ `<檔>.json`（特徵名稱、設定）。結果與執行緒數無關。中途取消（Ctrl+C）時，已完成的局數仍可讀（`.bin.json` 的 `status` 為 `cancelled`）。檔案很大（約 870 bytes／列，2 萬局約 43 萬～60 萬列），放 `results/ml/`（已被 git 忽略）。
 2. **訓練**（需要 `pip install lightgbm numpy`）：
    ```bash
    python3 ml/train_lgbm.py --out ml/models/4p-v1.txt results/ml/4p-*.bin

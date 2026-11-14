@@ -12,6 +12,8 @@ namespace PuertoRico.Engine.Simulation;
 /// Output: <c>&lt;out&gt;</c> = fixed-size little-endian records (float32 reward, float32 win, int32 game, int16 × feature count),
 /// <c>&lt;out&gt;.json</c> = metadata (feature names, layout, config). Deterministic in (config, game index, rate) and
 /// independent of the thread count: games run in parallel in chunks and are written in game order.
+/// Cancelling stops after the current chunk is dropped; the metadata is still written for the games completed so far
+/// (<c>status</c> = "cancelled"), so a partial dump stays readable.
 /// </summary>
 public static class PositionDump
 {
@@ -19,7 +21,7 @@ public static class PositionDump
     public const int FormatVersion = 1;
     private const int Chunk = 64;
 
-    public sealed record Summary(long Rows, int Games, long Positions);
+    public sealed record Summary(long Rows, int Games, long Positions, bool Cancelled = false);
 
     public static int RecordBytes => 4 + 4 + 4 + 2 * ValueFeatures.Count;
 
@@ -49,6 +51,7 @@ public static class PositionDump
         int f = ValueFeatures.Count;
         long rows = 0, positions = 0;
         int done = 0;
+        bool cancelled = false;
         var po = new ParallelOptions { MaxDegreeOfParallelism = cfg.Parallelism.MaxDegree > 0 ? cfg.Parallelism.MaxDegree : Environment.ProcessorCount, CancellationToken = cancel };
         using (var fs = new FileStream(outPath, FileMode.Create, FileAccess.Write))
         using (var w = new BinaryWriter(fs))
@@ -57,16 +60,25 @@ public static class PositionDump
             {
                 int n = Math.Min(Chunk, cfg.Games - start);
                 var per = new (List<float[][]> Pos, double[] Reward, double[] Win)[n];
-                Parallel.For(0, n, po, k =>
+                if (cancel.IsCancellationRequested) { cancelled = true; break; }
+                try
                 {
-                    int game = start + k;
-                    var sink = new SampleSink(Rng.Mix(SeedDeriver.GameSeed(cfg.Seed, game) ^ 0x5D0F_3A11_7C2B_9E41UL), rate);
-                    GameRunner.Play(cfg, game, sink, out var final);
-                    var reward = new double[GameConstants.MaxPlayers];
-                    var win = new double[GameConstants.MaxPlayers];
-                    MctsStrategy.TerminalReward(final, reward, win);
-                    per[k] = (sink.Positions, reward, win);
-                });
+                    Parallel.For(0, n, po, k =>
+                    {
+                        int game = start + k;
+                        var sink = new SampleSink(Rng.Mix(SeedDeriver.GameSeed(cfg.Seed, game) ^ 0x5D0F_3A11_7C2B_9E41UL), rate);
+                        GameRunner.Play(cfg, game, sink, out var final);
+                        var reward = new double[GameConstants.MaxPlayers];
+                        var win = new double[GameConstants.MaxPlayers];
+                        MctsStrategy.TerminalReward(final, reward, win);
+                        per[k] = (sink.Positions, reward, win);
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    cancelled = true; // the unfinished chunk is dropped
+                    break;
+                }
                 for (int k = 0; k < n; k++)
                 {
                     var (pos, reward, win) = per[k];
@@ -93,6 +105,7 @@ public static class PositionDump
         {
             format = Format,
             formatVersion = FormatVersion,
+            status = cancelled ? "cancelled" : "completed",
             featureVersion = ValueFeatures.Version,
             recordBytes = RecordBytes,
             layout = "float32 reward, float32 win, int32 game, int16[featureCount] features (little-endian)",
@@ -108,6 +121,6 @@ public static class PositionDump
             seats = cfg.Seats.Select(s => new { s.Id, s.Strategy, s.Params }).ToList(),
         };
         File.WriteAllText(outPath + ".json", JsonSerializer.Serialize(meta, SimulationConfig.JsonOptions));
-        return new Summary(rows, done, positions);
+        return new Summary(rows, done, positions, cancelled);
     }
 }

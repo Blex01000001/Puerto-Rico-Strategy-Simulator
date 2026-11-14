@@ -153,3 +153,37 @@ public class ValueModelTests
         }
     }
 }
+
+public class PositionDumpCancelTests
+{
+    private sealed class CancelAfterFirst : IProgress<int>
+    {
+        private readonly CancellationTokenSource _cts;
+        public CancelAfterFirst(CancellationTokenSource cts) => _cts = cts;
+        public void Report(int value) => _cts.Cancel();
+    }
+
+    [Fact]
+    public void Cancelled_dump_keeps_the_finished_chunk_and_writes_metadata()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "pr-dump-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var cfg = new SimulationConfig { Name = "dump", Players = 3, Games = 500, Seed = 3 };
+            using var cts = new CancellationTokenSource();
+            string path = Path.Combine(dir, "c.bin");
+            var r = PositionDump.Run(cfg, path, 0.05, new CancelAfterFirst(cts), cts.Token);
+            Assert.True(r.Cancelled);
+            Assert.True(r.Games > 0 && r.Games < 500);
+            Assert.Equal(r.Rows * PositionDump.RecordBytes, new FileInfo(path).Length);
+            using var meta = JsonDocument.Parse(File.ReadAllText(path + ".json"));
+            Assert.Equal("cancelled", meta.RootElement.GetProperty("status").GetString());
+            Assert.Equal(r.Games, meta.RootElement.GetProperty("games").GetInt32());
+            Assert.Equal(r.Rows, meta.RootElement.GetProperty("rows").GetInt64());
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        }
+    }
+}

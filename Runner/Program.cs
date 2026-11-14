@@ -124,13 +124,18 @@ public static class Program
     private static int Dump(SimulationConfig cfg, string path, double rate)
     {
         using var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true; // keep the games done so far: the metadata is still written
+            Console.Error.WriteLine("\ncancelling, writing the games done so far...");
+            cts.Cancel();
+        };
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var progress = new Progress<int>(n => Console.Error.Write($"\r{n}/{cfg.Games} games  {n / Math.Max(0.001, sw.Elapsed.TotalSeconds):F0} games/s   "));
         var r = PositionDump.Run(cfg, path, rate, progress, cts.Token);
         Console.Error.WriteLine();
-        Console.WriteLine($"{r.Games} games, {r.Positions} positions, {r.Rows} rows ({PositionDump.RecordBytes} bytes each) -> {path} (+ .json)");
-        return 0;
+        Console.WriteLine($"{(r.Cancelled ? "cancelled" : "completed")}: {r.Games} games, {r.Positions} positions, {r.Rows} rows ({PositionDump.RecordBytes} bytes each) -> {path} (+ .json)");
+        return r.Cancelled ? 130 : 0;
     }
 
     private static int Replay(SimulationConfig cfg, int index, string outPath)
