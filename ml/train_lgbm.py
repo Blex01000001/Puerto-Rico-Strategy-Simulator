@@ -49,10 +49,14 @@ def train(data, out, progress=None, log=print, **options):
         "num_threads": o["threads"],
         "verbose": -1,
     }
-    xf = x.astype(np.float32)
+    # float copies are made per part and the training copy is freed once LightGBM has binned it
+    # (one float copy of all rows plus a sliced copy did not fit in 15 GB at 3.4 million rows)
+    xv = x[valid].astype(np.float32)
+    yt, yv = reward[~valid], reward[valid]
+    train_set = lgb.Dataset(x[~valid].astype(np.float32), yt, feature_name=names, params=params, free_raw_data=True)
     del x
-    train_set = lgb.Dataset(xf[~valid], reward[~valid], feature_name=names, free_raw_data=False)
-    valid_set = lgb.Dataset(xf[valid], reward[valid], reference=train_set)
+    train_set.construct()
+    valid_set = lgb.Dataset(xv, yv, reference=train_set, params=params)
     curve = []
 
     def record(env):
@@ -68,16 +72,16 @@ def train(data, out, progress=None, log=print, **options):
     seconds = time.time() - t0
     log(f"trained {booster.num_trees()} trees in {seconds:.0f} s")
 
-    pred = booster.predict(xf[valid])
-    rounds = xf[valid][:, names.index("round")]
-    validation = modelmeta.validation_summary(pred, reward[valid], reward[~valid].mean(), rounds)
+    pred = booster.predict(xv)
+    rounds = xv[:, names.index("round")]
+    validation = modelmeta.validation_summary(pred, yv, yt.mean(), rounds)
     log(f"validation MSE {validation['mse']:.4f} (constant {validation['constantMse']:.4f}, R2 {validation['r2']:.3f})")
     for st in validation["byRound"]:
         log(f"  rounds {st['rounds']:<6}: MSE {st['mse']:.4f}  n={st['rows']:,}")
 
     booster.save_model(out)
     # rows the C# side must reproduce (see Tests/ValueModelTests and ml/README.md)
-    np.savetxt(out + ".check.txt", np.column_stack([pred[:5], xf[valid][:5]]), fmt="%.9g")
+    np.savetxt(out + ".check.txt", np.column_stack([pred[:5], xv[:5]]), fmt="%.9g")
     gains = booster.feature_importance("gain")
     top = [{"name": n, "gain": float(g)} for g, n in sorted(zip(gains, names), reverse=True)[:30]]
     log("top features (gain): " + ", ".join(t["name"] for t in top[:15]))
