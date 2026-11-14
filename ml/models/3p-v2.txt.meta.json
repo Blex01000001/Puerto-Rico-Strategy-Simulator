@@ -667,5 +667,68 @@
     "lightgbm": "4.7.0",
     "numpy": "2.5.3"
   },
-  "matches": []
+  "matches": [
+    {
+      "result": "results/ml/3p-v2-vs-default.json",
+      "config": "3p-v2-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.4625,
+      "winShareCi95": 0.06308056191622477,
+      "avgScore": 39.94166666666667,
+      "others": [
+        {
+          "seatId": "mcts-default",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.4270833333333333,
+          "avgScore": 38.041666666666664
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.11041666666666666,
+          "avgScore": 36.2375
+        }
+      ]
+    },
+    {
+      "result": "results/ml/3p-v2-vs-hand.json",
+      "config": "3p-v2-vs-hand",
+      "status": "completed",
+      "games": 240,
+      "seed": 5252,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.525,
+      "winShareCi95": 0.06317960509531537,
+      "avgScore": 39.729166666666664,
+      "others": [
+        {
+          "seatId": "corn-shipper",
+          "strategy": "corn-shipper",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.3770833333333333,
+          "avgScore": 39.4875
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.09791666666666667,
+          "avgScore": 34.94583333333333
+        }
+      ]
+    }
+  ]
 }
