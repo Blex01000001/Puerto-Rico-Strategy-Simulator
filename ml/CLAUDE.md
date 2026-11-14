@@ -12,7 +12,8 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - `data-configs/`：產生資料的 Runner 設定檔（手寫混桌、隨機、`4p-selfplay-*`＝MCTS＋模型自我對戰）。
 - `models/`：模型＋`.meta.json`＋`.check.txt`（進 git）。早期模型的 `.meta.json` 是補寫的（`params.note`、`training.note` 會註明）。
 - `tests/`：pytest（`conftest.py` 產生假 dump）：`python3 -m pytest ml/tests`。`test_runner_jobs.py` 需要 .NET SDK（沒有就略過），會把 Runner 發佈到暫存資料夾。
-- `requirements.txt`：`pip install -r ml/requirements.txt`。
+- `requirements.txt`：`python -m pip install -r ml/requirements.txt`。
+- `check_env.py`：這個 Python 有沒有 ML UI 的套件；沒有就印出該 Python 的完整路徑與 `"<python>" -m pip install -r …`（退出碼 1）。`start-ui.cmd`／`.sh`、`ui.py`（缺套件時只顯示修正指令）、Dashboard 的啟動按鈕都用它；必要套件清單在 `REQUIRED`（加套件時同步 `requirements.txt`）。
 - `make_test_fixture.py`：重產 C# 測試用的小模型 `Tests/Data/tiny-lgbm.*`（改特徵後要跑）。
 
 ## 契約（兩邊要一起改）
@@ -37,5 +38,6 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`job_panel` 把狀態放在旁邊）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。
 - 用 UI 測試資料／對戰時若有別的 Runner 背景工作正在用 `publish/runner`，啟動 UI 前設 `PR_RUNNER_DIR=<暫存資料夾>`：自動重新發佈會覆寫執行中的 dll。測完要把 `ml/models/*.meta.json` 多出的 `matches` 還原、刪掉 UI 寫的 `mcts/value/`、`ml/data-configs/` 測試設定檔。
 - 背景工作的程序不跟著 UI 結束：測試或手動實驗後記得看 `results/ml/jobs/` 有沒有還在跑的；`ml/models/` 裡測試用的模型要刪掉再 commit。
+- Windows 常有兩個 Python（Anaconda 與 python.org）：`pip` 裝到 A、`py`／`python` 跑的是 B，ML UI 就會 `No module named 'lightgbm'`。所以指示一律寫 `python -m pip`，啟動檔挑「第一個套件齊全的 Python」（`PR_PYTHON` 可指定），失敗時印出該 Python 的完整路徑與修正指令。
 - 這個雲端環境擋住 PyTorch 的 CPU 版下載站；PyPI 的 `torch` 一定要帶 CUDA 函式庫（不帶就 import 失敗），完整安裝約 8 GB。使用者電腦裝 CPU 版即可。
 - `train_mlp.py` 兩個後端（`fit_torch`／`fit_numpy`）要維持同樣的訓練規則（He 初始化、Adam＋L2、每 4 epoch 學習率減半、提早停止取最好的一輪）；匯出一律走同一段 JSON，`tests/test_train.py` 兩個後端都測（沒有 torch 就略過）並用 NumPy 從 JSON 重算 check 列。

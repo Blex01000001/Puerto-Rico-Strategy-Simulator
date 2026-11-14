@@ -29,7 +29,7 @@ bash deploy/runpod/setup.sh --test
 ```
 
 - repo 是私人的：clone 時用 GitHub 的 personal access token（只給這個 repo 的 Contents 讀寫權限），例如 `git clone https://<token>@github.com/...`；或在 pod 上 `gh auth login`。**token 不要寫進任何檔案或 commit。**
-- `setup.sh` 可以重複執行（`git pull` 之後、或 pod 重開之後再跑一次）：已裝好的會略過。它做的事：裝 .NET 8 SDK（apt，不行就用 Microsoft 的 `dotnet-install.sh` 裝到 `~/.dotnet`）、`pip install -r ml/requirements.txt`、建置、把 Runner 發佈到 `publish/runner`；`--test` 再跑 C# 與 Python 測試；`--torch` 在沒有 PyTorch 時安裝。最後會印出核心數、記憶體、磁碟、GPU，以及專案是否在 `/workspace`。
+- `setup.sh` 可以重複執行（`git pull` 之後、或 pod 重開之後再跑一次）：已裝好的會略過。它做的事：裝 .NET 8 SDK（apt，不行就用 Microsoft 的 `dotnet-install.sh` 裝到 `~/.dotnet`）、`python3 -m pip install -r ml/requirements.txt`、建置、把 Runner 發佈到 `publish/runner`；`--test` 再跑 C# 與 Python 測試；`--torch` 在沒有 PyTorch 時安裝。最後會印出核心數、記憶體、磁碟、GPU，以及專案是否在 `/workspace`。
 - 如果 `dotnet` 是裝在 `~/.dotnet`，新開的終端機要 `source ~/.bashrc` 才找得到。
 
 ## 3. 開 ML UI 與 Dashboard（SSH 通道）
