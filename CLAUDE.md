@@ -19,7 +19,7 @@
 |---|---|
 | `README.md` | 給第一次看的人：目的、主要結論（數字來自分析文件，分析更新時同步）、快速開始 |
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
-| `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練） |
+| `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數） |
 | `docs/experiments.md` | 實驗設定索引：`tournaments/`、`sweeps/round*`、`mcts/` 各是什麼、怎麼重跑 |
 | `rules.md` | 遊戲規則（第 1～6 節 3 人局，第 7 節 4 人局差異） |
 | `Engine/` | 規則引擎 `Game/`、策略 `Strategies/`、模擬與統計 `Simulation/`、事件 `Events/`；細節見 `Engine/CLAUDE.md` |

@@ -31,7 +31,7 @@
 - `*-vs-hand.json`：不同模擬次數／rollout 對手寫策略；`4p-mcts-behavior.json`、`4p-mcts-selfplay.json`：行為分析與自我對戰（5.1）。
 - `ab-*.json`：同桌兩個 MCTS 的 A/B 比較（rollout 長度、模擬次數）；未用新同分預設重跑。
 - `*wharf*.json`、`4p-mcts-vs-corn-harbor-cheap.json`：MCTS 當 wharf-rush 的陪練（7.2）。
-- `value/`：MCTS＋學習型價值函數（`valueModel`）對原版 MCTS，同桌 cheap-engine、build-first，balanced 240 局（第 10 節）；模型與產生資料的設定在 `ml/`（見 `ml/README.md`）。
+- `value/`：MCTS＋學習型價值函數（`valueModel`）對原版 MCTS（同桌 cheap-engine、build-first，balanced 240 局）與對手寫策略（`4p-v2-vs-hand`，同第 5 節那桌）（第 10 節）；模型與產生資料的設定在 `ml/`（見 `ml/README.md`）。
 - `sparring/`：MCTS 對 cheap-engine，用 `tools/sparring` 產生打法報表（第 9 節）；`mcts/sparring/run.sh` 重跑，報表在 `results/sparring/*.md`。
 - 全部 `balanced`；MCTS 慢（4 人局 480 局約 100 秒，4 核心），每桌只有數百局，勝率誤差約 ±4～7 個百分點。
 
