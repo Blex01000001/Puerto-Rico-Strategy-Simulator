@@ -9,16 +9,15 @@
 3. 【先討論】手寫策略其他方向：3 人局 build-first 在新同分預設下變弱（第 2 節），可考慮依對手調整採石場策略（8.6）；corn-shipper 的玉米／Settler 估值偏低（只搶種植園的變體比它強，分析文件 7.4），可調高後重測；cheap-engine 的 3 人局另外調參；premium 避開被搶種植園的做法（前期不搶玉米的實驗沒有幫助）。
 4. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 5. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
-6. 【直接做】RunPod 部署說明（發佈指令已在 CLAUDE.md：`dotnet publish Runner -c Release -o publish/runner`，RunPod 另加 `-r linux-x64`）；視需要加 `--summary-only` 之類的輸出選項（ML 部分見 9）。
+6. 【使用者】在真正的 RunPod pod 上照 `docs/runpod.md` 跑一次（`setup.sh --test`、`start.sh`、SSH 通道、帶回模型），回報不同的地方；視需要再加 `--summary-only` 之類的輸出選項。
 
 ### 機器學習（`ml/`，分析文件第 10 節）
-目前：4 人局 v2／v3（LightGBM）同時間對原版 MCTS 約 65%／32%、對手寫 91～95%，第二輪自我對戰（v3）沒有再進步；MLP v2（PyTorch）與 LightGBM v2 一樣強；3 人局 3p-v3（兩輪自我對戰）對原版 53.5%／36.9%、對手寫 55.8%（原版 MCTS 67.5%）。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、`ml/` 當獨立子專案（名稱不改，見 `ml/CLAUDE.md`）、MLP 改用 PyTorch（輸出格式不變）。第 0 階段（requirements、`.meta.json`、萬用字元、版本檢查、pytest、取消後的 dump、Runner 發佈版）、第 1 階段（ML UI 的「訓練」「模型清單」、背景工作、啟動檔、Dashboard 連結）與第 2 階段（「資料」「對戰驗證」「工作」頁、Dashboard 的價值模型下拉選單與路徑修正）已完成。
+目前：4 人局 v2／v3（LightGBM）同時間對原版 MCTS 約 65%／32%、對手寫 91～95%，第二輪自我對戰（v3）沒有再進步；MLP v2（PyTorch）與 LightGBM v2 一樣強；3 人局 3p-v3（兩輪自我對戰）對原版 53.5%／36.9%、對手寫 55.8%（原版 MCTS 67.5%）。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、`ml/` 當獨立子專案（名稱不改，見 `ml/CLAUDE.md`）、MLP 改用 PyTorch（輸出格式不變）。第 0 階段（requirements、`.meta.json`、萬用字元、版本檢查、pytest、取消後的 dump、Runner 發佈版）、第 1 階段（ML UI 的「訓練」「模型清單」、背景工作、啟動檔、Dashboard 連結）、第 2 階段（「資料」「對戰驗證」「工作」頁、Dashboard 的價值模型下拉選單與路徑修正）、第 3 階段（v3、PyTorch MLP、3 人局模型）與第 4 階段（RunPod 腳本與說明，`docs/runpod.md`）已完成。
 
-模型改進與 RunPod
+模型改進
 7. 【直接做】3 人局繼續改進：對手寫桌仍不如原版 MCTS（55.8% 對 67.5%，平均分波動大）；可試第三輪自我對戰、`leafRollout`、或 3 人局專用特徵。4 人局已到頂（v3≈v2）：要再進步需換方向（更多模擬、更大的模型或特徵、不同的自我對戰設定），先討論。
 8. 【直接做】推論成本：更少／更淺的樹、更小的 MLP，比同時間勝率（MLP 256-128 比 LightGBM 慢 1.5～3 倍）；選做：勝負模型（回放顯示真實勝率估計）、`leafRollout` 0 對 20、用 v2 當陪練找手寫策略弱點。
-9. 【直接做】第 4 階段 RunPod：setup 腳本（.NET 8、Python 套件）、SSH 通道連 ML UI、模型帶回本機的流程；先用多核心 CPU pod，MLP 改 PyTorch 且資料變大後才考慮 GPU。
-10. 【先討論】要不要把模型設成 `mcts` 的預設（4 人局 v2、3 人局 3p-v3；依人數選模型；改了第 5、7、9 節含 MCTS 的數字都要重跑）。
+9. 【先討論】要不要把模型設成 `mcts` 的預設（4 人局 v2、3 人局 3p-v3；依人數選模型；改了第 5、7、9 節含 MCTS 的數字都要重跑）。
 
 ## 已知問題／限制
 
@@ -48,7 +47,7 @@
 - 效能：4 核心約 21,000 局／秒（約 5,000 局／秒／核心，隨機玩家，一局約 500 個決策）。
 - 隨機玩家下座位 3（玉米起手）勝率約 49%，座位 1、2 各約 24%；已驗證不是引擎不對稱（三家都改染料起手後各 33%）。
 - SessionStart hook 已在 main；其「dotnet 不存在時 apt 安裝」分支在已安裝的容器中無法重測（新 session 若沒有 dotnet，請確認 hook 有執行，必要時手動 `apt-get install -y dotnet-sdk-8.0`）。
-- `builds.dotnet.microsoft.com` 被網路代理擋住，`dotnet-install.sh` 不可用，只能用 apt 安裝 .NET。
+- `builds.dotnet.microsoft.com` 被這個雲端環境的網路代理擋住，`dotnet-install.sh` 在這裡不可用，只能用 apt 安裝 .NET（RunPod 上 `deploy/runpod/setup.sh` 會在 apt 失敗時改用它）。
 
 ## 想法
 

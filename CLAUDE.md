@@ -20,12 +20,14 @@
 | `README.md` | 給第一次看的人：目的、主要結論（數字來自分析文件，分析更新時同步）、快速開始 |
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
 | `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數） |
+| `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
 | `docs/experiments.md` | 實驗設定索引：`tournaments/`、`sweeps/round*`、`mcts/` 各是什麼、怎麼重跑 |
 | `rules.md` | 遊戲規則（第 1～6 節 3 人局，第 7 節 4 人局差異） |
 | `Engine/` | 規則引擎 `Game/`、策略 `Strategies/`、模擬與統計 `Simulation/`、事件 `Events/`；細節見 `Engine/CLAUDE.md` |
 | `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep --dump-positions --dump-rate` |
 | `Dashboard/` | Blazor Web App（八頁：HOME、模擬、結果、總覽、比較、回放、參數掃描、設定檔）；細節見 `Dashboard/CLAUDE.md` |
 | `Tests/` | xUnit，只參考 Engine：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消）、`StrategyTests`、`ValueModelTests`（推論與 Python 一致、特徵視角、dump 可重現；固定資料在 `Tests/Data/`）；情境用 `Tests/Sc.cs`（`Sc.Start` 指定總督與職業） |
+| `deploy/runpod/` | RunPod（或任何 Linux）：`setup.sh`（.NET 8、Python 套件、建置、發佈 Runner，可重複執行）、`start.sh`（背景啟動／停止 ML UI 與 Dashboard，只綁 localhost）；說明在 `docs/runpod.md` |
 | `ml/` | MCTS 的學習型價值函數（Python 子專案）：ML UI（Streamlit，`ml/start-ui.sh`／`.cmd`，localhost:8501，另外啟動）、訓練（LightGBM、NumPy MLP，背景工作）、產生資料的設定、模型檔＋`.meta.json`、pytest；流程見 `ml/README.md`，細節與契約見 `ml/CLAUDE.md`（資料檔放 `results/ml/`） |
 | `tools/tiestats/`、`tools/sparring/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
 | `config*.json` | 設定檔範例（Runner 與 Dashboard 共用格式） |

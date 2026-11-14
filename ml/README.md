@@ -19,6 +19,8 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 - **工作**：所有工作的進度、紀錄、取消；側欄隨時顯示目前的工作。
 - 資料與對戰工作呼叫**發佈版 Runner**（`publish/runner`，環境變數 `PR_RUNNER_DIR` 可改）；C# 原始碼比發佈版新時會先自動 `dotnet publish`（需要 .NET 8 SDK）。取消時對 Runner 送 Ctrl+C：產生資料保留已完成的局數、對戰寫出部分結果（不記到模型）；**Windows 上是直接結束 Runner，不會保留部分結果**。
 
+在 RunPod 上跑（產生資料、長時間對戰）：見 `docs/runpod.md`。
+
 ## 流程
 
 1. **產生資料**：Runner 的 `--dump-positions` 照設定檔打完整局，每個決策點以 `--dump-rate` 的機率抽樣，每個抽到的局面對每個座位各寫一列（特徵從該座位的視角，標籤＝該座位終局的回傳值與勝負）。
