@@ -1,0 +1,162 @@
+{
+  "format": "pr-model-meta",
+  "formatVersion": 1,
+  "model": "4p-mlp-v2.json",
+  "kind": "mlp",
+  "created": "2026-11-14T09:14:07Z",
+  "players": 4,
+  "featureVersion": 1,
+  "featureCount": 430,
+  "data": [
+    {
+      "path": "results/ml/4p-hand-a.bin",
+      "rows": 495200,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-a.bin",
+      "seed": 101,
+      "strategies": [
+        "cheap-engine",
+        "build-first",
+        "harbor-rush",
+        "corn-to-premium"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-hand-b.bin",
+      "rows": 474436,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-b.bin",
+      "seed": 102,
+      "strategies": [
+        "corn-shipper",
+        "wharf-rush",
+        "cheap-engine",
+        "build-first"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-hand-c.bin",
+      "rows": 501960,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-hand-c.bin",
+      "seed": 103,
+      "strategies": [
+        "harbor-rush",
+        "corn-monopoly",
+        "wharf-premium",
+        "guided-random"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-random.bin",
+      "rows": 606968,
+      "games": 20000,
+      "status": "completed",
+      "rate": 0.01,
+      "source": "4p-random.bin",
+      "seed": 104,
+      "strategies": [
+        "random",
+        "random",
+        "random",
+        "random"
+      ],
+      "valueModels": []
+    },
+    {
+      "path": "results/ml/4p-selfplay-v1.bin",
+      "rows": 493424,
+      "games": 4000,
+      "status": "completed",
+      "rate": 0.05,
+      "source": "4p-selfplay-v1.bin",
+      "seed": 201,
+      "strategies": [
+        "mcts",
+        "mcts",
+        "mcts",
+        "mcts"
+      ],
+      "valueModels": [
+        "ml/models/4p-v1.txt"
+      ]
+    }
+  ],
+  "params": {
+    "hidden": [
+      256,
+      128
+    ],
+    "epochs": 12,
+    "batch": 1024,
+    "lr": 0.001,
+    "lrHalvingEveryEpochs": 4,
+    "l2": 1e-05,
+    "patience": 3,
+    "valid_share": 0.1,
+    "seed": 1,
+    "optimizer": "adam",
+    "loss": "cross_entropy",
+    "backend": "torch",
+    "device": "cpu"
+  },
+  "training": {
+    "seconds": 3870.6,
+    "epochsRun": 5,
+    "bestEpoch": 2,
+    "validLossCurve": [
+      0.459743,
+      0.455077,
+      0.457493,
+      0.458569,
+      0.457973
+    ]
+  },
+  "validation": {
+    "rows": 258024,
+    "crossEntropy": 0.4550773501396179,
+    "mse": 0.07088842242956161,
+    "constantMse": 0.14890657365322113,
+    "r2": 0.5239402755002001,
+    "byRound": [
+      {
+        "rounds": "1-4",
+        "rows": 34088,
+        "mse": 0.11732492595911026
+      },
+      {
+        "rounds": "5-8",
+        "rows": 51356,
+        "mse": 0.09445876628160477
+      },
+      {
+        "rounds": "9-12",
+        "rows": 68772,
+        "mse": 0.0704425722360611
+      },
+      {
+        "rounds": "13-",
+        "rows": 103808,
+        "mse": 0.04427444934844971
+      }
+    ]
+  },
+  "topFeatures": [],
+  "environment": {
+    "python": "3.13.18",
+    "machine": "x86_64",
+    "system": "Linux",
+    "numpy": "2.5.3",
+    "torch": "2.15.0+cu132"
+  },
+  "matches": []
+}
