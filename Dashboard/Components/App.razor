@@ -27,6 +27,16 @@
             e.preventDefault();
             button.click();
         });
+        // ML UI button (MlUiNav): a tab opened during the click (later ones are blocked as pop-ups), sent to the ML UI once it answers.
+        window.prMlTab = {
+            open: function () {
+                var w = window.open('', '_blank');
+                if (w) { w.document.title = 'ML UI'; w.document.body.style.cssText = 'font-family:system-ui,sans-serif;background:#111418;color:#eef1f5;padding:2rem'; w.document.body.textContent = 'ML UI 啟動中…（約 5～20 秒）'; }
+                window.prMlTabRef = w;
+            },
+            go: function (url) { var w = window.prMlTabRef; if (w && !w.closed) w.location = url; else window.open(url, '_blank'); window.prMlTabRef = null; },
+            close: function () { var w = window.prMlTabRef; if (w && !w.closed) w.close(); window.prMlTabRef = null; }
+        };
     </script>
 </body>
 

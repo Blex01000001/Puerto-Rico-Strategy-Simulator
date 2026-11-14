@@ -10,8 +10,8 @@
 - `MctsSearch.razor`：MCTS 每個合法動作的 N／Q／SE／ΔQ／Noise／UCT 與佔比、勝率（`Entry.WinRate` 只供顯示）；UCT 最大的動作標 🎯；被選中的動作用紅黃綠燈（`SearchSummary.Assess`，只與第 2 名比，雜訊＝1.5 倍標準誤差 `NoiseZ`）；標題列顯示模擬次數、rollout 策略、回合數、探索係數。**表格下方的說明文字大部分是使用者寫的，改動前先問。** `Entry.Line` 引擎仍保留但畫面不顯示。
 - `LegalActions.razor`：沒有 MCTS 搜尋的決策，列出當時所有合法動作並標示選中的（手寫策略有分數時依分數排序）；用決策前的盤面快照重列，不改引擎。
 - `GameList.razor`：結果頁的對局列表（`GameFilter` 篩選、排序、分頁，「重播」連到 `replay?file=&game=`）。
-- `Layout/MainLayout.razor` 的側欄最後有「機器學習 → ML UI ↗」：連到另外啟動的 Python 程式（`ml/ui.py`，localhost:8501，新分頁），Dashboard 不依賴它。
-- `FilePicker.razor`、`Charts/`（純 SVG：BarChart／StackedBars／LineChart）、`App.razor`（含一小段 JS：回放頁 ←／→ 會點 `#replay-prev`／`#replay-next`）、`Layout/`。
+- `Layout/MlUiNav.razor`（側欄最後「機器學習」）：ML UI（另一個 Python 程式 `ml/ui.py`，localhost:8501）的狀態（每 5 秒檢查：綠「執行中 ●」／紅「未啟動 ○」，燈號在文字右邊）；執行中是新分頁連結，沒執行是「啟動 ML UI」按鈕（`Services/MlUiLauncher.cs`：先檢查 Python 與套件，Windows 用新的 cmd 視窗執行 `ml/start-ui.cmd`，其他系統背景執行 `ml/start-ui.sh`、紀錄在 `results/logs/ml-ui.log`；等健康檢查通過）。分頁在按下時先開（`App.razor` 的 `prMlTab`，之後才開會被擋成彈出視窗），好了再導向、失敗就關掉。沒執行時顯示「新裝置先 pip install -r ml/requirements.txt」。Dashboard 不依賴 ML UI；啟動的 ML UI 獨立於 Dashboard。
+- `FilePicker.razor`、`Charts/`（純 SVG：BarChart／StackedBars／LineChart）、`App.razor`（含一小段 JS：回放頁 ←／→ 會點 `#replay-prev`／`#replay-next`；`prMlTab` 給 ML UI 按鈕預先開分頁）、`Layout/`。
 
 **`Services/`**
 - `AppState.cs`：載入結果／掃描檔；`ReadConfigAsync` 只讀 config（跳過逐局記錄，大檔很快）；`SetTemplate`（用這份設定再模擬）；畫面上的路徑一律用 `DisplayPath`／`Scrub` 顯示成相對專案根目錄。
@@ -31,3 +31,5 @@
 ## 注意
 - 會把整份結果檔讀進記憶體，並可讀伺服器上任意路徑：只在本機執行（localhost:5080），不要對外開放。
 - 一個瀏覽器分頁同時只跑一個模擬任務；大量局數仍建議用 Runner。
+- `dotnet run --project Dashboard` 啟動的程序名稱是 `bin/Release/net8.0/Dashboard`（apphost），不是 `Dashboard.dll`：要停掉用 `pkill -f net8.0/Dashboard`；舊的沒停掉時新的會因 5080 被佔用而啟動失敗。
+- 「啟動 ML UI」按鈕（`MlUiLauncher`）只執行專案裡固定的啟動檔，不能把任何使用者輸入接進指令列。

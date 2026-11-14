@@ -47,13 +47,27 @@ h1 + p.note + * { margin-top: .6rem; }
 .sidebar a { display: flex; align-items: center; gap: .65rem; text-decoration: none; color: var(--text-2); padding: .5rem .7rem; margin: 1px .5rem; border-radius: 6px; font-weight: 500; white-space: nowrap; }
 .sidebar a .ni { flex: none; width: 1.5rem; text-align: center; font-size: 1.05rem; line-height: 1; }
 .sidebar a:hover { color: var(--text); background: var(--surface-2); }
+.sidebar .navbtn { display: flex; align-items: center; gap: .65rem; width: calc(100% - 1rem); margin: 1px .5rem; padding: .5rem .7rem; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font: inherit; font-weight: 500; text-align: left; white-space: nowrap; cursor: pointer; }
+.sidebar .navbtn .ni { flex: none; width: 1.5rem; text-align: center; font-size: 1.05rem; line-height: 1; }
+.sidebar .navbtn:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
+.sidebar .navbtn:disabled { cursor: progress; opacity: .75; }
+.mlstatus { display: flex; align-items: center; gap: .35rem; margin: 0 .5rem .2rem 3.35rem; font-size: .8rem; color: var(--text-3); }
+.mlstatus.running { color: var(--series-6); }
+.mlstatus.stopped { color: var(--neg); }
+.mlstatus.starting { color: var(--series-4); }
+.mlstatus .dot { line-height: 1; }
+.mlnote, .mlerror { margin: .15rem .7rem .4rem 3.35rem; font-size: .72rem; line-height: 1.35; color: var(--text-3); white-space: normal; }
+.mlerror { color: var(--neg); }
 .sidebar a.active { color: #fff; background: var(--accent-dim); box-shadow: inset 3px 0 0 var(--accent); }
 /* collapsed: an icon rail, the toggle stays at the top */
 .shell.collapsed .sidebar { width: 58px; }
 .shell.collapsed .navtop { justify-content: center; padding: .8rem 0; }
 .shell.collapsed .brandlink, .shell.collapsed .nl { display: none; }
 .shell.collapsed .navsec { height: 0; padding: 0; margin: .45rem .8rem; border-top: 1px solid var(--line); overflow: hidden; }
-.shell.collapsed .sidebar a { justify-content: center; padding: .55rem 0; margin: 1px .45rem; }
+.shell.collapsed .sidebar a, .shell.collapsed .sidebar .navbtn { justify-content: center; padding: .55rem 0; margin: 1px .45rem; width: auto; }
+.shell.collapsed .mlstatus { justify-content: center; margin: 0 0 .3rem; }
+.shell.collapsed .mlstatus .dot { margin: 0; }
+.shell.collapsed .mlnote, .shell.collapsed .mlerror { display: none; }
 .shell > main { flex: 1; min-width: 0; }
 @media (max-width: 760px) {
   .shell { flex-direction: column; }
