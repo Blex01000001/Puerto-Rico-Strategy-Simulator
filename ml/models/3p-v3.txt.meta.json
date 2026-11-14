@@ -684,5 +684,99 @@
     "lightgbm": "4.7.0",
     "numpy": "2.5.3"
   },
-  "matches": []
+  "matches": [
+    {
+      "result": "results/ml/3p-v3-vs-default.json",
+      "config": "3p-v3-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.5354166666666667,
+      "winShareCi95": 0.0630998324875249,
+      "avgScore": 40.6625,
+      "others": [
+        {
+          "seatId": "mcts-default",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.36875,
+          "avgScore": 37.06666666666667
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.09583333333333334,
+          "avgScore": 35.45
+        }
+      ]
+    },
+    {
+      "result": "results/ml/3p-v3-vs-hand.json",
+      "config": "3p-v3-vs-hand",
+      "status": "completed",
+      "games": 240,
+      "seed": 5252,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.5583333333333333,
+      "winShareCi95": 0.06282674221250881,
+      "avgScore": 40.3625,
+      "others": [
+        {
+          "seatId": "corn-shipper",
+          "strategy": "corn-shipper",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.3416666666666667,
+          "avgScore": 38.375
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.1,
+          "avgScore": 34.895833333333336
+        }
+      ]
+    },
+    {
+      "result": "results/ml/3p-v3s180-vs-default.json",
+      "config": "3p-v3s180-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 180,
+      "leafRollout": 0,
+      "winShare": 0.48333333333333334,
+      "winShareCi95": 0.06322357448270675,
+      "avgScore": 40.34583333333333,
+      "others": [
+        {
+          "seatId": "mcts-default",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.3770833333333333,
+          "avgScore": 37.12916666666667
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.13958333333333334,
+          "avgScore": 36.391666666666666
+        }
+      ]
+    }
+  ]
 }

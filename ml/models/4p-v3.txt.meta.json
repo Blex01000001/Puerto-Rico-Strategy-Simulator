@@ -690,5 +690,162 @@
     "lightgbm": "4.7.0",
     "numpy": "2.5.3"
   },
-  "matches": []
+  "matches": [
+    {
+      "result": "results/ml/4p-v3-vs-default.json",
+      "config": "4p-v3-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.66875,
+      "winShareCi95": 0.059547055535237564,
+      "avgScore": 48.00833333333333,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.30416666666666664,
+          "avgScore": 39.37916666666667
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.025,
+          "avgScore": 34.958333333333336
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.0020833333333333333,
+          "avgScore": 24.195833333333333
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v3s180-vs-default.json",
+      "config": "4p-v3s180-vs-default",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 180,
+      "leafRollout": 0,
+      "winShare": 0.6458333333333334,
+      "winShareCi95": 0.06050823998829813,
+      "avgScore": 47.85,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": null,
+          "winShare": 0.3333333333333333,
+          "avgScore": 39.46666666666667
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.020833333333333332,
+          "avgScore": 35.6125
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0,
+          "avgScore": 24.666666666666668
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v3-vs-v2.json",
+      "config": "4p-v3-vs-v2",
+      "status": "completed",
+      "games": 240,
+      "seed": 9191,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.4895833333333333,
+      "winShareCi95": 0.06324499847557849,
+      "avgScore": 44.608333333333334,
+      "others": [
+        {
+          "seatId": "B",
+          "strategy": "mcts",
+          "simulations": 300,
+          "valueModel": "ml/models/4p-v2.txt",
+          "winShare": 0.49375,
+          "avgScore": 43.37083333333333
+        },
+        {
+          "seatId": "cheap-engine",
+          "strategy": "cheap-engine",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.0125,
+          "avgScore": 34.625
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.004166666666666667,
+          "avgScore": 23.358333333333334
+        }
+      ]
+    },
+    {
+      "result": "results/ml/4p-v3-vs-hand.json",
+      "config": "4p-v3-vs-hand",
+      "status": "completed",
+      "games": 408,
+      "seed": 5151,
+      "seatOrder": "balanced",
+      "simulations": 300,
+      "leafRollout": 0,
+      "winShare": 0.9117647058823529,
+      "winShareCi95": 0.027522542247634896,
+      "avgScore": 51.8014705882353,
+      "others": [
+        {
+          "seatId": "corn-shipper",
+          "strategy": "corn-shipper",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.051470588235294115,
+          "avgScore": 31.42156862745098
+        },
+        {
+          "seatId": "corn-to-premium",
+          "strategy": "corn-to-premium",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.022058823529411766,
+          "avgScore": 31.504901960784313
+        },
+        {
+          "seatId": "build-first",
+          "strategy": "build-first",
+          "simulations": null,
+          "valueModel": null,
+          "winShare": 0.014705882352941176,
+          "avgScore": 33.252450980392155
+        }
+      ]
+    }
+  ]
 }

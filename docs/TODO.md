@@ -12,13 +12,13 @@
 6. 【直接做】RunPod 部署說明（發佈指令已在 CLAUDE.md：`dotnet publish Runner -c Release -o publish/runner`，RunPod 另加 `-r linux-x64`）；視需要加 `--summary-only` 之類的輸出選項（ML 部分見 9）。
 
 ### 機器學習（`ml/`，分析文件第 10 節）
-目前：4 人局 v2（LightGBM，手寫＋一輪自我對戰資料）同時間對原版 MCTS 65%／31%、對手寫 94.6%。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、`ml/` 當獨立子專案（名稱不改，見 `ml/CLAUDE.md`）、MLP 改用 PyTorch（輸出格式不變）。第 0 階段（requirements、`.meta.json`、萬用字元、版本檢查、pytest、取消後的 dump、Runner 發佈版）、第 1 階段（ML UI 的「訓練」「模型清單」、背景工作、啟動檔、Dashboard 連結）與第 2 階段（「資料」「對戰驗證」「工作」頁、Dashboard 的價值模型下拉選單與路徑修正）已完成。
+目前：4 人局 v2／v3（LightGBM）同時間對原版 MCTS 約 65%／32%、對手寫 91～95%，第二輪自我對戰（v3）沒有再進步；MLP v2（PyTorch）與 LightGBM v2 一樣強；3 人局 3p-v3（兩輪自我對戰）對原版 53.5%／36.9%、對手寫 55.8%（原版 MCTS 67.5%）。已確定：ML UI 用 Streamlit（`ml/ui.py`，另外啟動）、`ml/` 當獨立子專案（名稱不改，見 `ml/CLAUDE.md`）、MLP 改用 PyTorch（輸出格式不變）。第 0 階段（requirements、`.meta.json`、萬用字元、版本檢查、pytest、取消後的 dump、Runner 發佈版）、第 1 階段（ML UI 的「訓練」「模型清單」、背景工作、啟動檔、Dashboard 連結）與第 2 階段（「資料」「對戰驗證」「工作」頁、Dashboard 的價值模型下拉選單與路徑修正）已完成。
 
-第 3 階段（模型變強）與第 4 階段（RunPod）
-7. 【直接做】v3：MCTS＋v2 自我對戰（8,000 局以上）＋舊資料重訓，同模擬次數與同時間各比一次；MLP 用 PyTorch 重寫（提早停止、正規化）並與 LightGBM 對打；3 人局模型（`ml/data-configs/3p-*`、`mcts/value/3p-*`）。
-8. 【直接做】推論成本：更少／更淺的樹、更小的 MLP，比同時間勝率；選做：勝負模型（回放顯示真實勝率估計）、`leafRollout` 0 對 20、用 v2 當陪練找手寫策略弱點。
+模型改進與 RunPod
+7. 【直接做】3 人局繼續改進：對手寫桌仍不如原版 MCTS（55.8% 對 67.5%，平均分波動大）；可試第三輪自我對戰、`leafRollout`、或 3 人局專用特徵。4 人局已到頂（v3≈v2）：要再進步需換方向（更多模擬、更大的模型或特徵、不同的自我對戰設定），先討論。
+8. 【直接做】推論成本：更少／更淺的樹、更小的 MLP，比同時間勝率（MLP 256-128 比 LightGBM 慢 1.5～3 倍）；選做：勝負模型（回放顯示真實勝率估計）、`leafRollout` 0 對 20、用 v2 當陪練找手寫策略弱點。
 9. 【直接做】第 4 階段 RunPod：setup 腳本（.NET 8、Python 套件）、SSH 通道連 ML UI、模型帶回本機的流程；先用多核心 CPU pod，MLP 改 PyTorch 且資料變大後才考慮 GPU。
-10. 【先討論】v2／v3 要不要設成 `mcts` 的預設（改了第 5、7、9 節含 MCTS 的數字都要重跑）；等 7 之後再決定。
+10. 【先討論】要不要把模型設成 `mcts` 的預設（4 人局 v2、3 人局 3p-v3；依人數選模型；改了第 5、7、9 節含 MCTS 的數字都要重跑）。
 
 ## 已知問題／限制
 
