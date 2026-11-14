@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "name": "3p-selfplay-v1",
+  "players": 3,
+  "games": 3000,
+  "seed": 302,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "m0",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "valueModel": "ml/models/3p-v1.txt",
+        "leafRollout": 20
+      }
+    },
+    {
+      "id": "m1",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "valueModel": "ml/models/3p-v1.txt",
+        "leafRollout": 20
+      }
+    },
+    {
+      "id": "m2",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "valueModel": "ml/models/3p-v1.txt",
+        "leafRollout": 20
+      }
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}
