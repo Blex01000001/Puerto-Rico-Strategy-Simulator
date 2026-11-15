@@ -391,6 +391,8 @@ div[class*="st-key-del-"] { align-items: flex-end !important; }
 div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
 div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
 div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12); }
+div[class*="st-key-stop-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
+div[class*="st-key-stop-"] button:hover:not(:disabled) { filter: brightness(1.12); }
 div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
 /* buttons like the Dashboard: blue when they can start, locked otherwise */
 button[kind="primary"] { background: #4aa8ff !important; border: 0 !important; color: #07131f !important; font-weight: 600 !important; }
@@ -540,8 +542,9 @@ def sidebar_status():
         st.markdown(f'<div class="side-title" title="{html.escape(active["title"])}">{html.escape(active["title"])}</div>',
                     unsafe_allow_html=True)
         frac, text = progress_of(active, jobs.events(active["id"]))
-        st.progress(frac or 0.0, text=text)
-        if st.button("取消", key=f"side-cancel-{active['id']}"):
+        c1, c2 = st.columns([3, 1.3], vertical_alignment="bottom")
+        c1.progress(frac or 0.0, text=text)
+        if c2.button("取消", key=f"stop-side-{active['id']}", width="stretch"):  # stop- prefix: red (CSS)
             jobs.cancel(active["id"])
     else:
         st.markdown('<div class="side-note">沒有正在執行的工作</div>', unsafe_allow_html=True)
@@ -610,10 +613,10 @@ def queue_page():
     ordered = ([active] if active else []) + waiting + done
     with card("queue", "工作列表"):
         st.caption("一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。")
-        widths = [3.8, 1, 1.25, 2, 1.45, 2.6]
+        widths = [3.8, 1, 1.25, 2, 2.6, 1.45]
         with st.container(key="qhead"):
             head = st.columns(widths)
-            for c, t in zip(head, ["名稱", "狀態", "經過時間", "進度", "操作", "備註"]):
+            for c, t in zip(head, ["名稱", "狀態", "經過時間", "進度", "備註", "操作"]):
                 c.markdown(f"**{t}**")
         for job in ordered:
             # one framed row per job; the key carries the state for the coloured left edge (CSS st-key-qrow-<state>)
@@ -631,13 +634,13 @@ def queue_page():
             else:
                 cols[3].markdown("—")
             if job["state"] in ("queued", "running"):
-                if cols[4].button("取消", key=f"q-cancel-{job['id']}"):
+                if cols[5].button("取消", key=f"stop-q-{job['id']}", width="stretch"):
                     jobs.cancel(job["id"])
             elif job["state"] == "waiting":
-                if cols[4].button("移出佇列", key=f"q-dequeue-{job['id']}"):
+                if cols[5].button("移出佇列", key=f"q-dequeue-{job['id']}", width="stretch"):
                     jobs.cancel(job["id"])
                     st.rerun(scope="app")
-            remark(job, cols[5])
+            remark(job, cols[4])
     with st.expander("工作詳細（紀錄、驗證 loss 曲線、結果）", expanded=False):
         # the label carries no state: the dropdown does not refresh the text of an option that is already shown
         labels = {j["id"]: f"{j['title']}（{j.get('created', '').replace('T', ' ').rstrip('Z')} UTC）" for j in ordered}
@@ -681,7 +684,7 @@ def job_detail(job_id):
         if job.get("finished"):
             st.markdown(f"**結束**：{job['finished']}")
         if state in ("queued", "running"):
-            if st.button("取消這個工作", key=f"cancel-{job_id}"):
+            if st.button("取消這個工作", key=f"stop-detail-{job_id}"):
                 jobs.cancel(job_id)
             st.caption("產生資料取消時，已完成的局數會保留（Windows 除外）；訓練取消不會留下模型；對戰取消不會記到模型。排隊中的下一個工作會接著開始。")
         if state == "waiting":
