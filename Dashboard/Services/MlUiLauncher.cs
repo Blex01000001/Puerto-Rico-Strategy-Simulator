@@ -12,15 +12,21 @@ namespace Dashboard.Services;
 public static class MlUiLauncher
 {
     public const string Url = "http://localhost:8501";
+    /// <summary>
+    /// Health check on 127.0.0.1, not "localhost": on Windows "localhost" tries IPv6 (::1) first, where Streamlit does not
+    /// listen, and a refused connection there takes about 2 s before IPv4 is tried; with a short timeout the check failed
+    /// now and then and the status light flickered.
+    /// </summary>
+    private const string HealthUrl = "http://127.0.0.1:8501/_stcore/health";
     public const string InstallHint = "新裝置第一次使用前，先在專案根目錄執行一次：python -m pip install -r ml/requirements.txt";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(1) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(3) };
 
     /// <summary>True when the ML UI answers its health check.</summary>
     public static async Task<bool> IsRunningAsync(CancellationToken cancel = default)
     {
         try
         {
-            using var response = await Http.GetAsync(Url + "/_stcore/health", cancel);
+            using var response = await Http.GetAsync(HealthUrl, cancel);
             return response.IsSuccessStatusCode;
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or OperationCanceledException)

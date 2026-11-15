@@ -7,7 +7,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - `modelmeta.py`：`<模型>.meta.json`（參數、資料來源、驗證成績、特徵重要度、環境、`matches` 對戰勝率）；`write`／`read`／`match_entry`／`add_match`。
 - `train_lgbm.py`、`train_mlp.py`：`train(data, out, progress=None, log=print, **options)` 可匯入（ML UI 用），命令列只是包一層；都寫 `<模型>`、`.meta.json`、`.check.txt`。
 - `ui.py`：ML UI（Streamlit，`streamlit run ml/ui.py`；頁籤「訓練」「模型清單」）。啟動檔 `start-ui.sh`／`start-ui.cmd`（綁 localhost:8501、隱藏 Deploy 鈕）。路徑一律顯示成相對專案根目錄（`rel`／`scrub`，與 Dashboard 相同規則）。
-- 工作種類（`job_runner.py`）：`train_lgbm`／`train_mlp`（取消＝結束程序）、`dump`、`match`（呼叫發佈版 Runner `dotnet publish/runner/Runner.dll`，`PR_RUNNER_DIR` 可改；原始碼較新會先自動發佈；從輸出解析 `n/total games` 當進度；取消送 SIGINT，Windows 直接結束；`match` 完成後 `modelmeta.add_match`）。UI 寫的設定檔：自我對戰 `ml/data-configs/<名稱>.json`、對戰 `mcts/value/<名稱>.json`。
+- 工作種類（`job_runner.py`）：`train_lgbm`／`train_mlp`（取消＝結束程序）、`dump`、`match`（呼叫發佈版 Runner `dotnet publish/runner/Runner.dll`，`PR_RUNNER_DIR` 可改；原始碼較新會先自動發佈；從輸出解析 `n/total games` 當進度；取消送 SIGINT，Windows 直接結束；`match` 完成後 `modelmeta.add_match`）。UI 寫的設定檔：自訂組合與自我對戰 `ml/data-configs/<名稱>.json`（同名已存在就拒絕，不覆蓋 repo 的設定）、對戰 `mcts/value/<名稱>.json`。「自訂組合」的策略清單直接從 `Engine/Strategies/StrategyRegistry.cs` 讀（`strategy_names`，排除需要 profile 的 `rule-based`），新增策略不用改 UI；中文說明在 `STRATEGY_TEXT`（沒有的就只顯示名稱）。
 - `jobs.py`：背景工作（`results/ml/jobs/<id>/`：`job.json` 狀態與心跳、`events.jsonl` 進度、`log.txt`、`cancel` 旗標檔）；`start`（沒有工作在跑就馬上開始，否則狀態 `waiting` 排隊）／`start_next`（啟動最早排隊的那個；有工作在跑就不動）／`cancel`（排隊中的直接標成取消，執行中的放 `cancel` 旗標）／`list_jobs`／`active_job`／`waiting_jobs`／`queue_position`／`events`／`wait`。一次只跑一個；每個工作結束（完成、失敗、取消）時 `job_runner` 呼叫 `start_next`，所以關掉 UI 佇列也會繼續；程序被硬殺而沒交棒時，UI 的 `watch_states` 會補叫 `start_next`。`.dispatch.lock`（排他建立的鎖檔，超過 60 秒視為殘留）保證不會同時啟動兩個。狀態：`waiting` 排隊中、`queued` 啟動中、`running`、`done`、`failed`、`cancelled`、`interrupted`（心跳過期）。`job_runner.py`：在獨立程序執行一個工作（POSIX `start_new_session`、Windows `CREATE_NEW_PROCESS_GROUP|DETACHED_PROCESS`），心跳執行緒看到 `cancel` 就結束程序。
 - `data-configs/`：產生資料的 Runner 設定檔（手寫混桌、隨機、`4p-selfplay-*`＝MCTS＋模型自我對戰）。
 - `models/`：模型＋`.meta.json`＋`.check.txt`（進 git）。早期模型的 `.meta.json` 是補寫的（`params.note`、`training.note` 會註明）。
@@ -39,6 +39,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`job_panel` 把狀態放在旁邊）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。
 - 用 UI 測試資料／對戰時若有別的 Runner 背景工作正在用 `publish/runner`，啟動 UI 前設 `PR_RUNNER_DIR=<暫存資料夾>`：自動重新發佈會覆寫執行中的 dll。測完要把 `ml/models/*.meta.json` 多出的 `matches` 還原、刪掉 UI 寫的 `mcts/value/`、`ml/data-configs/` 測試設定檔。
 - 背景工作的程序不跟著 UI 結束：測試或手動實驗後記得看 `results/ml/jobs/` 有沒有還在跑的；`ml/models/` 裡測試用的模型要刪掉再 commit。
+- 編碼：Windows（繁中）預設輸出編碼是 cp950，`job_runner` 一律把 stdout／stderr 改成 UTF-8（`utf8_output`，`errors=replace`），`jobs._spawn` 也設 `PYTHONIOENCODING=utf-8`；Runner 在輸出被導向時改用 UTF-8（`Console.IsOutputRedirected`），讀 Runner 輸出時 UTF-8 解不開就用系統編碼（`decode`）。曾因「±」讓對戰工作在寫紀錄時當掉。
 - Windows 常有兩個 Python（Anaconda 與 python.org）：`pip` 裝到 A、`py`／`python` 跑的是 B，ML UI 就會 `No module named 'lightgbm'`。所以指示一律寫 `python -m pip`，啟動檔挑「第一個套件齊全的 Python」（`PR_PYTHON` 可指定），失敗時印出該 Python 的完整路徑與修正指令。
 - 這個雲端環境擋住 PyTorch 的 CPU 版下載站；PyPI 的 `torch` 一定要帶 CUDA 函式庫（不帶就 import 失敗），完整安裝約 8 GB。使用者電腦裝 CPU 版即可。
 - `train_mlp.py` 兩個後端（`fit_torch`／`fit_numpy`）要維持同樣的訓練規則（He 初始化、Adam＋L2、每 4 epoch 學習率減半、提早停止取最好的一輪）；匯出一律走同一段 JSON，`tests/test_train.py` 兩個後端都測（沒有 torch 就略過）並用 NumPy 從 JSON 重算 check 列。

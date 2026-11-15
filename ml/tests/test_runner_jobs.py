@@ -82,3 +82,4 @@ def test_match_job_records_the_win_rate_in_the_model(env):
     matches = modelmeta.read(model)["matches"]
     assert len(matches) == 1 and matches[0]["games"] == 24 and matches[0]["simulations"] == 5
     assert job["result"]["match"]["winShare"] == matches[0]["winShare"]
+    assert "±" in jobs.log_tail(job_id)  # the Runner's summary line reached the log intact

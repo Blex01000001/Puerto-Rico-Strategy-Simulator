@@ -28,10 +28,13 @@
     @if (templateError != null) { <div class="error" style="margin-top:.5rem">@templateError</div> }
 </div>
 
+<div class="tabs" role="tablist" aria-label="模擬種類">
+    <button role="tab" aria-selected="@(!sweep)" class="tab @(!sweep ? "active" : "")" @onclick="@(() => sweep = false)" disabled="@Sim.Running">一般對戰</button>
+    <button role="tab" aria-selected="@sweep" class="tab @(sweep ? "active" : "")" @onclick="@(() => sweep = true)" disabled="@Sim.Running">參數掃描</button>
+</div>
+
 <div class="panel">
     <div class="row">
-        <label><input type="radio" name="mode" checked="@(!sweep)" @onchange="@(() => sweep = false)" disabled="@Sim.Running" /> 一般對戰</label>
-        <label><input type="radio" name="mode" checked="@sweep" @onchange="@(() => sweep = true)" disabled="@Sim.Running" /> 參數掃描</label>
         <label>玩家數
             <select value="@players" @onchange="OnPlayers" disabled="@Sim.Running">
                 <option value="3">3 人</option>
@@ -39,8 +42,6 @@
             </select>
         </label>
         <label>@(sweep ? "每格點局數" : "局數") <input type="text" inputmode="numeric" style="width:8rem" @bind="gamesText" @bind:event="onchange" disabled="@Sim.Running" /></label>
-        <label>結果檔名（空白＝預設） <input type="text" style="width:16rem" placeholder="@DefaultFileName(DateTime.Now)" @bind="fileNameText" disabled="@Sim.Running" /></label>
-        <label>主種子 <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
         <label>座位順序
             <select @bind="seatOrder" disabled="@Sim.Running">
                 <option value="random">隨機（random，預設）</option>
@@ -49,6 +50,10 @@
                 <option value="fixed">固定（fixed，不建議）</option>
             </select>
         </label>
+        <label>主種子 <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
+    </div>
+    <div class="row filerow">
+        <label>結果檔名 <input type="text" placeholder="@DefaultFileName(DateTime.Now)" @bind="fileNameText" disabled="@Sim.Running" /></label>
     </div>
 </div>
 

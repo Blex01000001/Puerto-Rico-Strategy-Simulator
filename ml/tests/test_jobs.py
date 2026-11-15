@@ -115,3 +115,23 @@ def test_stale_heartbeat_shows_as_interrupted(results):
 def test_unknown_kind_is_refused(results):
     with pytest.raises(ValueError):
         jobs.start("rm -rf", "x", {})
+
+
+def test_job_output_never_fails_on_encoding(tmp_path):
+    # Windows (cp950) once crashed printing the Runner's "±" / a replacement character: the job runner switches its
+    # output to UTF-8 even when the default encoding cannot encode them (here: ascii)
+    import subprocess
+    import sys
+    code = "import sys; sys.path.insert(0, %r); import job_runner; job_runner.utf8_output(); print('± \\ufffd 勝率')" % jobs.ML_DIR
+    out = tmp_path / "log.txt"
+    with open(out, "wb") as f:
+        r = subprocess.run([sys.executable, "-c", code], stdout=f, stderr=subprocess.STDOUT,
+                           env={**os.environ, "PYTHONIOENCODING": "ascii"})
+    assert r.returncode == 0, out.read_text(errors="replace")
+    assert "± \ufffd 勝率" in out.read_text(encoding="utf-8")
+
+
+def test_runner_output_decoding_falls_back_to_the_locale():
+    import job_runner
+    assert job_runner.decode("勝率 ±".encode("utf-8")) == "勝率 ±"
+    assert job_runner.decode(b"\xff\xfe abc").endswith("abc")  # not UTF-8: decoded with the locale, never raises

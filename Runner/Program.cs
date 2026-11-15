@@ -27,6 +27,10 @@ public static class Program
 
     public static int Main(string[] args)
     {
+        // When another program reads our output (the ML UI's background jobs), write UTF-8: on Windows the default is the
+        // console code page (e.g. cp950), and characters such as "±" arrived as garbage there. A real console is left alone
+        // (changing its code page would outlive this process).
+        if (Console.IsOutputRedirected) Console.OutputEncoding = System.Text.Encoding.UTF8;
         try
         {
             return Run(args);

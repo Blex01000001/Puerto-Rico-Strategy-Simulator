@@ -129,6 +129,16 @@ def ensure_runner(job):
     return dll
 
 
+def decode(raw):
+    """Runner output is UTF-8 (it switches when redirected); an older published Runner may still use the console
+    code page, so fall back to the locale encoding instead of producing garbage."""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        import locale
+        return raw.decode(locale.getpreferredencoding(False) or "utf-8", errors="replace")
+
+
 def run_runner(job, args):
     """Runs the Runner, turning its 'n/total games' progress into events. Returns (exit code, output lines)."""
     dll = ensure_runner(job)
@@ -147,7 +157,7 @@ def run_runner(job, args):
         parts = re.split(rb"[\r\n]", buf)
         buf = parts.pop()
         for raw in parts:
-            line = raw.decode("utf-8", errors="replace").strip()
+            line = decode(raw).strip()
             if not line:
                 continue
             m = PROGRESS.search(line)
@@ -160,7 +170,7 @@ def run_runner(job, args):
             print(line, flush=True)
             lines.append(line)
     if buf.strip():
-        lines.append(buf.decode("utf-8", errors="replace").strip())
+        lines.append(decode(buf).strip())
         print(lines[-1], flush=True)
     code = job.child.wait()
     return code, lines
@@ -223,7 +233,18 @@ def next_in_queue():
         print(f"could not start the next job in the queue: {e}", flush=True)
 
 
+def utf8_output():
+    """stdout/stderr go to the job's log file: always UTF-8, never fail on a character (Windows defaults to the locale
+    code page, e.g. cp950, which cannot encode everything the Runner prints)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main():
+    utf8_output()
     job = Job(sys.argv[1])
     stop = threading.Event()
     job.update(status="running", started=jobs.now(), pid=os.getpid())

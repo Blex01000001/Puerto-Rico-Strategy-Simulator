@@ -11,6 +11,7 @@ import datetime
 import glob
 import json
 import os
+import re
 import time
 
 import streamlit as st
@@ -461,10 +462,94 @@ def write_config(path, cfg):
         f.write("\n")
 
 
+# rule-based needs params.profile and is the same as the named strategies: not offered
+_HIDDEN_STRATEGIES = {"rule-based"}
+STRATEGY_TEXT = {
+    "random": "完全隨機", "guided-random": "依動作種類加權的隨機", "mcts": "MCTS 樹搜尋（慢）",
+    "corn-shipper": "玉米出貨", "corn-to-premium": "玉米轉菸草／咖啡", "harbor-rush": "港口流", "build-first": "建築流",
+    "cheap-engine": "便宜引擎流", "wharf-rush": "私船流", "wharf-premium": "私船＋高價貨", "corn-monopoly": "玉米壟斷（搗亂）",
+    "corn-monopoly-tiles": "只搶玉米種植園", "corn-monopoly-hoard": "只囤玉米",
+}
+
+
+@st.cache_data(show_spinner=False)
+def strategy_names(mtime):
+    """Registered strategies, read from the engine's registry (so the list never drifts from what the Runner accepts)."""
+    path = os.path.join(ROOT, "Engine", "Strategies", "StrategyRegistry.cs")
+    try:
+        with open(path, encoding="utf-8") as f:
+            names = re.findall(r'^\s*\["([a-z0-9-]+)"\]\s*=', f.read(), re.MULTILINE)
+    except OSError:
+        names = []
+    names = [n for n in dict.fromkeys(names) if n not in _HIDDEN_STRATEGIES]
+    return names or sorted(STRATEGY_TEXT)
+
+
+def all_strategies():
+    path = os.path.join(ROOT, "Engine", "Strategies", "StrategyRegistry.cs")
+    return strategy_names(os.path.getmtime(path) if os.path.exists(path) else 0)
+
+
+def parse_params(text):
+    """'name=value, name=value' -> dict (numbers become numbers, like the Dashboard's parameter boxes). Raises ValueError."""
+    out = {}
+    for part in re.split(r"[,;]", text or ""):
+        part = part.strip()
+        if not part:
+            continue
+        if "=" not in part:
+            raise ValueError(f"「{part}」格式應為 名稱=值")
+        k, v = (x.strip() for x in part.split("=", 1))
+        if not k or not v:
+            raise ValueError(f"「{part}」格式應為 名稱=值")
+        try:
+            num = float(v)
+            out[k] = int(num) if num.is_integer() and "." not in v else num
+        except ValueError:
+            out[k] = v
+    return out
+
+
+DEFAULT_CUSTOM = {4: ["cheap-engine", "build-first", "harbor-rush", "corn-to-premium"], 3: ["cheap-engine", "build-first", "harbor-rush"]}
+
+
+def custom_seats(players):
+    """One row per seat: strategy + its parameters. Returns (seats for the config, problems)."""
+    names = all_strategies()
+    seats, problems = [], []
+    model_names = ["（不用，隨機 rollout）"] + [os.path.basename(p) for p in models_for(players)]
+    for i in range(players):
+        default = DEFAULT_CUSTOM[players][i] if DEFAULT_CUSTOM[players][i] in names else names[0]
+        c1, c2 = st.columns([2, 5])
+        strat = c1.selectbox(f"座位 {i + 1}", names, index=names.index(default), key=f"cu-s{i}",
+                             format_func=lambda n: f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
+        with c2:
+            if strat == "mcts":
+                m1, m2, m3 = st.columns(3)
+                sims = m1.number_input("模擬次數", value=100, min_value=1, step=50, key=f"cu-sims{i}")
+                model = m2.selectbox("價值模型", model_names, key=f"cu-model{i}")
+                leaf = m3.number_input("leafRollout", value=20 if model != model_names[0] else 0, min_value=0, step=5, key=f"cu-leaf{i}")
+                params = {"simulations": int(sims)}
+                if model != model_names[0]:
+                    params["valueModel"] = f"ml/models/{model}"
+                    if leaf:
+                        params["leafRollout"] = int(leaf)
+            else:
+                text = st.text_input("參數（選填，名稱=值，逗號分隔）", key=f"cu-p{i}", placeholder="例如 buildThreshold=3.5")
+                try:
+                    params = parse_params(text)
+                except ValueError as e:
+                    problems.append(f"座位 {i + 1} 的參數：{e}")
+                    params = {}
+        seats.append({"id": f"{strat}-{i}", "strategy": strat, "params": params})
+    return seats, problems
+
+
 def data_tab():
     st.caption("用 Runner 打完整局並抽樣局面，寫到 `results/ml/`。第一次（或 C# 程式改過後）會先自動發佈 Runner（需要 .NET 8 SDK）。")
-    mode = st.radio("資料來源", ["設定檔（手寫策略、隨機）", "模型自我對戰（MCTS＋價值模型）"], horizontal=True)
+    mode = st.radio("資料來源", ["設定檔（手寫策略、隨機）", "自訂組合（自己選每個座位的策略）", "模型自我對戰（MCTS＋價值模型）"], horizontal=True)
     stamp = datetime.datetime.now().strftime("%m%d-%H%M")
+    custom_problems = []
     if mode.startswith("設定檔"):
         configs = sorted(glob.glob(os.path.join(ROOT, "ml", "data-configs", "*.json")))
         rows = []
@@ -486,6 +571,21 @@ def data_tab():
         threads = c4.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1)
         default_name = os.path.basename(config)[:-5]
         title_kind = "手寫／隨機"
+    elif mode.startswith("自訂"):
+        st.caption("每局四（三）個座位就是你選的策略；座位順序每局隨機重排，所以每個策略都會坐到每個位置。"
+                   "設定會存成 `ml/data-configs/<輸出名稱>.json`，之後可以在「設定檔」選它重跑。")
+        players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="cu-players")
+        seats, custom_problems = custom_seats(players)
+        has_mcts = any(s["strategy"] == "mcts" for s in seats)
+        c1, c2, c3, c4 = st.columns(4)
+        games = c1.number_input("局數", value=2000 if has_mcts else 20000, min_value=1, step=1000, key="cu-games")
+        seed = c2.number_input("種子", value=int(datetime.datetime.now().strftime("%m%d%H")), step=1, key="cu-seed")
+        rate = c3.number_input("抽樣率（每個決策被抽到的機率）", value=0.05 if has_mcts else 0.01, min_value=0.0001, max_value=1.0, format="%g", key="cu-rate")
+        threads = c4.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key="cu-threads")
+        if has_mcts:
+            st.caption("有 MCTS 座位會慢很多（4 核心、100 次模擬大約每局 1～2 秒）；手寫策略與隨機玩家每秒可打上千局。")
+        default_name = f"{players}p-custom-{stamp}"
+        title_kind = "自訂：" + "、".join(s["strategy"] for s in seats)
     else:
         players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="sp-players")
         cands = models_for(players)
@@ -508,12 +608,20 @@ def data_tab():
     out = os.path.join(jobs.results_dir(), "ml", name + ".bin")
     exists = os.path.exists(out)
     overwrite = st.checkbox(f"覆寫已存在的 `{name}.bin`") if exists else True
+    writes_config = not mode.startswith("設定檔")
+    config_taken = writes_config and safe_name(name) and os.path.exists(os.path.join(ROOT, "ml", "data-configs", name + ".json"))
     problems = [p for p in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
                             None if overwrite else "資料已存在",
-                            "排隊中或執行中的工作已經會寫這個檔名，換一個名稱" if pending_output(rel(out)) else None] if p]
+                            f"`ml/data-configs/{name}.json` 已經有同名的設定檔，換一個名稱（不覆蓋既有設定）" if config_taken else None,
+                            "排隊中或執行中的工作已經會寫這個檔名，換一個名稱" if pending_output(rel(out)) else None] + custom_problems if p]
     if st.button(start_label("開始產生資料"), type="primary", disabled=bool(problems), key="start-dump"):
         if mode.startswith("設定檔"):
             spec_config = config
+        elif mode.startswith("自訂"):
+            cfg = {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed),
+                   "seatOrder": "random", "seats": seats, "output": {"perGameRecords": False}}
+            spec_config = f"ml/data-configs/{name}.json"
+            write_config(absolute(spec_config), cfg)  # kept with the other data configs: reusable and reproducible
         else:
             cfg = {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed), "seatOrder": "random",
                    "seats": [{"id": f"m{i}", "strategy": "mcts",

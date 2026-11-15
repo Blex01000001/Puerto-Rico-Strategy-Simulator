@@ -56,6 +56,13 @@ h1 + p.note + * { margin-top: .6rem; }
 .mlentry.stopped .mlstate { color: var(--neg); }
 .mlentry.starting .mlstate { color: var(--series-4); }
 .mlentry .mlstate .dot { line-height: 1; }
+/* status capsule; 執行中 gets a light sweeping across it (no animation when the OS asks for reduced motion) */
+.mlentry .mlstate { position: relative; overflow: hidden; padding: .08rem .5rem .08rem .55rem; border-radius: 999px; border: 1px solid currentColor; background: color-mix(in srgb, currentColor 14%, transparent); }
+.mlentry.running .mlstate::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .45) 50%, transparent 70%); transform: translateX(-120%); animation: ml-shine 2.6s ease-in-out infinite; pointer-events: none; }
+.mlentry.running .mlstate .dot { animation: ml-pulse 2.6s ease-in-out infinite; }
+@keyframes ml-shine { 0% { transform: translateX(-120%); } 55%, 100% { transform: translateX(120%); } }
+@keyframes ml-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .mlentry.running .mlstate::after, .mlentry.running .mlstate .dot { animation: none; } }
 .mlentry .ni { box-sizing: border-box; border: 2px solid transparent; border-radius: 7px; }
 .shell.collapsed .mlentry .ni { width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center; }
 .shell.collapsed .mlentry.running .ni { border-color: var(--series-6); }
@@ -246,6 +253,10 @@ th.sortable:hover { color: var(--text); }
 .tabs .tab { background: transparent; color: var(--text-2); border: 0; border-bottom: 3px solid transparent; border-radius: 4px 4px 0 0; padding: .5rem .9rem; font-weight: 600; font-size: .95rem; margin-bottom: -1px; }
 .tabs .tab:hover { color: var(--text); background: var(--surface-2); filter: none; }
 .tabs .tab.active { color: #fff; border-bottom-color: var(--accent); background: var(--surface-2); }
+.tabs .tab:disabled { opacity: .55; cursor: not-allowed; }
+.filerow { margin-top: .6rem; }
+.filerow label { flex: 1; display: flex; align-items: center; gap: .5rem; }
+.filerow input { flex: 1; min-width: 12rem; max-width: 40rem; }
 .tabs .tab .count { font-size: .72rem; font-weight: 500; color: var(--text-3); margin-left: .25rem; }
 
 /* home page */

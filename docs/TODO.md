@@ -29,6 +29,7 @@
 - `wharf-rush` 在這份實作下偏弱（4 人局約 18%、3 人局約 39%）：Wharf 平均到第 9～10 回合才買到；MCTS 陪練（random 或 wharf-rush rollout）都不買 Wharf、也打贏它，目前沒有證據顯示 Wharf 太強（分析文件 7.2）；前期金幣來源的參數掃描在 4 人局沒有進步（7.1）。`wharf-premium`（菸草／咖啡籌錢）也沒有更強（7.5）。`corn-monopoly` 的搗亂效果已量化並拆成兩種手段（7.3、7.4：囤貨比搶種植園傷，且大部分落差只是多一個玉米玩家）。
 
 - Dashboard 的 ML UI 啟動在 Linux 驗證過（啟動、狀態、缺套件的錯誤訊息）；Windows 上已能啟動，但多個 Python 時曾裝錯地方（`No module named 'lightgbm'`），改成挑套件齊全的 Python 並印出修正指令後還沒在 Windows 實測。
+- Windows 上曾因編碼（cp950）讓對戰工作在寫紀錄時當掉（`UnicodeEncodeError`），已改成一律 UTF-8；修正後還沒在 Windows 實測。
 - ML UI 的工作佇列（一次一個、依序執行、關掉 UI 繼續、失敗／取消後接著跑）在 Linux 驗證過；Windows 還沒實測。佇列只能排「已經存在」的東西：還沒訓練出來的模型不能先排它的對戰、還沒產生的資料不能先排訓練（要等前一個完成）。
 - ML UI 只在 Linux（Chromium）實際操作驗證過；Windows 上的背景程序（`DETACHED_PROCESS`）、`start-ui.cmd` 與 Ctrl+C 後工作繼續執行，還沒在 Windows 實測。Windows 上取消資料／對戰工作是直接結束 Runner（沒有共用的主控台可送 Ctrl+C），不會保留已完成的局數。
 - 策略模擬頁（`Simulate.razor`）的「完全平衡」選項與局數提示、局數千分位輸入、MCTS 耗時警告、自訂結果檔名、策略下拉選單名稱只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。

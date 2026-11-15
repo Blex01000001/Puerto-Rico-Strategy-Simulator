@@ -16,7 +16,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 - **模型清單**：`ml/models/` 每個模型的種類、資料、R²、對原版 MCTS 的最佳勝率；點選看參數、資料來源、各回合段誤差、loss 曲線、特徵重要度、所有對戰結果；「並排比較」最多 4 個模型，標出不同的參數。
 - 訓練在**獨立的背景程序**執行（`ml/jobs.py`）：關掉瀏覽器、關掉 UI（Ctrl+C）都不會中斷，重開 UI 會接著顯示進度；要停就按「取消這個工作」（不會留下半成品模型）。電腦睡眠或關機造成的中斷會標成「中斷」。工作紀錄在 `results/ml/jobs/<編號>/`（`job.json`、`events.jsonl`、`log.txt`）。
 - 資料與結果資料夾跟 Dashboard 相同（`results/`；環境變數 `PR_RESULTS_DIR` 可改，對應 Dashboard 的 `Dashboard:ResultsDirectory`）。
-- **資料**：選 `ml/data-configs/` 的設定檔（手寫策略、隨機），或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
+- **資料**：設定檔決定「哪幾個策略互打」（人數、每個座位的策略與參數、局數、種子；座位順序每局隨機）。三種來源：選 `ml/data-configs/` 的設定檔；**自訂組合**（每個座位自己選策略，MCTS 座位可選模擬次數、價值模型、leafRollout，其他座位可填參數；存成 `ml/data-configs/<名稱>.json`，不會覆蓋同名的既有設定）；或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
 - **對戰驗證**：選模型與對手桌（「對原版 MCTS」：同桌 cheap-engine、build-first（3 人局只有 cheap-engine）；「對手寫策略」：corn-shipper、corn-to-premium、build-first（3 人局 corn-shipper、build-first）），模擬次數、`leafRollout`、局數（24／6 的倍數＝balanced 完全平衡）→ 設定檔寫進 `mcts/value/<名稱>.json`、結果 `results/ml/<名稱>.json`，完成後勝率自動記進模型的 `.meta.json`（`matches`），模型清單與 Dashboard 都看得到。
 - **工作**：所有工作的進度、紀錄、取消；側欄隨時顯示目前的工作與排隊數。
 - **排隊**：已有工作在跑時，各頁的開始鈕會變成「加入排隊」，新工作依加入的順序一個接一個執行（一次一個：每個工作都會用滿 CPU，同時跑不會比較快）。關掉 ML UI 也會繼續；前一個失敗或取消，下一個照樣開始。「工作」頁上方列出執行中與排隊中的工作，排隊中的可以「移出佇列」。兩個工作不能寫同一個輸出檔（排隊中的也算）。
