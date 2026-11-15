@@ -38,8 +38,6 @@ def test_cancel_stops_the_job_without_writing_a_model(results, dump):
     while not any(e["stage"] == "epoch" for e in jobs.events(job_id)):
         assert time.time() < deadline, jobs.log_tail(job_id)
         time.sleep(0.2)
-    with pytest.raises(RuntimeError, match="another job"):
-        jobs.start("train_lgbm", "second", {"data": [data], "out": str(results / "x.txt")})  # one job at a time
     jobs.cancel(job_id)
     job = jobs.wait(job_id, timeout=30)
     assert job["state"] == "cancelled"
@@ -51,6 +49,57 @@ def test_failure_is_reported(results):
     job = jobs.wait(job_id, timeout=60)
     assert job["state"] == "failed"
     assert "metadata" in job["error"]
+
+
+def test_queue_runs_in_order_and_continues_after_cancel_and_failure(results, dump):
+    big = dump("big.bin", games=400, per_game=10)
+    small = dump("small.bin", games=40)
+    long_id = jobs.start("train_mlp", "long", {"data": [big], "out": str(results / "long.json"),
+                                               "options": {"hidden": "64", "epochs": 500, "batch": 16, "patience": 500}})
+    bad_id = jobs.start("train_lgbm", "bad", {"data": [str(results / "missing.bin")], "out": str(results / "bad.txt")})
+    ok_id = jobs.start("train_lgbm", "ok", {"data": [small], "out": str(results / "ok.txt"),
+                                            "options": {"rounds": 5, "leaves": 4, "min_leaf": 5, "threads": 1}})
+    assert jobs.read_job(bad_id)["state"] == "waiting" and jobs.read_job(ok_id)["state"] == "waiting"
+    assert [jobs.queue_position(i) for i in (long_id, bad_id, ok_id)] == [None, 1, 2]
+    deadline = time.time() + 60
+    while not any(e["stage"] == "epoch" for e in jobs.events(long_id)):
+        assert time.time() < deadline, jobs.log_tail(long_id)
+        time.sleep(0.2)
+    jobs.cancel(long_id)                        # cancelled ...
+    assert jobs.wait(long_id, 60)["state"] == "cancelled"
+    assert jobs.wait(bad_id, 60)["state"] == "failed"   # ... the next one still runs, and fails ...
+    ok = jobs.wait(ok_id, 120)                  # ... and the one after it still runs
+    assert ok["state"] == "done", jobs.log_tail(ok_id)
+    started = [jobs.read_job(i)["started"] for i in (long_id, bad_id, ok_id)]
+    assert started == sorted(started)
+    assert jobs.active_job() is None and jobs.waiting_jobs() == []
+
+
+def test_cancelling_a_waiting_job_removes_it_from_the_queue(results, dump):
+    big = dump("big.bin", games=400, per_game=10)
+    long_id = jobs.start("train_mlp", "long", {"data": [big], "out": str(results / "long.json"),
+                                               "options": {"hidden": "64", "epochs": 500, "batch": 16, "patience": 500}})
+    later = jobs.start("train_lgbm", "later", {"data": [big], "out": str(results / "later.txt")})
+    jobs.cancel(later)
+    job = jobs.read_job(later)
+    assert job["state"] == "cancelled" and "started" not in job
+    jobs.cancel(long_id)
+    assert jobs.wait(long_id, 60)["state"] == "cancelled"
+    assert "started" not in jobs.read_job(later)  # never ran
+    assert not os.path.exists(results / "later.txt")
+
+
+def test_queue_resumes_after_a_job_died_without_handing_over(results, dump):
+    import json as _json
+    d = os.path.join(jobs.jobs_dir(), "dead")
+    os.makedirs(d)
+    with open(os.path.join(d, "job.json"), "w", encoding="utf-8") as f:
+        _json.dump({"id": "dead", "kind": "train_lgbm", "title": "dead", "status": "running",
+                    "createdEpoch": time.time() - 999, "heartbeatEpoch": time.time() - 999}, f)
+    small = dump("small.bin", games=40)
+    job_id = jobs.start("train_lgbm", "next", {"data": [small], "out": str(results / "n.txt"),
+                                               "options": {"rounds": 5, "leaves": 4, "min_leaf": 5, "threads": 1}})
+    assert jobs.wait(job_id, 120)["state"] == "done"  # the dead job (interrupted) does not block the queue
 
 
 def test_stale_heartbeat_shows_as_interrupted(results):

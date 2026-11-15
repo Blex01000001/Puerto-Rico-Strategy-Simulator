@@ -40,7 +40,7 @@ ROOT = jobs.ROOT
 MODELS_DIR = os.path.join(ROOT, "ml", "models")
 DASHBOARD_URL = "http://localhost:5080"
 
-STATE_TEXT = {"queued": "排隊中", "running": "執行中", "done": "完成", "failed": "失敗", "cancelled": "已取消",
+STATE_TEXT = {"waiting": "排隊中", "queued": "啟動中", "running": "執行中", "done": "完成", "failed": "失敗", "cancelled": "已取消",
               "interrupted": "中斷（程序已不在）"}
 KIND_TEXT = {"train_lgbm": "LightGBM", "train_mlp": "MLP", "lightgbm": "LightGBM", "mlp": "MLP", "dump": "產生資料", "match": "對戰驗證"}
 
@@ -220,7 +220,6 @@ def training_tab():
     exists = os.path.exists(out)
     overwrite = st.checkbox(f"覆寫已存在的 `{name + ext}`", value=False) if exists else True
 
-    active = jobs.active_job()
     problems = []
     if not chosen:
         problems.append("還沒選資料")
@@ -230,29 +229,48 @@ def training_tab():
         problems.append("模型名稱不能空白或含路徑符號")
     if exists and not overwrite:
         problems.append("模型已存在")
-    if active:
-        problems.append(f"另一個工作執行中：{active['title']}")
-    if st.button("開始訓練", type="primary", disabled=bool(problems)):
+    if pending_output(rel(out)):
+        problems.append(f"排隊中或執行中的工作已經會寫 `{name + ext}`，換一個名稱")
+    if st.button(start_label("開始訓練"), type="primary", disabled=bool(problems), key="start-train"):
         spec = {"data": [d["path"] for d in chosen], "out": rel(out), "options": options}
         start_job(kind, f"{KIND_TEXT[kind]} → {name + ext}", spec)
-    if problems:
-        st.caption("無法開始：" + "；".join(problems))
+    show_problems_or_queue(problems)
 
 
 # ---------------------------------------------------------------- jobs (shared by every tab)
 
 def start_job(kind, title, spec):
     try:
-        st.session_state["job-select"] = jobs.start(kind, title, spec)  # the 工作 tab follows the new job
-        st.session_state["job-started"] = title
+        job_id = jobs.start(kind, title, spec)
+        st.session_state["job-select"] = job_id  # the 工作 tab follows the new job
+        pos = jobs.queue_position(job_id)
+        st.session_state["job-started"] = f"已加入排隊（第 {pos} 個），會在前面的工作結束後自動開始。" if pos else "工作已開始：進度在側欄與「工作」頁籤。"
         st.rerun()
-    except (RuntimeError, ValueError) as e:
+    except (RuntimeError, ValueError, TimeoutError) as e:
         st.error(str(e))
 
 
-def busy_reason():
-    active = jobs.active_job()
-    return f"另一個工作執行中：{active['title']}" if active else None
+def start_label(text):
+    """The start buttons say 加入排隊 while another job runs: the new one waits for its turn."""
+    return "加入排隊" if jobs.active_job() or jobs.waiting_jobs() else text
+
+
+def pending_output(out_rel):
+    """True when a waiting / starting / running job will write this output (two jobs must not write the same file)."""
+    want = out_rel.replace("\\", "/")
+    return any(str(j.get("spec", {}).get("out", "")).replace("\\", "/") == want
+               for j in jobs.list_jobs() if j["state"] in ("waiting", "queued", "running"))
+
+
+def show_problems_or_queue(problems):
+    if problems:
+        st.caption("無法開始：" + "；".join(problems))
+        return
+    active, waiting = jobs.active_job(), jobs.waiting_jobs()
+    if active or waiting:
+        ahead = (1 if active else 0) + len(waiting)
+        st.caption(f"目前有工作在跑：這個會排在第 {len(waiting) + 1} 個，前面還有 {ahead} 個工作；"
+                   "關掉 ML UI 也會照順序繼續跑（前一個失敗或取消也一樣）。")
 
 
 def progress_of(job, evs):
@@ -273,7 +291,15 @@ def progress_of(job, evs):
 
 
 def watch_states(all_jobs):
-    """Fragments refresh alone; when any job changes state, rerun the whole page (start buttons, lists)."""
+    """Fragments refresh alone; when any job changes state, rerun the whole page (start buttons, lists).
+
+    Also the queue's safety net: a job that died without handing over (machine asleep, killed) leaves waiting jobs
+    behind; start the next one."""
+    if not any(j["state"] in ("queued", "running") for j in all_jobs) and any(j["state"] == "waiting" for j in all_jobs):
+        try:
+            jobs.start_next()
+        except TimeoutError:
+            pass
     signature = tuple((j["id"], j["state"]) for j in all_jobs)
     if st.session_state.get("job-signature") not in (None, signature):
         st.session_state["job-signature"] = signature
@@ -289,7 +315,8 @@ def sidebar_status():
     if not all_jobs:
         st.caption("還沒有工作。")
         return
-    job = all_jobs[0]
+    # the running job if any, else the latest one (a waiting job is shown below as part of the queue)
+    job = jobs.active_job() or next((j for j in all_jobs if j["state"] != "waiting"), all_jobs[0])
     state = job["state"]
     st.caption(job["title"])
     frac, text = progress_of(job, jobs.events(job["id"]))
@@ -299,6 +326,9 @@ def sidebar_status():
             jobs.cancel(job["id"])
     else:
         st.markdown(f"{STATE_TEXT.get(state, state)}")
+    waiting = jobs.waiting_jobs()
+    if waiting:
+        st.caption(f"排隊中 {len(waiting)} 個：下一個是「{waiting[0]['title']}」")
     st.caption("細節在「工作」頁籤。")
 
 
@@ -308,18 +338,26 @@ def job_panel():
     if not all_jobs:
         st.caption("還沒有工作。")
         return
+    queue_table()
     # the label carries no state: the dropdown does not refresh the text of an option that is already shown
     labels = {j["id"]: f"{j['title']}（{j.get('created', '').replace('T', ' ').rstrip('Z')} UTC）" for j in all_jobs}
     if st.session_state.get("job-select") not in labels:
         st.session_state.pop("job-select", None)
     job_id = st.selectbox("工作", list(labels), format_func=labels.get, key="job-select")
     job = jobs.read_job(job_id)
+    if job is None:  # its folder was removed meanwhile
+        st.caption("這個工作的紀錄已經不在了。")
+        return
     state = job["state"]
     evs = jobs.events(job_id)
     frac, text = progress_of(job, evs)
+    if state == "waiting":
+        frac, text = None, f"排隊中（第 {jobs.queue_position(job_id)} 個），前面的工作結束後自動開始"
     left, right = st.columns([2, 1])
     with left:
-        if frac is not None:
+        if state == "waiting":
+            st.info(text)
+        elif frac is not None:
             st.progress(frac, text=f"{STATE_TEXT.get(state, state)}：{text}")
         elif state in ("queued", "running"):
             st.info(text)
@@ -341,7 +379,10 @@ def job_panel():
         if state in ("queued", "running"):
             if st.button("取消這個工作", key=f"cancel-{job_id}"):
                 jobs.cancel(job_id)
-            st.caption("產生資料取消時，已完成的局數會保留（Windows 除外）；訓練取消不會留下模型；對戰取消不會記到模型。")
+            st.caption("產生資料取消時，已完成的局數會保留（Windows 除外）；訓練取消不會留下模型；對戰取消不會記到模型。排隊中的下一個工作會接著開始。")
+        if state == "waiting":
+            if st.button("移出佇列", key=f"dequeue-{job_id}"):
+                jobs.cancel(job_id)
         if state == "failed":
             st.error(scrub(job.get("error", "")))
         if state == "interrupted":
@@ -366,6 +407,27 @@ def job_panel():
                                                      "平均分": st.column_config.NumberColumn(format="%.1f")})
     with st.expander("紀錄（最後 40 行）", expanded=state == "failed"):
         st.code(scrub(jobs.log_tail(job_id)) or "（空的）", language=None)
+
+
+def queue_table():
+    """The running job and the queue, in the order they will run; waiting jobs can be removed here."""
+    active, waiting = jobs.active_job(), jobs.waiting_jobs()
+    if not active and not waiting:
+        return
+    st.markdown("**目前與排隊中的工作**（依序執行；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑）")
+    rows = ([(active, "執行中" if active["state"] == "running" else "啟動中")] if active else []) + \
+           [(j, f"排隊第 {i}") for i, j in enumerate(waiting, 1)]
+    for job, label in rows:
+        c1, c2, c3 = st.columns([1, 5, 1])
+        c1.markdown(f"**{label}**")
+        c2.markdown(f"{job['title']}（{KIND_TEXT.get(job['kind'], job['kind'])}）")
+        if job["state"] == "waiting":
+            if c3.button("移出佇列", key=f"q-dequeue-{job['id']}"):
+                jobs.cancel(job["id"])
+                st.rerun(scope="app")
+        elif c3.button("取消", key=f"q-cancel-{job['id']}"):
+            jobs.cancel(job["id"])
+    st.divider()
 
 
 # ---------------------------------------------------------------- 資料
@@ -447,8 +509,9 @@ def data_tab():
     exists = os.path.exists(out)
     overwrite = st.checkbox(f"覆寫已存在的 `{name}.bin`") if exists else True
     problems = [p for p in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
-                            None if overwrite else "資料已存在", busy_reason()] if p]
-    if st.button("開始產生資料", type="primary", disabled=bool(problems)):
+                            None if overwrite else "資料已存在",
+                            "排隊中或執行中的工作已經會寫這個檔名，換一個名稱" if pending_output(rel(out)) else None] if p]
+    if st.button(start_label("開始產生資料"), type="primary", disabled=bool(problems), key="start-dump"):
         if mode.startswith("設定檔"):
             spec_config = config
         else:
@@ -461,8 +524,7 @@ def data_tab():
             write_config(absolute(spec_config), cfg)  # kept next to the other data configs: the dump can be reproduced
         start_job("dump", f"資料（{title_kind}）→ {name}.bin", {"config": spec_config, "out": rel(out), "rate": float(rate),
                                                               "games": int(games), "seed": int(seed), "threads": int(threads)})
-    if problems:
-        st.caption("無法開始：" + "；".join(problems))
+    show_problems_or_queue(problems)
     st.markdown("**已有的資料**")
     dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
     if dumps:
@@ -521,8 +583,9 @@ def match_tab():
     overwrite = st.checkbox(f"覆寫已存在的結果 `{name}.json`") if exists else True
     problems = [p for p in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
                             None if games % perm == 0 else f"局數要是 {perm} 的倍數",
-                            None if overwrite else "結果已存在", busy_reason()] if p]
-    if st.button("開始對戰", type="primary", disabled=bool(problems)):
+                            None if overwrite else "結果已存在",
+                            "排隊中或執行中的工作已經會寫這個結果檔，換一個名稱" if pending_output(rel(out)) else None] if p]
+    if st.button(start_label("開始對戰"), type="primary", disabled=bool(problems), key="start-match"):
         cfg = {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed),
                "seatOrder": "balanced", "seats": seats, "output": {"perGameRecords": False}}
         if threads:
@@ -531,8 +594,7 @@ def match_tab():
         write_config(absolute(config), cfg)
         start_job("match", f"對戰 {model}（{int(sims)} 次）{'vs 原版' if table == 'default' else 'vs 手寫'} → {name}",
                   {"config": config, "out": rel(out), "model": f"ml/models/{model}"})
-    if problems:
-        st.caption("無法開始：" + "；".join(problems))
+    show_problems_or_queue(problems)
     meta = model_meta(os.path.join(MODELS_DIR, model))
     if meta and meta.get("matches"):
         st.markdown(f"**{model} 已有的對戰**")
@@ -706,8 +768,9 @@ def main():
     st.caption(f"流程：資料 → 訓練 → 對戰驗證。工作都在背景程序執行，關掉這個頁面或 UI 都不會中斷。模擬、結果與回放請用 Dashboard（{DASHBOARD_URL}）。")
     with st.sidebar:
         sidebar_status()
-    if st.session_state.pop("job-started", None):
-        st.toast("工作已開始：進度在側欄與「工作」頁籤。")
+    started = st.session_state.pop("job-started", None)
+    if started:
+        st.toast(started)
     t0, t1, t2, t3, t4 = st.tabs(["資料", "訓練", "對戰驗證", "模型清單", "工作"])
     with t0:
         data_tab()

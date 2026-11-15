@@ -57,3 +57,18 @@ def test_missing_packages_show_the_fix_command(results, monkeypatch):
     assert any("lightgbm" in e.value for e in at.error)
     assert any("-m pip install -r" in c.value for c in at.code)
     assert not at.tabs  # nothing else is drawn
+
+
+def test_start_buttons_while_jobs_are_queued(results, monkeypatch):
+    # every start button reads 加入排隊 then: they must not collide (duplicate element ids)
+    import jobs
+    from conftest import write_dump
+    write_dump(str(results / "ml" / "4p-test.bin"), games=10)  # the training tab shows its button only with data
+    fake = {"id": "x", "title": "running job", "kind": "dump", "state": "running", "spec": {"out": "results/ml/a.bin"}}
+    monkeypatch.setattr(jobs, "active_job", lambda: fake)
+    monkeypatch.setattr(jobs, "waiting_jobs", lambda: [])
+    monkeypatch.setattr(jobs, "list_jobs", lambda: [fake])
+    monkeypatch.setattr(jobs, "events", lambda job_id: [])
+    monkeypatch.setattr(jobs, "read_job", lambda job_id: fake if job_id == "x" else None)
+    at = run_app()
+    assert sum(b.label == "加入排隊" for b in at.button) == 3
