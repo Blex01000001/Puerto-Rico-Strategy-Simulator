@@ -20,7 +20,7 @@ import check_env
 
 if check_env.missing_modules():
     # started with a Python that lacks the packages (e.g. pip installed them into another Python): say so plainly
-    st.set_page_config(page_title="波多黎各 ML", page_icon="🌱")
+    st.set_page_config(page_title="Puerto Rico Machine Learning", page_icon="🌱")
     st.error(f"這個 Python 缺少 ML UI 需要的套件：{', '.join(check_env.missing_modules())}")
     st.markdown(f"ML UI 現在用的 Python：`{check_env.sys.executable}`")
     st.markdown("在終端機執行下面這一行（指定同一個 Python，套件才會裝到對的地方），然後關掉 ML UI 再啟動一次：")
@@ -240,7 +240,7 @@ def busy_files(field):
 
 def delete_button(key, label, paths, extra_suffixes=(), busy=()):
     """A delete button with a confirmation step; files a queued or running job needs are refused."""
-    with st.popover(label, disabled=not paths):
+    with st.container(key=key), st.popover(label, disabled=not paths):
         blocked = [p for p in paths if rel(p) in busy]
         if blocked:
             st.markdown('<span class="act-err">排隊中或執行中的工作會用到：' + "、".join(plain(rel(p)) for p in blocked) + "，不能刪除</span>",
@@ -333,7 +333,8 @@ def training_tab():
 
 # ---------------------------------------------------------------- jobs (shared by every tab)
 
-TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"
+TITLE = "Puerto Rico Machine Learning"
+TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"
 
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
@@ -346,14 +347,32 @@ h1 { padding-top: 0 !important; margin-bottom: .1rem !important; font-size: 1.7r
 /* cards: st.container(border=True, key="card-...") */
 div[class*="st-key-card-"] { background: #1f2430; border: 1px solid #333a4b !important; border-radius: 6px; padding: .55rem 1rem .8rem 1rem; }
 div[class*="st-key-card-"] h3 { font-size: 1.05rem; margin: .1rem 0 .2rem 0; padding: 0; border-left: 3px solid #4aa8ff; padding-left: .55rem; }
-/* inputs like the Dashboard: darker than the card behind them, with a border (the theme's input colour equals the card colour) */
-div[data-baseweb="input"], div[data-baseweb="textarea"], div[data-baseweb="select"] > div, [data-testid="stNumberInputContainer"] {
+/* inputs like the Dashboard: darker than the card behind them, with a border (the theme's input colour equals the card
+   colour). Streamlit >= 1.6x renders inputs with react-aria (data-testid / react-aria-* classes), older versions with
+   baseweb (data-baseweb): both are listed so the borders survive either version. */
+[data-testid="stTextInputRootElement"], [data-testid="stTextAreaRootElement"], [data-testid="stNumberInputContainer"],
+.react-aria-ComboBox > div, [data-testid="stMultiSelect"] .react-aria-ComboBox > div,
+div[data-baseweb="input"], div[data-baseweb="textarea"], div[data-baseweb="select"] > div {
   background: #111418 !important; border: 1px solid #333a4b !important; border-radius: 4px !important; }
-div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea, [data-testid="stNumberInputContainer"] input { background: transparent !important; }
-[data-testid="stNumberInputContainer"] div[data-baseweb="input"] { border: 0 !important; }
+[data-testid="stTextInputRootElement"] input, [data-testid="stNumberInputContainer"] input, .react-aria-ComboBox input,
+div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea, textarea { background: transparent !important; }
+[data-testid="stNumberInputContainer"] div[data-baseweb="input"], [data-testid="stNumberInputContainer"] [data-testid="stTextInputRootElement"] { border: 0 !important; }
 [data-testid="stNumberInputContainer"] button { background: #1f2430 !important; }
-div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within, div[data-baseweb="select"] > div:focus-within,
-[data-testid="stNumberInputContainer"]:focus-within { border-color: #4aa8ff !important; }
+[data-testid="stTextInputRootElement"]:focus-within, [data-testid="stTextAreaRootElement"]:focus-within, [data-testid="stNumberInputContainer"]:focus-within,
+.react-aria-ComboBox > div:focus-within, div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within,
+div[data-baseweb="select"] > div:focus-within { border-color: #4aa8ff !important; }
+/* radio groups (人數, 模型, 對手…) get the same frame, sized to their options */
+[data-testid="stRadioGroup"], div[role="radiogroup"] { display: inline-flex !important; width: auto !important; background: #111418;
+  border: 1px solid #333a4b; border-radius: 4px; padding: .35rem .8rem; }
+/* metrics (模型清單: 種類, 資料列數, R², 最佳勝率) as framed tiles */
+[data-testid="stMetric"] { background: #111418; border: 1px solid #333a4b; border-radius: 4px; padding: .45rem .8rem; }
+[data-testid="stMetricValue"] > div { font-size: 1.7rem !important; }
+/* delete buttons: red, at the right edge (delete_button wraps them in st.container(key="del-…")) */
+div[class*="st-key-del-"] { align-items: flex-end !important; }
+div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
+div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
+div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12); }
+div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
 /* buttons like the Dashboard: blue when they can start, locked otherwise */
 button[kind="primary"] { background: #4aa8ff !important; border: 0 !important; color: #07131f !important; font-weight: 600 !important; }
 button[kind="primary"]:hover:not(:disabled) { filter: brightness(1.12); }
@@ -775,8 +794,8 @@ def tracked_by_git(paths):
         return set()
 
 
-def config_table():
-    """The data configs (built-in ml/data-configs, local ml/local/data-configs) with checkboxes for deleting."""
+def config_rows():
+    """The data configs: built-in ml/data-configs, then local ml/local/data-configs."""
     rows = []
     files = sorted(glob.glob(os.path.join(ROOT, "ml", "data-configs", "*.json"))) + sorted(glob.glob(os.path.join(LOCAL_CONFIGS, "*.json")))
     for c in files:
@@ -785,9 +804,11 @@ def config_table():
             rows.append({"設定檔": rel(c), "位置": "本機" if os.path.dirname(os.path.abspath(c)) == os.path.abspath(LOCAL_CONFIGS) else "內建",
                          "人數": cfg.get("players"), "局數": cfg.get("games"), "種子": cfg.get("seed"),
                          "座位": "、".join(s.get("strategy", "") for s in cfg.get("seats", []))})
-    if not rows:
-        st.info("沒有設定檔。用「自訂組合」新增一個。")
-        return rows
+    return rows
+
+
+def config_table(rows):
+    """All data configs with checkboxes for deleting (inside the 管理設定檔 expander)."""
     picked = st.dataframe(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key="cfg-table")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
     c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
@@ -795,20 +816,25 @@ def config_table():
     c1.caption("勾選左側方格可以刪除設定檔。" + (f"其中 {len(tracked)} 個是 repo 內建的（git 追蹤中）：刪掉後可以用 git 還原。" if tracked else ""))
     with c2:
         delete_button("del-configs", f"🗑 刪除勾選（{len(chosen)}）", [absolute(c) for c in chosen], busy=busy_files("config"))
-    return rows
 
 
 def data_tab():
     st.caption("用 Runner 打完整局並抽樣局面，寫到 `results/ml/`。第一次（或 C# 程式改過後）會先自動發佈 Runner（需要 .NET 8 SDK）。")
     stamp = datetime.datetime.now().strftime("%m%d-%H%M")
     custom_problems = []
-    with card("data-source", "1. 誰和誰打（資料來源）"):
-        mode = st.radio("資料來源", ["設定檔（手寫策略、隨機）", "自訂組合（自己選每個座位的策略）", "模型自我對戰（MCTS＋價值模型）"], horizontal=True)
+    with card("data-source", "1. 採樣來源模型"):
+        mode = st.radio("採樣來源模型", ["設定檔（手寫策略、隨機）", "自訂組合（自己選每個座位的策略）", "模型自我對戰（MCTS＋價值模型）"],
+                        horizontal=True, label_visibility="collapsed")
         if mode.startswith("設定檔"):
-            rows = config_table()
+            rows = config_rows()
             if not rows:
+                st.info("沒有設定檔。用「自訂組合」新增一個。")
                 return
-            config = st.selectbox("用哪個設定檔", [r["設定檔"] for r in rows])
+            by_name = {r["設定檔"]: r for r in rows}
+            config = st.selectbox("用哪個設定檔", list(by_name),
+                                  format_func=lambda c: f"{c}（{by_name[c]['人數']} 人局：{by_name[c]['座位']}）")
+            with st.expander(f"管理設定檔（全部 {len(rows)} 個；勾選後可以刪除）"):
+                config_table(rows)
             cfg = read_config(absolute(config))
             default_games, default_seed = int(cfg.get("games", 20000)), int(cfg.get("seed", 1))
             default_rate = 0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01
@@ -840,7 +866,7 @@ def data_tab():
             default_name = f"{players}p-selfplay-{model.rsplit('.', 1)[0].replace(f'{players}p-', '')}-{stamp}"
             title_kind = f"自我對戰 {model}"
 
-    with card("data-run", "2. 局數與輸出"):
+    with card("data-run", "2. 局數設定"):
         c1, c2, c3, c4 = st.columns(4)
         games = c1.number_input("局數", value=default_games, min_value=1, step=1000, key=f"games-{mode[:2]}")
         seed = c2.number_input("種子", value=default_seed, step=1, key=f"seed-{mode[:2]}")
@@ -1176,9 +1202,9 @@ def models_tab():
 
 
 def main():
-    st.set_page_config(page_title="波多黎各 ML", page_icon="🌱", layout="wide")
+    st.set_page_config(page_title=TITLE, page_icon="🌱", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
-    st.title("波多黎各 ML：局面價值模型")
+    st.title(f"{TITLE}: Position Value Model")
     st.caption(f"流程：{TAB_DATA} → {TAB_TRAIN} → {TAB_MATCH}。工作都在背景程序依序執行，關掉這個頁面或 UI 都不會中斷。"
                f"模擬、結果與回放請用 Dashboard（{DASHBOARD_URL}）。")
     with st.sidebar:

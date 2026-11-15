@@ -24,7 +24,7 @@ def run_app():
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert [t.label for t in at.tabs] == ["模擬對局採樣", "訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"]
+    assert [t.label for t in at.tabs] == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"]
     assert any("還沒有訓練資料" in i.value for i in at.info)
 
 
@@ -82,7 +82,7 @@ def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypat
     written = {}
     at = AppTest.from_file(UI, default_timeout=60)
     at.run()
-    mode = next(r for r in at.radio if r.label == "資料來源")
+    mode = next(r for r in at.radio if r.label == "採樣來源模型")
     mode.set_value("自訂組合（自己選每個座位的策略）").run()
     assert not at.exception, at.exception
     seat_boxes = [s for s in at.selectbox if s.label.startswith("座位 ")]
@@ -138,7 +138,7 @@ def test_save_config_only_writes_the_config(results, monkeypatch):
     import jobs
     monkeypatch.setattr(jobs, "start", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no job may start")))
     at = run_app()
-    next(r for r in at.radio if r.label == "資料來源").set_value("自訂組合（自己選每個座位的策略）").run()
+    next(r for r in at.radio if r.label == "採樣來源模型").set_value("自訂組合（自己選每個座位的策略）").run()
     next(t for t in at.text_input if t.label.startswith("輸出名稱")).set_value("pytest-saved-only").run()
     cfg_path = os.path.join(os.path.dirname(UI), "local", "data-configs", "pytest-saved-only.json")
     try:

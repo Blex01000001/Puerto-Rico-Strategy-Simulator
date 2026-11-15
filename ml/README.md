@@ -12,11 +12,11 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 瀏覽器開 `http://localhost:8501`（只有本機連得到；深色主題與 Dashboard 相同，設定在根目錄 `.streamlit/config.toml`）。不需要 Visual Studio，也不需要開 Dashboard。**新裝置第一次使用前，先在專案根目錄執行一次 `python -m pip install -r ml/requirements.txt`**（不要直接打 `pip`：有好幾個 Python 時可能裝到另一個）。啟動檔會挑第一個裝好套件的 Python（Windows 依序試 `python`、`py`；環境變數 `PR_PYTHON` 可指定 python.exe 的完整路徑）；都沒裝好時，`ml/check_env.py` 會印出是哪個 Python 與要執行的那一行（含該 Python 的完整路徑），cmd 視窗會停住讓你看。
 
 也可以從 Dashboard 啟動：左側選單「機器學習」顯示「ML UI 執行中 ●」（綠）或「ML UI 未啟動 ○」（紅；側欄收合時是圖示的綠／紅框）；未啟動時點它，Dashboard 會檢查 Python 與套件，在 Windows 跳出一個 cmd 視窗執行 `ml\start-ui.cmd`（關掉這個視窗就停止 ML UI；已開始的工作不受影響），好了自動在新分頁打開。缺套件時會顯示是哪個 Python 與要執行的那一行指令。
-- **訓練/蒸餾**：勾選 `results/ml/` 的資料（依人數分開；正在產生的資料會標「產生中」）、選 LightGBM 或 MLP、填參數（標籤是中文說明＋命令列參數名稱）、取名稱 → 開始訓練。進度條與驗證 loss 曲線每 2 秒更新，結束時顯示驗證成績；同一時間只跑一個工作。
+- **模型訓練/蒸餾**：勾選 `results/ml/` 的資料（依人數分開；正在產生的資料會標「產生中」）、選 LightGBM 或 MLP、填參數（標籤是中文說明＋命令列參數名稱）、取名稱 → 開始訓練。進度條與驗證 loss 曲線每 2 秒更新，結束時顯示驗證成績；同一時間只跑一個工作。
 - **模型清單**：`ml/models/` 每個模型的種類、資料、R²、對原版 MCTS 的最佳勝率；點選看參數、資料來源、各回合段誤差、loss 曲線、特徵重要度、所有對戰結果；「並排比較」最多 4 個模型，標出不同的參數。
 - 訓練在**獨立的背景程序**執行（`ml/jobs.py`）：關掉瀏覽器、關掉 UI（Ctrl+C）都不會中斷，重開 UI 會接著顯示進度；要停就按「取消這個工作」（不會留下半成品模型）。電腦睡眠或關機造成的中斷會標成「中斷」。工作紀錄在 `results/ml/jobs/<編號>/`（`job.json`、`events.jsonl`、`log.txt`）。
 - 資料與結果資料夾跟 Dashboard 相同（`results/`；環境變數 `PR_RESULTS_DIR` 可改，對應 Dashboard 的 `Dashboard:ResultsDirectory`）。
-- **模擬對局採樣**：設定檔決定「哪幾個策略互打」（人數、每個座位的策略與參數、局數、種子；座位順序每局隨機）。三種來源：選 `ml/data-configs/` 的設定檔；**自訂組合**（每個座位自己選策略，MCTS 座位可選模擬次數、價值模型、leafRollout，其他座位可填參數；存成 `ml/data-configs/<名稱>.json`，不會覆蓋同名的既有設定）；或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
+- **模擬對局採樣**：設定檔決定「哪幾個策略互打」（人數、每個座位的策略與參數、局數、種子；座位順序每局隨機）。三種來源（「1. 採樣來源模型」）：從下拉選單選 `ml/data-configs/` 的設定檔（全部設定檔的列表與刪除在下方「管理設定檔」裡）；**自訂組合**（每個座位自己選策略，MCTS 座位可選模擬次數、價值模型、leafRollout，其他座位可填參數；存成 `ml/data-configs/<名稱>.json`，不會覆蓋同名的既有設定）；或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
 - **對戰驗證**：選模型與對手桌（「對原版 MCTS」：同桌 cheap-engine、build-first（3 人局只有 cheap-engine）；「對手寫策略」：corn-shipper、corn-to-premium、build-first（3 人局 corn-shipper、build-first）），模擬次數、`leafRollout`、局數（24／6 的倍數＝balanced 完全平衡）→ 設定檔寫進 `mcts/value/<名稱>.json`、結果 `results/ml/<名稱>.json`，完成後勝率自動記進模型的 `.meta.json`（`matches`），模型清單與 Dashboard 都看得到。
 - **排程佇列**：工作列表（名稱、狀態、經過時間、進度、取消／移出佇列、備註；失敗的錯誤訊息在備註裡，預設收折），下方「工作詳細」看紀錄與 loss 曲線；側欄顯示目前的工作與排隊數。
 - **排隊**：已有工作在跑時，各頁的開始鈕會變成「加入排隊」（可以開始時是藍色，不能開始時鎖住並在右邊用紅字寫原因），新工作依加入的順序一個接一個執行（一次一個：每個工作都會用滿 CPU，同時跑不會比較快）。關掉 ML UI 也會繼續；前一個失敗或取消，下一個照樣開始。「排程佇列」頁列出執行中與排隊中的工作，排隊中的可以「移出佇列」。兩個工作不能寫同一個輸出檔（排隊中的也算）。
