@@ -238,24 +238,43 @@ def busy_files(field):
     return used
 
 
+def delete_gen():
+    """Bumped after every deletion: tables with checkboxes put it in their key, so the old selection (row numbers that
+    now point at other files) is dropped."""
+    return st.session_state.get("del-gen", 0)
+
+
 def delete_button(key, label, paths, extra_suffixes=(), busy=()):
-    """A delete button with a confirmation step; files a queued or running job needs are refused."""
-    with st.container(key=key), st.popover(label, disabled=not paths):
-        blocked = [p for p in paths if rel(p) in busy]
-        if blocked:
-            st.markdown('<span class="act-err">排隊中或執行中的工作會用到：' + "、".join(plain(rel(p)) for p in blocked) + "，不能刪除</span>",
-                        unsafe_allow_html=True)
-            return
-        st.markdown("確定刪除這些檔案？刪除後無法復原。")
-        for p in paths:
-            st.markdown(f"- `{rel(p)}`")
-        if st.button("確定刪除", type="primary", key=f"{key}-confirm"):
-            for p in paths:
-                for f in [p] + [p + suf for suf in extra_suffixes]:
-                    if os.path.exists(f):
-                        os.remove(f)
-            st.cache_data.clear()
+    """A red delete button (right-aligned via the 'del-' key prefix) that asks for confirmation in a dialog; files a
+    queued or running job needs are refused. A dialog closes with the rerun after deleting (a popover stayed open)."""
+    with st.container(key=key):
+        if st.button(label, key=f"{key}-open", disabled=not paths):
+            confirm_delete(key, list(paths), tuple(extra_suffixes), tuple(busy))
+
+
+@st.dialog("刪除檔案")
+def confirm_delete(key, paths, extra_suffixes, busy):
+    blocked = [p for p in paths if rel(p) in busy]
+    if blocked:
+        st.markdown('<span class="act-err">排隊中或執行中的工作會用到：' + "、".join(plain(rel(p)) for p in blocked) + "，不能刪除</span>",
+                    unsafe_allow_html=True)
+        if st.button("關閉", key=f"keep-{key}-close"):
             st.rerun()
+        return
+    st.markdown("確定刪除這些檔案？刪除後無法復原。")
+    for p in paths:
+        st.markdown(f"- `{rel(p)}`")
+    c1, c2 = st.columns(2)
+    if c1.button("取消", key=f"keep-{key}-cancel", width="stretch"):
+        st.rerun()
+    if c2.button("確定刪除", key=f"{key}-confirm", width="stretch"):
+        for p in paths:
+            for f in [p] + [p + suf for suf in extra_suffixes]:
+                if os.path.exists(f):
+                    os.remove(f)
+        st.session_state["del-gen"] = delete_gen() + 1
+        st.cache_data.clear()
+        st.rerun()
 
 
 def training_tab():
@@ -273,7 +292,7 @@ def training_tab():
         p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
         rows = [d for d in good if d["人數"] == p]
         df = pd.DataFrame(rows).drop(columns=["path"]).set_index(pd.Index([r["path"] for r in rows], name="檔案"))
-        picked = st.dataframe(df, on_select="rerun", selection_mode="multi-row", width="stretch",
+        picked = st.dataframe(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
                               column_config={"列數": st.column_config.NumberColumn(format="localized"),
                                              "局數": st.column_config.NumberColumn(format="localized")})
         chosen = [rows[i] for i in picked.selection.rows]
@@ -386,6 +405,34 @@ button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2
 .side-title { white-space: nowrap; overflow: hidden; color: #b4bcc9; font-size: .85rem;
   -webkit-mask-image: linear-gradient(to right, #000 78%, transparent); mask-image: linear-gradient(to right, #000 78%, transparent); }
 .side-state { font-size: .85rem; }
+.side-note { color: #8892a2; font-size: .78rem; margin: .1rem 0; }
+/* left navigation (Dashboard style): brand, section headings, one full-width entry per page, the active one highlighted */
+section[data-testid="stSidebar"] { background: #171a21 !important; border-right: 1px solid #000; }
+.nav-brand { display: flex; align-items: center; gap: .55rem; font-weight: 700; color: #fff; line-height: 1.25; font-size: .95rem;
+  padding: .2rem 0 .7rem; border-bottom: 1px solid #333a4b; margin-bottom: .2rem; }
+.nav-brand .nav-icon { font-size: 1.5rem; }
+.navsec { font-size: .68rem; font-weight: 700; letter-spacing: .14em; color: #8892a2; padding: .6rem .2rem .15rem; line-height: 1.2; }
+div[class*="st-key-nav-"] button, div[class*="st-key-navon-"] button { justify-content: flex-start !important; background: transparent !important;
+  border: 0 !important; color: #b4bcc9 !important; font-weight: 500 !important; padding: .45rem .7rem !important; min-height: 0 !important; }
+div[class*="st-key-nav-"] button:hover { color: #eef1f5 !important; background: #1f2430 !important; }
+div[class*="st-key-navon-"] button { color: #fff !important; background: #1d3a5c !important; box-shadow: inset 3px 0 0 #4aa8ff; }
+div[class*="st-key-nav-"] button > div, div[class*="st-key-navon-"] button > div { justify-content: flex-start !important; }
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: .3rem; }
+section[data-testid="stSidebar"] [data-testid="stMarkdown"], section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+/* the current job sits at the bottom of the navigation */
+[data-testid="stSidebarUserContent"] { min-height: calc(100vh - 2.5rem); display: flex; flex-direction: column; padding-bottom: 1rem !important; }
+[data-testid="stSidebarUserContent"] > div:first-child { flex: 1; display: flex; flex-direction: column; }
+[data-testid="stSidebarUserContent"] > div:first-child > [data-testid="stVerticalBlock"] { flex: 1; }
+[data-testid="stLayoutWrapper"]:has(> .st-key-side-status), .st-key-side-status { margin-top: auto !important; }
+.st-key-side-status { border-top: 1px solid #333a4b; padding-top: .2rem; }
+/* job list: one framed row per job, the left edge coloured by state */
+div[class*="st-key-qrow-"] { background: #111418; border: 1px solid #333a4b; border-radius: 6px; padding: .45rem .8rem; }
+div[class*="st-key-qrow-running"], div[class*="st-key-qrow-queued"] { border-left: 4px solid #4aa8ff; }
+div[class*="st-key-qrow-waiting"] { border-left: 4px solid #e0a410; }
+div[class*="st-key-qrow-done"] { border-left: 4px solid #3fa83f; }
+div[class*="st-key-qrow-failed"], div[class*="st-key-qrow-interrupted"] { border-left: 4px solid #ec6a6a; }
+div[class*="st-key-qrow-cancelled"] { border-left: 4px solid #8892a2; }
+.st-key-qhead { padding: 0 .8rem 0 calc(.8rem + 4px); color: #b4bcc9; }
 .side-state.failed, .side-state.interrupted { color: #ec6a6a; } .side-state.done { color: #3fa83f; } .side-state.cancelled { color: #8892a2; }
 </style>
 """
@@ -430,7 +477,7 @@ def start_job(kind, title, spec):
         job_id = jobs.start(kind, title, spec)
         st.session_state["job-select"] = job_id  # the 工作 tab follows the new job
         pos = jobs.queue_position(job_id)
-        st.session_state["job-started"] = f"已加入排隊（第 {pos} 個），會在前面的工作結束後自動開始。" if pos else f"工作已開始：進度在側欄與「{TAB_QUEUE}」頁籤。"
+        st.session_state["job-started"] = f"已加入排隊（第 {pos} 個），會在前面的工作結束後自動開始。" if pos else f"工作已開始：進度在左側導覽最下方與「{TAB_QUEUE}」頁。"
         st.rerun()
     except (RuntimeError, ValueError, TimeoutError) as e:
         st.error(str(e))
@@ -487,25 +534,19 @@ def sidebar_status():
     import html
     all_jobs = jobs.list_jobs()
     watch_states(all_jobs)
-    st.markdown("**排程佇列**")
-    if not all_jobs:
-        st.caption("還沒有工作。")
-        return
-    # the running job if any, else the latest one that ran (a waiting job is counted below as part of the queue)
-    job = jobs.active_job() or next((j for j in all_jobs if j["state"] != "waiting"), all_jobs[0])
-    state = job["state"]
-    st.markdown(f'<div class="side-title" title="{html.escape(job["title"])}">{html.escape(job["title"])}</div>', unsafe_allow_html=True)
-    frac, text = progress_of(job, jobs.events(job["id"]))
-    if state in ("queued", "running"):
+    active, waiting = jobs.active_job(), jobs.waiting_jobs()
+    st.markdown('<div class="navsec">目前工作</div>', unsafe_allow_html=True)
+    if active:
+        st.markdown(f'<div class="side-title" title="{html.escape(active["title"])}">{html.escape(active["title"])}</div>',
+                    unsafe_allow_html=True)
+        frac, text = progress_of(active, jobs.events(active["id"]))
         st.progress(frac or 0.0, text=text)
-        if st.button("取消", key=f"side-cancel-{job['id']}"):
-            jobs.cancel(job["id"])
+        if st.button("取消", key=f"side-cancel-{active['id']}"):
+            jobs.cancel(active["id"])
     else:
-        hint = {"failed": "（原因見「排程佇列」頁的備註）", "interrupted": "（程序已不在）"}.get(state, "")
-        st.markdown(f'<div class="side-state {state}">最近一個工作：{STATE_TEXT.get(state, state)}{hint}</div>', unsafe_allow_html=True)
-    waiting = jobs.waiting_jobs()
+        st.markdown('<div class="side-note">沒有正在執行的工作</div>', unsafe_allow_html=True)
     if waiting:
-        st.caption(f"排隊中 {len(waiting)} 個")
+        st.markdown(f'<div class="side-note">還有 {len(waiting)} 項排隊中</div>', unsafe_allow_html=True)
 
 
 QUEUE_STATE = {"running": ("正在跑", "#4aa8ff"), "queued": ("啟動中", "#4aa8ff"), "waiting": ("排隊中", "#e0a410"),
@@ -569,12 +610,14 @@ def queue_page():
     ordered = ([active] if active else []) + waiting + done
     with card("queue", "工作列表"):
         st.caption("一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。")
-        widths = [4, 1.1, 1.1, 2.2, 1.1, 3]
-        head = st.columns(widths)
-        for c, t in zip(head, ["名稱", "狀態", "經過時間", "進度", "操作", "備註"]):
-            c.markdown(f"**{t}**")
+        widths = [3.8, 1, 1.25, 2, 1.45, 2.6]
+        with st.container(key="qhead"):
+            head = st.columns(widths)
+            for c, t in zip(head, ["名稱", "狀態", "經過時間", "進度", "操作", "備註"]):
+                c.markdown(f"**{t}**")
         for job in ordered:
-            cols = st.columns(widths, vertical_alignment="center")
+            # one framed row per job; the key carries the state for the coloured left edge (CSS st-key-qrow-<state>)
+            cols = st.container(key=f"qrow-{job['state']}-{job['id']}").columns(widths, vertical_alignment="center")
             cols[0].markdown(f"{plain(job['title'])}  \n<span class='act-note'>{KIND_TEXT.get(job['kind'], job['kind'])}・{(job.get('created') or '').replace('T', ' ').rstrip('Z')} UTC</span>",
                              unsafe_allow_html=True)
             text, color = QUEUE_STATE.get(job["state"], (job["state"], "#8892a2"))
@@ -809,7 +852,7 @@ def config_rows():
 
 def config_table(rows):
     """All data configs with checkboxes for deleting (inside the 管理設定檔 expander)."""
-    picked = st.dataframe(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key="cfg-table")
+    picked = st.dataframe(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
     c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
@@ -1201,28 +1244,51 @@ def models_tab():
         _models_body()
 
 
+# left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)
+PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), "流程"),
+         ("train", TAB_TRAIN, "🧠", lambda: training_tab(), None),
+         ("match", TAB_MATCH, "⚔️", lambda: match_tab(), None),
+         ("models", TAB_MODELS, "📦", lambda: models_tab(), "管理"),
+         ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None)]
+
+
+def current_page():
+    ids = [p[0] for p in PAGES]
+    page = st.session_state.get("page") or st.query_params.get("page")
+    return page if page in ids else ids[0]
+
+
+def go(page):
+    st.session_state["page"] = page
+    st.query_params["page"] = page  # a reload stays on the same page
+
+
+def sidebar_nav(page):
+    st.markdown(f'<div class="nav-brand"><span class="nav-icon">🌱</span><span>Puerto Rico<br>Machine Learning</span></div>',
+                unsafe_allow_html=True)
+    for pid, title, icon, _, section in PAGES:
+        if section:
+            st.markdown(f'<div class="navsec">{section}</div>', unsafe_allow_html=True)
+        # the active entry gets another key prefix (navon-) so the CSS can highlight it
+        st.button(f"{icon} {title}", key=f"{'navon' if pid == page else 'nav'}-{pid}", width="stretch",
+                  on_click=go, args=(pid,))
+
+
 def main():
     st.set_page_config(page_title=TITLE, page_icon="🌱", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
+    page = current_page()
+    with st.sidebar:
+        sidebar_nav(page)
+        with st.container(key="side-status"):  # pinned to the bottom of the navigation (CSS)
+            sidebar_status()
     st.title(f"{TITLE}: Position Value Model")
     st.caption(f"流程：{TAB_DATA} → {TAB_TRAIN} → {TAB_MATCH}。工作都在背景程序依序執行，關掉這個頁面或 UI 都不會中斷。"
                f"模擬、結果與回放請用 Dashboard（{DASHBOARD_URL}）。")
-    with st.sidebar:
-        sidebar_status()
     started = st.session_state.pop("job-started", None)
     if started:
         st.toast(started)
-    t0, t1, t2, t3, t4 = st.tabs([TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE])
-    with t0:
-        data_tab()
-    with t1:
-        training_tab()
-    with t2:
-        match_tab()
-    with t3:
-        models_tab()
-    with t4:
-        queue_page()
+    next(p for p in PAGES if p[0] == page)[3]()
 
 
 main()
