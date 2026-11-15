@@ -29,6 +29,7 @@ else
     private State state = State.Unknown;
     private string? error;
     private Timer? timer;
+    private int misses; // consecutive failed checks: one slow answer (ML UI busy) must not flip the light
     private readonly CancellationTokenSource cts = new();
 
     private string StatusClass => state switch { State.Running => "running", State.Starting => "starting", State.Unknown => "", _ => "stopped" };
@@ -43,6 +44,8 @@ else
     {
         if (state == State.Starting) return;
         bool up = await MlUiLauncher.IsRunningAsync(cts.Token);
+        misses = up ? 0 : misses + 1;
+        if (!up && state == State.Running && misses < 2) return; // wait for a second miss before showing 未啟動
         var next = up ? State.Running : (state == State.Failed ? State.Failed : State.Stopped);
         if (up) error = null;
         if (next != state) { state = next; StateHasChanged(); }
