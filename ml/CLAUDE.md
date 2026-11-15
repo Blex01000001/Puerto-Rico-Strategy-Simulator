@@ -39,6 +39,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 驗證集 MSE／R² 和勝率對不上（資料分布換了 R² 就會變），判斷模型只看對戰勝率（`matches`）。
 - 長時間產生資料用發佈版 Runner（`./publish/runner/Runner`），見 `ml/README.md`。
 - Streamlit 的 header 會蓋住頁面頂端：`.block-container` 的 padding-top 不要小於約 2.9rem（太小標題會被切掉）。表格（dataframe）不能放按鈕：要逐列操作就用勾選＋一個按鈕（`delete_button`），或用 `st.columns` 自己畫列（`queue_page`）。
+- 深色主題的輸入框底色（`secondaryBackgroundColor`）和卡片同色、又沒有框線，輸入框會整個看不見：`CSS` 裡另外把輸入框、下拉選單、數字框改成較深的底色＋`#333a4b` 框線（聚焦時藍框）。改主題色或 Streamlit 升版後用截圖確認還看得到框。
 - Streamlit 的元件 ID 由種類＋參數產生：不同頁籤裡標籤相同的按鈕（例如三個「加入排隊」）會撞 ID 而報錯，要給 `key`。
 - Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`queue_page` 的「工作詳細」下拉選單只放名稱與時間）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。
 - 用 UI 測試資料／對戰時若有別的 Runner 背景工作正在用 `publish/runner`，啟動 UI 前設 `PR_RUNNER_DIR=<暫存資料夾>`：自動重新發佈會覆寫執行中的 dll。測完刪掉 UI 寫進 `ml/local/` 的測試檔（設定、模型、`match-records/`）。

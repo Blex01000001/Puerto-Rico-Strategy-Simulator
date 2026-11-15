@@ -346,6 +346,14 @@ h1 { padding-top: 0 !important; margin-bottom: .1rem !important; font-size: 1.7r
 /* cards: st.container(border=True, key="card-...") */
 div[class*="st-key-card-"] { background: #1f2430; border: 1px solid #333a4b !important; border-radius: 6px; padding: .55rem 1rem .8rem 1rem; }
 div[class*="st-key-card-"] h3 { font-size: 1.05rem; margin: .1rem 0 .2rem 0; padding: 0; border-left: 3px solid #4aa8ff; padding-left: .55rem; }
+/* inputs like the Dashboard: darker than the card behind them, with a border (the theme's input colour equals the card colour) */
+div[data-baseweb="input"], div[data-baseweb="textarea"], div[data-baseweb="select"] > div, [data-testid="stNumberInputContainer"] {
+  background: #111418 !important; border: 1px solid #333a4b !important; border-radius: 4px !important; }
+div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea, [data-testid="stNumberInputContainer"] input { background: transparent !important; }
+[data-testid="stNumberInputContainer"] div[data-baseweb="input"] { border: 0 !important; }
+[data-testid="stNumberInputContainer"] button { background: #1f2430 !important; }
+div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within, div[data-baseweb="select"] > div:focus-within,
+[data-testid="stNumberInputContainer"]:focus-within { border-color: #4aa8ff !important; }
 /* buttons like the Dashboard: blue when they can start, locked otherwise */
 button[kind="primary"] { background: #4aa8ff !important; border: 0 !important; color: #07131f !important; font-weight: 600 !important; }
 button[kind="primary"]:hover:not(:disabled) { filter: brightness(1.12); }
