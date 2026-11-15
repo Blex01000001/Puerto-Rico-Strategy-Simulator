@@ -14,6 +14,7 @@ so the engine does not care which one trained the model. As with LightGBM, the l
 judged by MCTS win rates.
 """
 import argparse
+import os
 import json
 import time
 
@@ -197,6 +198,7 @@ def train(data, out, progress=None, log=print, **options):
     """Trains and saves the model. progress(event: dict) gets {"stage": "loaded"|"epoch"|"done", ...}. Returns the meta."""
     o = {**DEFAULTS, **options}
     progress = progress or (lambda event: None)
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)  # e.g. ml/local/models on a fresh machine
     backend = o["backend"]
     if backend == "auto":
         backend = "torch" if torch_available() else "numpy"

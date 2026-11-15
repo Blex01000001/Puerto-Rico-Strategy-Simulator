@@ -24,7 +24,7 @@ def run_app():
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert [t.label for t in at.tabs] == ["資料", "訓練", "對戰驗證", "模型清單", "工作"]
+    assert [t.label for t in at.tabs] == ["模擬對局採樣", "訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"]
     assert any("還沒有訓練資料" in i.value for i in at.info)
 
 
@@ -47,7 +47,8 @@ def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
     games.set_value(250).run()
     assert not at.exception
     assert next(b for b in at.button if b.label == "開始對戰").disabled
-    assert any("局數要是 24 的倍數" in c.value for c in at.caption)
+    # the reason is shown in red next to the locked button
+    assert any("局數要是 24 的倍數" in m.value and "act-err" in m.value for m in at.markdown)
 
 
 def test_missing_packages_show_the_fix_command(results, monkeypatch):
@@ -96,11 +97,11 @@ def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypat
     params = [t for t in at.text_input if t.label.startswith("參數（選填")]
     params[0].set_value("buildThreshold=3.5").run()
     import os
-    cfg_path = os.path.join(os.path.dirname(UI), "data-configs", "pytest-custom-config.json")
+    cfg_path = os.path.join(os.path.dirname(UI), "local", "data-configs", "pytest-custom-config.json")
     try:
         next(b for b in at.button if b.label in ("開始產生資料", "加入排隊")).click().run()
         assert not at.exception, at.exception
-        assert started["kind"] == "dump" and started["spec"]["config"] == "ml/data-configs/pytest-custom-config.json"
+        assert started["kind"] == "dump" and started["spec"]["config"] == "ml/local/data-configs/pytest-custom-config.json"
         import json
         with open(cfg_path, encoding="utf-8") as f:
             cfg = json.load(f)
@@ -129,3 +130,24 @@ def test_parse_params():
     assert ns["parse_params"]("") == {}
     with _pt.raises(ValueError):
         ns["parse_params"]("nonsense")
+
+
+def test_save_config_only_writes_the_config(results, monkeypatch):
+    import json
+    import os
+    import jobs
+    monkeypatch.setattr(jobs, "start", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no job may start")))
+    at = run_app()
+    next(r for r in at.radio if r.label == "資料來源").set_value("自訂組合（自己選每個座位的策略）").run()
+    next(t for t in at.text_input if t.label.startswith("輸出名稱")).set_value("pytest-saved-only").run()
+    cfg_path = os.path.join(os.path.dirname(UI), "local", "data-configs", "pytest-saved-only.json")
+    try:
+        next(b for b in at.button if b.label == "新增設定").click().run()
+        assert not at.exception, at.exception
+        with open(cfg_path, encoding="utf-8") as f:
+            assert json.load(f)["players"] == 4
+        # the same name cannot be saved twice (existing configs are never overwritten)
+        assert next(b for b in at.button if b.label == "新增設定").disabled
+    finally:
+        if os.path.exists(cfg_path):
+            os.remove(cfg_path)
