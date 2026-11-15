@@ -13,7 +13,7 @@
 5. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
 
 ### 機器學習（`ml/`，分析文件第 10 節）
-目前：4 人局 v2／v3（LightGBM）同時間對原版 MCTS 約 65%／32%、對手寫 91～95%，第二輪自我對戰（v3）沒有再進步；MLP v2（PyTorch）與 LightGBM v2 一樣強。工具：ML UI（Streamlit，`ml/ui.py`，另外啟動）、背景工作、`.meta.json`、Dashboard 價值模型下拉選單、RunPod 腳本（`docs/runpod.md`）都已完成。
+目前：4 人局 v2／v3（LightGBM）同時間對原版 MCTS 約 65%／32%、對手寫 91～95%，第二輪自我對戰（v3）沒有再進步；MLP v2（PyTorch）與 LightGBM v2 一樣強。工具：ML UI（Streamlit，`ml/ui.py`，另外啟動；頁籤 模擬對局採樣／訓練/蒸餾／對戰驗證／模型清單／排程佇列）、背景工作、`.meta.json`、Dashboard 價值模型下拉選單、RunPod 腳本（`docs/runpod.md`）都已完成。
 
 6. 【先討論】4 人局再進步的方向（v3≈v2，多迭代已經沒有用）：更多模擬次數、更大的模型或新特徵（例如對手可能選的職業）、用更多模擬次數產生較高品質的自我對戰資料。
 7. 【先討論】要不要把 4 人局模型（v2）設成 `mcts` 的預設（改了第 5、7、9 節含 MCTS 的 4 人局數字都要重跑）。

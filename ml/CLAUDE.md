@@ -6,7 +6,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - `positions.py`：讀 Runner 的 dump（`.bin`＋`.bin.json`）；`expand`（萬用字元／資料夾展開）、`read_meta`（格式、版本檢查）、`load`（多檔需同特徵清單、`featureVersion`、人數）、`split`（依局切驗證集）。
 - `modelmeta.py`：`<模型>.meta.json`（參數、資料來源、驗證成績、特徵重要度、環境、`matches` 對戰勝率）；`write`／`read`／`match_entry`／`add_match`。
 - `train_lgbm.py`、`train_mlp.py`：`train(data, out, progress=None, log=print, **options)` 可匯入（ML UI 用），命令列只是包一層；都寫 `<模型>`、`.meta.json`、`.check.txt`。
-- `ui.py`：ML UI（Streamlit，`streamlit run ml/ui.py`；頁籤「訓練」「模型清單」）。啟動檔 `start-ui.sh`／`start-ui.cmd`（綁 localhost:8501、隱藏 Deploy 鈕）。路徑一律顯示成相對專案根目錄（`rel`／`scrub`，與 Dashboard 相同規則）。
+- `ui.py`：ML UI（Streamlit，`streamlit run ml/ui.py`；頁籤「模擬對局採樣」「訓練/蒸餾」「對戰驗證」「模型清單」「排程佇列」，名稱在 `TAB_*` 常數）。版面：每區一張卡片 `card(key, title)`（`st.container(border=True, key="card-…")`，樣式在 `CSS`）；所有開始鈕用 `action_row`（藍色可按、鎖住時右邊紅字寫原因、有工作在跑時寫排第幾個）；刪除用 `delete_button`（確認後才刪，排隊或執行中的工作要用的檔案不能刪）；參數格 `param_inputs` 在 `st.container(key="params")` 裡，標題統一兩行高；參數說明表 `PARAM_DOC`（加訓練參數時一起補）。主題色在根目錄 `.streamlit/config.toml`（與 Dashboard 同色票）。啟動檔 `start-ui.sh`／`start-ui.cmd`（綁 localhost:8501、隱藏 Deploy 鈕）。路徑一律顯示成相對專案根目錄（`rel`／`scrub`，與 Dashboard 相同規則）。
 - 工作種類（`job_runner.py`）：`train_lgbm`／`train_mlp`（取消＝結束程序）、`dump`、`match`（呼叫發佈版 Runner `dotnet publish/runner/Runner.dll`，`PR_RUNNER_DIR` 可改；原始碼較新會先自動發佈；從輸出解析 `n/total games` 當進度；取消送 SIGINT，Windows 直接結束；`match` 完成後 `modelmeta.add_match`）。UI 寫的設定檔：自訂組合與自我對戰 `ml/data-configs/<名稱>.json`（同名已存在就拒絕，不覆蓋 repo 的設定）、對戰 `mcts/value/<名稱>.json`。「自訂組合」的策略清單直接從 `Engine/Strategies/StrategyRegistry.cs` 讀（`strategy_names`，排除需要 profile 的 `rule-based`），新增策略不用改 UI；中文說明在 `STRATEGY_TEXT`（沒有的就只顯示名稱）。
 - `jobs.py`：背景工作（`results/ml/jobs/<id>/`：`job.json` 狀態與心跳、`events.jsonl` 進度、`log.txt`、`cancel` 旗標檔）；`start`（沒有工作在跑就馬上開始，否則狀態 `waiting` 排隊）／`start_next`（啟動最早排隊的那個；有工作在跑就不動）／`cancel`（排隊中的直接標成取消，執行中的放 `cancel` 旗標）／`list_jobs`／`active_job`／`waiting_jobs`／`queue_position`／`events`／`wait`。一次只跑一個；每個工作結束（完成、失敗、取消）時 `job_runner` 呼叫 `start_next`，所以關掉 UI 佇列也會繼續；程序被硬殺而沒交棒時，UI 的 `watch_states` 會補叫 `start_next`。`.dispatch.lock`（排他建立的鎖檔，超過 60 秒視為殘留）保證不會同時啟動兩個。狀態：`waiting` 排隊中、`queued` 啟動中、`running`、`done`、`failed`、`cancelled`、`interrupted`（心跳過期）。`job_runner.py`：在獨立程序執行一個工作（POSIX `start_new_session`、Windows `CREATE_NEW_PROCESS_GROUP|DETACHED_PROCESS`），心跳執行緒看到 `cancel` 就結束程序。
 - `data-configs/`：產生資料的 Runner 設定檔（手寫混桌、隨機、`4p-selfplay-*`＝MCTS＋模型自我對戰）。
@@ -28,15 +28,16 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - **改 dump 格式**：C# 遞增 `PositionDump.FormatVersion`，同步 `positions.FORMAT_VERSION` 與 `record_dtype`，兩邊測試一起跑。
 - **加訓練參數**：加進 `DEFAULTS`、`train()` 的 `params`（會寫進 `.meta.json`）與 argparse；測試在 `tests/test_train.py`。
 - **新模型種類**：Engine 要先能推論（`ValueModel.cs` 加類別＋與 Python 一致的測試），再寫訓練腳本；輸出格式不變的改寫（例如 MLP 改 PyTorch）只要 `.check.txt` 與 C# 比對一致。
-- **ML UI 加頁籤或工作種類**：工作種類加進 `jobs.KINDS` 與 `job_runner.run`（產生資料、對戰要呼叫發佈版 Runner：`publish/runner/Runner`，進度從 Runner 輸出解析）；頁面加在 `ui.py` 的 `main()`；需要即時更新的區塊用 `@st.fragment(run_every=...)`，工作狀態改變時整頁 `st.rerun(scope="app")`（`job_panel` 的做法）。測試：`tests/test_jobs.py`（真的開程序）、`tests/test_ui.py`（`AppTest` 無頭執行）；畫面用 Playwright 截圖確認（Streamlit 的表格是 canvas，勾選列要點座標）。
+- **ML UI 加頁籤或工作種類**：工作種類加進 `jobs.KINDS` 與 `job_runner.run`（產生資料、對戰要呼叫發佈版 Runner：`publish/runner/Runner`，進度從 Runner 輸出解析）；頁面加在 `ui.py` 的 `main()`；需要即時更新的區塊用 `@st.fragment(run_every=...)`，工作狀態改變時整頁 `st.rerun(scope="app")`（`watch_states` 的做法）。測試：`tests/test_jobs.py`（真的開程序）、`tests/test_ui.py`（`AppTest` 無頭執行）；畫面用 Playwright 截圖確認（Streamlit 的表格是 canvas，勾選列要點座標）。
 - **對戰結果記到模型**：`modelmeta.add_match(<模型>, <Runner 結果檔>)`（同一結果檔重覆加只會取代）。
 
 ## 雷
 - 訓練資料很大（約 870 bytes／列）：LightGBM 會轉成 float32（257 萬列約 4.4 GB），MLP 保持 int16 逐批標準化；不要在 MLP 先整份轉 float（第一次就因記憶體不足被系統停掉）。
 - 驗證集 MSE／R² 和勝率對不上（資料分布換了 R² 就會變），判斷模型只看對戰勝率（`matches`）。
 - 長時間產生資料用發佈版 Runner（`./publish/runner/Runner`），見 `ml/README.md`。
+- Streamlit 的 header 會蓋住頁面頂端：`.block-container` 的 padding-top 不要小於約 2.9rem（太小標題會被切掉）。表格（dataframe）不能放按鈕：要逐列操作就用勾選＋一個按鈕（`delete_button`），或用 `st.columns` 自己畫列（`queue_page`）。
 - Streamlit 的元件 ID 由種類＋參數產生：不同頁籤裡標籤相同的按鈕（例如三個「加入排隊」）會撞 ID 而報錯，要給 `key`。
-- Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`job_panel` 把狀態放在旁邊）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。
+- Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`queue_page` 的「工作詳細」下拉選單只放名稱與時間）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。
 - 用 UI 測試資料／對戰時若有別的 Runner 背景工作正在用 `publish/runner`，啟動 UI 前設 `PR_RUNNER_DIR=<暫存資料夾>`：自動重新發佈會覆寫執行中的 dll。測完要把 `ml/models/*.meta.json` 多出的 `matches` 還原、刪掉 UI 寫的 `mcts/value/`、`ml/data-configs/` 測試設定檔。
 - 背景工作的程序不跟著 UI 結束：測試或手動實驗後記得看 `results/ml/jobs/` 有沒有還在跑的；`ml/models/` 裡測試用的模型要刪掉再 commit。
 - 編碼：Windows（繁中）預設輸出編碼是 cp950，`job_runner` 一律把 stdout／stderr 改成 UTF-8（`utf8_output`，`errors=replace`），`jobs._spawn` 也設 `PYTHONIOENCODING=utf-8`；Runner 在輸出被導向時改用 UTF-8（`Console.IsOutputRedirected`），讀 Runner 輸出時 UTF-8 解不開就用系統編碼（`decode`）。曾因「±」讓對戰工作在寫紀錄時當掉。

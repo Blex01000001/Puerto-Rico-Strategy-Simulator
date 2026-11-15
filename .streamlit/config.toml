@@ -1,0 +1,9 @@
+# ML UI (ml/ui.py) theme: the same dark palette as the Dashboard (Dashboard/wwwroot/app.css tokens).
+# Streamlit reads this from the directory it starts in; ml/start-ui.* always start from the project root.
+[theme]
+base = "dark"
+primaryColor = "#4aa8ff"
+backgroundColor = "#111418"
+secondaryBackgroundColor = "#1f2430"
+textColor = "#eef1f5"
+borderColor = "#333a4b"

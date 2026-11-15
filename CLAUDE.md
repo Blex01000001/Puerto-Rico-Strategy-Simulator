@@ -32,6 +32,7 @@
 | `tools/tiestats/`、`tools/sparring/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
 | `config*.json` | 設定檔範例（Runner 與 Dashboard 共用格式） |
 | `PuertoRico.sln`、`Directory.Build.props` | net8.0、Nullable、TreatWarningsAsErrors（csproj 內不要重複設；新程式碼要零警告） |
+| `.streamlit/config.toml` | ML UI（Streamlit）的深色主題，與 Dashboard 同色票（Streamlit 從啟動目錄讀，啟動檔都在根目錄執行） |
 | `.claude/` | SessionStart hook：雲端 session 自動安裝 .NET 8 並 restore |
 
 ## 指令
