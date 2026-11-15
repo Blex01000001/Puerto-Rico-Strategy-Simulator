@@ -112,6 +112,52 @@ def test_stale_heartbeat_shows_as_interrupted(results):
     assert jobs.active_job() is None  # an interrupted job does not block new ones
 
 
+def test_job_file_write_survives_a_reader_holding_it_on_windows(tmp_path, monkeypatch):
+    # Windows: replacing job.json fails with PermissionError while the UI has it open; the write retries instead of
+    # killing the heartbeat (which made a running dump show as interrupted after about 10 minutes)
+    real, calls = os.replace, []
+
+    def flaky(src, dst):
+        calls.append(dst)
+        if len(calls) <= 3:
+            raise PermissionError(13, "The process cannot access the file because it is being used by another process")
+        real(src, dst)
+
+    monkeypatch.setattr(jobs.os, "replace", flaky)
+    path = str(tmp_path / "job.json")
+    jobs._write_json(path, {"status": "running"})
+    assert len(calls) == 4
+    with open(path, encoding="utf-8") as f:
+        assert json.load(f) == {"status": "running"}
+
+
+def test_heartbeat_keeps_running_after_a_failed_write(monkeypatch):
+    import threading
+    import job_runner
+
+    class FakeJob:
+        cancelling, child, beats = False, None, 0
+
+        def cancel_requested(self):
+            return False
+
+        def update(self):
+            self.beats += 1
+            if self.beats == 1:
+                raise PermissionError(13, "in use")
+
+    monkeypatch.setattr(jobs, "HEARTBEAT_SECONDS", 0.01)
+    job, stop = FakeJob(), threading.Event()
+    t = threading.Thread(target=job_runner.heartbeat, args=(job, stop), daemon=True)
+    t.start()
+    deadline = time.time() + 5
+    while job.beats < 3 and time.time() < deadline:
+        time.sleep(0.01)
+    stop.set()
+    t.join(2)
+    assert job.beats >= 3  # the first write failed, the thread kept beating
+
+
 def test_unknown_kind_is_refused(results):
     with pytest.raises(ValueError):
         jobs.start("rm -rf", "x", {})

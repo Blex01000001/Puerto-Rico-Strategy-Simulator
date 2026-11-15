@@ -43,11 +43,20 @@ def now():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _write_json(path, data):
+def _write_json(path, data, tries=100):
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, path)  # atomic: the UI never reads half a file
+    # atomic: the UI never reads half a file. On Windows the replace fails with PermissionError while another process
+    # (the UI polling every 2 s, an antivirus or the search indexer) has the file open: retry for a few seconds.
+    for i in range(tries):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.05)
 
 
 def read_job(job_id):
@@ -57,7 +66,7 @@ def read_job(job_id):
             with open(path, encoding="utf-8") as f:
                 job = json.load(f)
             break
-        except (json.JSONDecodeError, FileNotFoundError):
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError):  # PermissionError: Windows, mid-replace
             time.sleep(0.05)
     else:
         return None

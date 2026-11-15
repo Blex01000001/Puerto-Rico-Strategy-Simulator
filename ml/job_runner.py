@@ -69,7 +69,11 @@ def heartbeat(job, stop):
                 next_in_queue()
                 os._exit(130)  # training: stop wherever it is; models are only written at the end
             stop_child(job.child)
-        job.update()
+        try:
+            job.update()
+        except OSError as e:
+            # never let the heartbeat thread die: the job would show as interrupted while it keeps running
+            print(f"heartbeat not written ({type(e).__name__}: {e}); retrying", flush=True)
 
 
 def stop_child(proc):
