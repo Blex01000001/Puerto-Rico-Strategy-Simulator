@@ -97,3 +97,45 @@ def test_match_results_are_appended_to_meta(dump, tmp_path):
     assert entry["winShare"] == 0.6 and entry["simulations"] == 300
     assert abs(entry["winShareCi95"] - 1.96 * (0.24 / 100) ** 0.5) < 1e-12
     assert [o["seatId"] for o in entry["others"]] == ["B", "c"]
+
+
+def test_official_models_keep_local_matches_beside_them(dump, tmp_path, monkeypatch):
+    official = tmp_path / "ml" / "models"
+    local = tmp_path / "ml" / "local"
+    official.mkdir(parents=True)
+    monkeypatch.setattr(modelmeta, "OFFICIAL_MODELS", str(official))
+    monkeypatch.setattr(modelmeta, "LOCAL_DIR", str(local))
+    out = str(official / "m.txt")
+    train_lgbm.train([dump(games=40)], out, log=lambda *_: None, rounds=5, leaves=4, min_leaf=5, threads=1)
+    tracked = open(out + ".meta.json", encoding="utf-8").read()
+    result = {"status": "completed", "config": {"name": "t", "seed": 7, "seatOrder": "Balanced", "seats": [
+        {"id": "A", "strategy": "mcts", "params": {"simulations": 300, "valueModel": "ml/models/m.txt"}},
+        {"id": "B", "strategy": "mcts", "params": {"simulations": 300}}]},
+        "summary": [{"seatId": "A", "games": 24, "winShare": 0.6, "avgScore": 45.0},
+                    {"seatId": "B", "games": 24, "winShare": 0.4, "avgScore": 40.0}]}
+    path = str(tmp_path / "r.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(result, f)
+    modelmeta.add_match(out, path)
+    assert open(out + ".meta.json", encoding="utf-8").read() == tracked  # the tracked file is untouched
+    meta = modelmeta.read(out)
+    assert len(meta["matches"]) == 1 and meta["matches"][0]["local"] is True
+    assert modelmeta.read(out, include_local=False)["matches"] == []
+    # moving it to the local workspace carries the matches into its own metadata
+    moved = modelmeta.move_model(out, modelmeta.local_models_dir())
+    assert not os.path.exists(out) and os.path.exists(moved + ".check.txt")
+    assert len(modelmeta.read(moved)["matches"]) == 1
+    # and promoting it back: refused when the name is taken
+    open(out, "w").close()
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        modelmeta.move_model(moved, str(official))
+
+
+def test_training_creates_the_output_folder(dump, tmp_path):
+    out = str(tmp_path / "local" / "models" / "m.txt")  # folder does not exist yet
+    train_lgbm.train([dump(games=40)], out, log=lambda *_: None, rounds=3, leaves=4, min_leaf=5, threads=1)
+    assert os.path.exists(out) and os.path.exists(out + ".meta.json")
+    out2 = str(tmp_path / "other" / "m.json")
+    train_mlp.train([dump("b.bin", games=40)], out2, log=lambda *_: None, hidden="4", epochs=1, backend="numpy")
+    assert os.path.exists(out2)

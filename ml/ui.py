@@ -38,7 +38,11 @@ import train_lgbm  # noqa: E402
 import train_mlp  # noqa: E402
 
 ROOT = jobs.ROOT
-MODELS_DIR = os.path.join(ROOT, "ml", "models")
+MODELS_DIR = os.path.join(ROOT, "ml", "models")                    # official models (tracked by git)
+LOCAL_DIR = os.path.join(ROOT, "ml", "local")                      # this machine's workspace (ignored by git)
+LOCAL_MODELS = os.path.join(LOCAL_DIR, "models")
+LOCAL_CONFIGS = os.path.join(LOCAL_DIR, "data-configs")
+LOCAL_MATCHES = os.path.join(LOCAL_DIR, "matches")
 DASHBOARD_URL = "http://localhost:5080"
 
 STATE_TEXT = {"waiting": "排隊中", "queued": "啟動中", "running": "執行中", "done": "完成", "failed": "失敗", "cancelled": "已取消",
@@ -93,12 +97,27 @@ def list_dumps():
 
 
 def model_files():
+    """Official models (ml/models) first, then local ones (ml/local/models)."""
     out = []
-    for p in sorted(glob.glob(os.path.join(MODELS_DIR, "*"))):
-        if p.endswith((".meta.json", ".check.txt")) or not p.endswith((".txt", ".json")):
-            continue
-        out.append(p)
+    for folder in (MODELS_DIR, LOCAL_MODELS):
+        for p in sorted(glob.glob(os.path.join(folder, "*"))):
+            if p.endswith((".meta.json", ".check.txt")) or not p.endswith((".txt", ".json")):
+                continue
+            out.append(p)
     return out
+
+
+def place_of(path):
+    return "正式" if os.path.dirname(os.path.abspath(path)) == os.path.abspath(MODELS_DIR) else "本機"
+
+
+def model_path(name):
+    """Full path of a model by file name (names are unique across ml/models and ml/local/models)."""
+    return next((p for p in model_files() if os.path.basename(p) == name), os.path.join(MODELS_DIR, name))
+
+
+def model_name_taken(name):
+    return any(os.path.exists(os.path.join(d, name)) for d in (MODELS_DIR, LOCAL_MODELS))
 
 
 @st.cache_data(show_spinner=False)
@@ -111,7 +130,9 @@ def _model_meta(path, mtime):
 
 def model_meta(path):
     mp = path + ".meta.json"
-    return _model_meta(path, os.path.getmtime(mp) if os.path.exists(mp) else 0)
+    rec = os.path.join(LOCAL_DIR, "match-records", os.path.basename(path) + ".matches.json")
+    stamp = (os.path.getmtime(mp) if os.path.exists(mp) else 0, os.path.getmtime(rec) if os.path.exists(rec) else 0)
+    return _model_meta(path, stamp)
 
 
 def describe_match(m):
@@ -277,12 +298,14 @@ def training_tab():
         options = param_inputs(defaults, kind)
         ext = ".txt" if kind == "train_lgbm" else ".json"
         stamp = datetime.datetime.now().strftime("%m%d-%H%M")
-        name = st.text_input("模型名稱（存到 ml/models/，副檔名自動加）", value=f"{p}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}")
+        name = st.text_input("模型名稱（存到本機工作區 ml/local/models/，副檔名自動加；之後可在「模型清單」設為正式模型）",
+                             value=f"{p}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}")
         name = name.strip()
         if name.endswith(ext):
             name = name[:-len(ext)]
-        out = os.path.join(MODELS_DIR, name + ext)
+        out = os.path.join(LOCAL_MODELS, name + ext)
         exists = os.path.exists(out)
+        official_taken = os.path.exists(os.path.join(MODELS_DIR, name + ext))
         overwrite = st.checkbox(f"覆寫已存在的 `{name + ext}`", value=False) if exists else True
 
         problems = []
@@ -294,6 +317,8 @@ def training_tab():
             problems.append("模型名稱不能空白或含路徑符號")
         if exists and not overwrite:
             problems.append("模型已存在（要覆寫請勾選）")
+        if official_taken:
+            problems.append(f"正式模型裡已經有 {name + ext}，換一個名稱")
         if pending_output(rel(out)):
             problems.append(f"排隊中或執行中的工作已經會寫 {name + ext}，換一個名稱")
         if action_row("開始訓練", "start-train", problems):
@@ -718,7 +743,7 @@ def custom_seats(players):
                 leaf = m3.number_input("leafRollout", value=20 if model != model_names[0] else 0, min_value=0, step=5, key=f"cu-leaf{i}")
                 params = {"simulations": int(sims)}
                 if model != model_names[0]:
-                    params["valueModel"] = f"ml/models/{model}"
+                    params["valueModel"] = rel(model_path(model))
                     if leaf:
                         params["leafRollout"] = int(leaf)
             else:
@@ -743,15 +768,17 @@ def tracked_by_git(paths):
 
 
 def config_table():
-    """The data configs (ml/data-configs/*.json) with checkboxes for deleting; returns the rows."""
+    """The data configs (built-in ml/data-configs, local ml/local/data-configs) with checkboxes for deleting."""
     rows = []
-    for c in sorted(glob.glob(os.path.join(ROOT, "ml", "data-configs", "*.json"))):
+    files = sorted(glob.glob(os.path.join(ROOT, "ml", "data-configs", "*.json"))) + sorted(glob.glob(os.path.join(LOCAL_CONFIGS, "*.json")))
+    for c in files:
         cfg = read_config(c)
         if cfg:
-            rows.append({"設定檔": rel(c), "人數": cfg.get("players"), "局數": cfg.get("games"), "種子": cfg.get("seed"),
+            rows.append({"設定檔": rel(c), "位置": "本機" if os.path.dirname(os.path.abspath(c)) == os.path.abspath(LOCAL_CONFIGS) else "內建",
+                         "人數": cfg.get("players"), "局數": cfg.get("games"), "種子": cfg.get("seed"),
                          "座位": "、".join(s.get("strategy", "") for s in cfg.get("seats", []))})
     if not rows:
-        st.info("`ml/data-configs/` 沒有設定檔。用「自訂組合」新增一個。")
+        st.info("沒有設定檔。用「自訂組合」新增一個。")
         return rows
     picked = st.dataframe(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key="cfg-table")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
@@ -781,7 +808,7 @@ def data_tab():
             title_kind = "設定檔"
         elif mode.startswith("自訂"):
             st.caption("每局就是你選的這幾個策略互打；座位順序每局隨機重排，所以每個策略都會坐到每個位置。"
-                       "「新增設定」只把組合存成 `ml/data-configs/<名稱>.json`（之後在「設定檔」選它）；「開始產生資料」會存設定並開始。")
+                       "「新增設定」只把組合存成 `ml/local/data-configs/<名稱>.json`（本機，不進 git；之後在「設定檔」選它）；「開始產生資料」會存設定並開始。")
             players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="cu-players")
             seats, custom_problems = custom_seats(players)
             has_mcts = any(s_["strategy"] == "mcts" for s_ in seats)
@@ -818,9 +845,10 @@ def data_tab():
         exists = os.path.exists(out)
         overwrite = st.checkbox(f"覆寫已存在的 `{name}.bin`") if exists else True
         writes_config = not mode.startswith("設定檔")
-        config_taken = writes_config and safe_name(name) and os.path.exists(os.path.join(ROOT, "ml", "data-configs", name + ".json"))
+        config_taken = writes_config and safe_name(name) and any(os.path.exists(os.path.join(d, name + ".json"))
+                                                                  for d in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS))
         name_problems = [p_ for p_ in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
-                                       f"ml/data-configs/{name}.json 已經有同名的設定檔，換一個名稱（不覆蓋既有設定）" if config_taken else None] if p_]
+                                       f"已經有同名的設定檔 {name}.json，換一個名稱（不覆蓋既有設定）" if config_taken else None] if p_]
         problems = name_problems + [p_ for p_ in [None if overwrite else "資料已存在（要覆寫請勾選）",
                                                   "排隊中或執行中的工作已經會寫這個檔名，換一個名稱" if pending_output(rel(out)) else None] if p_] + custom_problems
 
@@ -830,7 +858,7 @@ def data_tab():
                         "seatOrder": "random", "seats": seats, "output": {"perGameRecords": False}}
             return {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed), "seatOrder": "random",
                     "seats": [{"id": f"m{i}", "strategy": "mcts",
-                               "params": {"simulations": int(sims), "valueModel": f"ml/models/{model}", "leafRollout": int(leaf)}}
+                               "params": {"simulations": int(sims), "valueModel": rel(model_path(model)), "leafRollout": int(leaf)}}
                               for i in range(players)],
                     "output": {"perGameRecords": False}}
 
@@ -841,17 +869,17 @@ def data_tab():
                 save = st.button("新增設定", key="save-config", disabled=bool(save_problems), width="stretch")
             with b2:
                 st.markdown('<span class="act-err">無法儲存：' + "；".join(plain(x) for x in save_problems) + "</span>" if save_problems
-                            else f'<span class="act-note">只儲存成 ml/data-configs/{plain(name)}.json，不產生資料</span>', unsafe_allow_html=True)
+                            else f'<span class="act-note">只儲存成 ml/local/data-configs/{plain(name)}.json，不產生資料</span>', unsafe_allow_html=True)
             if save:
-                write_config(os.path.join(ROOT, "ml", "data-configs", name + ".json"), new_config())
-                st.session_state["job-started"] = f"已儲存 ml/data-configs/{name}.json：之後可以在「設定檔」選它。"
+                write_config(os.path.join(LOCAL_CONFIGS, name + ".json"), new_config())
+                st.session_state["job-started"] = f"已儲存 ml/local/data-configs/{name}.json：之後可以在「設定檔」選它。"
                 st.rerun()
 
         if action_row("開始產生資料", "start-dump", problems):
             if mode.startswith("設定檔"):
                 spec_config = config
             else:
-                spec_config = f"ml/data-configs/{name}.json"
+                spec_config = rel(os.path.join(LOCAL_CONFIGS, name + ".json"))
                 write_config(absolute(spec_config), new_config())  # kept with the other data configs: reusable and reproducible
             start_job("dump", f"資料（{title_kind}）→ {name}.bin", {"config": spec_config, "out": rel(out), "rate": float(rate),
                                                                   "games": int(games), "seed": int(seed), "threads": int(threads)})
@@ -874,7 +902,7 @@ MATCH_TABLES = {
 
 
 def match_seats(table, players, model, sims, leaf, base_sims):
-    me = {"id": "value", "strategy": "mcts", "params": {"simulations": sims, "valueModel": f"ml/models/{model}"}}
+    me = {"id": "value", "strategy": "mcts", "params": {"simulations": sims, "valueModel": rel(model_path(model))}}
     if leaf:
         me["params"]["leafRollout"] = leaf
     hand = lambda name: {"id": name, "strategy": name, "params": {}}  # noqa: E731
@@ -911,7 +939,7 @@ def _match_body():
                + f"。參考：4 核心約 {int(games) * 0.6 / 60:.0f}～{int(games) * 1.2 / 60:.0f} 分鐘（依模擬次數）。")
     stem = model.rsplit(".", 1)[0]
     default_name = f"{stem}-s{int(sims)}{f'-leaf{int(leaf)}' if leaf else ''}-vs-{'default' if table == 'default' else 'hand'}{f'{int(base_sims)}' if table == 'default' and base_sims != 300 else ''}-seed{int(seed)}"
-    name = st.text_input("名稱（設定檔 mcts/value/<名稱>.json、結果 results/ml/<名稱>.json）", value=default_name).strip()
+    name = st.text_input("名稱（設定檔 ml/local/matches/<名稱>.json、結果 results/ml/<名稱>.json）", value=default_name).strip()
     out = os.path.join(jobs.results_dir(), "ml", name + ".json")
     exists = os.path.exists(out)
     overwrite = st.checkbox(f"覆寫已存在的結果 `{name}.json`") if exists else True
@@ -924,11 +952,11 @@ def _match_body():
                "seatOrder": "balanced", "seats": seats, "output": {"perGameRecords": False}}
         if threads:
             cfg["parallelism"] = {"maxDegree": int(threads)}
-        config = f"mcts/value/{name}.json"
+        config = rel(os.path.join(LOCAL_MATCHES, name + ".json"))
         write_config(absolute(config), cfg)
         start_job("match", f"對戰 {model}（{int(sims)} 次）{'vs 原版' if table == 'default' else 'vs 手寫'} → {name}",
-                  {"config": config, "out": rel(out), "model": f"ml/models/{model}"})
-    meta = model_meta(os.path.join(MODELS_DIR, model))
+                  {"config": config, "out": rel(out), "model": rel(model_path(model))})
+    meta = model_meta(model_path(model))
     if meta and meta.get("matches"):
         st.markdown(f"**{model} 已有的對戰**")
         st.dataframe(matches_frame(meta), hide_index=True, width="stretch",
@@ -945,12 +973,12 @@ def models_table(paths):
         meta = model_meta(p)
         name = os.path.basename(p)
         if not meta:
-            rows.append({"模型": name, "種類": "LightGBM" if p.endswith(".txt") else "MLP", "備註": "沒有 .meta.json"})
+            rows.append({"模型": name, "位置": place_of(p), "種類": "LightGBM" if p.endswith(".txt") else "MLP", "備註": "沒有 .meta.json"})
             continue
         best = best_vs_default(meta)
         v = meta.get("validation") or {}
         rows.append({
-            "模型": name, "種類": KIND_TEXT.get(meta["kind"], meta["kind"]), "人數": meta["players"],
+            "模型": name, "位置": place_of(p), "種類": KIND_TEXT.get(meta["kind"], meta["kind"]), "人數": meta["players"],
             "建立": (meta.get("created") or "（補寫）")[:16].replace("T", " "),
             "資料列數": sum(d["rows"] for d in meta["data"]),
             "自我對戰資料": "、".join(sorted({os.path.basename(m) for d in meta["data"] for m in d.get("valueModels", [])})),
@@ -974,7 +1002,7 @@ def matches_frame(meta):
         rows.append({"設定": m.get("config"), "對手": describe_match(m), "局數": m["games"], "種子": m["seed"],
                      "勝率": m["winShare"], "±95%": m.get("winShareCi95"), "平均分": m["avgScore"],
                      "對手勝率": "、".join(f"{o['strategy'] if not o.get('valueModel') else 'MCTS＋模型'} {o['winShare']:.1%}" for o in m["others"]),
-                     "結果檔": m["result"]})
+                     "紀錄": "本機" if m.get("local") else "正式", "結果檔": m["result"]})
     return pd.DataFrame(rows)
 
 
@@ -982,9 +1010,43 @@ def flat_params(meta):
     return {k: (", ".join(map(str, v)) if isinstance(v, list) else v) for k, v in (meta.get("params") or {}).items()}
 
 
+def move_buttons(path):
+    """設為正式模型 (local -> ml/models, then commit it) and 移到本機 (an official-folder model git does not track)."""
+    name = os.path.basename(path)
+    if place_of(path) == "本機":
+        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
+        with c1:
+            with st.popover("設為正式模型", width="stretch"):
+                st.markdown(f"把 `{name}`（連同 `.meta.json`、`.check.txt`）搬到 `ml/models/`。之後在 Visual Studio commit，才會進 git、別台電腦和 Claude 才看得到。"
+                            "也請在 `docs/models.md` 的模型列表補一列。")
+                if st.button("確定搬過去", type="primary", key=f"promote-{name}"):
+                    try:
+                        modelmeta.move_model(path, MODELS_DIR)
+                        st.session_state["job-started"] = f"{name} 已設為正式模型（ml/models/）。"
+                        st.cache_data.clear()
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+        c2.markdown('<span class="act-note">本機模型：只在這台電腦（ml/local/models/），不會進 git。</span>', unsafe_allow_html=True)
+    elif not tracked_by_git([path]):
+        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
+        with c1:
+            if st.button("移到本機", key=f"demote-{name}", width="stretch"):
+                try:
+                    modelmeta.move_model(path, LOCAL_MODELS)
+                    st.session_state["job-started"] = f"{name} 已移到本機工作區（ml/local/models/）。"
+                    st.cache_data.clear()
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
+        c2.markdown('<span class="act-note">這個模型在正式資料夾 ml/models/，但 git 沒有追蹤它（例如以前在 ML UI 訓練的）：'
+                    "移到本機就不會再出現在 Visual Studio 的 Git 變更裡。</span>", unsafe_allow_html=True)
+
+
 def model_detail(path):
     meta = model_meta(path)
     name = os.path.basename(path)
+    move_buttons(path)
     if not meta:
         st.warning(f"`{name}` 沒有 `.meta.json`（不知道怎麼訓練的）。")
         return
@@ -1076,7 +1138,7 @@ def compare(paths):
 def _models_body():
     paths = model_files()
     if not paths:
-        st.info("`ml/models/` 裡還沒有模型。")
+        st.info("還沒有模型（正式 ml/models/、本機 ml/local/models/ 都是空的）。")
         return
     table = models_table(paths)
     st.dataframe(table, hide_index=True, width="stretch")
@@ -1101,7 +1163,7 @@ def match_tab():
 
 
 def models_tab():
-    with card("models", "ml/models/ 的模型"):
+    with card("models", "模型（正式 ml/models/ ＋ 本機 ml/local/models/）"):
         _models_body()
 
 

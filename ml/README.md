@@ -24,6 +24,12 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 
 在 RunPod 上跑（產生資料、長時間對戰）：見 `docs/runpod.md`。
 
+## 本機工作區與正式模型
+- ML UI 產生的東西都放在本機工作區 **`ml/local/`**（被 git 忽略，不會出現在 Visual Studio 的 Git 變更裡）：訓練的模型 `ml/local/models/`、自訂組合與自我對戰設定 `ml/local/data-configs/`、對戰設定 `ml/local/matches/`，以及正式模型在這台電腦跑的對戰紀錄 `ml/local/match-records/`。
+- **正式模型**在 `ml/models/`（進 git），總表與狀態在 `docs/models.md`。ML UI 與 Dashboard 會同時列出兩邊的模型並標「正式／本機」。
+- 本機模型驗證後要保留：「模型清單」→「設為正式模型」（三個檔一起搬到 `ml/models/`），再 commit，並在 `docs/models.md` 補一列（`python3 ml/model_report.py` 會印出數字）。
+- 以前直接存在 `ml/models/`、git 沒追蹤的模型：「模型清單」→「移到本機」。
+
 ## 流程
 
 1. **產生資料**：Runner 的 `--dump-positions` 照設定檔打完整局，每個決策點以 `--dump-rate` 的機率抽樣，每個抽到的局面對每個座位各寫一列（特徵從該座位的視角，標籤＝該座位終局的回傳值與勝負）。

@@ -12,6 +12,7 @@ Data arguments may be files, wildcards (expanded here, also on Windows) or direc
 Importable: train(...) takes a progress callback (used by the ML UI).
 """
 import argparse
+import os
 import time
 
 import lightgbm as lgb
@@ -31,6 +32,7 @@ def train(data, out, progress=None, log=print, **options):
     """
     o = {**DEFAULTS, **options}
     progress = progress or (lambda event: None)
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)  # e.g. ml/local/models on a fresh machine
     x, reward, _, groups, names, metas = positions.load(data)
     valid = positions.split(groups, o["valid"], o["seed"])
     log(f"{len(x):,} rows, {len(names)} features, {len(np.unique(groups)):,} games; validation {valid.sum():,} rows")

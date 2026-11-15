@@ -12,7 +12,7 @@
 4. 【先討論】MCTS 擴充：更大的模擬次數、rollout 的職業選擇不再完全隨機、MCTS 自我對戰的深入分析；搜尋樹重用在現有介面做不到（見分析文件第 5 節）。
 5. 【直接做】Dashboard 擴充：「策略模擬」頁加續跑；模擬重播可加兩局並排。
 
-### 機器學習（`ml/`，分析文件第 10 節）
+### 機器學習（`ml/`，分析文件第 10 節，模型總表 `docs/models.md`）
 目前：4 人局 v2／v3（LightGBM）同時間對原版 MCTS 約 65%／32%、對手寫 91～95%，第二輪自我對戰（v3）沒有再進步；MLP v2（PyTorch）與 LightGBM v2 一樣強。工具：ML UI（Streamlit，`ml/ui.py`，另外啟動；頁籤 模擬對局採樣／訓練/蒸餾／對戰驗證／模型清單／排程佇列）、背景工作、`.meta.json`、Dashboard 價值模型下拉選單、RunPod 腳本（`docs/runpod.md`）都已完成。
 
 6. 【先討論】4 人局再進步的方向（v3≈v2，多迭代已經沒有用）：更多模擬次數、更大的模型或新特徵（例如對手可能選的職業）、用更多模擬次數產生較高品質的自我對戰資料。
@@ -30,6 +30,7 @@
 
 - Dashboard 的 ML UI 啟動在 Linux 驗證過（啟動、狀態、缺套件的錯誤訊息）；Windows 上已能啟動，但多個 Python 時曾裝錯地方（`No module named 'lightgbm'`），改成挑套件齊全的 Python 並印出修正指令後還沒在 Windows 實測。
 - Windows 上曾因編碼（cp950）讓對戰工作在寫紀錄時當掉（`UnicodeEncodeError`），已改成一律 UTF-8；修正後還沒在 Windows 實測。
+- 本機工作區 `ml/local/`（ML UI 的模型、設定、對戰紀錄，不進 git）與「設為正式模型／移到本機」只在 Linux 驗證過。
 - ML UI 的工作佇列（一次一個、依序執行、關掉 UI 繼續、失敗／取消後接著跑）在 Linux 驗證過；Windows 還沒實測。佇列只能排「已經存在」的東西：還沒訓練出來的模型不能先排它的對戰、還沒產生的資料不能先排訓練（要等前一個完成）。
 - ML UI 只在 Linux（Chromium）實際操作驗證過；Windows 上的背景程序（`DETACHED_PROCESS`）、`start-ui.cmd` 與 Ctrl+C 後工作繼續執行，還沒在 Windows 實測。Windows 上取消資料／對戰工作是直接結束 Runner（沒有共用的主控台可送 Ctrl+C），不會保留已完成的局數。
 - 策略模擬頁（`Simulate.razor`）的「完全平衡」選項與局數提示、局數千分位輸入、MCTS 耗時警告、自訂結果檔名、策略下拉選單名稱只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。

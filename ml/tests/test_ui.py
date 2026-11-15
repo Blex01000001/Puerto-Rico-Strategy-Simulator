@@ -97,11 +97,11 @@ def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypat
     params = [t for t in at.text_input if t.label.startswith("參數（選填")]
     params[0].set_value("buildThreshold=3.5").run()
     import os
-    cfg_path = os.path.join(os.path.dirname(UI), "data-configs", "pytest-custom-config.json")
+    cfg_path = os.path.join(os.path.dirname(UI), "local", "data-configs", "pytest-custom-config.json")
     try:
         next(b for b in at.button if b.label in ("開始產生資料", "加入排隊")).click().run()
         assert not at.exception, at.exception
-        assert started["kind"] == "dump" and started["spec"]["config"] == "ml/data-configs/pytest-custom-config.json"
+        assert started["kind"] == "dump" and started["spec"]["config"] == "ml/local/data-configs/pytest-custom-config.json"
         import json
         with open(cfg_path, encoding="utf-8") as f:
             cfg = json.load(f)
@@ -140,7 +140,7 @@ def test_save_config_only_writes_the_config(results, monkeypatch):
     at = run_app()
     next(r for r in at.radio if r.label == "資料來源").set_value("自訂組合（自己選每個座位的策略）").run()
     next(t for t in at.text_input if t.label.startswith("輸出名稱")).set_value("pytest-saved-only").run()
-    cfg_path = os.path.join(os.path.dirname(UI), "data-configs", "pytest-saved-only.json")
+    cfg_path = os.path.join(os.path.dirname(UI), "local", "data-configs", "pytest-saved-only.json")
     try:
         next(b for b in at.button if b.label == "新增設定").click().run()
         assert not at.exception, at.exception

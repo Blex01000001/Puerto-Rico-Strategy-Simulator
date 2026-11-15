@@ -488,3 +488,6 @@ results/
 
 # pytest
 .pytest_cache/
+
+# ML UI local workspace (models, configs and match records made on this machine)
+ml/local/

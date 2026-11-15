@@ -14,6 +14,37 @@ import numpy as np
 FORMAT = "pr-model-meta"
 FORMAT_VERSION = 1
 
+# Official models live in ml/models (tracked by git). Everything the ML UI makes on this machine goes to the local
+# workspace ml/local (ignored by git): models, data configs, match configs, and the match results of official models
+# (kept beside, never written into a tracked .meta.json, so running a match does not show up as a git change).
+ML_DIR = os.path.dirname(os.path.abspath(__file__))
+OFFICIAL_MODELS = os.path.join(ML_DIR, "models")
+LOCAL_DIR = os.path.join(ML_DIR, "local")
+
+
+def local_models_dir():
+    return os.path.join(LOCAL_DIR, "models")
+
+
+def local_records_dir():
+    return os.path.join(LOCAL_DIR, "match-records")
+
+
+def is_official(model_path):
+    return os.path.dirname(os.path.abspath(model_path)) == os.path.abspath(OFFICIAL_MODELS)
+
+
+def _records_path(model_path):
+    return os.path.join(local_records_dir(), os.path.basename(model_path) + ".matches.json")
+
+
+def _local_records(model_path):
+    try:
+        with open(_records_path(model_path), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
 
 def data_summary(metas):
     """Per dump file: what it is and where it came from."""
@@ -80,11 +111,15 @@ def write(model_path, kind, metas, params, training, validation, top_features, l
     return meta
 
 
-def read(model_path):
+def read(model_path, include_local=True):
+    """The model's metadata; for an official model also the matches recorded on this machine (marked "local": true)."""
     with open(model_path + ".meta.json", encoding="utf-8") as f:
         meta = json.load(f)
     if meta.get("format") != FORMAT or meta.get("formatVersion") != FORMAT_VERSION:
         raise ValueError(f"{model_path}.meta.json: unknown format")
+    if include_local and is_official(model_path):
+        mine = {m["result"] for m in meta.get("matches", [])}
+        meta["matches"] = meta.get("matches", []) + [{**m, "local": True} for m in _local_records(model_path) if m["result"] not in mine]
     return meta
 
 
@@ -127,10 +162,45 @@ def match_entry(result_path, model_path):
 
 
 def add_match(model_path, result_path):
-    """Appends (or replaces, for the same result file) a match summary in <model>.meta.json."""
-    meta = read(model_path)
+    """Records a match summary (the same result file replaces its earlier entry).
+
+    Local models: in their own .meta.json. Official models (tracked by git): in ml/local/match-records/, so the tracked
+    file stays untouched; read() merges both."""
     entry = match_entry(result_path, model_path)
+    if is_official(model_path):
+        records = [m for m in _local_records(model_path) if m["result"] != entry["result"]] + [entry]
+        os.makedirs(local_records_dir(), exist_ok=True)
+        with open(_records_path(model_path), "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=2, ensure_ascii=False)
+        return entry
+    meta = read(model_path, include_local=False)
     meta["matches"] = [m for m in meta.get("matches", []) if m["result"] != entry["result"]] + [entry]
     with open(model_path + ".meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)
     return entry
+
+
+MODEL_FILES = ("", ".meta.json", ".check.txt")
+
+
+def move_model(model_path, target_dir):
+    """Moves a model with its .meta.json and .check.txt (promote to ml/models, or move to ml/local/models).
+    Refuses when the target already has a model of that name. Returns the new path."""
+    name = os.path.basename(model_path)
+    target = os.path.join(target_dir, name)
+    if os.path.exists(target):
+        raise ValueError(f"{name} already exists in {os.path.relpath(target_dir, os.path.dirname(ML_DIR))}")
+    os.makedirs(target_dir, exist_ok=True)
+    local_matches = _local_records(model_path) if is_official(model_path) else []
+    for suffix in MODEL_FILES:
+        if os.path.exists(model_path + suffix):
+            os.replace(model_path + suffix, target + suffix)
+    if local_matches and not is_official(target):
+        # leaving the official folder: the matches recorded beside it go back into its own metadata
+        meta = read(target, include_local=False)
+        known = {m["result"] for m in meta.get("matches", [])}
+        meta["matches"] = meta.get("matches", []) + [m for m in local_matches if m["result"] not in known]
+        with open(target + ".meta.json", "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+        os.remove(_records_path(model_path))
+    return target
