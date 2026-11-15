@@ -18,7 +18,8 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 - 資料與結果資料夾跟 Dashboard 相同（`results/`；環境變數 `PR_RESULTS_DIR` 可改，對應 Dashboard 的 `Dashboard:ResultsDirectory`）。
 - **資料**：選 `ml/data-configs/` 的設定檔（手寫策略、隨機），或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
 - **對戰驗證**：選模型與對手桌（「對原版 MCTS」：同桌 cheap-engine、build-first（3 人局只有 cheap-engine）；「對手寫策略」：corn-shipper、corn-to-premium、build-first（3 人局 corn-shipper、build-first）），模擬次數、`leafRollout`、局數（24／6 的倍數＝balanced 完全平衡）→ 設定檔寫進 `mcts/value/<名稱>.json`、結果 `results/ml/<名稱>.json`，完成後勝率自動記進模型的 `.meta.json`（`matches`），模型清單與 Dashboard 都看得到。
-- **工作**：所有工作的進度、紀錄、取消；側欄隨時顯示目前的工作。
+- **工作**：所有工作的進度、紀錄、取消；側欄隨時顯示目前的工作與排隊數。
+- **排隊**：已有工作在跑時，各頁的開始鈕會變成「加入排隊」，新工作依加入的順序一個接一個執行（一次一個：每個工作都會用滿 CPU，同時跑不會比較快）。關掉 ML UI 也會繼續；前一個失敗或取消，下一個照樣開始。「工作」頁上方列出執行中與排隊中的工作，排隊中的可以「移出佇列」。兩個工作不能寫同一個輸出檔（排隊中的也算）。
 - 資料與對戰工作呼叫**發佈版 Runner**（`publish/runner`，環境變數 `PR_RUNNER_DIR` 可改）；C# 原始碼比發佈版新時會先自動 `dotnet publish`（需要 .NET 8 SDK）。取消時對 Runner 送 Ctrl+C：產生資料保留已完成的局數、對戰寫出部分結果（不記到模型）；**Windows 上是直接結束 Runner，不會保留部分結果**。
 
 在 RunPod 上跑（產生資料、長時間對戰）：見 `docs/runpod.md`。

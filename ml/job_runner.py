@@ -66,6 +66,7 @@ def heartbeat(job, stop):
             print("cancel requested by the user", flush=True)
             if job.child is None:
                 job.update(status="cancelled", finished=jobs.now())
+                next_in_queue()
                 os._exit(130)  # training: stop wherever it is; models are only written at the end
             stop_child(job.child)
         job.update()
@@ -212,6 +213,16 @@ def run(job):
     raise ValueError(f"unknown job kind {kind!r}")
 
 
+def next_in_queue():
+    """Hands over to the next waiting job (the queue continues whatever happened to this one)."""
+    try:
+        started = jobs.start_next()
+        if started:
+            print(f"next job in the queue started: {started}", flush=True)
+    except Exception as e:  # noqa: BLE001 - never let the hand-over hide this job's own result
+        print(f"could not start the next job in the queue: {e}", flush=True)
+
+
 def main():
     job = Job(sys.argv[1])
     stop = threading.Event()
@@ -222,15 +233,18 @@ def main():
         stop.set()
         job.event({"stage": "done"})
         job.update(status="done", finished=jobs.now(), result=result)
+        next_in_queue()
     except Cancelled as c:
         stop.set()
         job.update(status="cancelled", finished=jobs.now(), result=c.args[0])
+        next_in_queue()
         sys.exit(130)
     except Exception as e:  # noqa: BLE001 - every failure must end up in job.json for the UI
         stop.set()
         traceback.print_exc()
         sys.stdout.flush()
         job.update(status="failed", finished=jobs.now(), error=f"{type(e).__name__}: {e}")
+        next_in_queue()
         sys.exit(1)
 
 
