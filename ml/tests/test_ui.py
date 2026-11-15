@@ -22,27 +22,43 @@ def run_app():
     return at
 
 
+def goto(at, page):
+    """Click a left-navigation entry (keys nav-<page>; the current page's entry is navon-<page>)."""
+    if not any(b.key == f"navon-{page}" for b in at.button):  # already there otherwise
+        at.button(key=f"nav-{page}").click().run()
+    assert not at.exception, at.exception
+    return at
+
+
+def nav_labels(at):
+    return [b.label.split("\u2003", 1)[1] for b in at.button if (b.key or "").startswith(("nav-", "navon-"))]
+
+
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert [t.label for t in at.tabs] == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"]
+    assert at.button(key="navon-data")  # the first page is the current one
+    goto(at, "train")
+    assert at.button(key="navon-train")
     assert any("還沒有訓練資料" in i.value for i in at.info)
 
 
 def test_ui_lists_dumps_and_models(results):
     from conftest import write_dump
     write_dump(str(results / "ml" / "4p-test.bin"), games=10)
-    at = run_app()
+    at = goto(run_app(), "train")
     players = next(r for r in at.radio if r.label.startswith("人數（模型依人數分開）"))
     assert players.options == ["4 人局"]
     assert any("results/ml/4p-test.bin" in str(d.value.index.tolist()) for d in at.dataframe)  # training tab table
     start = next(b for b in at.button if b.label == "開始訓練")
     assert start.disabled  # nothing selected yet
+    goto(at, "match")
     assert next(b for b in at.button if b.label == "開始對戰")  # match tab offers the repo models (they carry .meta.json)
     assert any(s.label == "模型" for s in at.selectbox)
 
 
 def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
-    at = run_app()
+    at = goto(run_app(), "match")
     games = next(n for n in at.number_input if n.label.startswith("局數（24 的倍數"))
     games.set_value(250).run()
     assert not at.exception
@@ -57,7 +73,7 @@ def test_missing_packages_show_the_fix_command(results, monkeypatch):
     at = run_app()
     assert any("lightgbm" in e.value for e in at.error)
     assert any("-m pip install -r" in c.value for c in at.code)
-    assert not at.tabs  # nothing else is drawn
+    assert not nav_labels(at)  # nothing else is drawn
 
 
 def test_start_buttons_while_jobs_are_queued(results, monkeypatch):
@@ -72,7 +88,13 @@ def test_start_buttons_while_jobs_are_queued(results, monkeypatch):
     monkeypatch.setattr(jobs, "events", lambda job_id: [])
     monkeypatch.setattr(jobs, "read_job", lambda job_id: fake if job_id == "x" else None)
     at = run_app()
-    assert sum(b.label == "加入排隊" for b in at.button) == 3
+    count = 0
+    for page in ("data", "train", "match"):
+        goto(at, page)
+        count += sum(b.label == "加入排隊" for b in at.button)
+    assert count == 3
+    # the navigation shows only the running job; the queue length is a small note
+    assert any("running job" in m.value for m in at.sidebar.markdown)
 
 
 def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypatch):
@@ -151,3 +173,32 @@ def test_save_config_only_writes_the_config(results, monkeypatch):
     finally:
         if os.path.exists(cfg_path):
             os.remove(cfg_path)
+
+
+def test_deleting_closes_the_dialog_and_clears_the_selection(results):
+    from conftest import write_dump
+    write_dump(str(results / "ml" / "4p-a.bin"), games=10)
+    write_dump(str(results / "ml" / "4p-b.bin"), games=10)
+    at = goto(run_app(), "train")
+    table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-"))
+    assert table.key == "dumps-0"
+    # deleting is done in a dialog (AppTest cannot click inside it): emulate the confirmed deletion's bookkeeping
+    at.session_state["del-gen"] = 1
+    os.remove(results / "ml" / "4p-a.bin")
+    at.run()
+    table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-"))
+    assert table.key == "dumps-1"  # a new key: the old row selection is gone
+
+
+def test_queue_rows_are_framed_cards(results, monkeypatch):
+    import jobs
+    rows = [{"id": "r", "title": "running job", "kind": "dump", "state": "running", "spec": {}},
+            {"id": "w", "title": "waiting job", "kind": "match", "state": "waiting", "spec": {}}]
+    monkeypatch.setattr(jobs, "list_jobs", lambda: rows)
+    monkeypatch.setattr(jobs, "active_job", lambda: rows[0])
+    monkeypatch.setattr(jobs, "waiting_jobs", lambda: rows[1:])
+    monkeypatch.setattr(jobs, "events", lambda job_id: [])
+    monkeypatch.setattr(jobs, "read_job", lambda job_id: next((r for r in rows if r["id"] == job_id), None))
+    at = goto(run_app(), "queue")
+    assert any("還有 1 項排隊中" in m.value for m in at.sidebar.markdown)
+    assert not any("waiting job" in m.value for m in at.sidebar.markdown)  # only the running job in the navigation

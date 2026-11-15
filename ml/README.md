@@ -18,7 +18,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 - 資料與結果資料夾跟 Dashboard 相同（`results/`；環境變數 `PR_RESULTS_DIR` 可改，對應 Dashboard 的 `Dashboard:ResultsDirectory`）。
 - **模擬對局採樣**：設定檔決定「哪幾個策略互打」（人數、每個座位的策略與參數、局數、種子；座位順序每局隨機）。三種來源（「1. 採樣來源模型」）：從下拉選單選 `ml/data-configs/` 的設定檔（全部設定檔的列表與刪除在下方「管理設定檔」裡）；**自訂組合**（每個座位自己選策略，MCTS 座位可選模擬次數、價值模型、leafRollout，其他座位可填參數；存成 `ml/data-configs/<名稱>.json`，不會覆蓋同名的既有設定）；或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
 - **對戰驗證**：選模型與對手桌（「對原版 MCTS」：同桌 cheap-engine、build-first（3 人局只有 cheap-engine）；「對手寫策略」：corn-shipper、corn-to-premium、build-first（3 人局 corn-shipper、build-first）），模擬次數、`leafRollout`、局數（24／6 的倍數＝balanced 完全平衡）→ 設定檔寫進 `mcts/value/<名稱>.json`、結果 `results/ml/<名稱>.json`，完成後勝率自動記進模型的 `.meta.json`（`matches`），模型清單與 Dashboard 都看得到。
-- **排程佇列**：工作列表（名稱、狀態、經過時間、進度、取消／移出佇列、備註；失敗的錯誤訊息在備註裡，預設收折），下方「工作詳細」看紀錄與 loss 曲線；側欄顯示目前的工作與排隊數。
+- **排程佇列**：工作列表（名稱、狀態、經過時間、進度、取消／移出佇列、備註；失敗的錯誤訊息在備註裡，預設收折），下方「工作詳細」看紀錄與 loss 曲線（每個工作一張小卡，左邊框顏色表示狀態）；左側導覽最下方顯示正在跑的工作，其他排隊的只用小字寫還剩幾項。
 - **排隊**：已有工作在跑時，各頁的開始鈕會變成「加入排隊」（可以開始時是藍色，不能開始時鎖住並在右邊用紅字寫原因），新工作依加入的順序一個接一個執行（一次一個：每個工作都會用滿 CPU，同時跑不會比較快）。關掉 ML UI 也會繼續；前一個失敗或取消，下一個照樣開始。「排程佇列」頁列出執行中與排隊中的工作，排隊中的可以「移出佇列」。兩個工作不能寫同一個輸出檔（排隊中的也算）。
 - 資料與對戰工作呼叫**發佈版 Runner**（`publish/runner`，環境變數 `PR_RUNNER_DIR` 可改）；C# 原始碼比發佈版新時會先自動 `dotnet publish`（需要 .NET 8 SDK）。取消時對 Runner 送 Ctrl+C：產生資料保留已完成的局數、對戰寫出部分結果（不記到模型）；**Windows 上是直接結束 Runner，不會保留部分結果**。
 
