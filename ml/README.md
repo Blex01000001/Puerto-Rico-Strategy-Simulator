@@ -14,7 +14,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 也可以從 Dashboard 啟動：左側選單「機器學習」顯示「ML UI 執行中 ●」（綠）或「ML UI 未啟動 ○」（紅；側欄收合時是圖示的綠／紅框）；未啟動時點它，Dashboard 會檢查 Python 與套件，在 Windows 跳出一個 cmd 視窗執行 `ml\start-ui.cmd`（關掉這個視窗就停止 ML UI；已開始的工作不受影響），好了自動在新分頁打開。缺套件時會顯示是哪個 Python 與要執行的那一行指令。
 - **模型訓練/蒸餾**：勾選 `results/ml/` 的資料（依人數分開；正在產生的資料會標「產生中」）、選 LightGBM 或 MLP、填參數（標籤是中文說明＋命令列參數名稱）、取名稱 → 開始訓練。進度條與驗證 loss 曲線每 2 秒更新，結束時顯示驗證成績；同一時間只跑一個工作。
 - **模型清單**：`ml/models/` 每個模型的種類、資料、R²、對原版 MCTS 的最佳勝率；點選看參數、資料來源、各回合段誤差、loss 曲線、特徵重要度、所有對戰結果；「並排比較」最多 4 個模型，標出不同的參數。
-- 訓練在**獨立的背景程序**執行（`ml/jobs.py`）：關掉瀏覽器、關掉 UI（Ctrl+C）都不會中斷，重開 UI 會接著顯示進度；要停就按「取消這個工作」（不會留下半成品模型）。電腦睡眠或關機造成的中斷會標成「中斷」。工作紀錄在 `results/ml/jobs/<編號>/`（`job.json`、`events.jsonl`、`log.txt`）。
+- 訓練在**獨立的背景程序**執行（`ml/jobs.py`）：關掉瀏覽器、關掉 UI（Ctrl+C）都不會中斷，重開 UI 會接著顯示進度；要停就按「取消這個工作」（不會留下半成品模型）。電腦睡眠或關機造成的中斷會標成「中斷」；程序還在但超過 30 秒沒有回報時標成「失聯」，排隊的工作會先暫停等它，確定卡住了可以「強制結束」。工作紀錄在 `results/ml/jobs/<編號>/`（`job.json`、`events.jsonl`、`log.txt`）。
 - 資料與結果資料夾跟 Dashboard 相同（`results/`；環境變數 `PR_RESULTS_DIR` 可改，對應 Dashboard 的 `Dashboard:ResultsDirectory`）。
 - **模擬對局採樣**：設定檔決定「哪幾個策略互打」（人數、每個座位的策略與參數、局數、種子；座位順序每局隨機）。三種來源（「1. 採樣來源模型」）：從下拉選單選 `ml/data-configs/` 的設定檔（全部設定檔的列表與刪除在下方「管理設定檔」裡）；**自訂組合**（每個座位自己選策略，MCTS 座位可選模擬次數、價值模型、leafRollout，其他座位可填參數；存成 `ml/data-configs/<名稱>.json`，不會覆蓋同名的既有設定）；或選一個模型做「MCTS＋模型」自我對戰（UI 會把設定檔寫進 `ml/data-configs/<名稱>.json`，可重現），填局數、種子、抽樣率 → 寫到 `results/ml/<名稱>.bin`。
 - **對戰驗證**：選模型與對手桌（「對原版 MCTS」：同桌 cheap-engine、build-first（3 人局只有 cheap-engine）；「對手寫策略」：corn-shipper、corn-to-premium、build-first（3 人局 corn-shipper、build-first）），模擬次數、`leafRollout`、局數（24／6 的倍數＝balanced 完全平衡）→ 設定檔寫進 `mcts/value/<名稱>.json`、結果 `results/ml/<名稱>.json`，完成後勝率自動記進模型的 `.meta.json`（`matches`），模型清單與 Dashboard 都看得到。

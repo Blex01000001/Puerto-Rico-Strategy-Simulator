@@ -46,7 +46,9 @@ LOCAL_MATCHES = os.path.join(LOCAL_DIR, "matches")
 DASHBOARD_URL = "http://localhost:5080"
 
 STATE_TEXT = {"waiting": "排隊中", "queued": "啟動中", "running": "執行中", "done": "完成", "failed": "失敗", "cancelled": "已取消",
-              "interrupted": "中斷（程序已不在）"}
+              "interrupted": "中斷（程序已不在）", "lost": "失聯（程序還在，但沒有回報）"}
+LOST_TEXT = ("失聯：程序還在執行，但超過 30 秒沒有回報進度。排隊的工作會先暫停，等它結束或回報恢復；"
+             "確定它卡住了再按「強制結束」（會直接結束它與它啟動的 Runner）。")
 KIND_TEXT = {"train_lgbm": "LightGBM", "train_mlp": "MLP", "lightgbm": "LightGBM", "mlp": "MLP", "dump": "產生資料", "match": "對戰驗證"}
 
 
@@ -227,11 +229,20 @@ def param_inputs(defaults, key):
     return values
 
 
+def grid(data, **kwargs):
+    """st.dataframe with room for a horizontal scrollbar: Streamlit sizes a table to its rows exactly, so on Windows (a
+    17 px scrollbar that takes space) the scrollbar of a wide table covered the last row. At most 10 rows are shown
+    before the table scrolls vertically."""
+    rows = len(getattr(data, "data", data))  # a pandas Styler keeps the frame in .data
+    kwargs.setdefault("height", 35 * (min(rows, 10) + 1) + 2 + 18)
+    return st.dataframe(data, **kwargs)
+
+
 def busy_files(field):
     """Files that a waiting / starting / running job will read (they must not be deleted)."""
     used = set()
     for j in jobs.list_jobs():
-        if j["state"] in ("waiting", "queued", "running"):
+        if j["state"] in ("waiting",) + jobs.BUSY:
             v = j.get("spec", {}).get(field)
             for f in (v if isinstance(v, list) else [v] if v else []):
                 used.add(str(f).replace("\\", "/"))
@@ -292,7 +303,7 @@ def training_tab():
         p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
         rows = [d for d in good if d["人數"] == p]
         df = pd.DataFrame(rows).drop(columns=["path"]).set_index(pd.Index([r["path"] for r in rows], name="檔案"))
-        picked = st.dataframe(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
+        picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
                               column_config={"列數": st.column_config.NumberColumn(format="localized"),
                                              "局數": st.column_config.NumberColumn(format="localized")})
         chosen = [rows[i] for i in picked.selection.rows]
@@ -434,6 +445,8 @@ div[class*="st-key-qrow-waiting"] { border-left: 4px solid #e0a410; }
 div[class*="st-key-qrow-done"] { border-left: 4px solid #3fa83f; }
 div[class*="st-key-qrow-failed"], div[class*="st-key-qrow-interrupted"] { border-left: 4px solid #ec6a6a; }
 div[class*="st-key-qrow-cancelled"] { border-left: 4px solid #8892a2; }
+div[class*="st-key-qrow-lost"] { border-left: 4px solid #e8672f; }
+.side-state.lost { color: #e8672f; font-size: .8rem; }
 .st-key-qhead { padding: 0 .8rem 0 calc(.8rem + 4px); color: #b4bcc9; }
 .side-state.failed, .side-state.interrupted { color: #ec6a6a; } .side-state.done { color: #3fa83f; } .side-state.cancelled { color: #8892a2; }
 </style>
@@ -494,7 +507,7 @@ def pending_output(out_rel):
     """True when a waiting / starting / running job will write this output (two jobs must not write the same file)."""
     want = out_rel.replace("\\", "/")
     return any(str(j.get("spec", {}).get("out", "")).replace("\\", "/") == want
-               for j in jobs.list_jobs() if j["state"] in ("waiting", "queued", "running"))
+               for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY)
 
 
 def progress_of(job, evs):
@@ -519,7 +532,7 @@ def watch_states(all_jobs):
 
     Also the queue's safety net: a job that died without handing over (machine asleep, killed) leaves waiting jobs
     behind; start the next one."""
-    if not any(j["state"] in ("queued", "running") for j in all_jobs) and any(j["state"] == "waiting" for j in all_jobs):
+    if not any(j["state"] in jobs.BUSY for j in all_jobs) and any(j["state"] == "waiting" for j in all_jobs):
         try:
             jobs.start_next()
         except TimeoutError:
@@ -542,9 +555,14 @@ def sidebar_status():
         st.markdown(f'<div class="side-title" title="{html.escape(active["title"])}">{html.escape(active["title"])}</div>',
                     unsafe_allow_html=True)
         frac, text = progress_of(active, jobs.events(active["id"]))
+        lost = active["state"] == "lost"
         c1, c2 = st.columns([3, 1.3], vertical_alignment="bottom")
-        c1.progress(frac or 0.0, text=text)
-        if c2.button("取消", key=f"stop-side-{active['id']}", width="stretch"):  # stop- prefix: red (CSS)
+        if lost:
+            c1.markdown('<div class="side-state lost">失聯：程序還在，但沒有回報；排隊暫停</div>', unsafe_allow_html=True)
+        else:
+            c1.progress(frac or 0.0, text=text)
+        if c2.button("結束" if lost else "取消", key=f"stop-side-{active['id']}", width="stretch",  # stop-: red (CSS)
+                     help=LOST_TEXT if lost else None):
             jobs.cancel(active["id"])
     else:
         st.markdown('<div class="side-note">沒有正在執行的工作</div>', unsafe_allow_html=True)
@@ -554,7 +572,7 @@ def sidebar_status():
 
 QUEUE_STATE = {"running": ("正在跑", "#4aa8ff"), "queued": ("啟動中", "#4aa8ff"), "waiting": ("排隊中", "#e0a410"),
                "done": ("已完成", "#3fa83f"), "failed": ("失敗", "#ec6a6a"), "cancelled": ("已取消", "#8892a2"),
-               "interrupted": ("中斷", "#ec6a6a")}
+               "interrupted": ("中斷", "#ec6a6a"), "lost": ("失聯", "#e8672f")}
 
 
 def _epoch(text):
@@ -589,6 +607,9 @@ def remark(job, col):
             st.caption("完整紀錄：下方「工作詳細」選這個工作。")
     elif state == "interrupted":
         col.caption("程序已不在（電腦睡眠、關機或被終止）")
+    elif state == "lost":
+        col.markdown('<span class="act-note" style="color:#e8672f">程序還在但沒有回報，排隊暫停中</span>',
+                     unsafe_allow_html=True)
     elif state == "cancelled" and result.get("summary"):
         col.caption(scrub(result["summary"])[:120])
     elif state == "done" and job["kind"] == "match" and result.get("match"):
@@ -609,7 +630,7 @@ def queue_page():
         st.caption("還沒有工作。")
         return
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
-    done = [j for j in all_jobs if j["state"] not in ("waiting", "queued", "running")][:40]
+    done = [j for j in all_jobs if j["state"] not in ("waiting",) + jobs.BUSY][:40]
     ordered = ([active] if active else []) + waiting + done
     with card("queue", "工作列表"):
         st.caption("一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。")
@@ -633,8 +654,8 @@ def queue_page():
                 cols[3].progress(1.0)
             else:
                 cols[3].markdown("—")
-            if job["state"] in ("queued", "running"):
-                if cols[5].button("取消", key=f"stop-q-{job['id']}", width="stretch"):
+            if job["state"] in jobs.BUSY:
+                if cols[5].button("強制結束" if job["state"] == "lost" else "取消", key=f"stop-q-{job['id']}", width="stretch"):
                     jobs.cancel(job["id"])
             elif job["state"] == "waiting":
                 if cols[5].button("移出佇列", key=f"q-dequeue-{job['id']}", width="stretch"):
@@ -683,8 +704,10 @@ def job_detail(job_id):
             st.markdown(f"**開始**：{job['started']}")
         if job.get("finished"):
             st.markdown(f"**結束**：{job['finished']}")
-        if state in ("queued", "running"):
-            if st.button("取消這個工作", key=f"stop-detail-{job_id}"):
+        if state == "lost":
+            st.warning(LOST_TEXT)
+        if state in jobs.BUSY:
+            if st.button("強制結束這個工作" if state == "lost" else "取消這個工作", key=f"stop-detail-{job_id}"):
                 jobs.cancel(job_id)
             st.caption("產生資料取消時，已完成的局數會保留（Windows 除外）；訓練取消不會留下模型；對戰取消不會記到模型。排隊中的下一個工作會接著開始。")
         if state == "waiting":
@@ -707,7 +730,7 @@ def job_detail(job_id):
     if job["kind"] == "match" and state == "done" and result.get("match"):
         m = result["match"]
         st.success(f"勝率 {m['winShare']:.1%} ± {m['winShareCi95']:.1%}（{m['games']} 局），已記到模型的 `.meta.json`。結果檔 `{rel(result['output'])}` 也可以在 Dashboard 打開。")
-        st.dataframe(pd.DataFrame([{"座位": "價值模型 MCTS", "勝率": m["winShare"], "平均分": m["avgScore"]}] +
+        grid(pd.DataFrame([{"座位": "價值模型 MCTS", "勝率": m["winShare"], "平均分": m["avgScore"]}] +
                                   [{"座位": o["seatId"] if o["strategy"] != "mcts" else ("原版 MCTS" if not o.get("valueModel") else "MCTS＋模型"),
                                     "勝率": o["winShare"], "平均分": o["avgScore"]} for o in m["others"]]),
                      hide_index=True, column_config={"勝率": st.column_config.NumberColumn(format="percent"),
@@ -855,7 +878,7 @@ def config_rows():
 
 def config_table(rows):
     """All data configs with checkboxes for deleting (inside the 管理設定檔 expander)."""
-    picked = st.dataframe(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
+    picked = grid(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
     c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
@@ -967,7 +990,7 @@ def data_tab():
     with card("data-list", "已有的資料"):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
-            st.dataframe(pd.DataFrame(dumps).rename(columns={"path": "檔案"}), hide_index=True, width="stretch")
+            grid(pd.DataFrame(dumps).rename(columns={"path": "檔案"}), hide_index=True, width="stretch")
             st.caption(f"要刪除資料，到「{TAB_TRAIN}」頁勾選後按刪除。")
         else:
             st.caption("還沒有資料。")
@@ -1039,7 +1062,7 @@ def _match_body():
     meta = model_meta(model_path(model))
     if meta and meta.get("matches"):
         st.markdown(f"**{model} 已有的對戰**")
-        st.dataframe(matches_frame(meta), hide_index=True, width="stretch",
+        grid(matches_frame(meta), hide_index=True, width="stretch",
                      column_config={"勝率": st.column_config.NumberColumn(format="percent"),
                                     "±95%": st.column_config.NumberColumn(format="percent"),
                                     "平均分": st.column_config.NumberColumn(format="%.1f")})
@@ -1143,7 +1166,7 @@ def model_detail(path):
     if mf.empty:
         st.caption("還沒有對戰紀錄。")
     else:
-        st.dataframe(mf, hide_index=True, width="stretch",
+        grid(mf, hide_index=True, width="stretch",
                      column_config={"勝率": st.column_config.NumberColumn(format="percent"),
                                     "±95%": st.column_config.NumberColumn(format="percent"),
                                     "平均分": st.column_config.NumberColumn(format="%.1f")})
@@ -1152,19 +1175,19 @@ def model_detail(path):
     left, right = st.columns(2)
     with left:
         st.markdown("**訓練參數**")
-        st.dataframe(pd.DataFrame(list(flat_params(meta).items()), columns=["參數", "值"]).astype(str),
+        grid(pd.DataFrame(list(flat_params(meta).items()), columns=["參數", "值"]).astype(str),
                      hide_index=True, width="stretch")
     with right:
         st.markdown("**驗證（各回合段）**")
         if v.get("byRound"):
-            st.dataframe(pd.DataFrame(v["byRound"]).rename(columns={"rounds": "回合", "rows": "列數", "mse": "MSE"}),
+            grid(pd.DataFrame(v["byRound"]).rename(columns={"rounds": "回合", "rows": "列數", "mse": "MSE"}),
                          hide_index=True, width="stretch")
         else:
             st.caption("沒有紀錄。")
         st.caption("驗證成績只是檢查訓練有沒有壞掉；資料分布不同時 R² 不能互相比較。")
 
     st.markdown("**訓練資料**")
-    st.dataframe(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
+    grid(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
                                 "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
                                 "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
                                 "檔案": d["path"]} for d in meta["data"]]),
@@ -1212,7 +1235,7 @@ def compare(paths):
                      ("對原版 MCTS 最佳勝率", lambda m: f"{best_vs_default(m)['winShare']:.1%}" if best_vs_default(m) else "—")]:
         vals = [f(metas[n]) if metas[n] else "—" for n in names]
         rows.insert(0, {"參數": label, **dict(zip(names, vals)), "不同": "●" if len(set(vals)) > 1 else ""})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    grid(pd.DataFrame(rows), hide_index=True, width="stretch")
 
 
 def _models_body():
@@ -1221,7 +1244,7 @@ def _models_body():
         st.info("還沒有模型（正式 ml/models/、本機 ml/local/models/ 都是空的）。")
         return
     table = models_table(paths)
-    st.dataframe(table, hide_index=True, width="stretch")
+    grid(table, hide_index=True, width="stretch")
     by_name = {os.path.basename(p): p for p in paths}
     mode = st.radio("檢視", ["單一模型", "並排比較"], horizontal=True)
     if mode == "單一模型":
