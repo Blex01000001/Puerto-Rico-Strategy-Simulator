@@ -166,7 +166,8 @@ def queue_position(job_id):
 def _spawn(job_id):
     job_dir = os.path.join(jobs_dir(), job_id)
     log = open(os.path.join(job_dir, "log.txt"), "a", encoding="utf-8")
-    kwargs = {"cwd": ROOT, "stdout": log, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL}
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}  # the log file is UTF-8 whatever the Windows code page
+    kwargs = {"cwd": ROOT, "stdout": log, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL, "env": env}
     if os.name == "nt":
         # own process group and no console: Ctrl+C or closing the UI's console window does not reach the job
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS

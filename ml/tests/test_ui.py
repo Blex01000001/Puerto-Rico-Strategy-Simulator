@@ -72,3 +72,60 @@ def test_start_buttons_while_jobs_are_queued(results, monkeypatch):
     monkeypatch.setattr(jobs, "read_job", lambda job_id: fake if job_id == "x" else None)
     at = run_app()
     assert sum(b.label == "加入排隊" for b in at.button) == 3
+
+
+def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypatch):
+    import jobs
+    started = {}
+    monkeypatch.setattr(jobs, "start", lambda kind, title, spec: started.update(kind=kind, title=title, spec=spec) or "job-1")
+    written = {}
+    at = AppTest.from_file(UI, default_timeout=60)
+    at.run()
+    mode = next(r for r in at.radio if r.label == "資料來源")
+    mode.set_value("自訂組合（自己選每個座位的策略）").run()
+    assert not at.exception, at.exception
+    seat_boxes = [s for s in at.selectbox if s.label.startswith("座位 ")]
+    assert len(seat_boxes) == 4
+    shown = [o.split("（")[0] for o in seat_boxes[0].options]  # options are displayed as "name（說明）"
+    assert "mcts" in shown and "cheap-engine" in shown and "corn-monopoly-hoard" in shown
+    assert "rule-based" not in shown  # needs params.profile: not offered
+    seat_boxes[0].set_value("mcts").run()
+    assert any(n.label == "模擬次數" for n in at.number_input)
+    name = next(t for t in at.text_input if t.label.startswith("輸出名稱"))
+    name.set_value("pytest-custom-config").run()
+    params = [t for t in at.text_input if t.label.startswith("參數（選填")]
+    params[0].set_value("buildThreshold=3.5").run()
+    import os
+    cfg_path = os.path.join(os.path.dirname(UI), "data-configs", "pytest-custom-config.json")
+    try:
+        next(b for b in at.button if b.label in ("開始產生資料", "加入排隊")).click().run()
+        assert not at.exception, at.exception
+        assert started["kind"] == "dump" and started["spec"]["config"] == "ml/data-configs/pytest-custom-config.json"
+        import json
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        assert [s["strategy"] for s in cfg["seats"]] == ["mcts", "build-first", "harbor-rush", "corn-to-premium"]
+        assert cfg["seats"][0]["params"] == {"simulations": 100}
+        assert cfg["seats"][1]["params"] == {"buildThreshold": 3.5}
+        assert cfg["seatOrder"] == "random" and cfg["players"] == 4
+    finally:
+        if os.path.exists(cfg_path):
+            os.remove(cfg_path)
+
+
+def test_parse_params():
+    import importlib
+    import sys
+    import pytest as _pt
+    sys.modules.pop("ui", None)
+    # parse_params is a plain function: import it without running the Streamlit page
+    import ast
+    src = open(UI, encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "parse_params")
+    ns = {"re": importlib.import_module("re")}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), UI, "exec"), ns)
+    assert ns["parse_params"]("a=3, b=2.5; c=text") == {"a": 3, "b": 2.5, "c": "text"}
+    assert ns["parse_params"]("") == {}
+    with _pt.raises(ValueError):
+        ns["parse_params"]("nonsense")
