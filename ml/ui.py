@@ -101,19 +101,37 @@ def list_dumps():
             # outside the cache: a value model a self-play dump used may have been replaced since
             info["_recipe"] = fingerprint.dump_recipe(info["_meta"])
             info["_fp"] = fingerprint.fingerprint(info["_recipe"])
-            info["_rev"] = info["_meta"].get("rulesRevision", 1)
+            info["_rules"] = (info["_recipe"]["ruleset"], info["_recipe"]["rulesRevision"])
+            info["_stale"] = fingerprint.stale_notes(info["_recipe"])
             info["hash"] = fingerprint.short(info["_fp"])
-            info["規則版本"] = rule_text(info["_rev"])
+            info["規則版本"] = fingerprint.rules_name(info["_recipe"]["rulesRevision"], info["_recipe"]["ruleset"])
+            info["版本狀態"] = version_text(info["_stale"])
             info["引擎 commit"] = info["_meta"].get("engineCommit", "—")
         out.append(info)
     return out
 
 
-def rule_text(revision):
-    """'base-r1', or 'base-r1（舊；目前 base-r2）' for a file made with an older engine behaviour."""
-    now = fingerprint.current_rules_revision()
-    name = fingerprint.rules_name(revision)
-    return name if revision >= now else f"{name}（舊；目前 {fingerprint.rules_name(now)}）"
+def version_text(notes):
+    """'最新', or what is older than this checkout's engine ('舊：規則 base-v1 → base-v2；harbor-rush-v1 → v2')."""
+    return "最新" if not notes else "舊：" + "；".join(notes)
+
+
+def entry_stale(rules_revision, ruleset, revisions, strategies=()):
+    """stale_notes for a recorded data / match entry (model metadata keeps no full recipe). Entries from before strategy
+    revisions were recorded count as revision 1 of the strategies they name."""
+    if not revisions:
+        revisions = {str(n).lower(): 1 for n in strategies if n}
+    return fingerprint.stale_notes({"rulesRevision": rules_revision or 1, "ruleset": ruleset, "seats": [{"revisions": revisions}]})
+
+
+def model_stale(meta):
+    """Everything about a model's data that is older than this checkout's engine."""
+    notes = []
+    for d in meta.get("data", []):
+        for n in entry_stale(d.get("rulesRevision", 1), d.get("ruleset"), d.get("revisions"), d.get("strategies", [])):
+            if n not in notes:
+                notes.append(n)
+    return notes
 
 
 def table_view(rows, path_as=None):
@@ -426,11 +444,13 @@ def training_tab():
             for names_ in by_fp.values():
                 if len(names_) > 1:
                     st.warning("勾選的 " + "、".join(f"`{n}`" for n in names_) + " 參數完全相同（同一份資料），重複放進去只會讓模型多看一次同樣的局面。")
-            revs = {d["_rev"] for d in chosen}
-            if len(revs) > 1:
-                st.warning(f"勾選的資料規則版本不一致（{'、'.join(fingerprint.rules_name(r) for r in sorted(revs))}），不建議一起訓練。")
-            elif min(revs) < fingerprint.current_rules_revision():
-                st.warning(f"勾選的資料是用舊版規則產生的（{fingerprint.rules_name(min(revs))}，目前 {fingerprint.rules_name(fingerprint.current_rules_revision())}）：同樣的設定現在會得到不同的資料，建議重新產生。")
+            rules = {d["_rules"] for d in chosen}
+            if len(rules) > 1:
+                st.warning(f"勾選的資料規則版本不一致（{'、'.join(fingerprint.rules_name(r, rs) for rs, r in sorted(rules))}），不建議一起訓練。")
+            stale = [(d["來源"], d["_stale"]) for d in chosen if d["_stale"]]
+            if stale:
+                st.warning("勾選的資料有些是用舊版規則或舊版策略產生的，同樣的設定現在會得到不同的資料，建議重新產生：\n\n"
+                           + "\n".join(f"- `{n}`：{'；'.join(notes)}" for n, notes in stale))
             fp_names = {d["_fp"]: d["來源"] for d in chosen}
             old_meta = model_meta(out) if exists else None
             old_recipe = (old_meta or {}).get("recipe")
@@ -1227,7 +1247,7 @@ def models_table(paths):
             "對戰場數": len(meta.get("matches", [])),
             "對原版 MCTS 最佳勝率": best["winShare"] if best else None,
             "hash": fingerprint.short(meta.get("fingerprint")) or "—",
-            "規則版本": rule_text(meta.get("rulesRevision", 1)),
+            "版本狀態": version_text(model_stale(meta)) if meta.get("data") else "—",
             "備註": "參數為補寫" if "note" in meta.get("params", {}) else ("舊紀錄：沒有配方 hash" if not meta.get("fingerprint") else ""),
         })
     df = pd.DataFrame(rows)
@@ -1244,8 +1264,10 @@ def match_note(m, current_sha):
     notes = []
     if m.get("modelSha256") and current_sha and m["modelSha256"] != current_sha:
         notes.append("模型檔已更新，這場是舊版模型打的")
-    if m.get("rulesRevision", 1) < fingerprint.current_rules_revision():
-        notes.append(f"舊版規則（{m.get('rulesRevision', 1)}）")
+    stale = entry_stale(m.get("rulesRevision", 1), m.get("ruleset"), m.get("revisions"),
+                        [o.get("strategy") for o in m.get("others", [])] + ["mcts"])
+    if stale:
+        notes.append("舊版：" + "；".join(stale))
     return "；".join(notes)
 
 
@@ -1343,6 +1365,8 @@ def model_detail(path):
                                 "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
                                 "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
                                 "hash": fingerprint.short(d.get("fingerprint")) or "—",
+                                "版本": (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + "、"
+                                         + "、".join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip("、"),
                                 "檔案": d["path"]} for d in meta["data"]]),
                  hide_index=True, width="stretch")
 
@@ -1368,10 +1392,11 @@ def model_detail(path):
     env = meta.get("environment") or {}
     env_text = "環境未記錄" if "note" in env else "・".join(f"{k} {val}" for k, val in env.items())
     st.caption(f"特徵版本 {meta['featureVersion']}（{meta['featureCount']} 個）・建立 {meta.get('created') or '（補寫）'}・{env_text}"
-               + (f"・配方 hash {fingerprint.short(meta['fingerprint'])}・規則版本 {fingerprint.rules_name(meta.get('rulesRevision', 1))}" if meta.get("fingerprint") else "・舊紀錄：沒有配方 hash"))
-    if meta.get("rulesRevision", 1) < fingerprint.current_rules_revision():
-        st.warning(f"這個模型的資料是用舊版規則產生的（{fingerprint.rules_name(meta.get('rulesRevision', 1))}，目前 {fingerprint.rules_name(fingerprint.current_rules_revision())}）："
-                   "它學到的是舊規則下的局面，用在新規則的對戰前建議重新產生資料並重訓。")
+               + (f"・配方 hash {fingerprint.short(meta['fingerprint'])}・規則版本 {fingerprint.rules_name(meta.get('rulesRevision', 1), (meta.get('data') or [{}])[0].get('ruleset'))}" if meta.get("fingerprint") else "・舊紀錄：沒有配方 hash"))
+    stale = model_stale(meta)
+    if stale:
+        st.warning("這個模型的資料有些是用舊版規則或舊版策略產生的（" + "；".join(stale) + "）："
+                   "它學到的是舊版下的局面，建議用目前的版本重新產生資料並重訓。")
 
 
 def compare(paths):
@@ -1446,10 +1471,12 @@ def hash_page():
         st.table(pd.DataFrame([
             ("人數、局數", "局數是實際打完的局數（中途取消的資料較少）"),
             ("種子、抽樣率、座位順序", "座位順序 random／balanced，不分大小寫"),
-            ("每個座位的策略與參數", "**依座位順序**：座位換位置，hash 就不同"),
+            ("每個座位的策略、**策略版本**與**完整參數**", "**依座位順序**：座位換位置，hash 就不同。參數是引擎實際使用的值：設定檔沒寫的參數，用該人數的預設值補上，所以改了預設值 hash 也會不同"),
             ("價值模型（自我對戰用）", "用**模型檔案的內容**（SHA-256），不是檔名：同名檔案被重訓覆寫後 hash 就變了"),
             ("最大回合數、每局最大決策數、自動跳過唯一合法動作", "設定檔的 limits、options；沒寫就用引擎預設值"),
-            ("規則版本", f"目前 {now}；見「版本控管」頁"),
+            ("規則集與規則版本", f"目前 {now}（規則集 base、修訂 {rev}）；見「版本控管」頁"),
+            ("變體與變體選項", "預留給以後的自訂規則（例如起始金錢兩倍），目前一律是「無」"),
+            ("hash 格式版本", f"目前 {fingerprint.HASH_FORMAT}；配方的結構改了才會變（所有 hash 會一起變）"),
             ("特徵版本、資料格式版本", "特徵清單或 .bin 排列改了，資料就不一樣"),
         ], columns=["參數", "說明"]).set_index("參數"))
         st.markdown("**不計入**")
@@ -1463,6 +1490,7 @@ def hash_page():
         st.markdown("**計入**")
         st.table(pd.DataFrame([
             ("種類", "LightGBM 或 MLP"),
+            ("hash 格式版本", ""),
             ("特徵版本", ""),
             ("每份訓練資料的 hash（排序後）", "用資料的 hash，不是檔名：資料被覆寫或換了，模型的 hash 就不同；勾選順序不影響"),
             ("LightGBM 訓練參數", _option_names(fingerprint.LGBM_OPTIONS)),
@@ -1476,14 +1504,24 @@ def hash_page():
         ], columns=["參數", "原因"]).set_index("參數"))
         st.caption("新增訓練參數時必須同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`（測試會檢查）。早期補寫的模型沒有 hash，標「舊紀錄」。")
     with card("hash-match", "對戰結果的 hash"):
-        st.markdown("與資料相同（人數、局數、種子、座位順序、每個座位的策略與參數、價值模型的檔案內容、limits、options、規則版本），"
+        st.markdown("與資料相同（人數、局數、種子、座位順序、每個座位的策略、策略版本與完整參數、價值模型的檔案內容、limits、options、規則集與規則版本、變體），"
                     "但**沒有**抽樣率與特徵版本。不計入：結果檔名、設定檔名稱、座位 id、執行緒數、引擎版本與 git commit。"
                     "每場對戰另外記下當時模型檔案的 hash：模型之後被覆寫，舊結果會標「模型檔已更新」。")
+    with card("hash-versions", "規則版本、策略版本與預設值"):
+        st.markdown(
+            f"- **規則版本**（目前 {now}）：遊戲規則與亂數／種子衍生改了才加 1，所有資料都受影響。\n"
+            "- **策略版本**（例如 `harbor-rush-v1`）：每個策略自己的決策邏輯改了才加 1，**只有用到這個策略的資料**受影響；"
+            "MCTS 的版本也包含它的 rollout 策略與價值模型推論程式。\n"
+            "- **預設值**：改策略的預設參數**不需要**加版本。引擎會把每個座位實際使用的完整參數（預設值填好）記進資料與結果檔，"
+            "hash 用的就是它，所以預設值一改，hash 自然不同。\n"
+            "- **舊檔案**：引擎開始記錄完整參數以前的資料與結果檔，用凍結的預設值表（`ml/strategy-params.legacy.json`，"
+            "策略 v1、規則 base-v1 當時的預設值）補算；之後的預設值改動不會影響它們。新的執行則用目前的預設值表"
+            "（`ml/strategy-params.json`，由引擎產生、測試檢查與程式一致）預測 hash。")
     with card("hash-use", "hash 在 ML UI 裡怎麼用"):
         st.markdown(
             "- **同名檔案**：hash 相同→「完全相同，不需要覆寫」；不同→列出差異；資料被模型用過會列出是哪些模型。\n"
             "- **不同名但 hash 相同**：提示重複（避免同一份資料被勾兩次訓練，讓模型多看一次同樣的局面）。\n"
-            f"- **舊版規則**：規則版本低於目前（{now}）的資料與模型標「舊」，建議重新產生。\n"
+            f"- **舊版**：規則版本低於目前（{now}），或座位上的策略版本低於目前的資料與模型，「版本狀態」會寫「舊：…」，建議重新產生。\n"
             "- **排隊保護**：排隊中或執行中的工作要讀的檔案（訓練資料、對戰用的模型）不能被覆寫。")
     with card("hash-look", "查看某份資料或模型的配方"):
         dumps = [d for d in list_dumps() if "_fp" in d]
@@ -1517,8 +1555,8 @@ def versions_page():
         stale = [t["title"] for t in tracks.values() if t["id"] in now and (t["entries"] or [{}])[0].get("version") != now[t["id"]]]
         if stale:
             st.warning("版本清單（docs/versions.json）和程式裡的版本號不一致：" + "、".join(stale) + "。請補上這個版本做了哪些修改。")
-        st.caption("同一份清單 Dashboard 的「版本控管」頁也有。規則版本只在「同設定、同種子會得到不同結果」時加 1；"
-                   "引擎版本給人看；hash 用規則版本、特徵版本、資料格式版本判斷資料與模型是不是舊的。")
+        st.caption("同一份清單 Dashboard 的「版本控管」頁也有。規則版本只管遊戲規則與亂數；每個策略另有自己的策略版本（本頁最下方）；"
+                   "引擎版本給人看；hash 用規則版本、策略版本、特徵版本、資料格式版本判斷資料與模型是不是舊的。")
     for t in tracks.values():
         entries = t.get("entries", [])
         cur = entries[0]["version"] if entries else "?"
@@ -1527,7 +1565,27 @@ def versions_page():
             st.markdown(t["meaning"])
             st.markdown(f"**什麼時候加**：{t['bump']}")
             for e in entries:
-                st.markdown(f"**{t['display'].replace('{version}', e['version'])}**　{e['date']}\n" + "\n".join(f"- {c}" for c in e["changes"]))
+                commit = f"　commit `{e['commit'][:8]}`" if e.get("commit") else ""
+                st.markdown(f"**{t['display'].replace('{version}', e['version'])}**　{e['date']}{commit}\n" + "\n".join(f"- {c}" for c in e["changes"]))
+    (info, strategies), _ = fingerprint.load_versions(strategies=True)
+    with card("ver-strategies", info.get("title", "策略版本")):
+        st.markdown(info.get("meaning", ""))
+        st.markdown(f"**什麼時候加**：{info.get('bump', '')}")
+        rows, mismatch = [], []
+        for t in strategies:
+            e = (t.get("entries") or [{}])[0]
+            code = fingerprint.current_strategy_revision(t["id"])
+            if code is not None and str(code) != str(e.get("version")):
+                mismatch.append(t["id"])
+            rows.append({"策略": t["id"], "目前版本": fingerprint.strategy_name(t["id"], e.get("version", "?")), "日期": e.get("date", ""),
+                         "commit": (e.get("commit") or "")[:8] or "—", "這個版本的修改": "；".join(e.get("changes", []))})
+        if mismatch:
+            st.warning("版本清單和程式裡的策略版本不一致：" + "、".join(mismatch) + "。")
+        st.table(pd.DataFrame(rows).set_index("策略"))
+        with st.expander("每個策略的完整歷史"):
+            for t in strategies:
+                for e in t.get("entries", []):
+                    st.markdown(f"**{fingerprint.strategy_name(t['id'], e['version'])}**　{e['date']}\n" + "\n".join(f"- {c}" for c in e["changes"]))
 
 
 # left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)

@@ -2,6 +2,7 @@ using System.Text.Json;
 using PuertoRico.Engine.Events;
 using PuertoRico.Engine.Game;
 using PuertoRico.Engine.Strategies.Mcts;
+using PuertoRico.Engine.Strategies;
 
 namespace PuertoRico.Engine.Simulation;
 
@@ -107,6 +108,7 @@ public static class PositionDump
             formatVersion = FormatVersion,
             status = cancelled ? "cancelled" : "completed",
             featureVersion = ValueFeatures.Version,
+            rulesVersion = EngineInfo.RulesVersion,
             rulesRevision = EngineInfo.RulesRevision,
             engineVersion = EngineInfo.Version,
             engineCommit = EngineInfo.Commit,
@@ -124,6 +126,7 @@ public static class PositionDump
             seed = cfg.Seed,
             seatOrder = cfg.SeatOrder.ToString(),
             seats = cfg.Seats.Select(s => new { s.Id, s.Strategy, s.Params }).ToList(),
+            resolvedSeats = StrategyRegistry.ResolveSeats(cfg),
             limits = cfg.Limits,
             options = new { cfg.Options.AutoAdvanceForced },
         };

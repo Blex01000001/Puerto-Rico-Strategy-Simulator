@@ -1,0 +1,356 @@
+{
+  "note": "Every strategy's logic revision and resolved default parameters per player count, written by PR_UPDATE_GOLDEN=1 dotnet test --filter Golden (checked by Tests/VersionTests.cs). The ML tools use it to predict the hash of a run. Do not edit by hand.",
+  "strategies": {
+    "build-first": {
+      "revision": 1,
+      "revisions": {
+        "build-first": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 3.5,
+          "quarryTarget": 3,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "hacienda>corn>sugar>indigo>tobacco>coffee>quarry"
+        },
+        "4": {
+          "buildThreshold": 4.5,
+          "quarryTarget": 3,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "hacienda>corn>sugar>indigo>tobacco>coffee>quarry"
+        }
+      }
+    },
+    "cheap-engine": {
+      "revision": 1,
+      "revisions": {
+        "cheap-engine": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 2,
+          "randomTies": 0,
+          "roleCoinWeight": 1,
+          "smallValue": 8,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "",
+          "tileCap": 4
+        },
+        "4": {
+          "buildThreshold": 2,
+          "randomTies": 0,
+          "roleCoinWeight": 1,
+          "smallValue": 8,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "",
+          "tileCap": 4
+        }
+      }
+    },
+    "corn-monopoly": {
+      "revision": 1,
+      "revisions": {
+        "corn-monopoly": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 4,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        },
+        "4": {
+          "buildThreshold": 4,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        }
+      }
+    },
+    "corn-monopoly-hoard": {
+      "revision": 1,
+      "revisions": {
+        "corn-monopoly-hoard": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 4,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        },
+        "4": {
+          "buildThreshold": 4,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        }
+      }
+    },
+    "corn-monopoly-tiles": {
+      "revision": 1,
+      "revisions": {
+        "corn-monopoly-tiles": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 4,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        },
+        "4": {
+          "buildThreshold": 4,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        }
+      }
+    },
+    "corn-shipper": {
+      "revision": 1,
+      "revisions": {
+        "corn-shipper": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 5,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        },
+        "4": {
+          "buildThreshold": 4,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": ""
+        }
+      }
+    },
+    "corn-to-premium": {
+      "revision": 1,
+      "revisions": {
+        "corn-to-premium": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 5,
+          "cornTarget": 5,
+          "randomTies": 0,
+          "switchRound": 9,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "",
+          "traderWeight": 1.5
+        },
+        "4": {
+          "buildThreshold": 4,
+          "cornTarget": 4,
+          "randomTies": 0,
+          "switchRound": 7,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "",
+          "traderWeight": 1.5
+        }
+      }
+    },
+    "guided-random": {
+      "revision": 1,
+      "revisions": {
+        "guided-random": 1
+      },
+      "params": {
+        "3": {},
+        "4": {}
+      }
+    },
+    "harbor-rush": {
+      "revision": 1,
+      "revisions": {
+        "harbor-rush": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 4,
+          "harborReadyRound": 0,
+          "harborReadyTiles": 0,
+          "quarryTarget": 0,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "hacienda>corn>sugar>indigo>tobacco>coffee>quarry"
+        },
+        "4": {
+          "buildThreshold": 4,
+          "harborReadyRound": 8,
+          "harborReadyTiles": 7,
+          "quarryTarget": 0,
+          "randomTies": 0,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "hacienda>corn>sugar>indigo>tobacco>coffee>quarry"
+        }
+      }
+    },
+    "mcts": {
+      "revision": 1,
+      "revisions": {
+        "mcts": 1,
+        "random": 1
+      },
+      "params": {
+        "3": {
+          "exploration": 0.7,
+          "leafRollout": 0,
+          "rolloutMaxDecisions": 3000,
+          "rolloutRounds": 8,
+          "rolloutStrategy": "random",
+          "simulations": 200,
+          "valueModel": ""
+        },
+        "4": {
+          "exploration": 0.7,
+          "leafRollout": 0,
+          "rolloutMaxDecisions": 3000,
+          "rolloutRounds": 8,
+          "rolloutStrategy": "random",
+          "simulations": 200,
+          "valueModel": ""
+        }
+      }
+    },
+    "random": {
+      "revision": 1,
+      "revisions": {
+        "random": 1
+      },
+      "params": {
+        "3": {},
+        "4": {}
+      }
+    },
+    "wharf-premium": {
+      "revision": 1,
+      "revisions": {
+        "wharf-premium": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 4,
+          "cornTile": 7,
+          "quarryTarget": 1,
+          "randomTies": 0,
+          "sellAfterWharf": 1,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "",
+          "traderWeight": 2.5
+        },
+        "4": {
+          "buildThreshold": 4,
+          "cornTile": 7,
+          "quarryTarget": 1,
+          "randomTies": 0,
+          "sellAfterWharf": 1,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "",
+          "traderWeight": 2.5
+        }
+      }
+    },
+    "wharf-rush": {
+      "revision": 1,
+      "revisions": {
+        "wharf-rush": 1
+      },
+      "params": {
+        "3": {
+          "buildThreshold": 4,
+          "cornTile": 9,
+          "earlyQuarry": 6,
+          "moneyTile": 5,
+          "quarryTarget": 3,
+          "randomTies": 0,
+          "smallPlant": 8,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "hacienda>corn>sugar>indigo>tobacco>coffee>quarry",
+          "traderWeight": 3,
+          "wharfReadyRound": 4,
+          "wharfReadyTiles": 7
+        },
+        "4": {
+          "buildThreshold": 4,
+          "cornTile": 9,
+          "earlyQuarry": 6,
+          "moneyTile": 5,
+          "quarryTarget": 3,
+          "randomTies": 0,
+          "smallPlant": 5.5,
+          "tieBuild": "",
+          "tieGood": "",
+          "tieOpponent": 0,
+          "tieRole": "",
+          "tieTile": "hacienda>corn>sugar>indigo>tobacco>coffee>quarry",
+          "traderWeight": 1,
+          "wharfReadyRound": 6,
+          "wharfReadyTiles": 7
+        }
+      }
+    }
+  }
+}

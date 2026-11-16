@@ -111,20 +111,25 @@ def current_engine_version():
     return _constants["engine"]
 
 
-def rules_name(revision):
-    """How a rules revision is shown to people: 'base-r1' (rule variant 'base', revision 1)."""
-    return f"base-r{revision}"
+def rules_name(revision, ruleset=None):
+    """How a rules revision is shown to people: 'base-v1' (rule set 'base', revision 1; a variant would follow: base-v2-rich-start)."""
+    return f"{ruleset or DEFAULT_RULESET}-v{revision}"
 
 
-def load_versions():
-    """The version control list docs/versions.json: ({track id: track dict}, error text or None)."""
+def load_versions(strategies=False):
+    """The version control list docs/versions.json: ({track id: track dict}, error text or None).
+
+    strategies=True: ((strategy track info, [one track per strategy]), error) instead."""
     import json
     path = os.path.join(ROOT, "docs", "versions.json")
     try:
         with open(path, encoding="utf-8") as f:
-            return {t["id"]: t for t in json.load(f)["tracks"]}, None
+            doc = json.load(f)
+        if strategies:
+            return (doc.get("strategyTrack", {}), doc.get("strategies", [])), None
+        return {t["id"]: t for t in doc["tracks"]}, None
     except (OSError, ValueError, KeyError) as e:
-        return {}, f"讀不了 docs/versions.json：{e}"
+        return ({}, []) if strategies else {}, f"讀不了 docs/versions.json：{e}"
 
 
 def current_rules_revision():
@@ -144,48 +149,136 @@ def current_format_version():
 
 # ---------------------------------------------------------------- recipes
 
-def _seat(seat):
+HASH_FORMAT = 2  # bump when the recipe's structure changes (every hash changes then; ask the user first)
+DEFAULT_RULESET = "base"
+
+
+def _load_json(path):
+    import json
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+_tables = {}
+
+
+def strategy_table(legacy=False):
+    """Revision and resolved default parameters of every strategy per player count.
+
+    Current: ml/strategy-params.json, written from the engine by PR_UPDATE_GOLDEN=1 dotnet test --filter Golden (a test keeps
+    it equal to the code). Legacy: ml/strategy-params.legacy.json, frozen at strategies v1 / base-v1, for files written
+    before the engine recorded resolvedSeats."""
+    key = "legacy" if legacy else "current"
+    if key not in _tables:
+        name = "strategy-params.legacy.json" if legacy else "strategy-params.json"
+        _tables[key] = _load_json(os.path.join(ML_DIR, name)).get("strategies", {})
+    return _tables[key]
+
+
+def current_strategy_revision(name):
+    entry = strategy_table().get(str(name).lower())
+    return entry["revision"] if entry else None
+
+
+def resolve_seat(seat, players, legacy=False):
+    """What StrategyRegistry.Resolve (C#) gives for a config seat: every parameter with the value used (defaults of this
+    player count, config values win, unread config values kept) and the revisions of all strategy code involved."""
+    table = strategy_table(legacy)
+    name = str(seat.get("strategy", "")).lower()
+    given = dict(seat.get("params") or {})
+    if name == "rule-based":
+        profile = str(given.get("profile", "corn-shipper")).lower()
+        entry = table.get(profile, {})
+        params = {**entry.get("params", {}).get(str(players), {}), "profile": profile, **given}
+        revisions = {profile: entry.get("revision", 1)}
+    elif name in table:
+        entry = table[name]
+        params = {**entry["params"].get(str(players), {}), **given}
+        revisions = {name: entry["revision"]}
+        if name == "mcts":  # the rollout strategy's code is part of the seat (resolved without parameters, as MCTS creates it)
+            rollout = str(params.get("rolloutStrategy", "random"))
+            revisions.update(resolve_seat({"strategy": rollout}, players, legacy)["revisions"])
+    else:
+        params, revisions = given, {}
+    return {"strategy": name, "revisions": revisions, "params": params}
+
+
+def _seat_recipe(resolved):
     params = {}
-    for k, v in (seat.get("params") or {}).items():
-        params[k] = "model:" + model_digest(v) if k == "valueModel" and isinstance(v, str) else v
-    return {"strategy": seat["strategy"], "params": params}
+    for k, v in (resolved.get("params") or {}).items():
+        params[k] = "model:" + model_digest(v) if k == "valueModel" and isinstance(v, str) and v else v
+    return {"strategy": str(resolved["strategy"]).lower(), "revisions": dict(resolved.get("revisions") or {}), "params": params}
 
 
-def sim_recipe(cfg, rules_revision=1, games=None):
-    """The part shared by data and matches. cfg is a simulation config / result config / dump metadata (camelCase JSON)."""
+def sim_recipe(cfg, rules_revision=1, games=None, resolved_seats=None, legacy=True, ruleset=None):
+    """The part shared by data and matches. cfg is a simulation config / result config / dump metadata (camelCase JSON).
+
+    resolved_seats: the seats as the engine recorded them (resolvedSeats); without them the seats are resolved here, with
+    the frozen legacy table (old files) or the current one (legacy=False: a run that has not happened yet)."""
     limits = {k: (cfg.get("limits") or {}).get(k, d) for k, d in DEFAULT_LIMITS.items()}
     options = {k: (cfg.get("options") or {}).get(k, d) for k, d in DEFAULT_OPTIONS.items()}
+    seats = resolved_seats or [resolve_seat(s, cfg["players"], legacy) for s in cfg["seats"]]
     return {
+        "hashFormat": HASH_FORMAT,
+        "ruleset": ruleset or DEFAULT_RULESET,
+        "rulesRevision": rules_revision or 1,
+        "variant": "",          # rule variants (docs/TODO.md, ideas): reserved, so adding them later does not change old hashes
+        "variantOptions": {},
         "players": cfg["players"],
         "games": cfg["games"] if games is None else games,
         "seed": cfg["seed"],
         "seatOrder": str(cfg.get("seatOrder", "random")).lower(),
-        "seats": [_seat(s) for s in cfg["seats"]],
+        "seats": [_seat_recipe(s) for s in seats],
         "limits": limits,
         "options": options,
-        "rulesRevision": rules_revision or 1,
     }
 
 
 def dump_recipe(meta):
-    """Recipe of a position dump from its `<file>.bin.json` (works for dumps from before the fingerprint existed)."""
-    r = sim_recipe(meta, meta.get("rulesRevision", 1), games=meta["games"])
-    return {"kind": "dump", **r, "rate": meta["rate"], "featureVersion": meta["featureVersion"], "formatVersion": meta["formatVersion"]}
+    """Recipe of a position dump from its `<file>.bin.json` (works for dumps from before the hash existed)."""
+    r = sim_recipe(meta, meta.get("rulesRevision", 1), games=meta["games"], resolved_seats=meta.get("resolvedSeats"),
+                   ruleset=meta.get("rulesVersion"))
+    return {**r, "kind": "dump", "rate": meta["rate"], "featureVersion": meta["featureVersion"], "formatVersion": meta["formatVersion"]}
 
 
 def planned_dump_recipe(cfg, rate):
     """Recipe of the dump a config would produce with this checkout's engine (cfg: games and seed already applied)."""
-    return {"kind": "dump", **sim_recipe(cfg, current_rules_revision()), "rate": rate,
+    return {**sim_recipe(cfg, current_rules_revision(), legacy=False), "kind": "dump", "rate": rate,
             "featureVersion": current_feature_version(), "formatVersion": current_format_version()}
 
 
 def planned_match_recipe(cfg):
-    return {"kind": "match", **sim_recipe(cfg, current_rules_revision())}
+    return {**sim_recipe(cfg, current_rules_revision(), legacy=False), "kind": "match"}
 
 
 def result_recipe(result):
     """Recipe of a Runner result file (a match)."""
-    return {"kind": "match", **sim_recipe(result["config"], result.get("rulesRevision", 1))}
+    return {**sim_recipe(result["config"], result.get("rulesRevision", 1), resolved_seats=result.get("resolvedSeats"),
+                         ruleset=result.get("rulesVersion")), "kind": "match"}
+
+
+def strategy_name(name, revision):
+    """How a strategy revision is shown: 'harbor-rush-v1'."""
+    return f"{name}-v{revision}"
+
+
+def stale_notes(recipe):
+    """Why a data / match recipe no longer matches this checkout's engine: older rules or strategy revisions ([] = current)."""
+    notes = []
+    rev = recipe.get("rulesRevision", 1)
+    if rev < current_rules_revision():
+        notes.append(f"規則 {rules_name(rev, recipe.get('ruleset'))} → {rules_name(current_rules_revision(), recipe.get('ruleset'))}")
+    seen = set()
+    for seat in recipe.get("seats", []):
+        for name, r in (seat.get("revisions") or {}).items():
+            now = current_strategy_revision(name)
+            if now is not None and r < now and name not in seen:
+                seen.add(name)
+                notes.append(f"{strategy_name(name, r)} → v{now}")
+    return notes
 
 
 def model_options(kind, options):
@@ -198,7 +291,7 @@ def model_options(kind, options):
 
 
 def model_recipe(kind, feature_version, data_fingerprints, options):
-    return {"kind": kind, "featureVersion": feature_version, "data": sorted(data_fingerprints),
+    return {"hashFormat": HASH_FORMAT, "kind": kind, "featureVersion": feature_version, "data": sorted(data_fingerprints),
             "options": model_options(kind, options)}
 
 
@@ -213,6 +306,7 @@ LABELS = {
     "rulesRevision": "規則版本", "featureVersion": "特徵版本", "formatVersion": "資料格式版本",
     "limits.maxRounds": "最大回合數", "limits.maxDecisionsPerGame": "每局最大決策數",
     "options.autoAdvanceForced": "自動跳過唯一合法動作", "kind": "種類", "data": "訓練資料",
+    "hashFormat": "hash 格式版本", "ruleset": "規則集", "variant": "變體",
 }
 PARAM_LABELS = {"simulations": "模擬次數", "valueModel": "價值模型（檔案內容）", "leafRollout": "leafRollout"}
 
@@ -234,6 +328,8 @@ def _label(path):
         n, rest = int(m.group(1)) + 1, m.group(2)
         if rest == "strategy":
             return f"座位 {n} 的策略"
+        if rest.startswith("revisions."):
+            return f"座位 {n} 的策略版本 {rest[len('revisions.'):]}"
         return f"座位 {n} 的" + PARAM_LABELS.get(rest.removeprefix("params."), rest.removeprefix("params."))
     if re.fullmatch(r"seats\[\d+\]", path):
         return f"座位 {int(path[6:-1]) + 1}"
@@ -270,7 +366,9 @@ def describe(old, new, names=None):
         if x == y:
             continue
         if path == "rulesRevision":
-            out.append(f"規則版本：{rules_name(x or 1)} → {rules_name(y or 1)}")
+            out.append(f"規則版本：{rules_name(x or 1, old.get('ruleset'))} → {rules_name(y or 1, new.get('ruleset'))}")
+        elif re.match(r"seats\[\d+\]\.revisions\.", path):
+            out.append(f"{_label(path)}：{'v' + str(x) if x is not None else '（無）'} → {'v' + str(y) if y is not None else '（無）'}")
         elif path == "data":
             gone, added = sorted(set(x or []) - set(y or [])), sorted(set(y or []) - set(x or []))
             fmt = lambda fps: "、".join(names.get(f, short(f)) for f in fps)  # noqa: E731

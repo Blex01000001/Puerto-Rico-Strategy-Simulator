@@ -107,5 +107,43 @@ def test_version_list_matches_the_numbers_in_the_engine_source():
     assert latest["engine"] == fp.current_engine_version()
     assert latest["features"] == str(fp.current_feature_version())
     assert latest["format"] == str(fp.current_format_version())
-    assert fp.rules_name(2) == "base-r2"
-    assert "規則版本：base-r1 → base-r2" in fp.describe({"rulesRevision": 1}, {"rulesRevision": 2})
+    assert fp.rules_name(2) == "base-v2"
+    assert "規則版本：base-v1 → base-v2" in fp.describe({"rulesRevision": 1}, {"rulesRevision": 2})
+
+
+def test_seats_are_resolved_like_the_engine_does():
+    # ml/strategy-params.json is written from the engine (and checked by a C# test): these mirror StrategyRegistry.Resolve
+    hr = fp.resolve_seat({"strategy": "harbor-rush"}, 4)
+    assert hr["revisions"] == {"harbor-rush": 1} and "buildThreshold" in hr["params"] and "tieTile" in hr["params"]
+    assert fp.resolve_seat({"strategy": "harbor-rush", "params": {"buildThreshold": 9}}, 4)["params"]["buildThreshold"] == 9
+    rb = fp.resolve_seat({"strategy": "rule-based", "params": {"profile": "build-first"}}, 3)
+    assert rb["revisions"] == {"build-first": 1} and rb["params"]["profile"] == "build-first"
+    mcts = fp.resolve_seat({"strategy": "mcts", "params": {"rolloutStrategy": "guided-random"}}, 4)
+    assert mcts["revisions"] == {"mcts": 1, "guided-random": 1} and mcts["params"]["simulations"] == 200
+
+
+def test_old_files_are_hashed_with_the_frozen_defaults():
+    # a dump from before the engine recorded resolvedSeats hashes like one that recorded exactly the legacy defaults
+    resolved = [fp.resolve_seat(s, META["players"], legacy=True) for s in META["seats"]]
+    assert dump_fp() == dump_fp(resolvedSeats=resolved)
+    changed = copy.deepcopy(resolved)
+    changed[0]["params"]["buildThreshold"] = 99  # a default that changed later is a different recipe
+    assert dump_fp(resolvedSeats=changed) != dump_fp()
+    newer = copy.deepcopy(resolved)
+    newer[1]["revisions"] = {"build-first": 2}
+    assert dump_fp(resolvedSeats=newer) != dump_fp()
+    assert "座位 2 的策略版本 build-first：v1 → v2" in fp.describe(fp.dump_recipe(META), fp.dump_recipe({**META, "resolvedSeats": newer}))
+
+
+def test_stale_notes_name_what_is_older_than_this_checkout(monkeypatch):
+    recipe = fp.dump_recipe(META)
+    assert fp.stale_notes(recipe) == []
+    monkeypatch.setattr(fp, "current_rules_revision", lambda: 2)
+    monkeypatch.setattr(fp, "current_strategy_revision", lambda name: 3 if name == "harbor-rush" else 1)
+    notes = fp.stale_notes(recipe)
+    assert "規則 base-v1 → base-v2" in notes and "harbor-rush-v1 → v3" in notes
+
+
+def test_recipe_reserves_ruleset_and_variant():
+    r = fp.dump_recipe(META)
+    assert r["ruleset"] == "base" and r["variant"] == "" and r["variantOptions"] == {} and r["hashFormat"] == fp.HASH_FORMAT

@@ -36,17 +36,25 @@ def write_config(path, seats, players=4, games=24, seed=5, order="balanced"):
 
 
 def test_dump_job_publishes_the_runner_and_writes_a_readable_dump(env, runner_dir):
-    cfg = write_config(str(env / "d.json"), [{"id": f"r{i}", "strategy": "random", "params": {}} for i in range(4)], games=40)
+    seats = [{"id": "h", "strategy": "harbor-rush", "params": {"buildThreshold": 4.5}}, {"id": "m", "strategy": "mcts", "params": {"simulations": 3}},
+             {"id": "r", "strategy": "rule-based", "params": {"profile": "build-first"}}, {"id": "g", "strategy": "guided-random", "params": {}}]
+    cfg = write_config(str(env / "d.json"), seats, games=24)
     out = str(env / "results" / "ml" / "d.bin")
     job_id = jobs.start("dump", "dump", {"config": cfg, "out": out, "rate": 0.05})
     job = jobs.wait(job_id, timeout=600)
     assert job["state"] == "done", jobs.log_tail(job_id)
     assert os.path.exists(os.path.join(runner_dir, "Runner.dll"))
     meta = positions.read_meta(out)
-    assert meta["games"] == 40 and meta["status"] == "completed"
+    assert meta["games"] == 24 and meta["status"] == "completed"
+    # the hash the ML UI predicts before the run (ml/strategy-params.json) equals the one of what the engine wrote
+    with open(cfg, encoding="utf-8") as f:
+        planned = fingerprint.planned_dump_recipe(json.load(f), 0.05)
+    assert fingerprint.fingerprint(planned) == fingerprint.fingerprint(fingerprint.dump_recipe(meta)), \
+        fingerprint.describe(planned, fingerprint.dump_recipe(meta))
+    assert meta["resolvedSeats"][1]["revisions"] == {"mcts": 1, "random": 1}
     assert job["result"]["rows"] == meta["rows"]
     games = [e for e in jobs.events(job_id) if e["stage"] == "games"]
-    assert games and games[-1]["done"] == 40
+    assert games and games[-1]["done"] == 24
 
 
 def test_cancelled_dump_keeps_the_finished_games(env):

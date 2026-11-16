@@ -69,6 +69,9 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
 
     public SearchSummary? LastSearch { get; private set; }
 
+    /// <summary>Strategy that plays the rollouts (its revision is part of this seat's, see <see cref="StrategyRegistry.Resolve"/>).</summary>
+    public string RolloutStrategy => _rolloutName;
+
     public GameAction ChooseAction(GameState state, IReadOnlyList<GameAction> legalActions)
     {
         LastSearch = null;

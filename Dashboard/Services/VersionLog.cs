@@ -9,9 +9,9 @@ namespace Dashboard.Services;
 /// </summary>
 public static class VersionLog
 {
-    public sealed record Entry(string Version, string Date, IReadOnlyList<string> Changes);
+    public sealed record Entry(string Version, string Date, string Commit, IReadOnlyList<string> Changes);
 
-    /// <param name="Display">Pattern for showing a version, e.g. <c>base-r{version}</c>.</param>
+    /// <param name="Display">Pattern for showing a version, e.g. <c>base-v{version}</c>.</param>
     public sealed record Track(string Id, string Title, string Source, string Display, string Meaning, string Bump, IReadOnlyList<Entry> Entries)
     {
         public string Show(string version) => Display.Replace("{version}", version);
@@ -20,7 +20,7 @@ public static class VersionLog
 
     public static string FilePath() => Path.Combine(AppState.RepoRoot(), "docs", "versions.json");
 
-    /// <summary>Tracks in file order; empty with an error text when the file is missing or unreadable.</summary>
+    /// <summary>Tracks in file order, then one per strategy (id <c>strategy:&lt;name&gt;</c>); empty with an error text when the file is missing or unreadable.</summary>
     public static (List<Track> Tracks, string? Error) Load()
     {
         string path = FilePath();
@@ -31,10 +31,14 @@ public static class VersionLog
             var tracks = new List<Track>();
             foreach (var t in doc.RootElement.GetProperty("tracks").EnumerateArray())
             {
-                var entries = t.GetProperty("entries").EnumerateArray().Select(e => new Entry(
-                    e.GetProperty("version").GetString() ?? "", e.GetProperty("date").GetString() ?? "",
-                    e.GetProperty("changes").EnumerateArray().Select(c => c.GetString() ?? "").ToList())).ToList();
-                tracks.Add(new Track(Str(t, "id"), Str(t, "title"), Str(t, "source"), Str(t, "display"), Str(t, "meaning"), Str(t, "bump"), entries));
+                tracks.Add(new Track(Str(t, "id"), Str(t, "title"), Str(t, "source"), Str(t, "display"), Str(t, "meaning"), Str(t, "bump"), Entries(t)));
+            }
+            var info = doc.RootElement.TryGetProperty("strategyTrack", out var st) ? st : default;
+            foreach (var t in doc.RootElement.TryGetProperty("strategies", out var list) ? list.EnumerateArray() : default(JsonElement.ArrayEnumerator))
+            {
+                string id = Str(t, "id");
+                tracks.Add(new Track("strategy:" + id, id, "Engine/Strategies/StrategyRegistry.cs：Revisions", id + "-v{version}",
+                    info.ValueKind == JsonValueKind.Object ? Str(info, "meaning") : "", info.ValueKind == JsonValueKind.Object ? Str(info, "bump") : "", Entries(t)));
             }
             return (tracks, null);
         }
@@ -44,5 +48,8 @@ public static class VersionLog
         }
     }
 
-    private static string Str(JsonElement e, string name) => e.TryGetProperty(name, out var v) ? v.GetString() ?? "" : "";
+    private static List<Entry> Entries(JsonElement track) => track.GetProperty("entries").EnumerateArray().Select(e => new Entry(
+        Str(e, "version"), Str(e, "date"), Str(e, "commit"), e.GetProperty("changes").EnumerateArray().Select(c => c.GetString() ?? "").ToList())).ToList();
+
+    private static string Str(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
 }

@@ -9,7 +9,7 @@
 - `Setup.cs`、`Scoring.cs`、`Invariants.cs`、`Rng.cs`；靜態表：`Buildings.cs`、`GameConstants.cs`。
 
 **`Strategies/`**
-- `IStrategy.cs`（唯一介面）、`StrategyRegistry.cs`（名稱→工廠；`GetDouble` 讀 `params`）。
+- `IStrategy.cs`（唯一介面）、`StrategyRegistry.cs`（名稱→工廠；`GetDouble`／`GetString` 讀 `params`；`Revisions` 各策略的邏輯版本；`Resolve` 解析出座位實際使用的完整參數與策略版本，靠 `ParamRecorder.cs` 記錄讀到的值，延遲讀參數的策略實作 `IResolvesParameters`）。
 - 註冊名稱：`random`、`guided-random`、`mcts`、`corn-shipper`、`corn-to-premium`、`harbor-rush`、`build-first`、`cheap-engine`、`wharf-rush`、`wharf-premium`、`corn-monopoly`、`corn-monopoly-tiles`、`corn-monopoly-hoard`，或 `rule-based`＋`params.profile`。
 - `RuleBased/HeuristicStrategy.cs`：手寫策略的共用打分基底（每個選擇打分取最高，子類別覆寫掛鉤：`TileValue`、`BuildingWanted`、`SlotValue`、各 `*RoleValue`、`RoleCoinWeight`…）。
 - `RuleBased/` 子類別：`CornShipper`（玉米出貨）、`CornToPremium`（前期玉米、中後期菸草／咖啡）、`HarborRush`（先港口，後期加 Wharf）、`BuildFirst`（採石場折扣、依終局加成挑大型建築）、`CheapEngine`（便宜 1 分建築、少種植園、頻繁出貨；實驗參數 `roleCoinWeight` 預設 1）、`WharfRush`、`WharfPremium`、`CornMonopoly`（搗亂；`grab`／`hoard` 旗標分出 `-tiles`、`-hoard` 變體）。
@@ -35,8 +35,10 @@
 - **參數掃描**：設定檔加 `sweep: { target, gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值，笛卡兒積），Runner 加 `--sweep`；每個格點同一個主種子，只比 target 的勝率（95% 信賴區間）與平均分。
 - **改設定／結果 JSON 欄位**（先問使用者）：新欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`。
 
-- **改了引擎行為**：跑 `dotnet test`，`GoldenTests`（`Tests/VersionTests.cs`、`Tests/Data/golden.json`：固定幾組手寫策略與隨機玩家的對局，hash 全部紀錄）失敗＝同設定同種子的結果變了。**先告訴使用者並建議版本號**（規則版本 `EngineInfo.RulesRevision` +1、引擎版本 `EngineInfo.Version` 至少次版本 +1），同意後：改兩個常數、在 `docs/versions.json` 的 rules 與 engine 兩軌補一筆、`PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json`、在 `docs/TODO.md` 記哪些資料與模型因此該重產生。黃金樣本不含 MCTS（`Math.Log` 等在不同平台可能差最後一位）：只動 MCTS 或價值模型推論時測試不會失敗，要自己判斷。完整規則在根目錄 `CLAUDE.md`「版本與 hash」。
-- **新增功能、策略、輸出欄位**：建議引擎版本次版本 +1，並在 `docs/versions.json` 補一筆。`EngineInfo.Commit` 來自組件的資訊版本（`Directory.Build.props` 的 `SetSourceRevisionId` 在建置時呼叫 `git describe`；沒有 git 時是 `unknown`），只用來追溯，不進 hash。
+- **改了引擎或策略的程式**：跑 `dotnet test`，`GoldenTests`（`Tests/VersionTests.cs`、`Tests/Data/golden.json`）會分開報告：RULES 案例（只有隨機玩家）變了＝規則或亂數 → 建議規則版本 `EngineInfo.RulesRevision` +1；某策略的案例變了且預設參數沒變＝它的決策邏輯變了 → 建議 `StrategyRegistry.Revisions["<名稱>"]` +1；只有預設參數變了 → 不進版本（完整參數已在 hash 裡）。**先告訴使用者並建議版本號**，同意後改常數、在 `docs/versions.json` 補對應的筆數（引擎版本至少次版本 +1）、`PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json` 與 `ml/strategy-params.json`、在 `docs/TODO.md` 記哪些資料與模型因此該重產生。黃金樣本不含 MCTS：只動 MCTS、價值模型推論或 `ValueFeatures` 程式時要自己判斷 `mcts` 要不要加 1。完整規則在根目錄 `CLAUDE.md`「版本與 hash」。
+- **參數**：策略一律用 `StrategyRegistry.GetDouble`／`GetString` 讀參數（`Resolve` 靠它們記錄實際使用的值；直接讀字典的參數不會進結果檔與 hash）；要等知道人數才讀的，實作 `IResolvesParameters`（`HeuristicStrategy` 已實作）。
+- **加策略**：除了註冊 `Factories`，在 `StrategyRegistry.Revisions` 給 1、`docs/versions.json` 的 `strategies` 補一條、重產生黃金檔（`Every_Strategy_Has_A_Revision` 與版本清單測試會檢查）。
+- **新增功能、輸出欄位**：建議引擎版本次版本 +1，並在 `docs/versions.json` 補一筆。`EngineInfo.Commit` 來自組件的資訊版本（`Directory.Build.props` 的 `SetSourceRevisionId` 在建置時呼叫 `git describe`；沒有 git 時是 `unknown`），只用來追溯，不進 hash。續跑（`--resume`）會拒絕規則版本、策略版本或預設參數不同的結果檔（`BatchSimulator.EnsureSameBehaviour`）。
 
 ## 架構決策（不要改回去；要推翻先討論）
 - 策略介面固定為 `GameAction ChooseAction(GameState state, IReadOnlyList<GameAction> legalActions)`，隨機／手寫／MCTS 共用，不另開介面。

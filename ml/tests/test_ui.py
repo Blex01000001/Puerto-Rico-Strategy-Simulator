@@ -266,4 +266,7 @@ def test_versions_page_shows_the_list_and_matches_the_code(results):
     assert not at.warning  # docs/versions.json names the current numbers
     assert any(m.label == "規則版本" and m.value == fingerprint.rules_name(fingerprint.current_rules_revision()) for m in at.metric)
     text = " ".join(m.value for m in at.markdown)
-    assert "規則版本（RulesRevision）" in " ".join(c.value for c in at.markdown) or "base-r" in text
+    assert "base-v" in text
+    # one row per strategy, its current version as in the code
+    table = next(t for t in at.table if "目前版本" in t.value.columns)
+    assert "harbor-rush" in table.value.index and table.value.loc["harbor-rush", "目前版本"] == f"harbor-rush-v{fingerprint.current_strategy_revision('harbor-rush')}"

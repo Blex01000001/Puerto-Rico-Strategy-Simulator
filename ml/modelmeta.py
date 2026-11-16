@@ -48,8 +48,17 @@ def _local_records(model_path):
         return []
 
 
+def _revisions(recipe):
+    """Strategy name -> revision over all seats of a data / match recipe."""
+    out = {}
+    for seat in recipe.get("seats", []):
+        out.update(seat.get("revisions") or {})
+    return dict(sorted(out.items()))
+
+
 def data_summary(metas):
-    """Per dump file: what it is and where it came from."""
+    """Per dump file: what it is and where it came from (its hash recipe gives the hash, rules and strategy revisions)."""
+    recipes = [fingerprint.dump_recipe(m) for m in metas]
     return [{
         "path": m["path"].replace(os.sep, "/"),
         "rows": m["rows"],
@@ -60,9 +69,11 @@ def data_summary(metas):
         "seed": m["seed"],
         "strategies": [s.get("strategy") for s in m.get("seats", [])],
         "valueModels": sorted({(s.get("params") or {}).get("valueModel") for s in m.get("seats", [])} - {None}),
-        "fingerprint": fingerprint.fingerprint(fingerprint.dump_recipe(m)),
-        "rulesRevision": m.get("rulesRevision", 1),
-    } for m in metas]
+        "fingerprint": fingerprint.fingerprint(r),
+        "ruleset": r["ruleset"],
+        "rulesRevision": r["rulesRevision"],
+        "revisions": _revisions(r),
+    } for m, r in zip(metas, recipes)]
 
 
 def validation_summary(pred, label, train_mean, rounds):
@@ -170,7 +181,9 @@ def match_entry(result_path, model_path):
         "others": [describe(s["id"]) for s in cfg["seats"] if s["id"] != mine[0]["id"]],
         # same recipe -> same result; modelSha256 shows later whether the model file is still the one that played
         "fingerprint": fingerprint.fingerprint(fingerprint.result_recipe(result)),
+        "ruleset": result.get("rulesVersion") or fingerprint.DEFAULT_RULESET,
         "rulesRevision": result.get("rulesRevision", 1),
+        "revisions": _revisions(fingerprint.result_recipe(result)),
         "modelSha256": fingerprint.file_sha256(model_path),
     }
 

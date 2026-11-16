@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using PuertoRico.Engine.Game;
+using PuertoRico.Engine.Strategies;
 
 namespace PuertoRico.Engine.Simulation;
 
@@ -31,6 +32,7 @@ public static class BatchSimulator
         if (options.ResumeFrom != null)
         {
             EnsureCompatible(cfg, options.ResumeFrom.Config);
+            EnsureSameBehaviour(cfg, options.ResumeFrom);
             if (options.ResumeFrom.Games.Any(g => g.Players.Any(p => p.Buildings == null)))
                 throw new InvalidDataException("The result file was written by an older version (no per-player building data); cannot resume it.");
             started = options.ResumeFrom.StartedUtc;
@@ -104,6 +106,7 @@ public static class BatchSimulator
             StartedUtc = started,
             GamesRequested = total,
             Config = cfg,
+            ResolvedSeats = StrategyRegistry.ResolveSeats(cfg),
         };
         ResultSummarizer.Fill(result, list);
         if (cfg.Output.PerGameRecords) result.Games = list;
@@ -128,6 +131,18 @@ public static class BatchSimulator
         if (r.Games.Count == 0 && r.GamesCompleted > 0)
             throw new InvalidDataException("Cannot resume: the file has no per-game records (output.perGameRecords was false).");
         return r;
+    }
+
+    /// <summary>A file started by an engine that behaves differently (other RulesRevision, strategy revision or parameter
+    /// defaults) must not be continued: its first games and the rest would come from different engines.</summary>
+    private static void EnsureSameBehaviour(SimulationConfig cfg, SimulationResult before)
+    {
+        if (before.RulesRevision != EngineInfo.RulesRevision)
+            throw new InvalidDataException($"The result file was produced with rules revision {before.RulesRevision}, this engine has {EngineInfo.RulesRevision}; cannot resume.");
+        if (before.ResolvedSeats == null) return; // older file: no strategy revisions recorded
+        string Key(List<ResolvedSeat> seats) => JsonSerializer.Serialize(seats, SimulationConfig.JsonOptions);
+        if (Key(before.ResolvedSeats) != Key(StrategyRegistry.ResolveSeats(cfg)))
+            throw new InvalidDataException("The result file was produced with other strategy revisions or parameter defaults; cannot resume.");
     }
 
     private static void EnsureCompatible(SimulationConfig now, SimulationConfig before)
