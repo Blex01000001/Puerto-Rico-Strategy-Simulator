@@ -70,13 +70,17 @@
 
 <div class="panel">
     <div class="seatgrid @(sweep ? "withtarget" : "")">
-        <div class="seathead">座位</div>
-        @if (sweep) { <div class="seathead">掃描目標</div> }
-        <div class="seathead">策略</div>
-        <div class="seathead">參數（選填）</div>
+        @* every seat is its own framed row (CSS subgrid keeps the columns aligned with the heading) *@
+        <div class="seatrow head">
+            <div class="seathead">座位</div>
+            @if (sweep) { <div class="seathead">掃描目標</div> }
+            <div class="seathead">策略</div>
+            <div class="seathead">參數（選填）</div>
+        </div>
         @for (int i = 0; i < players; i++)
         {
             int seat = i;
+            <div class="seatrow">
             <strong>座位 @(seat + 1)</strong>
             @if (sweep)
             {
@@ -101,6 +105,7 @@
                         </select>
                     </label>
                 }
+            </div>
             </div>
         }
     </div>
