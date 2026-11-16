@@ -34,7 +34,7 @@
         {
           "version": "0.3.0",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "策略版本：每個策略有自己的邏輯版本（StrategyRegistry.Revisions，顯示 harbor-rush-v1），規則版本只管規則與亂數。",
             "記錄實際使用的完整參數（預設值填好）：結果檔與 dump 的 resolvedSeats，含各策略版本；ML 的 hash 用它。",
@@ -118,7 +118,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -131,7 +131,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -144,7 +144,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -157,7 +157,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -170,7 +170,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -183,7 +183,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -196,7 +196,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -209,7 +209,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -222,7 +222,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -235,7 +235,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。包含 UCT 搜尋、截斷 rollout、價值模型（LightGBM、MLP）推論與 leafRollout。"
           ]
@@ -248,7 +248,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -261,7 +261,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
@@ -274,7 +274,7 @@
         {
           "version": "1",
           "date": "2026-11-16",
-          "commit": "",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
             "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
           ]
