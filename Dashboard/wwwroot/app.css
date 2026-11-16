@@ -446,3 +446,17 @@ table.data.filetable td.wrapok { white-space: normal; }
 .legaltable tr.chosen td { color: var(--accent); font-weight: 600; }
 .legaltable th.tie, .legaltable td.tie { width: 3rem; text-align: center; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .legaltable tr.chosen td.tie { color: inherit; }
+
+/* 版本控管 page: tiles and tables shared in look with the ML UI's 版本控管 page (ml/ui.py CSS: .vtile, table.vtable) */
+.vtiles { display: flex; flex-wrap: wrap; gap: .75rem; margin: .6rem 0 .5rem; }
+.vtile { position: relative; flex: 1 1 9rem; min-height: 5rem; display: flex; align-items: center; justify-content: center; padding: 1.2rem .8rem .5rem; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; text-align: center; }
+.vtile.wide { flex-basis: 13rem; }
+.vtile .l { position: absolute; top: .3rem; left: .55rem; color: var(--text-3); font-size: .75rem; line-height: 1.1; }
+.vtile .v { font-size: 1.55rem; font-weight: 600; color: var(--text); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.vtile .v.small { font-size: 1.05rem; font-family: ui-monospace, Consolas, monospace; }
+table.data.vtable th { text-align: center; }
+table.data.vtable td { vertical-align: middle; }
+table.data.vtable td.c { text-align: center; }
+table.data.vtable td.l { text-align: left; white-space: normal; }
+table.data.vtable td.nw { white-space: nowrap; }
+table.data.vtable td ul { margin: 0; padding-left: 1.1rem; }

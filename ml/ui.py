@@ -544,6 +544,24 @@ button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2
   -webkit-mask-image: linear-gradient(to right, #000 78%, transparent); mask-image: linear-gradient(to right, #000 78%, transparent); }
 .side-state { font-size: .85rem; }
 .side-note { color: #8892a2; font-size: .78rem; margin: .1rem 0; }
+/* version page: tiles and tables like the Dashboard's 版本控管 page (same look in both UIs) */
+.vtiles { display: flex; flex-wrap: wrap; gap: .75rem; margin: .2rem 0 .6rem; }
+.vtile { position: relative; flex: 1 1 9rem; min-height: 5rem; display: flex; align-items: center; justify-content: center;
+  padding: 1.2rem .8rem .5rem; background: #111418; border: 1px solid #333a4b; border-radius: 4px; text-align: center; }
+.vtile .l { position: absolute; top: .3rem; left: .55rem; color: #8892a2; font-size: .75rem; line-height: 1.1; }
+.vtile .v { font-size: 1.55rem; font-weight: 600; color: #eef1f5; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.vnote { color: #b4bcc9; font-size: .85rem; line-height: 1.5; margin: .1rem 0 .35rem; }
+table.vtable { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: .4rem; font-variant-numeric: tabular-nums; }
+table.vtable th { color: #8892a2; font-weight: 600; font-size: .78rem; letter-spacing: .04em; background: #171a21; text-align: center; white-space: nowrap;
+  padding: .35rem .55rem; border-bottom: 1px solid #333a4b; }
+table.vtable th, table.vtable td { border-top: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+table.vtable td { padding: .35rem .55rem; border-bottom: 1px solid #333a4b; vertical-align: middle; }
+table.vtable td.c { text-align: center; white-space: nowrap; }
+table.vtable td.l { text-align: left; }
+table.vtable td.nw { white-space: nowrap; }
+table.vtable td ul { margin: 0; padding-left: 1.1rem; }
+table.vtable td li { margin: 0; }
+table.vtable tbody tr:hover td { background: #1f2430; }
 /* left navigation (Dashboard style): brand, section headings, one full-width entry per page, the active one highlighted */
 section[data-testid="stSidebar"] { background: #171a21 !important; border-right: 1px solid #000; }
 .nav-brand { display: flex; align-items: center; gap: .55rem; font-weight: 700; color: #fff; line-height: 1.25; font-size: .95rem;
@@ -1539,17 +1557,40 @@ def hash_page():
         st.json(recipe, expanded=2)
 
 
+def _esc(text):
+    import html
+    return html.escape(str(text))
+
+
+def version_tiles(items):
+    """Version tiles like the Dashboard's (label small and muted at the top left, value centred): [(label, value)]."""
+    return ('<div class="vtiles">' + "".join(f'<div class="vtile"><div class="l">{_esc(l)}</div><div class="v">{_esc(v)}</div></div>'
+                                           for l, v in items) + "</div>")
+
+
+def version_table(head, rows):
+    """A table like the Dashboard's version tables: centred headings; rows are lists of (text, kind) with kind
+    'c' = centred, 'l' = left, 'list' = a bullet list (text is a list), 'code' = centred code."""
+    def cell(value, kind):
+        if kind == "list":
+            return '<td class="l"><ul>' + "".join(f"<li>{_esc(x)}</li>" for x in value) + "</ul></td>"
+        if kind == "code":
+            return f'<td class="c"><code>{_esc(value)}</code></td>'
+        return f'<td class="{kind}">{_esc(value)}</td>'
+    return ('<table class="vtable"><thead><tr>' + "".join(f"<th>{_esc(h)}</th>" for h in head) + "</tr></thead><tbody>"
+            + "".join("<tr>" + "".join(cell(v, k) for v, k in r) + "</tr>" for r in rows) + "</tbody></table>")
+
+
 def versions_page():
     tracks, error = fingerprint.load_versions()
     if error:
         st.error(error)
         return
     with card("ver-now", "這份程式現在的版本"):
-        c = st.columns(4)
-        c[0].metric("規則版本", fingerprint.rules_name(fingerprint.current_rules_revision()))
-        c[1].metric("引擎版本", fingerprint.current_engine_version())
-        c[2].metric("特徵版本", str(fingerprint.current_feature_version()))
-        c[3].metric("資料格式版本", str(fingerprint.current_format_version()))
+        st.markdown(version_tiles([("規則版本", fingerprint.rules_name(fingerprint.current_rules_revision())),
+                                   ("引擎版本", fingerprint.current_engine_version()),
+                                   ("特徵版本", fingerprint.current_feature_version()),
+                                   ("資料格式版本", fingerprint.current_format_version())]), unsafe_allow_html=True)
         now = {"rules": str(fingerprint.current_rules_revision()), "engine": fingerprint.current_engine_version(),
                "features": str(fingerprint.current_feature_version()), "format": str(fingerprint.current_format_version())}
         stale = [t["title"] for t in tracks.values() if t["id"] in now and (t["entries"] or [{}])[0].get("version") != now[t["id"]]]
@@ -1560,32 +1601,33 @@ def versions_page():
     for t in tracks.values():
         entries = t.get("entries", [])
         cur = entries[0]["version"] if entries else "?"
-        with card(f"ver-{t['id']}", f"{t['title']}：{t['display'].replace('{version}', cur)}"):
-            st.caption(f"來源：`{t['source']}`")
-            st.markdown(t["meaning"])
-            st.markdown(f"**什麼時候加**：{t['bump']}")
-            for e in entries:
-                commit = f"　commit `{e['commit'][:8]}`" if e.get("commit") else ""
-                st.markdown(f"**{t['display'].replace('{version}', e['version'])}**　{e['date']}{commit}\n" + "\n".join(f"- {c}" for c in e["changes"]))
+        show = lambda v, t=t: t["display"].replace("{version}", str(v))  # noqa: E731
+        with card(f"ver-{t['id']}", t["title"]):
+            st.markdown(f"<div class='vnote'><b>目前：{_esc(show(cur))}</b>・來源：<code>{_esc(t['source'])}</code></div>"
+                        f"<div class='vnote'>{_esc(t['meaning'])}</div><div class='vnote'><b>什麼時候加：</b>{_esc(t['bump'])}</div>"
+                        + version_table(["版本", "日期", "commit", "修改內容"],
+                                        [[(show(e["version"]), "c"), (e["date"], "c"), ((e.get("commit") or "")[:8] or "—", "code"),
+                                          (e["changes"], "list")] for e in entries]), unsafe_allow_html=True)
     (info, strategies), _ = fingerprint.load_versions(strategies=True)
     with card("ver-strategies", info.get("title", "策略版本")):
-        st.markdown(info.get("meaning", ""))
-        st.markdown(f"**什麼時候加**：{info.get('bump', '')}")
         rows, mismatch = [], []
         for t in strategies:
             e = (t.get("entries") or [{}])[0]
             code = fingerprint.current_strategy_revision(t["id"])
             if code is not None and str(code) != str(e.get("version")):
                 mismatch.append(t["id"])
-            rows.append({"策略": t["id"], "目前版本": fingerprint.strategy_name(t["id"], e.get("version", "?")), "日期": e.get("date", ""),
-                         "commit": (e.get("commit") or "")[:8] or "—", "這個版本的修改": "；".join(e.get("changes", []))})
+            rows.append([(t["id"], "l nw"), (fingerprint.strategy_name(t["id"], e.get("version", "?")), "c"),
+                         (f"v{code}" if code is not None else "—", "c"), (e.get("date", ""), "c"),
+                         ((e.get("commit") or "")[:8] or "—", "code"), (e.get("changes", []), "list")])
         if mismatch:
             st.warning("版本清單和程式裡的策略版本不一致：" + "、".join(mismatch) + "。")
-        st.table(pd.DataFrame(rows).set_index("策略"))
+        st.markdown(f"<div class='vnote'>{_esc(info.get('meaning', ''))}</div><div class='vnote'><b>什麼時候加：</b>{_esc(info.get('bump', ''))}</div>"
+                    + version_table(["策略", "目前版本", "程式裡", "日期", "commit", "這個版本的修改"], rows), unsafe_allow_html=True)
         with st.expander("每個策略的完整歷史"):
-            for t in strategies:
-                for e in t.get("entries", []):
-                    st.markdown(f"**{fingerprint.strategy_name(t['id'], e['version'])}**　{e['date']}\n" + "\n".join(f"- {c}" for c in e["changes"]))
+            st.markdown(version_table(["版本", "日期", "commit", "修改內容"],
+                                      [[(fingerprint.strategy_name(t["id"], e["version"]), "c"), (e["date"], "c"),
+                                        ((e.get("commit") or "")[:8] or "—", "code"), (e["changes"], "list")]
+                                       for t in strategies for e in t.get("entries", [])]), unsafe_allow_html=True)
 
 
 # left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)

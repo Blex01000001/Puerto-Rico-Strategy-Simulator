@@ -264,9 +264,10 @@ def test_versions_page_shows_the_list_and_matches_the_code(results):
     at = goto(run_app(), "versions")
     assert not at.exception
     assert not at.warning  # docs/versions.json names the current numbers
-    assert any(m.label == "規則版本" and m.value == fingerprint.rules_name(fingerprint.current_rules_revision()) for m in at.metric)
     text = " ".join(m.value for m in at.markdown)
-    assert "base-v" in text
+    now = fingerprint.rules_name(fingerprint.current_rules_revision())
+    assert f'<div class="l">規則版本</div><div class="v">{now}</div>' in text  # the tile
+    assert "<th>版本</th><th>日期</th><th>commit</th><th>修改內容</th>" in text  # tables like the Dashboard's
     # one row per strategy, its current version as in the code
-    table = next(t for t in at.table if "目前版本" in t.value.columns)
-    assert "harbor-rush" in table.value.index and table.value.loc["harbor-rush", "目前版本"] == f"harbor-rush-v{fingerprint.current_strategy_revision('harbor-rush')}"
+    rev = fingerprint.current_strategy_revision("harbor-rush")
+    assert f'<td class="l nw">harbor-rush</td><td class="c">harbor-rush-v{rev}</td><td class="c">v{rev}</td>' in text
