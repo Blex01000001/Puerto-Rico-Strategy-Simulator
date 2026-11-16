@@ -562,6 +562,10 @@ table.vtable td.nw { white-space: nowrap; }
 table.vtable td ul { margin: 0; padding-left: 1.1rem; }
 table.vtable td li { margin: 0; }
 table.vtable tbody tr:hover td { background: #1f2430; }
+table.vtable.cmp { table-layout: fixed; }  /* compare: equal model columns, long data lists wrap */
+table.vtable.cmp th:first-child { width: 12rem; } table.vtable.cmp th:last-child { width: 3.5rem; }
+table.vtable.cmp td { overflow-wrap: anywhere; }
+table.vtable td.best { color: #4aa8ff; font-weight: 700; background: rgba(74, 168, 255, .13); }
 /* left navigation (Dashboard style): brand, section headings, one full-width entry per page, the active one highlighted */
 section[data-testid="stSidebar"] { background: #171a21 !important; border-right: 1px solid #000; }
 .nav-brand { display: flex; align-items: center; gap: .55rem; font-weight: 700; color: #fff; line-height: 1.25; font-size: .95rem;
@@ -1291,13 +1295,16 @@ def match_note(m, current_sha):
 
 def matches_frame(meta, model_file=None):
     current_sha = fingerprint.file_sha256(model_file) if model_file and os.path.exists(model_file) else None
+    official = bool(model_file) and place_of(model_file) == "正式"
     rows = []
     for m in meta.get("matches", []):
-        rows.append({"設定": m.get("config"), "對手": describe_match(m), "局數": m["games"], "種子": m["seed"],
+        rows.append({"設定": m.get("config"), "對手": describe_match(m), "leafRollout": m.get("leafRollout", 0) or 0,
+                     "局數": m["games"], "種子": m["seed"],
                      "勝率": m["winShare"], "±95%": m.get("winShareCi95"), "平均分": m["avgScore"],
                      "對手勝率": "、".join(f"{o['strategy'] if not o.get('valueModel') else 'MCTS＋模型'} {o['winShare']:.1%}" for o in m["others"]),
-                     "紀錄": "本機" if m.get("local") else "正式", "hash": fingerprint.short(m.get("fingerprint")) or "—",
-                     "備註": match_note(m, current_sha), "結果檔": m["result"]})
+                     # where the record is kept: in the model's tracked .meta.json (git) or only on this machine
+                     "紀錄存放": "git" if official and not m.get("local") else "本機",
+                     "結果檔": m["result"], "hash": fingerprint.short(m.get("fingerprint")) or "—", "備註": match_note(m, current_sha)})
     return pd.DataFrame(rows)
 
 
@@ -1404,12 +1411,13 @@ def model_detail(path):
         st.warning(f"`{name}` 沒有 `.meta.json`（不知道怎麼訓練的）。")
         return
     v = meta.get("validation") or {}
-    c = st.columns(4)
-    c[0].metric("種類", KIND_TEXT.get(meta["kind"], meta["kind"]))
-    c[1].metric("資料列數", f"{sum(d['rows'] for d in meta['data']):,}")
-    c[2].metric("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—")
     best = best_vs_default(meta)
-    c[3].metric("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—", help=describe_match(best) if best else "還沒有對戰")
+    st.markdown(version_tiles([("種類", KIND_TEXT.get(meta["kind"], meta["kind"])),
+                               ("資料列數", f"{sum(d['rows'] for d in meta['data']):,}"),
+                               ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—"),
+                               ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—"),
+                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")]), unsafe_allow_html=True)
+    st.caption(("最佳勝率來自：" + describe_match(best) + "。") if best else "還沒有對原版 MCTS 的對戰。")
 
     st.markdown("**對戰結果**（判斷模型好壞的依據）")
     mf = matches_frame(meta, path)
@@ -1476,24 +1484,38 @@ def model_detail(path):
 
 
 def compare(paths):
+    """Side by side, as a wrapping table (no scrollbar). Result rows mark the best model: the highest value, the lowest
+    cross-entropy. Parameter rows mark the ones that differ."""
     metas = {os.path.basename(p): model_meta(p) for p in paths}
     names = list(metas)
+
+    def best_cells(values, higher=True):
+        nums = [x for x in values if x is not None]
+        top = (max(nums) if higher else min(nums)) if len(nums) >= 2 and len(set(nums)) > 1 else None
+        return ["c best" if x is not None and x == top else "c" for x in values]
+
+    def metric_row(label, get, fmt, higher=True):
+        values = [get(metas[n]) if metas[n] else None for n in names]
+        kinds = best_cells(values, higher)
+        return [(label, "l nw")] + [(fmt(x) if x is not None else "—", k) for x, k in zip(values, kinds)] + [("", "c")]
+
+    rows = [
+        metric_row("對原版 MCTS 最佳勝率", lambda m: best_vs_default(m)["winShare"] if best_vs_default(m) else None, lambda x: f"{x:.1%}"),
+        metric_row("R²", lambda m: (m.get("validation") or {}).get("r2"), lambda x: f"{x:.3f}"),
+        metric_row("交叉熵（越低越好）", lambda m: (m.get("validation") or {}).get("crossEntropy"), lambda x: f"{x:.4f}", higher=False),
+        metric_row("資料列數", lambda m: sum(d["rows"] for d in m["data"]), lambda x: f"{x:,}"),
+        [("資料來源", "l nw")] + [("、".join(d["source"] for d in metas[n]["data"]) if metas[n] else "—", "l") for n in names] + [("", "c")],
+    ]
     keys = []
     for m in metas.values():
         for k in flat_params(m or {}):
             if k not in keys:
                 keys.append(k)
-    rows = []
     for k in keys:
         vals = [str(flat_params(metas[n] or {}).get(k, "—")) for n in names]
-        rows.append({"參數": k, **dict(zip(names, vals)), "不同": "●" if len(set(vals)) > 1 else ""})
-    for label, f in [("資料列數", lambda m: f"{sum(d['rows'] for d in m['data']):,}"),
-                     ("資料來源", lambda m: "、".join(d["source"] for d in m["data"])),
-                     ("R²", lambda m: f"{(m.get('validation') or {}).get('r2') or 0:.3f}"),
-                     ("對原版 MCTS 最佳勝率", lambda m: f"{best_vs_default(m)['winShare']:.1%}" if best_vs_default(m) else "—")]:
-        vals = [f(metas[n]) if metas[n] else "—" for n in names]
-        rows.insert(0, {"參數": label, **dict(zip(names, vals)), "不同": "●" if len(set(vals)) > 1 else ""})
-    grid(pd.DataFrame(rows), hide_index=True, width="stretch")
+        rows.append([(k, "l nw")] + [(x, "c") for x in vals] + [("●" if len(set(vals)) > 1 else "", "c")])
+    st.markdown(version_table(["項目"] + names + ["不同"], rows, css="cmp"), unsafe_allow_html=True)
+    st.caption("藍底粗體＝這一列最好的模型（勝率、R²、資料列數取最高，交叉熵取最低）；「不同」標出參數不一樣的列。判斷好壞只看對戰勝率。")
 
 
 def _models_body():
@@ -1501,8 +1523,6 @@ def _models_body():
     if not paths:
         st.info("還沒有模型（正式 ml/models/、本機 ml/local/models/ 都是空的）。")
         return
-    table = models_table(paths)
-    grid(table, hide_index=True, width="stretch")
     by_name = {os.path.basename(p): p for p in paths}
     mode = st.radio("檢視", ["單一模型", "並排比較"], horizontal=True)
     if mode == "單一模型":
@@ -1530,6 +1550,31 @@ def match_tab():
 def models_tab():
     with card("models", "模型（正式 ml/models/ ＋ 本機 ml/local/models/）"):
         _models_body()
+    with card("models-list", "模型列表"):
+        models_list()
+
+
+def models_list():
+    """Every model, with quick filters (place, kind, creation date); empty filter = all."""
+    paths = model_files()
+    if not paths:
+        return
+    table = models_table(paths)
+    dates = sorted({str(c)[:10] if str(c)[:4].isdigit() else "補寫" for c in table["建立"]}, reverse=True)
+    c1, c2, c3 = st.columns([1, 1, 3])
+    places = c1.pills("位置", ["正式", "本機"], selection_mode="multi", key="mf-place")
+    kinds = c2.pills("種類", ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
+    days = c3.pills("建立日期", dates, selection_mode="multi", key="mf-date")
+    keep = table["位置"].isin(places or ["正式", "本機"]) & table["種類"].isin(kinds or ["LightGBM", "MLP"])
+    if days:
+        keep &= [(str(c)[:10] if str(c)[:4].isdigit() else "補寫") in days for c in table["建立"]]
+    shown = table[keep]
+    if shown.empty:
+        st.caption("沒有符合篩選的模型。")
+        return
+    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in ("人數", "R²", "交叉熵", "對戰場數", "對原版 MCTS 最佳勝率")}
+    grid(shown, hide_index=True, width="stretch", column_config=centred)
+    st.caption(f"顯示 {len(shown)} / {len(table)} 個模型。快篩不選＝全部。")
 
 
 # ---------------------------------------------------------------- hash 說明、版本控管
@@ -1630,7 +1675,7 @@ def version_tiles(items):
                                            for l, v in items) + "</div>")
 
 
-def version_table(head, rows):
+def version_table(head, rows, css=""):
     """A table like the Dashboard's version tables: centred headings; rows are lists of (text, kind) with kind
     'c' = centred, 'l' = left, 'list' = a bullet list (text is a list), 'code' = centred code."""
     def cell(value, kind):
@@ -1639,7 +1684,7 @@ def version_table(head, rows):
         if kind == "code":
             return f'<td class="c"><code>{_esc(value)}</code></td>'
         return f'<td class="{kind}">{_esc(value)}</td>'
-    return ('<table class="vtable"><thead><tr>' + "".join(f"<th>{_esc(h)}</th>" for h in head) + "</tr></thead><tbody>"
+    return (f'<table class="vtable {css}"><thead><tr>' + "".join(f"<th>{_esc(h)}</th>" for h in head) + "</tr></thead><tbody>"
             + "".join("<tr>" + "".join(cell(v, k) for v, k in r) + "</tr>" for r in rows) + "</tbody></table>")
 
 
