@@ -562,6 +562,9 @@ table.vtable td.nw { white-space: nowrap; }
 table.vtable td ul { margin: 0; padding-left: 1.1rem; }
 table.vtable td li { margin: 0; }
 table.vtable tbody tr:hover td { background: #1f2430; }
+.vtile .q { position: absolute; top: .3rem; right: .45rem; width: 1rem; height: 1rem; border: 1px solid #8892a2; border-radius: 50%;
+  color: #8892a2; font-size: .68rem; line-height: .95rem; text-align: center; cursor: help; }
+table.vtable.doc th { text-align: left; } table.vtable.doc td { vertical-align: top; }
 table.vtable.cmp { table-layout: fixed; }  /* compare: equal model columns, long data lists wrap */
 table.vtable.cmp th:first-child { width: 12rem; } table.vtable.cmp th:last-child { width: 3.5rem; }
 table.vtable.cmp td { overflow-wrap: anywhere; }
@@ -1414,8 +1417,8 @@ def model_detail(path):
     best = best_vs_default(meta)
     st.markdown(version_tiles([("種類", KIND_TEXT.get(meta["kind"], meta["kind"])),
                                ("資料列數", f"{sum(d['rows'] for d in meta['data']):,}"),
-                               ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—"),
-                               ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—"),
+                               ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—", METRIC_HELP["R²"]),
+                               ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
                                ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")]), unsafe_allow_html=True)
     st.caption(("最佳勝率來自：" + describe_match(best) + "。") if best else "還沒有對原版 MCTS 的對戰。")
 
@@ -1552,6 +1555,15 @@ def models_tab():
         _models_body()
     with card("models-list", "模型列表"):
         models_list()
+    with card("models-metrics", "R² 與交叉熵是什麼"):
+        st.markdown(version_table(["指標", "意思", "範圍", "怎麼看"], [
+            [("R²", "l nw"), ("模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中", "l"),
+             ("0～1，越高越好", "l nw"), ("目前約 0.47～0.58：只看局面就能解釋一半左右的結果，剩下的是之後的決策與運氣", "l")],
+            [("交叉熵", "l nw"), ("訓練時真正在降低的損失。模型輸出一個 0～1 的值（「這個座位的最終回報」），交叉熵衡量它和實際結果的差距；"
+                                  "把錯的事很有信心地說對，懲罰特別重", "l"),
+             ("越接近 0 越好", "l nw"), ("目前約 0.45～0.48", "l")],
+        ], css="doc"), unsafe_allow_html=True)
+        st.caption("這兩個數字只能在同一份驗證資料上比。資料組成一變，數字就不能比。判斷模型好壞一律看對戰勝率。")
 
 
 def models_list():
@@ -1670,9 +1682,21 @@ def _esc(text):
 
 
 def version_tiles(items):
-    """Version tiles like the Dashboard's (label small and muted at the top left, value centred): [(label, value)]."""
-    return ('<div class="vtiles">' + "".join(f'<div class="vtile"><div class="l">{_esc(l)}</div><div class="v">{_esc(v)}</div></div>'
-                                           for l, v in items) + "</div>")
+    """Tiles like the Dashboard's (label small and muted at the top left, value centred): [(label, value)] or
+    [(label, value, help)]; a help text puts a "?" at the top right that shows it on hover."""
+    def tile(item):
+        label, value, tip = (tuple(item) + (None,))[:3]
+        q = f'<span class="q" title="{_esc(tip)}">?</span>' if tip else ""
+        return f'<div class="vtile"><div class="l">{_esc(label)}</div>{q}<div class="v">{_esc(value)}</div></div>'
+    return '<div class="vtiles">' + "".join(tile(i) for i in items) + "</div>"
+
+
+METRIC_HELP = {
+    "R²": "模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中。越高越好。"
+          "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
+    "交叉熵": "訓練時真正在降低的損失：模型輸出的 0～1 回報和實際結果的差距，很有信心卻猜錯會被重罰。越接近 0 越好。"
+             "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
+}
 
 
 def version_table(head, rows, css=""):
