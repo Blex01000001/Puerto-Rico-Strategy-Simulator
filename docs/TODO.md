@@ -30,7 +30,10 @@
 
 - Dashboard 的 ML UI 啟動在 Linux 驗證過（啟動、狀態、缺套件的錯誤訊息）；Windows 上已能啟動，但多個 Python 時曾裝錯地方（`No module named 'lightgbm'`），改成挑套件齊全的 Python 並印出修正指令後還沒在 Windows 實測。
 - Windows 上曾因編碼（cp950）讓對戰工作在寫紀錄時當掉（`UnicodeEncodeError`），已改成一律 UTF-8；修正後還沒在 Windows 實測。
-- Windows 上長時間工作曾在約 10 分鐘後被誤判為「中斷」（`job.json` 被 UI 讀取時無法取代，心跳執行緒因此停止）：已改成重試、心跳不中斷；修正後還沒在 Windows 實測。
+- 黃金樣本（`Tests/VersionTests.cs`）不含 MCTS，且只在 Linux 驗證過：Windows 上若 hash 不一致（浮點、不同的 .NET 版本）要先看是哪個案例，不要直接重產生 `golden.json`。RULES 案例同時涵蓋規則、亂數與 random 策略，三者分不開。
+- 版本控管清單（`docs/versions.json`）的規則版本與策略版本都只有基準 v1：11-13 以前的行為修改（Settler 同分順序、手寫策略第二準則等）沒有版本號，併入基準。沒有 `resolvedSeats` 的舊資料用凍結的 `ml/strategy-params.legacy.json` 補算完整參數（假設產生時的預設值與 v1 相同；11-13 之後預設值沒改過）。
+- 配方 hash（`ml/fingerprint.py`）只在 Linux 驗證過；MLP 的 torch／numpy 兩個後端各算各的 hash。`train_lgbm` 的樹與執行緒數無關只用小資料驗證過（測試 `test_lightgbm_trees_do_not_depend_on_the_thread_count`），大資料與不同機器未驗證。
+- Windows 上長時間工作曾在約 10 分鐘後被誤判為「中斷」（心跳執行緒停止）：已改成重試、心跳不中斷，程序還在時改標「失聯」並暫停佇列；修正後還沒在 Windows 實測（失聯的程序偵測用 kernel32，只在 Linux 測過）。
 - 本機工作區 `ml/local/`（ML UI 的模型、設定、對戰紀錄，不進 git）與「設為正式模型／移到本機」只在 Linux 驗證過。
 - ML UI 的工作佇列（一次一個、依序執行、關掉 UI 繼續、失敗／取消後接著跑）在 Linux 驗證過；Windows 還沒實測。佇列只能排「已經存在」的東西：還沒訓練出來的模型不能先排它的對戰、還沒產生的資料不能先排訓練（要等前一個完成）。
 - ML UI 只在 Linux（Chromium）實際操作驗證過；Windows 上的背景程序（`DETACHED_PROCESS`）、`start-ui.cmd` 與 Ctrl+C 後工作繼續執行，還沒在 Windows 實測。Windows 上取消資料／對戰工作是直接結束 Runner（沒有共用的主控台可送 Ctrl+C），不會保留已完成的局數。
@@ -60,6 +63,8 @@
 - `builds.dotnet.microsoft.com` 被這個雲端環境的網路代理擋住，`dotnet-install.sh` 在這裡不可用，只能用 apt 安裝 .NET（RunPod 上 `deploy/runpod/setup.sh` 會在 apt 失敗時改用它）。
 
 ## 想法
+- 規則變體（自訂規則，例如起始金錢 5 元、貨物或殖民者無限、貨船容量、商人特權 +2、VP 籌碼）：設定檔 `rules.variant`＋選項，顯示 `base-v2-rich-start`。先做只改 `Setup` 的參數類，再做寫死在規則裡的常數（商人特權），改邏輯的玩法用旗標分支；要處理不變量檢查、模型與變體不一致的警告。hash 已預留 `variant`／`variantOptions`。範圍擴張，使用者決定後才做。
+- 擴充版：先取得規則、盤點 `BuildingCount`／`MaxPlayers` 等常數的依賴量，再決定同專案（規則集可替換）或另開專案。規則集名稱 `base` 已進 hash。
 
 - 手寫策略同分的第二準則：機制在 `tieTile`／`tieGood`／`tieRole`／`tieBuild`（分析文件 8.2）；build-first、harbor-rush、wharf-rush 預設「糖先於靛藍、玉米先於採石場」（8.3，`DefaultTieTile`，`tieTile: ""` 關閉）；其他策略實測引擎順序已是最好或無差別（8.4、8.5：貨物、建築、選職業、出貨同分），不設預設。剩下的同分都只有零星幾次；特徵權重版本（貨價、建築費用、`tieOpponent` 等）之後再加。
 - build-first 3 人局 `quarryTarget` 的最佳值取決於對手（8.6）：對沒有 cheap-engine 的桌子 1 較好，有 cheap-engine 時 1 崩盤、2～3 較好；若要改需依對手動態決定或接受取捨。

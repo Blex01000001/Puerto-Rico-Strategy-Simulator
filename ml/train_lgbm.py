@@ -93,7 +93,7 @@ def train(data, out, progress=None, log=print, **options):
         training={"seconds": round(seconds, 1), "iterations": booster.num_trees(), "bestIteration": booster.best_iteration,
                   "validLossCurve": [round(v, 6) for v in curve]},
         validation=validation, top_features=top,
-        libraries={"lightgbm": lgb.__version__, "numpy": np.__version__})
+        libraries={"lightgbm": lgb.__version__, "numpy": np.__version__}, options=o)
     progress({"stage": "done", "model": out, "validation": validation})
     return meta
 

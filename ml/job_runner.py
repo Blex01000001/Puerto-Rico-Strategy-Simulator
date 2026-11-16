@@ -251,7 +251,7 @@ def main():
     utf8_output()
     job = Job(sys.argv[1])
     stop = threading.Event()
-    job.update(status="running", started=jobs.now(), pid=os.getpid())
+    job.update(status="running", started=jobs.now(), startedEpoch=time.time(), pid=os.getpid())
     threading.Thread(target=heartbeat, args=(job, stop), daemon=True).start()
     try:
         result = run(job)

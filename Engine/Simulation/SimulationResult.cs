@@ -1,6 +1,21 @@
+using System.Text.Json;
 using PuertoRico.Engine.Game;
 
 namespace PuertoRico.Engine.Simulation;
+
+/// <summary>
+/// A config seat as it really played (StrategyRegistry.Resolve): every parameter with the value used (defaults of this
+/// player count filled in) and the logic revisions of the strategy code involved. Written into result files and dumps;
+/// the ML hash uses it, so a changed default or a new strategy revision makes a different hash.
+/// </summary>
+public sealed class ResolvedSeat
+{
+    public string Id { get; set; } = "";
+    public string Strategy { get; set; } = "";
+    /// <summary>Strategy name -> revision: the seat's own (rule-based: its profile) and, for MCTS, its rollout strategy.</summary>
+    public Dictionary<string, int> Revisions { get; set; } = new();
+    public Dictionary<string, JsonElement> Params { get; set; } = new();
+}
 
 public sealed class PlayerRecord
 {
@@ -66,6 +81,12 @@ public sealed class SimulationResult
     public int SchemaVersion { get; set; } = 1;
     public string EngineVersion { get; set; } = EngineInfo.Version;
     public string RulesVersion { get; set; } = EngineInfo.RulesVersion;
+    /// <summary>See <see cref="EngineInfo.RulesRevision"/>; files from before it existed have no value (= revision 1).</summary>
+    public int RulesRevision { get; set; } = EngineInfo.RulesRevision;
+    /// <summary>Git commit of the build that wrote the file (tracing only; "unknown" for older files).</summary>
+    public string EngineCommit { get; set; } = EngineInfo.Commit;
+    /// <summary>The config seats as they played (resolved parameters, strategy revisions); null in files from before it existed.</summary>
+    public List<ResolvedSeat>? ResolvedSeats { get; set; }
     /// <summary>running | completed | cancelled</summary>
     public string Status { get; set; } = "running";
     public DateTime StartedUtc { get; set; }

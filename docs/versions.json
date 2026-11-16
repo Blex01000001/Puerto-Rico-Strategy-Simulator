@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "note": "Version control list: one track per version number, plus one per strategy. Newest entry first; entries[0].version must equal the number in the code (Tests/VersionTests.cs checks it). 'commit' = the first commit with that version (filled in right after it is committed; empty until then). Read by the ML UI and the Dashboard (page 版本控管). Rules: CLAUDE.md, section 版本與 hash.",
+  "tracks": [
+    {
+      "id": "rules",
+      "title": "規則版本（RulesRevision）",
+      "source": "Engine/Game/EngineInfo.cs：RulesRevision",
+      "display": "base-v{version}",
+      "meaning": "規則集 base（基礎版）的修訂號。只管遊戲規則與亂數／種子衍生：同樣的設定與種子，只要規則或亂數讓結果不同，就加 1。策略的改動不算（各策略有自己的版本）。進資料、模型、對戰的 hash，加 1 後所有資料與模型都會被標成「舊版規則」。",
+      "bump": "執行 Tests 的黃金樣本測試（GoldenTests）：RULES 案例（只有隨機玩家）失敗代表規則、亂數或 random 策略變了，才加 1，並用 PR_UPDATE_GOLDEN=1 dotnet test --filter Golden 更新黃金檔。",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "changes": [
+            "基準版本：base 規則（3、4 人局，詮釋見 docs/TODO.md「已知問題」）與目前的亂數／種子衍生。",
+            "2026-11-14 以前產生的資料與訓練的模型（4p-v1～v3、3p-v1～v3、4p-mlp-v2）都是在這個規則下產生的。",
+            "之前的行為修改沒有版本號，併入基準。"
+          ],
+          "commit": "1baf33b46ad83796c367da64ab40abcf0735e8a9"
+        }
+      ],
+      "ruleset": "base"
+    },
+    {
+      "id": "engine",
+      "title": "引擎版本（Version）",
+      "source": "Engine/Game/EngineInfo.cs：Version",
+      "display": "{version}",
+      "meaning": "給人看的產品版本（SemVer）：新增功能、策略、輸出欄位加次版本，不影響結果的修正加修訂版本；規則版本或策略版本加 1 時至少加次版本。不進任何 hash；追溯用 git commit（結果檔與資料的 engineCommit）。",
+      "bump": "新增功能、策略、輸出欄位，或規則版本、策略版本加 1 時更新。",
+      "entries": [
+        {
+          "version": "0.3.0",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "策略版本：每個策略有自己的邏輯版本（StrategyRegistry.Revisions，顯示 harbor-rush-v1），規則版本只管規則與亂數。",
+            "記錄實際使用的完整參數（預設值填好）：結果檔與 dump 的 resolvedSeats，含各策略版本；ML 的 hash 用它。",
+            "黃金樣本改成規則案例＋每個策略各自的案例，只 hash 對局的核心欄位；ml/strategy-params.json 記各策略版本與預設參數。",
+            "續跑（--resume）會拒絕規則版本、策略版本或預設參數不同的結果檔。",
+            "dump 另記 rulesVersion（規則集 base）。"
+          ]
+        },
+        {
+          "version": "0.2.0",
+          "date": "2026-11-16",
+          "changes": [
+            "MCTS 價值函數：valueModel（LightGBM、MLP 純 C# 推論）與 leafRollout。",
+            "局面資料 dump（Runner --dump-positions）與 430 個特徵（ValueFeatures）。",
+            "版本控管：RulesRevision、engineCommit 寫進結果檔與 dump，ML 工具的配方 hash 使用它們。",
+            "黃金樣本測試（GoldenTests）：行為改變卻沒有加規則版本時測試失敗。"
+          ],
+          "commit": "544b8fb4ec980b10596c4160db77e7e710b4b104"
+        },
+        {
+          "version": "0.1.0",
+          "date": "2026-11-13",
+          "changes": [
+            "引擎初版：base 規則 3、4 人局，批次模擬、Runner、參數掃描。",
+            "手寫策略：corn-shipper、corn-to-premium、harbor-rush、build-first、cheap-engine、wharf-rush、wharf-premium、corn-monopoly 系列、guided-random。",
+            "MCTS（UCT，開環，模擬次數預算，截斷 rollout）。",
+            "座位順序 balanced（random 為預設）；Dashboard 的模擬、結果、總覽、比較、回放、參數掃描、設定檔頁。"
+          ],
+          "commit": "66dcbb7bc32bf8f5702c11d3d615ef7bea7fcb85"
+        }
+      ]
+    },
+    {
+      "id": "features",
+      "title": "特徵版本（ValueFeatures.Version）",
+      "source": "Engine/Strategies/Mcts/ValueFeatures.cs：Version",
+      "display": "{version}",
+      "meaning": "局面特徵清單（名稱與順序）。改了之後舊模型會因特徵名稱不符被拒，要重新產生資料並重訓。",
+      "bump": "特徵清單有任何增減或改順序時加 1。",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-14",
+          "changes": [
+            "430 個特徵：全域狀態、依「自己、下家…」排列的四個玩家區塊（含目前分數與名次）。"
+          ],
+          "commit": "abb2b5a30c5e60bd031a2f1898134ee241203532"
+        }
+      ]
+    },
+    {
+      "id": "format",
+      "title": "資料格式版本（PositionDump.FormatVersion）",
+      "source": "Engine/Simulation/PositionDump.cs：FormatVersion",
+      "display": "{version}",
+      "meaning": "局面資料 .bin 的紀錄排列。改了之後 Python 的 positions.py 要同步。",
+      "bump": "紀錄排列（欄位、型別、順序）改變時加 1；只在 .bin.json 新增欄位不用加。",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-14",
+          "changes": [
+            "float32 reward、float32 win、int32 game、int16 × 特徵數；.bin.json 附特徵名稱與設定。",
+            "2026-11-16 起 .bin.json 另記 rulesVersion、rulesRevision、engineVersion、engineCommit、requestedGames、resolvedSeats、limits、options（新增欄位，格式版本不變）。"
+          ],
+          "commit": "abb2b5a30c5e60bd031a2f1898134ee241203532"
+        }
+      ]
+    }
+  ],
+  "strategyTrack": {
+    "title": "策略版本",
+    "display": "{id}-v{version}",
+    "meaning": "每個策略自己的邏輯版本（StrategyRegistry.Revisions）：同樣的參數，決策卻不同時加 1（決策邏輯改了，或它共用的程式改了：HeuristicStrategy、TieBreakRules 改了就是所有手寫策略各加 1；mcts 也包含價值模型推論與 ValueFeatures 的程式）。改參數或預設值不用加：實際使用的完整參數已在 hash 裡。只有用到這個策略的資料會被標成舊版。",
+    "bump": "黃金樣本測試裡該策略的案例失敗、且參數沒變時（測試會分辨）才加 1；只改預設值時更新黃金檔就好。rule-based 沒有自己的版本，跟著它的 profile。"
+  },
+  "strategies": [
+    {
+      "id": "build-first",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cheap-engine",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corn-monopoly",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corn-monopoly-hoard",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corn-monopoly-tiles",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corn-shipper",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corn-to-premium",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guided-random",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "harbor-rush",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mcts",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。包含 UCT 搜尋、截斷 rollout、價值模型（LightGBM、MLP）推論與 leafRollout。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "random",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wharf-premium",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wharf-rush",
+      "entries": [
+        {
+          "version": "1",
+          "date": "2026-11-16",
+          "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
+          "changes": [
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -28,6 +28,23 @@ def test_lightgbm_writes_model_meta_and_check_rows(dump, tmp_path):
     assert events[0]["stage"] == "loaded" and events[-1]["stage"] == "done"
     assert any(e["stage"] == "iteration" for e in events)
     assert meta["matches"] == []
+    # recipe fingerprint: the model's own and one per data file; the same options and data give the same fingerprint
+    assert len(meta["fingerprint"]) == 64 and meta["rulesRevision"] >= 1
+    assert len({d["fingerprint"] for d in meta["data"]}) == 2 and meta["recipe"]["data"] == sorted(d["fingerprint"] for d in meta["data"])
+    again = train_lgbm.train(data, str(tmp_path / "again.txt"), log=lambda *_: None, rounds=20, leaves=4, min_leaf=5, threads=2)
+    assert again["fingerprint"] == meta["fingerprint"]  # thread count is not part of the recipe
+    other = train_lgbm.train(data, str(tmp_path / "other.txt"), log=lambda *_: None, rounds=21, leaves=4, min_leaf=5, threads=1)
+    assert other["fingerprint"] != meta["fingerprint"]
+
+
+def test_lightgbm_trees_do_not_depend_on_the_thread_count(dump, tmp_path):
+    # the fingerprint leaves the thread count out: that is only right if the trained trees really do not depend on it
+    data = [dump(games=60)]
+    a, b = str(tmp_path / "t1.txt"), str(tmp_path / "t3.txt")
+    train_lgbm.train(data, a, log=lambda *_: None, rounds=15, leaves=8, min_leaf=5, threads=1)
+    train_lgbm.train(data, b, log=lambda *_: None, rounds=15, leaves=8, min_leaf=5, threads=3)
+    trees = [open(p, encoding="utf-8").read().split("end of trees")[0] for p in (a, b)]
+    assert trees[0] == trees[1]
 
 
 def test_lightgbm_is_deterministic(dump, tmp_path):
@@ -79,7 +96,7 @@ def test_match_results_are_appended_to_meta(dump, tmp_path):
     train_lgbm.train([dump(games=40)], out, log=lambda *_: None, rounds=5, leaves=4, min_leaf=5, threads=1)
     result = {
         "status": "completed",
-        "config": {"name": "t", "seed": 7, "seatOrder": "Balanced", "seats": [
+        "config": {"name": "t", "players": 4, "games": 240, "seed": 7, "seatOrder": "Balanced", "seats": [
             {"id": "A", "strategy": "mcts", "params": {"simulations": 300, "valueModel": "ml/models/m.txt"}},
             {"id": "B", "strategy": "mcts", "params": {"simulations": 300}},
             {"id": "c", "strategy": "cheap-engine", "params": {}}]},
@@ -108,7 +125,7 @@ def test_official_models_keep_local_matches_beside_them(dump, tmp_path, monkeypa
     out = str(official / "m.txt")
     train_lgbm.train([dump(games=40)], out, log=lambda *_: None, rounds=5, leaves=4, min_leaf=5, threads=1)
     tracked = open(out + ".meta.json", encoding="utf-8").read()
-    result = {"status": "completed", "config": {"name": "t", "seed": 7, "seatOrder": "Balanced", "seats": [
+    result = {"status": "completed", "config": {"name": "t", "players": 4, "games": 240, "seed": 7, "seatOrder": "Balanced", "seats": [
         {"id": "A", "strategy": "mcts", "params": {"simulations": 300, "valueModel": "ml/models/m.txt"}},
         {"id": "B", "strategy": "mcts", "params": {"simulations": 300}}]},
         "summary": [{"seatId": "A", "games": 24, "winShare": 0.6, "avgScore": 45.0},

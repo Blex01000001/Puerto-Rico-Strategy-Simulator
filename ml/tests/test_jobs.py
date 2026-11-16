@@ -181,3 +181,61 @@ def test_runner_output_decoding_falls_back_to_the_locale():
     import job_runner
     assert job_runner.decode("勝率 ±".encode("utf-8")) == "勝率 ±"
     assert job_runner.decode(b"\xff\xfe abc").endswith("abc")  # not UTF-8: decoded with the locale, never raises
+
+
+def _stale_job(job_id, **fields):
+    d = os.path.join(jobs.jobs_dir(), job_id)
+    os.makedirs(d)
+    job = {"id": job_id, "kind": "dump", "title": job_id, "status": "running", "spec": {},
+           "createdEpoch": time.time() - 999, "heartbeatEpoch": time.time() - 999, **fields}
+    with open(os.path.join(d, "job.json"), "w", encoding="utf-8") as f:
+        json.dump(job, f)
+
+
+def _fake_runner():
+    """A process that looks like a job runner (its command line names job_runner) and leads its own session."""
+    import subprocess
+    import sys
+    kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
+    return subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)", "job_runner"], **kwargs)
+
+
+def test_stale_heartbeat_with_a_live_process_is_lost_and_holds_the_queue(results):
+    proc = _fake_runner()
+    try:
+        time.sleep(0.2)
+        _stale_job("lost", pid=proc.pid, startedEpoch=time.time())
+        assert jobs.read_job("lost")["state"] == "lost"
+        assert jobs.active_job()["id"] == "lost"  # nothing else may start meanwhile
+        waiting = jobs.start("dump", "next", {})
+        assert jobs.read_job(waiting)["state"] == "waiting"
+        # the user ends it: the process is killed, the job is cancelled and the queue moves on
+        jobs.cancel("lost")
+        proc.wait(timeout=10)
+        assert jobs.read_job("lost")["state"] == "cancelled"
+        assert jobs.read_job(waiting)["state"] != "waiting"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
+def test_a_recycled_pid_does_not_count_as_alive(results):
+    proc = _fake_runner()
+    try:
+        time.sleep(0.2)
+        # the job started long before this process existed: its pid was reused by another process
+        _stale_job("old", pid=proc.pid, startedEpoch=time.time() - 3600)
+        assert jobs.read_job("old")["state"] == "interrupted"
+        _stale_job("other", pid=os.getpid(), startedEpoch=time.time())  # pytest: not a job runner
+        assert jobs.read_job("other")["state"] == "interrupted"
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+def test_a_finished_process_is_interrupted(results):
+    proc = _fake_runner()
+    proc.kill()
+    proc.wait()
+    _stale_job("dead", pid=proc.pid, startedEpoch=time.time())
+    assert jobs.read_job("dead")["state"] == "interrupted"

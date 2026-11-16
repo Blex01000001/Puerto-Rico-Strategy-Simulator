@@ -6,7 +6,8 @@ A job lives in results/ml/jobs/<id>/:
   log.txt      text log
   cancel       created by the UI to ask the job to stop
 The runner (job_runner.py) refreshes job.json["heartbeat"] every few seconds; a "running" job whose heartbeat is older
-than HEARTBEAT_STALE seconds died without saying so (machine slept, process killed) and is shown as "interrupted".
+than HEARTBEAT_STALE seconds is either "lost" (its process is still alive: the heartbeat stopped but the work may go on;
+the queue waits for it) or "interrupted" (the process is gone: machine slept, process killed).
 Closing the UI (or the browser) does not stop a job: the process is started in its own session / process group,
 so Ctrl+C in the UI's terminal does not reach it either.
 
@@ -75,13 +76,107 @@ def read_job(job_id):
 
 
 def state_of(job):
-    """Status as the UI should show it: a running job with a stale heartbeat was interrupted."""
+    """Status as the UI should show it: a running job with a stale heartbeat is "lost" while its process is still alive
+    (the queue keeps waiting for it) and "interrupted" once it is gone."""
     status = job.get("status")
     if status in ("queued", "running"):
         beat = job.get("heartbeatEpoch") or job.get("createdEpoch") or 0
         if time.time() - beat > HEARTBEAT_STALE:
-            return "interrupted"
+            return "lost" if process_alive(job) else "interrupted"
     return status
+
+
+# states in which a job occupies the queue (nothing else may start)
+BUSY = ("queued", "running", "lost")
+
+
+def process_alive(job):
+    """True when the job's runner process (job.json "pid", written when it starts) still runs. The process must also be
+    a Python started no later than the job, so a recycled pid of some other program does not count."""
+    pid = job.get("pid")
+    if not pid:
+        return False
+    started = job.get("startedEpoch")
+    try:
+        if os.name == "nt":
+            return _alive_windows(int(pid), started)
+        return _alive_posix(int(pid), started)
+    except (OSError, ValueError):
+        return False
+
+
+def _alive_posix(pid, started):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass  # exists, owned by someone else
+    stat_path = f"/proc/{pid}/stat"
+    if not os.path.exists(stat_path):
+        return True  # no /proc (macOS): trust the signal check
+    with open(stat_path, encoding="utf-8", errors="replace") as f:
+        fields = f.read().rsplit(")", 1)[1].split()
+    if fields[0] == "Z":
+        return False  # zombie: it has ended, only its parent has not collected it
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            if b"job_runner" not in f.read():
+                return False  # the pid now belongs to another program
+    except OSError:
+        pass
+    if started:
+        with open("/proc/stat", encoding="utf-8") as f:
+            boot = next(int(line.split()[1]) for line in f if line.startswith("btime"))
+        created = boot + int(fields[19]) / os.sysconf("SC_CLK_TCK")
+        return created <= started + 5
+    return True
+
+
+def _alive_windows(pid, started):
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.restype = wintypes.HANDLE
+    handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return ctypes.get_last_error() == 5  # access denied: it exists
+    try:
+        code = wintypes.DWORD()
+        if not k32.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:  # STILL_ACTIVE
+            return False
+        name = ctypes.create_unicode_buffer(1024)
+        size = wintypes.DWORD(1024)
+        if k32.QueryFullProcessImageNameW(handle, 0, name, ctypes.byref(size)) and "python" not in name.value.lower():
+            return False  # the pid now belongs to another program
+        if started:
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if k32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
+                ft = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+                created = ft / 1e7 - 11644473600  # FILETIME (100 ns since 1601) -> Unix time
+                return created <= started + 5
+        return True
+    finally:
+        k32.CloseHandle(handle)
+
+
+def force_stop(job):
+    """Ends a lost job's runner and everything it started (the Runner), then marks it cancelled."""
+    pid = int(job["pid"])
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+    else:
+        import signal
+        try:
+            os.killpg(pid, signal.SIGTERM)  # the runner leads its own session: its Runner child is in the same group
+        except OSError:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+    job = {k: v for k, v in job.items() if k != "state"}
+    job.update(status="cancelled", finished=now(), result={"summary": "stopped by the user after the heartbeat was lost"})
+    _write_json(os.path.join(jobs_dir(), job["id"], "job.json"), job)
 
 
 def list_jobs():
@@ -93,8 +188,8 @@ def list_jobs():
 
 
 def active_job():
-    """The job that is starting or running (at most one), or None."""
-    return next((j for j in list_jobs() if j["state"] in ("queued", "running")), None)
+    """The job that is starting, running or lost (at most one), or None: while there is one, nothing else starts."""
+    return next((j for j in list_jobs() if j["state"] in BUSY), None)
 
 
 def waiting_jobs():
@@ -189,7 +284,13 @@ def _spawn(job_id):
 
 def cancel(job_id):
     """A waiting job leaves the queue at once; a running job is asked to stop (the runner notices within HEARTBEAT_SECONDS)
-    and then starts the next waiting job itself."""
+    and then starts the next waiting job itself; a lost job (its runner no longer reads the cancel flag) is ended here and
+    the next waiting job starts."""
+    job = read_job(job_id)
+    if job and job["state"] == "lost":
+        force_stop(job)
+        start_next()
+        return
     with _DispatchLock():
         job = read_job(job_id)
         if job and job["state"] == "waiting":
@@ -227,7 +328,7 @@ def wait(job_id, timeout=600):
     end = time.time() + timeout
     while time.time() < end:
         job = read_job(job_id)
-        if job and job["state"] not in ("waiting", "queued", "running"):
+        if job and job["state"] not in ("waiting",) + BUSY:
             return job
         time.sleep(0.2)
     raise TimeoutError(job_id)

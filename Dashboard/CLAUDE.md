@@ -3,7 +3,7 @@
 只參考 Engine；只負責設定／檢視／圖表（「模擬」頁直接呼叫 Engine 的 `BatchSimulator`）。讀到這個資料夾的檔案時自動載入。
 
 ## 檔案地圖
-**`Components/Pages/`**：Home `/`、Simulate（頁籤「一般對戰」「參數掃描」；第一列玩家數、局數、座位順序、主種子，結果檔名獨佔一列）、Results `/results`、Overview（多檔彙整）、Compare（A/B 並排）、Replay（逐步看盤面）、Sweep、Config。
+**`Components/Pages/`**：Home `/`、Versions `/versions`（版本控管：規則版本、引擎版本、特徵版本、資料格式版本、每個策略的策略版本（程式裡的版本不一致時標紅）與每個版本的 commit、修改內容；讀 `docs/versions.json`，用 `Services/VersionLog.cs`，頂端用 `.vtile` 小卡顯示這個 Dashboard 的規則、引擎、特徵、資料格式版本與 git commit；表格 `table.data.vtable` 標題置中；小卡與表格的外觀和 ML UI 的版本控管頁一致，兩邊要一起改）、Simulate（頁籤「一般對戰」「參數掃描」；第一列玩家數、局數、座位順序、主種子，結果檔名獨佔一列）、Results `/results`、Overview（多檔彙整）、Compare（A/B 並排）、Replay（逐步看盤面）、Sweep、Config。
 
 **`Components/`**
 - `BoardView.razor`：回放盤面。精簡版面，連同上下一步要放進一個視窗；中欄寬度＝4 張職業卡（供應區、貨船、交易所）；玩家在兩側，從左下順時針為座位 1→2→3→4。

@@ -36,7 +36,7 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列", "hash 說明", "版本控管"]
     assert at.button(key="navon-data")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
@@ -202,3 +202,72 @@ def test_queue_rows_are_framed_cards(results, monkeypatch):
     at = goto(run_app(), "queue")
     assert any("還有 1 項排隊中" in m.value for m in at.sidebar.markdown)
     assert not any("waiting job" in m.value for m in at.sidebar.markdown)  # only the running job in the navigation
+
+
+def _config_dump(results, name, **meta):
+    """A dump file whose metadata is exactly what the built-in 3p-hand-a config would produce."""
+    import json
+    from conftest import write_dump
+    cfg_path = os.path.join(os.path.dirname(UI), "data-configs", "3p-hand-a.json")
+    with open(cfg_path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    fields = {"games": cfg["games"], "seed": cfg["seed"], "rate": 0.01,
+              "seats": [{"id": s["id"], "strategy": s["strategy"], "params": s.get("params", {})} for s in cfg["seats"]]}
+    fields.update(meta)
+    return write_dump(str(results / "ml" / name), per_game=2, players=cfg["players"], **fields)
+
+
+def test_same_name_data_shows_whether_the_recipe_is_the_same_or_what_differs(results):
+    _config_dump(results, "3p-hand-a.bin")  # the default output name of the first config
+    at = goto(run_app(), "data")
+    assert any("完全相同" in i.value for i in at.info)
+    next(n for n in at.number_input if n.label == "局數").set_value(200000).run()
+    text = " ".join(w.value for w in at.warning)
+    assert "參數**不同**" in text and "局數：20,000 → 200,000" in text
+    next(n for n in at.number_input if n.label.startswith("抽樣率")).set_value(0.001).run()
+    assert "抽樣率：0.01 → 0.001" in " ".join(w.value for w in at.warning)
+
+
+def test_other_name_with_the_same_recipe_is_reported_as_a_duplicate(results):
+    _config_dump(results, "copy-of-hand-a.bin")
+    at = goto(run_app(), "data")
+    assert any("已經有相同配方" in i.value and "copy-of-hand-a" in i.value for i in at.info)
+
+
+def test_overwriting_an_input_of_a_queued_job_is_refused(results, monkeypatch):
+    import jobs
+    _config_dump(results, "3p-hand-a.bin")
+    fake = {"id": "x", "title": "訓練 4p-x", "kind": "train_lgbm", "state": "running",
+            "spec": {"data": [str(results / "ml" / "3p-hand-a.bin").replace(os.sep, "/")], "out": "ml/local/models/x.txt"}}  # as rel() writes it
+    monkeypatch.setattr(jobs, "active_job", lambda: fake)
+    monkeypatch.setattr(jobs, "waiting_jobs", lambda: [])
+    monkeypatch.setattr(jobs, "list_jobs", lambda: [fake])
+    monkeypatch.setattr(jobs, "events", lambda job_id: [])
+    at = goto(run_app(), "data")
+    start = next(b for b in at.button if b.label == "加入排隊")
+    assert start.disabled
+    assert any("要讀這個檔案" in m.value and "act-err" in m.value for m in at.markdown)
+
+
+def test_hash_page_lists_what_counts_and_what_does_not(results):
+    import fingerprint
+    at = goto(run_app(), "hash")
+    text = " ".join(m.value for m in at.markdown) + " ".join(t.value.to_csv() for t in at.table)
+    assert "不計入" in text and "價值模型" in text and "座位 id" in text
+    for key in fingerprint.LGBM_OPTIONS + fingerprint.MLP_OPTIONS:  # the option lists on the page come from the code
+        assert f"`{key}`" in text, key
+    assert "指紋" not in text  # the UI says hash
+
+
+def test_versions_page_shows_the_list_and_matches_the_code(results):
+    import fingerprint
+    at = goto(run_app(), "versions")
+    assert not at.exception
+    assert not at.warning  # docs/versions.json names the current numbers
+    text = " ".join(m.value for m in at.markdown)
+    now = fingerprint.rules_name(fingerprint.current_rules_revision())
+    assert f'<div class="l">規則版本</div><div class="v">{now}</div>' in text  # the tile
+    assert "<th>版本</th><th>日期</th><th>commit</th><th>修改內容</th>" in text  # tables like the Dashboard's
+    # one row per strategy, its current version as in the code
+    rev = fingerprint.current_strategy_revision("harbor-rush")
+    assert f'<td class="l nw">harbor-rush</td><td class="c">harbor-rush-v{rev}</td><td class="c">v{rev}</td>' in text

@@ -9,7 +9,7 @@ namespace PuertoRico.Engine.Strategies.RuleBased;
 /// as a whole set of circles and then emitted in slot order (see Rules.Mayor). Only public information is read:
 /// never opponents' VP chips. The defaults describe the "corn shipper"; subclasses override the hooks they care about.
 /// </summary>
-public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
+public abstract class HeuristicStrategy : IStrategy, IScoreExplainer, IResolvesParameters
 {
     protected const int T = GameConstants.TileTypes;
     protected const int B = GameConstants.BuildingCount;
@@ -80,9 +80,21 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
     public GameAction ChooseAction(GameState s, IReadOnlyList<GameAction> legalActions)
     {
         LastScores = null;
-        if (_players == 0)
+        if (_players == 0) Initialize(s.PlayerCount);
+        if (legalActions.Count == 1) return legalActions[0];
+        return ChooseConfigured(s, legalActions);
+    }
+
+    /// <summary>Reads every parameter for this player count (no game needed): used by <see cref="StrategyRegistry.Resolve"/>.</summary>
+    public void ResolveParameters(int players)
+    {
+        if (_players == 0) Initialize(players);
+    }
+
+    private void Initialize(int players)
+    {
         {
-            _players = s.PlayerCount;
+            _players = players;
             BuildThreshold = StrategyRegistry.GetDouble(_parameters, "buildThreshold", _players == 3 ? _defaultThreshold3 : _defaultThreshold4);
             // experimental, off by default: equal top scores are broken at random in 1 = the Settler and Craftsman-bonus phases, 2 = every phase but Mayor,
             // 3 = the Settler phase only, 4 = the Craftsman bonus only
@@ -92,7 +104,10 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer
             _tie = TieBreakRules.From(_parameters, DefaultTieTile); // second criterion for equal scores (TieBreakRules); only the strategy's DefaultTieTile unless the seat sets tie* params
             Configure(_players);
         }
-        if (legalActions.Count == 1) return legalActions[0];
+    }
+
+    private GameAction ChooseConfigured(GameState s, IReadOnlyList<GameAction> legalActions)
+    {
         if (s.Phase == Phase.Mayor)
         {
             // the Mayor set is chosen as a whole (see ChooseMayorPlacement); the reported score of an action is the value of its circle

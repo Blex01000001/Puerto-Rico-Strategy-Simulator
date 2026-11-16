@@ -7,6 +7,7 @@ import time
 import pytest
 
 import jobs
+import fingerprint
 import modelmeta
 import positions
 
@@ -35,17 +36,25 @@ def write_config(path, seats, players=4, games=24, seed=5, order="balanced"):
 
 
 def test_dump_job_publishes_the_runner_and_writes_a_readable_dump(env, runner_dir):
-    cfg = write_config(str(env / "d.json"), [{"id": f"r{i}", "strategy": "random", "params": {}} for i in range(4)], games=40)
+    seats = [{"id": "h", "strategy": "harbor-rush", "params": {"buildThreshold": 4.5}}, {"id": "m", "strategy": "mcts", "params": {"simulations": 3}},
+             {"id": "r", "strategy": "rule-based", "params": {"profile": "build-first"}}, {"id": "g", "strategy": "guided-random", "params": {}}]
+    cfg = write_config(str(env / "d.json"), seats, games=24)
     out = str(env / "results" / "ml" / "d.bin")
     job_id = jobs.start("dump", "dump", {"config": cfg, "out": out, "rate": 0.05})
     job = jobs.wait(job_id, timeout=600)
     assert job["state"] == "done", jobs.log_tail(job_id)
     assert os.path.exists(os.path.join(runner_dir, "Runner.dll"))
     meta = positions.read_meta(out)
-    assert meta["games"] == 40 and meta["status"] == "completed"
+    assert meta["games"] == 24 and meta["status"] == "completed"
+    # the hash the ML UI predicts before the run (ml/strategy-params.json) equals the one of what the engine wrote
+    with open(cfg, encoding="utf-8") as f:
+        planned = fingerprint.planned_dump_recipe(json.load(f), 0.05)
+    assert fingerprint.fingerprint(planned) == fingerprint.fingerprint(fingerprint.dump_recipe(meta)), \
+        fingerprint.describe(planned, fingerprint.dump_recipe(meta))
+    assert meta["resolvedSeats"][1]["revisions"] == {"mcts": 1, "random": 1}
     assert job["result"]["rows"] == meta["rows"]
     games = [e for e in jobs.events(job_id) if e["stage"] == "games"]
-    assert games and games[-1]["done"] == 40
+    assert games and games[-1]["done"] == 24
 
 
 def test_cancelled_dump_keeps_the_finished_games(env):
@@ -68,8 +77,8 @@ def test_match_job_records_the_win_rate_in_the_model(env):
     model = str(env / "tiny.txt")
     shutil.copy(os.path.join(ROOT, "Tests", "Data", "tiny-lgbm.txt"), model)
     fake = [{"path": "x.bin", "rows": 1, "games": 1, "status": "completed", "rate": 1, "seed": 1, "players": 4,
-             "featureVersion": 1, "featureCount": 430, "seats": []}]
-    modelmeta.write(model, "lightgbm", fake, {}, {}, {}, [], {})
+             "featureVersion": 1, "formatVersion": 1, "featureCount": 430, "seats": []}]
+    modelmeta.write(model, "lightgbm", fake, {}, {}, {}, [], {}, options={"rounds": 1})
     seats = [{"id": "A", "strategy": "mcts", "params": {"simulations": 5, "valueModel": model}},
              {"id": "B", "strategy": "mcts", "params": {"simulations": 5}},
              {"id": "cheap-engine", "strategy": "cheap-engine", "params": {}},
@@ -82,4 +91,7 @@ def test_match_job_records_the_win_rate_in_the_model(env):
     matches = modelmeta.read(model)["matches"]
     assert len(matches) == 1 and matches[0]["games"] == 24 and matches[0]["simulations"] == 5
     assert job["result"]["match"]["winShare"] == matches[0]["winShare"]
+    # the match records its recipe fingerprint, the engine rules revision and the content hash of the model that played
+    assert len(matches[0]["fingerprint"]) == 64 and matches[0]["rulesRevision"] >= 1
+    assert matches[0]["modelSha256"] == fingerprint.file_sha256(model)
     assert "±" in jobs.log_tail(job_id)  # the Runner's summary line reached the log intact

@@ -2,6 +2,7 @@ using System.Text.Json;
 using PuertoRico.Engine.Events;
 using PuertoRico.Engine.Game;
 using PuertoRico.Engine.Strategies.Mcts;
+using PuertoRico.Engine.Strategies;
 
 namespace PuertoRico.Engine.Simulation;
 
@@ -10,7 +11,7 @@ namespace PuertoRico.Engine.Simulation;
 /// every sampled position gives one row per seat (features from that seat's view, <see cref="ValueFeatures"/>)
 /// labelled with that seat's final MCTS reward (0.6 × win + 0.4 × rank score) and win share.
 /// Output: <c>&lt;out&gt;</c> = fixed-size little-endian records (float32 reward, float32 win, int32 game, int16 × feature count),
-/// <c>&lt;out&gt;.json</c> = metadata (feature names, layout, config). Deterministic in (config, game index, rate) and
+/// <c>&lt;out&gt;.json</c> = metadata (feature names, layout, config, rulesRevision, requestedGames, limits, options; ml/fingerprint.py hashes these). Deterministic in (config, game index, rate) and
 /// independent of the thread count: games run in parallel in chunks and are written in game order.
 /// Cancelling stops after the current chunk is dropped; the metadata is still written for the games completed so far
 /// (<c>status</c> = "cancelled"), so a partial dump stays readable.
@@ -107,6 +108,11 @@ public static class PositionDump
             formatVersion = FormatVersion,
             status = cancelled ? "cancelled" : "completed",
             featureVersion = ValueFeatures.Version,
+            rulesVersion = EngineInfo.RulesVersion,
+            rulesRevision = EngineInfo.RulesRevision,
+            engineVersion = EngineInfo.Version,
+            engineCommit = EngineInfo.Commit,
+            requestedGames = cfg.Games,
             recordBytes = RecordBytes,
             layout = "float32 reward, float32 win, int32 game, int16[featureCount] features (little-endian)",
             featureCount = f,
@@ -120,6 +126,9 @@ public static class PositionDump
             seed = cfg.Seed,
             seatOrder = cfg.SeatOrder.ToString(),
             seats = cfg.Seats.Select(s => new { s.Id, s.Strategy, s.Params }).ToList(),
+            resolvedSeats = StrategyRegistry.ResolveSeats(cfg),
+            limits = cfg.Limits,
+            options = new { cfg.Options.AutoAdvanceForced },
         };
         File.WriteAllText(outPath + ".json", JsonSerializer.Serialize(meta, SimulationConfig.JsonOptions));
         return new Summary(rows, done, positions, cancelled);
