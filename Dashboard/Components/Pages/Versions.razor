@@ -6,6 +6,7 @@
 @using Dashboard.Services
 
 <PageTitle>版本控管 · 波多黎各策略模擬器</PageTitle>
+<div class="vpage">
 <h1>版本控管</h1>
 <p class="note">規則版本、引擎版本、策略版本等各種版本號碼，以及每個版本做了哪些修改。資料來源是 docs/versions.json（和 ML UI 同一份）。</p>
 
@@ -17,7 +18,7 @@
         <div class="vtile"><div class="l">引擎版本</div><div class="v">@EngineInfo.Version</div></div>
         <div class="vtile"><div class="l">特徵版本</div><div class="v">@ValueFeatures.Version</div></div>
         <div class="vtile"><div class="l">資料格式版本</div><div class="v">@PositionDump.FormatVersion</div></div>
-        <div class="vtile wide"><div class="l">git commit</div><div class="v small">@EngineInfo.Commit</div></div>
+        <div class="vtile wide"><div class="l">git commit</div><div class="v">@CommitId</div>@if (Dirty) { <div class="sub">建置時有未提交的修改（-dirty）</div> }</div>
     </div>
     <p class="note">規則版本只管遊戲規則與亂數，每個策略另有自己的策略版本；這兩種版本號和完整參數一起決定 ML 工具的 hash，用來判斷資料與模型是不是舊的。引擎版本給人看，commit 只用來追溯（不進 hash）；結果檔的 engineCommit 帶「-dirty」表示當時有未提交的修改。</p>
 </div>
@@ -96,7 +97,12 @@
     </div>
 }
 
+</div>
+
 @code {
+    // "a1b2c3d4-dirty": the commit as large as the other tiles, the dirty mark as a note under it
+    private static bool Dirty => EngineInfo.Commit.EndsWith("-dirty", StringComparison.Ordinal);
+    private static string CommitId => Dirty ? EngineInfo.Commit[..^"-dirty".Length] : EngineInfo.Commit;
     private List<VersionLog.Track> tracks = new();
     private string? error;
 
