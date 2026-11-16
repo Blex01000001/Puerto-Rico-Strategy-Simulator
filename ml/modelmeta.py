@@ -210,6 +210,38 @@ def add_match(model_path, result_path):
 MODEL_FILES = ("", ".meta.json", ".check.txt")
 
 
+INVALID_NAME_CHARS = '/\\:*?"<>| '
+
+
+def rename_model(model_path, new_name):
+    """Renames a LOCAL model with its .meta.json and .check.txt (the extension stays; the name inside the metadata follows).
+    Refuses official models (they are in git), invalid names and names already used in ml/models or ml/local/models.
+    Returns the new path. The hash does not change (it never includes the name)."""
+    ext = os.path.splitext(model_path)[1]
+    name = new_name.strip()
+    if name.endswith(ext):
+        name = name[:-len(ext)]
+    if not name or any(c in name for c in INVALID_NAME_CHARS):
+        raise ValueError("名稱不能空白，也不能有路徑符號或空白")
+    if is_official(model_path):
+        raise ValueError("正式模型在 git 裡，請先「移到本機」或在 git 裡改名")
+    target = os.path.join(os.path.dirname(model_path), name + ext)
+    if os.path.abspath(target) == os.path.abspath(model_path):
+        raise ValueError("名稱沒有改變")
+    if any(os.path.exists(os.path.join(d, name + ext)) for d in (OFFICIAL_MODELS, local_models_dir(), os.path.dirname(model_path))):
+        raise ValueError(f"已經有叫 {name + ext} 的模型，換一個名稱")
+    for suffix in MODEL_FILES:
+        if os.path.exists(model_path + suffix):
+            os.replace(model_path + suffix, target + suffix)
+    if os.path.exists(target + ".meta.json"):
+        with open(target + ".meta.json", encoding="utf-8") as f:
+            meta = json.load(f)
+        meta["model"] = os.path.basename(target)
+        with open(target + ".meta.json", "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+    return target
+
+
 def move_model(model_path, target_dir):
     """Moves a model with its .meta.json and .check.txt (promote to ml/models, or move to ml/local/models).
     Refuses when the target already has a model of that name. Returns the new path."""

@@ -562,6 +562,13 @@ table.vtable td.nw { white-space: nowrap; }
 table.vtable td ul { margin: 0; padding-left: 1.1rem; }
 table.vtable td li { margin: 0; }
 table.vtable tbody tr:hover td { background: #1f2430; }
+.vtile .q { position: absolute; top: .3rem; right: .45rem; width: 1rem; height: 1rem; border: 1px solid #8892a2; border-radius: 50%;
+  color: #8892a2; font-size: .68rem; line-height: .95rem; text-align: center; cursor: help; }
+table.vtable.doc th { text-align: left; } table.vtable.doc td { vertical-align: top; }
+table.vtable.cmp { table-layout: fixed; }  /* compare: equal model columns, long data lists wrap */
+table.vtable.cmp th:first-child { width: 12rem; } table.vtable.cmp th:last-child { width: 3.5rem; }
+table.vtable.cmp td { overflow-wrap: anywhere; }
+table.vtable td.best { color: #4aa8ff; font-weight: 700; background: rgba(74, 168, 255, .13); }
 /* left navigation (Dashboard style): brand, section headings, one full-width entry per page, the active one highlighted */
 section[data-testid="stSidebar"] { background: #171a21 !important; border-right: 1px solid #000; }
 .nav-brand { display: flex; align-items: center; gap: .55rem; font-weight: 700; color: #fff; line-height: 1.25; font-size: .95rem;
@@ -1291,13 +1298,16 @@ def match_note(m, current_sha):
 
 def matches_frame(meta, model_file=None):
     current_sha = fingerprint.file_sha256(model_file) if model_file and os.path.exists(model_file) else None
+    official = bool(model_file) and place_of(model_file) == "正式"
     rows = []
     for m in meta.get("matches", []):
-        rows.append({"設定": m.get("config"), "對手": describe_match(m), "局數": m["games"], "種子": m["seed"],
+        rows.append({"設定": m.get("config"), "對手": describe_match(m), "leafRollout": m.get("leafRollout", 0) or 0,
+                     "局數": m["games"], "種子": m["seed"],
                      "勝率": m["winShare"], "±95%": m.get("winShareCi95"), "平均分": m["avgScore"],
                      "對手勝率": "、".join(f"{o['strategy'] if not o.get('valueModel') else 'MCTS＋模型'} {o['winShare']:.1%}" for o in m["others"]),
-                     "紀錄": "本機" if m.get("local") else "正式", "hash": fingerprint.short(m.get("fingerprint")) or "—",
-                     "備註": match_note(m, current_sha), "結果檔": m["result"]})
+                     # where the record is kept: in the model's tracked .meta.json (git) or only on this machine
+                     "紀錄存放": "git" if official and not m.get("local") else "本機",
+                     "結果檔": m["result"], "hash": fingerprint.short(m.get("fingerprint")) or "—", "備註": match_note(m, current_sha)})
     return pd.DataFrame(rows)
 
 
@@ -1309,7 +1319,10 @@ def move_buttons(path):
     """設為正式模型 (local -> ml/models, then commit it) and 移到本機 (an official-folder model git does not track)."""
     name = os.path.basename(path)
     if place_of(path) == "本機":
-        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
+        c1, c3, c2 = st.columns([2.2, 2.2, 5], vertical_alignment="center")
+        with c3:
+            if st.button("重新命名", key=f"rename-{name}", width="stretch"):
+                rename_dialog(path)
         with c1:
             with st.popover("設為正式模型", width="stretch"):
                 st.markdown(f"把 `{name}`（連同 `.meta.json`、`.check.txt`）搬到 `ml/models/`。之後在 Visual Studio commit，才會進 git、別台電腦和 Claude 才看得到。"
@@ -1338,6 +1351,61 @@ def move_buttons(path):
                     "移到本機就不會再出現在 Visual Studio 的 Git 變更裡。</span>", unsafe_allow_html=True)
 
 
+def model_name_users(path):
+    """What still names this model by its file name: data whose self-play seats used it, and configs that point at it."""
+    name = os.path.basename(path)
+    dumps = [d["來源"] for d in list_dumps() if "_meta" in d and any(
+        os.path.basename(str(((s_.get("params") or {}).get("valueModel")) or "")) == name for s_ in d["_meta"].get("seats", []))]
+    configs = []
+    for folder in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS, LOCAL_MATCHES):
+        for c in sorted(glob.glob(os.path.join(folder, "*.json"))):
+            cfg = read_config(c) or {}
+            if any(os.path.basename(str(((s_.get("params") or {}).get("valueModel")) or "")) == name for s_ in cfg.get("seats", [])):
+                configs.append(rel(c))
+    return dumps, configs
+
+
+@st.dialog("重新命名模型")
+def rename_dialog(path):
+    name = os.path.basename(path)
+    ext = os.path.splitext(name)[1]
+    new = st.text_input(f"新名稱（副檔名 {ext} 自動加）", value=name[:-len(ext)], key=f"rename-new-{name}").strip()
+    if new.endswith(ext):
+        new = new[:-len(ext)]
+    problems = []
+    if not new or any(c in new for c in modelmeta.INVALID_NAME_CHARS):
+        problems.append("名稱不能空白，也不能有路徑符號或空白")
+    elif new + ext == name:
+        problems.append("名稱沒有改變")
+    elif model_name_taken(new + ext):
+        problems.append(f"已經有叫 {new + ext} 的模型")
+    busy = pending_readers(rel(path)) + ([t["title"] for t in jobs.list_jobs() if t["state"] in ("waiting",) + jobs.BUSY
+                                          and str(t.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
+    if busy:
+        problems.append(f"排隊中或執行中的工作「{busy[0]}」要用這個模型，等它結束或移出佇列再改")
+    st.caption(f"會一起改 `{name}`、`{name}.meta.json`、`{name}.check.txt`（訓練紀錄、對戰紀錄都跟著走）。hash 不包含名稱，所以不會變。")
+    dumps, configs = model_name_users(path)
+    if dumps or configs:
+        st.warning("下面這些還用舊名字指向這個模型：改名後**用它們重跑會找不到模型**，"
+                   "用它產生的自我對戰資料 hash 也會因為找不到舊名字的模型而改變。\n\n"
+                   + "\n".join(f"- 資料 `{d}`" for d in dumps) + ("\n" if dumps and configs else "")
+                   + "\n".join(f"- 設定檔 `{c}`" for c in configs))
+    if problems:
+        st.markdown('<span class="act-err">無法改名：' + "；".join(plain(x) for x in problems) + "</span>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    if c1.button("取消", key=f"rename-cancel-{name}", width="stretch"):
+        st.rerun()
+    if c2.button("確定改名", type="primary", key=f"rename-ok-{name}", width="stretch", disabled=bool(problems)):
+        try:
+            target = modelmeta.rename_model(path, new)
+            st.session_state["job-started"] = f"{name} 已改名為 {os.path.basename(target)}。"
+            st.session_state["model-pick"] = os.path.basename(target)
+            st.cache_data.clear()
+            st.rerun()
+        except ValueError as e:
+            st.error(str(e))
+
+
 def model_detail(path):
     meta = model_meta(path)
     name = os.path.basename(path)
@@ -1346,12 +1414,13 @@ def model_detail(path):
         st.warning(f"`{name}` 沒有 `.meta.json`（不知道怎麼訓練的）。")
         return
     v = meta.get("validation") or {}
-    c = st.columns(4)
-    c[0].metric("種類", KIND_TEXT.get(meta["kind"], meta["kind"]))
-    c[1].metric("資料列數", f"{sum(d['rows'] for d in meta['data']):,}")
-    c[2].metric("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—")
     best = best_vs_default(meta)
-    c[3].metric("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—", help=describe_match(best) if best else "還沒有對戰")
+    st.markdown(version_tiles([("種類", KIND_TEXT.get(meta["kind"], meta["kind"])),
+                               ("資料列數", f"{sum(d['rows'] for d in meta['data']):,}"),
+                               ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—", METRIC_HELP["R²"]),
+                               ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
+                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")]), unsafe_allow_html=True)
+    st.caption(("最佳勝率來自：" + describe_match(best) + "。") if best else "還沒有對原版 MCTS 的對戰。")
 
     st.markdown("**對戰結果**（判斷模型好壞的依據）")
     mf = matches_frame(meta, path)
@@ -1418,24 +1487,38 @@ def model_detail(path):
 
 
 def compare(paths):
+    """Side by side, as a wrapping table (no scrollbar). Result rows mark the best model: the highest value, the lowest
+    cross-entropy. Parameter rows mark the ones that differ."""
     metas = {os.path.basename(p): model_meta(p) for p in paths}
     names = list(metas)
+
+    def best_cells(values, higher=True):
+        nums = [x for x in values if x is not None]
+        top = (max(nums) if higher else min(nums)) if len(nums) >= 2 and len(set(nums)) > 1 else None
+        return ["c best" if x is not None and x == top else "c" for x in values]
+
+    def metric_row(label, get, fmt, higher=True):
+        values = [get(metas[n]) if metas[n] else None for n in names]
+        kinds = best_cells(values, higher)
+        return [(label, "l nw")] + [(fmt(x) if x is not None else "—", k) for x, k in zip(values, kinds)] + [("", "c")]
+
+    rows = [
+        metric_row("對原版 MCTS 最佳勝率", lambda m: best_vs_default(m)["winShare"] if best_vs_default(m) else None, lambda x: f"{x:.1%}"),
+        metric_row("R²", lambda m: (m.get("validation") or {}).get("r2"), lambda x: f"{x:.3f}"),
+        metric_row("交叉熵（越低越好）", lambda m: (m.get("validation") or {}).get("crossEntropy"), lambda x: f"{x:.4f}", higher=False),
+        metric_row("資料列數", lambda m: sum(d["rows"] for d in m["data"]), lambda x: f"{x:,}"),
+        [("資料來源", "l nw")] + [("、".join(d["source"] for d in metas[n]["data"]) if metas[n] else "—", "l") for n in names] + [("", "c")],
+    ]
     keys = []
     for m in metas.values():
         for k in flat_params(m or {}):
             if k not in keys:
                 keys.append(k)
-    rows = []
     for k in keys:
         vals = [str(flat_params(metas[n] or {}).get(k, "—")) for n in names]
-        rows.append({"參數": k, **dict(zip(names, vals)), "不同": "●" if len(set(vals)) > 1 else ""})
-    for label, f in [("資料列數", lambda m: f"{sum(d['rows'] for d in m['data']):,}"),
-                     ("資料來源", lambda m: "、".join(d["source"] for d in m["data"])),
-                     ("R²", lambda m: f"{(m.get('validation') or {}).get('r2') or 0:.3f}"),
-                     ("對原版 MCTS 最佳勝率", lambda m: f"{best_vs_default(m)['winShare']:.1%}" if best_vs_default(m) else "—")]:
-        vals = [f(metas[n]) if metas[n] else "—" for n in names]
-        rows.insert(0, {"參數": label, **dict(zip(names, vals)), "不同": "●" if len(set(vals)) > 1 else ""})
-    grid(pd.DataFrame(rows), hide_index=True, width="stretch")
+        rows.append([(k, "l nw")] + [(x, "c") for x in vals] + [("●" if len(set(vals)) > 1 else "", "c")])
+    st.markdown(version_table(["項目"] + names + ["不同"], rows, css="cmp"), unsafe_allow_html=True)
+    st.caption("藍底粗體＝這一列最好的模型（勝率、R²、資料列數取最高，交叉熵取最低）；「不同」標出參數不一樣的列。判斷好壞只看對戰勝率。")
 
 
 def _models_body():
@@ -1443,14 +1526,16 @@ def _models_body():
     if not paths:
         st.info("還沒有模型（正式 ml/models/、本機 ml/local/models/ 都是空的）。")
         return
-    table = models_table(paths)
-    grid(table, hide_index=True, width="stretch")
     by_name = {os.path.basename(p): p for p in paths}
     mode = st.radio("檢視", ["單一模型", "並排比較"], horizontal=True)
     if mode == "單一模型":
         # open on the strongest model (best win share against the original MCTS)
         scores = [(best_vs_default(model_meta(p))["winShare"] if model_meta(p) and best_vs_default(model_meta(p)) else -1) for p in paths]
-        name = st.selectbox("模型", list(by_name), index=scores.index(max(scores)))
+        if st.session_state.get("model-pick") not in by_name:
+            st.session_state.pop("model-pick", None)  # opens on the strongest model; a rename selects the renamed one
+        # passing index while the key already holds a value makes Streamlit warn: only on the first draw
+        start = {} if "model-pick" in st.session_state else {"index": scores.index(max(scores))}
+        name = st.selectbox("模型", list(by_name), key="model-pick", **start)
         model_detail(by_name[name])
     else:
         names = st.multiselect("選兩個以上的模型", list(by_name), max_selections=4)
@@ -1468,6 +1553,40 @@ def match_tab():
 def models_tab():
     with card("models", "模型（正式 ml/models/ ＋ 本機 ml/local/models/）"):
         _models_body()
+    with card("models-list", "模型列表"):
+        models_list()
+    with card("models-metrics", "R² 與交叉熵是什麼"):
+        st.markdown(version_table(["指標", "意思", "範圍", "怎麼看"], [
+            [("R²", "l nw"), ("模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中", "l"),
+             ("0～1，越高越好", "l nw"), ("目前約 0.47～0.58：只看局面就能解釋一半左右的結果，剩下的是之後的決策與運氣", "l")],
+            [("交叉熵", "l nw"), ("訓練時真正在降低的損失。模型輸出一個 0～1 的值（「這個座位的最終回報」），交叉熵衡量它和實際結果的差距；"
+                                  "把錯的事很有信心地說對，懲罰特別重", "l"),
+             ("越接近 0 越好", "l nw"), ("目前約 0.45～0.48", "l")],
+        ], css="doc"), unsafe_allow_html=True)
+        st.caption("這兩個數字只能在同一份驗證資料上比。資料組成一變，數字就不能比。判斷模型好壞一律看對戰勝率。")
+
+
+def models_list():
+    """Every model, with quick filters (place, kind, creation date); empty filter = all."""
+    paths = model_files()
+    if not paths:
+        return
+    table = models_table(paths)
+    dates = sorted({str(c)[:10] if str(c)[:4].isdigit() else "補寫" for c in table["建立"]}, reverse=True)
+    c1, c2, c3 = st.columns([1, 1, 3])
+    places = c1.pills("位置", ["正式", "本機"], selection_mode="multi", key="mf-place")
+    kinds = c2.pills("種類", ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
+    days = c3.pills("建立日期", dates, selection_mode="multi", key="mf-date")
+    keep = table["位置"].isin(places or ["正式", "本機"]) & table["種類"].isin(kinds or ["LightGBM", "MLP"])
+    if days:
+        keep &= [(str(c)[:10] if str(c)[:4].isdigit() else "補寫") in days for c in table["建立"]]
+    shown = table[keep]
+    if shown.empty:
+        st.caption("沒有符合篩選的模型。")
+        return
+    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in ("人數", "R²", "交叉熵", "對戰場數", "對原版 MCTS 最佳勝率")}
+    grid(shown, hide_index=True, width="stretch", column_config=centred)
+    st.caption(f"顯示 {len(shown)} / {len(table)} 個模型。快篩不選＝全部。")
 
 
 # ---------------------------------------------------------------- hash 說明、版本控管
@@ -1563,12 +1682,24 @@ def _esc(text):
 
 
 def version_tiles(items):
-    """Version tiles like the Dashboard's (label small and muted at the top left, value centred): [(label, value)]."""
-    return ('<div class="vtiles">' + "".join(f'<div class="vtile"><div class="l">{_esc(l)}</div><div class="v">{_esc(v)}</div></div>'
-                                           for l, v in items) + "</div>")
+    """Tiles like the Dashboard's (label small and muted at the top left, value centred): [(label, value)] or
+    [(label, value, help)]; a help text puts a "?" at the top right that shows it on hover."""
+    def tile(item):
+        label, value, tip = (tuple(item) + (None,))[:3]
+        q = f'<span class="q" title="{_esc(tip)}">?</span>' if tip else ""
+        return f'<div class="vtile"><div class="l">{_esc(label)}</div>{q}<div class="v">{_esc(value)}</div></div>'
+    return '<div class="vtiles">' + "".join(tile(i) for i in items) + "</div>"
 
 
-def version_table(head, rows):
+METRIC_HELP = {
+    "R²": "模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中。越高越好。"
+          "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
+    "交叉熵": "訓練時真正在降低的損失：模型輸出的 0～1 回報和實際結果的差距，很有信心卻猜錯會被重罰。越接近 0 越好。"
+             "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
+}
+
+
+def version_table(head, rows, css=""):
     """A table like the Dashboard's version tables: centred headings; rows are lists of (text, kind) with kind
     'c' = centred, 'l' = left, 'list' = a bullet list (text is a list), 'code' = centred code."""
     def cell(value, kind):
@@ -1577,7 +1708,7 @@ def version_table(head, rows):
         if kind == "code":
             return f'<td class="c"><code>{_esc(value)}</code></td>'
         return f'<td class="{kind}">{_esc(value)}</td>'
-    return ('<table class="vtable"><thead><tr>' + "".join(f"<th>{_esc(h)}</th>" for h in head) + "</tr></thead><tbody>"
+    return (f'<table class="vtable {css}"><thead><tr>' + "".join(f"<th>{_esc(h)}</th>" for h in head) + "</tr></thead><tbody>"
             + "".join("<tr>" + "".join(cell(v, k) for v, k in r) + "</tr>" for r in rows) + "</tbody></table>")
 
 
