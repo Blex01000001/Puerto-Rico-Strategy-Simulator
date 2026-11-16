@@ -449,12 +449,12 @@ table.data.filetable td.wrapok { white-space: normal; }
 
 /* 版本控管 page: tiles and tables shared in look with the ML UI's 版本控管 page (ml/ui.py CSS: .vtile, table.vtable) */
 .vtiles { display: flex; flex-wrap: wrap; gap: .75rem; margin: .6rem 0 .5rem; }
-.vtile { position: relative; flex: 1 1 9rem; min-height: 5rem; display: flex; align-items: center; justify-content: center; padding: 1.2rem .8rem .5rem; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; text-align: center; }
+/* the label takes its own line at the top (a long one wraps and pushes the value down), the value is centred in the rest */
+.vtile { position: relative; flex: 1 1 9rem; min-height: 5.6rem; display: flex; flex-direction: column; padding: .35rem .55rem .55rem; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
 .vtile.wide { flex-basis: 13rem; }
-.vtile .l { position: absolute; top: .3rem; left: .55rem; color: var(--text-3); font-size: .75rem; line-height: 1.1; }
-.vtile .v { font-size: 1.55rem; font-weight: 600; color: var(--text); line-height: 1.2; font-variant-numeric: tabular-nums; }
-.vtile { flex-direction: column; }
-.vtile .sub { font-size: .72rem; color: var(--text-3); margin-top: .15rem; }
+.vtile .l { color: var(--text-3); font-size: 15px; line-height: 1.25; text-align: left; }
+.vtile .v { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 1.55rem; font-weight: 600; color: var(--text); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.vtile .sub { font-size: .72rem; color: var(--text-3); margin-top: -.2rem; text-align: center; }
 /* code (commits, source files) styled like Streamlit's inline code in the ML UI: green on a dark chip */
 .vpage code { color: #7ed5b0; background: #181c24; font-family: "Source Code Pro", ui-monospace, Consolas, monospace; font-size: .8em; padding: .13em .3em; border-radius: 4px; }
 table.data.vtable th { text-align: center; }
