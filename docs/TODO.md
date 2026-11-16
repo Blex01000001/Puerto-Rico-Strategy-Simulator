@@ -26,6 +26,7 @@
 
 ## 已知問題／限制
 
+- 使用者電腦建置的 Dashboard 顯示 git commit 帶 `-dirty`（建置時有已追蹤但未提交的修改），原因還沒查（可能是改過的檔案、刪過內建設定檔、或 Windows 換行字元）；請使用者執行 `git status --short` 確認，若是換行字元可加 `.gitattributes`。
 - `wharf-rush` 在這份實作下偏弱（4 人局約 18%、3 人局約 39%）：Wharf 平均到第 9～10 回合才買到；MCTS 陪練（random 或 wharf-rush rollout）都不買 Wharf、也打贏它，目前沒有證據顯示 Wharf 太強（分析文件 7.2）；前期金幣來源的參數掃描在 4 人局沒有進步（7.1）。`wharf-premium`（菸草／咖啡籌錢）也沒有更強（7.5）。`corn-monopoly` 的搗亂效果已量化並拆成兩種手段（7.3、7.4：囤貨比搶種植園傷，且大部分落差只是多一個玉米玩家）。
 
 - Dashboard 的 ML UI 啟動在 Linux 驗證過（啟動、狀態、缺套件的錯誤訊息）；Windows 上已能啟動，但多個 Python 時曾裝錯地方（`No module named 'lightgbm'`），改成挑套件齊全的 Python 並印出修正指令後還沒在 Windows 實測。
@@ -63,6 +64,7 @@
 - `builds.dotnet.microsoft.com` 被這個雲端環境的網路代理擋住，`dotnet-install.sh` 在這裡不可用，只能用 apt 安裝 .NET（RunPod 上 `deploy/runpod/setup.sh` 會在 apt 失敗時改用它）。
 
 ## 想法
+- ML UI「對戰驗證」加「對另一個模型」的對手選項（同桌對打兩個價值模型，結果自動記到兩個模型的對戰紀錄）；目前要用 Dashboard「策略模擬」頁手動排，結果不會記到模型。
 - 規則變體（自訂規則，例如起始金錢 5 元、貨物或殖民者無限、貨船容量、商人特權 +2、VP 籌碼）：設定檔 `rules.variant`＋選項，顯示 `base-v2-rich-start`。先做只改 `Setup` 的參數類，再做寫死在規則裡的常數（商人特權），改邏輯的玩法用旗標分支；要處理不變量檢查、模型與變體不一致的警告。hash 已預留 `variant`／`variantOptions`。範圍擴張，使用者決定後才做。
 - 擴充版：先取得規則、盤點 `BuildingCount`／`MaxPlayers` 等常數的依賴量，再決定同專案（規則集可替換）或另開專案。規則集名稱 `base` 已進 hash。
 
