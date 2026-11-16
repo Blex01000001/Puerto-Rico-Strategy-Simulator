@@ -453,7 +453,10 @@ table.data.filetable td.wrapok { white-space: normal; }
 .vtile.wide { flex-basis: 13rem; }
 .vtile .l { position: absolute; top: .3rem; left: .55rem; color: var(--text-3); font-size: .75rem; line-height: 1.1; }
 .vtile .v { font-size: 1.55rem; font-weight: 600; color: var(--text); line-height: 1.2; font-variant-numeric: tabular-nums; }
-.vtile .v.small { font-size: 1.05rem; font-family: ui-monospace, Consolas, monospace; }
+.vtile { flex-direction: column; }
+.vtile .sub { font-size: .72rem; color: var(--text-3); margin-top: .15rem; }
+/* code (commits, source files) styled like Streamlit's inline code in the ML UI: green on a dark chip */
+.vpage code { color: #7ed5b0; background: #181c24; font-family: "Source Code Pro", ui-monospace, Consolas, monospace; font-size: .8em; padding: .13em .3em; border-radius: 4px; }
 table.data.vtable th { text-align: center; }
 table.data.vtable td { vertical-align: middle; }
 table.data.vtable td.c { text-align: center; }
