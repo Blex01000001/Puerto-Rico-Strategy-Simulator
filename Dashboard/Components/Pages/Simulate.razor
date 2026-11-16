@@ -375,14 +375,20 @@
         for (int i = 0; i < players; i++)
         {
             string name = strategies[i];
-            used[name] = used.GetValueOrDefault(name) + 1;
-            var seat = new SeatConfig { Id = used[name] == 1 ? name : $"{name}#{used[name]}", Strategy = name };
+            var seat = new SeatConfig { Strategy = name };
             try { seat.Params = ParseParams(paramText[i]); }
             catch (FormatException e) { error = $"座位 {i + 1} 的參數：{e.Message}"; return; }
+            // the seat id is the name shown in the results: an MCTS seat with a value model carries the model's name,
+            // so two MCTS seats with different models can be told apart (mcts(4p-v2) vs mcts(4p-v3))
+            string label = name;
+            if (seat.Params.TryGetValue("valueModel", out var vm) && vm.ValueKind == System.Text.Json.JsonValueKind.String && !string.IsNullOrWhiteSpace(vm.GetString()))
+                label = $"{name}({Path.GetFileNameWithoutExtension(vm.GetString())})";
+            used[label] = used.GetValueOrDefault(label) + 1;
+            seat.Id = used[label] == 1 ? label : $"{label}#{used[label]}";
             seats.Add(seat);
         }
-        // A strategy used twice gets "#2" on the second seat but the first keeps the plain name; make that explicit.
-        foreach (var g in seats.GroupBy(s => s.Strategy).Where(g => g.Count() > 1))
+        // A seat used twice gets "#2" on the second seat but the first keeps the plain name; make that explicit.
+        foreach (var g in seats.GroupBy(s => s.Id.Split('#')[0]).Where(g => g.Count() > 1))
             g.First().Id = $"{g.Key}#1";
 
         var cfg = new SimulationConfig
