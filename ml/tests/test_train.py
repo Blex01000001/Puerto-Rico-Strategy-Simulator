@@ -156,3 +156,40 @@ def test_training_creates_the_output_folder(dump, tmp_path):
     out2 = str(tmp_path / "other" / "m.json")
     train_mlp.train([dump("b.bin", games=40)], out2, log=lambda *_: None, hidden="4", epochs=1, backend="numpy")
     assert os.path.exists(out2)
+
+
+def test_rename_moves_the_three_files_and_the_name_inside(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(modelmeta, "OFFICIAL_MODELS", str(tmp_path / "official"))
+    monkeypatch.setattr(modelmeta, "local_models_dir", lambda: str(tmp_path / "local"))
+    local = tmp_path / "local"
+    local.mkdir()
+    old = local / "4p-lgbm-1116-1530.txt"
+    for suffix, text in (("", "tree"), (".meta.json", json.dumps({"model": old.name, "matches": [{"result": "r.json"}]})), (".check.txt", "1 2")):
+        (local / (old.name + suffix)).write_text(text, encoding="utf-8")
+    new = modelmeta.rename_model(str(old), "4p-v2-200k-big")
+    assert new.endswith("4p-v2-200k-big.txt")
+    assert sorted(p.name for p in local.iterdir()) == ["4p-v2-200k-big.txt", "4p-v2-200k-big.txt.check.txt", "4p-v2-200k-big.txt.meta.json"]
+    meta = json.loads((local / "4p-v2-200k-big.txt.meta.json").read_text(encoding="utf-8"))
+    assert meta["model"] == "4p-v2-200k-big.txt" and meta["matches"] == [{"result": "r.json"}]  # match records follow
+    assert modelmeta.rename_model(new, "x.txt").endswith("x.txt")  # the extension may be typed or not
+
+
+def test_rename_refuses_bad_names_taken_names_and_official_models(tmp_path, monkeypatch):
+    official, local = tmp_path / "official", tmp_path / "local"
+    official.mkdir()
+    local.mkdir()
+    monkeypatch.setattr(modelmeta, "OFFICIAL_MODELS", str(official))
+    monkeypatch.setattr(modelmeta, "local_models_dir", lambda: str(local))
+    (local / "a.txt").write_text("x")
+    (local / "b.txt").write_text("x")
+    (official / "c.txt").write_text("x")
+    for bad in ("", "a b", "x/y", "a"):
+        with pytest.raises(ValueError):
+            modelmeta.rename_model(str(local / "a.txt"), bad)
+    with pytest.raises(ValueError):
+        modelmeta.rename_model(str(local / "a.txt"), "b")  # taken locally
+    with pytest.raises(ValueError):
+        modelmeta.rename_model(str(local / "a.txt"), "c")  # taken by an official model
+    with pytest.raises(ValueError):
+        modelmeta.rename_model(str(official / "c.txt"), "d")  # official models stay as git has them

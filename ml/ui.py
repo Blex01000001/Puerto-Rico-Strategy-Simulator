@@ -1309,7 +1309,10 @@ def move_buttons(path):
     """設為正式模型 (local -> ml/models, then commit it) and 移到本機 (an official-folder model git does not track)."""
     name = os.path.basename(path)
     if place_of(path) == "本機":
-        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
+        c1, c3, c2 = st.columns([2.2, 2.2, 5], vertical_alignment="center")
+        with c3:
+            if st.button("重新命名", key=f"rename-{name}", width="stretch"):
+                rename_dialog(path)
         with c1:
             with st.popover("設為正式模型", width="stretch"):
                 st.markdown(f"把 `{name}`（連同 `.meta.json`、`.check.txt`）搬到 `ml/models/`。之後在 Visual Studio commit，才會進 git、別台電腦和 Claude 才看得到。"
@@ -1336,6 +1339,61 @@ def move_buttons(path):
                     st.error(str(e))
         c2.markdown('<span class="act-note">這個模型在正式資料夾 ml/models/，但 git 沒有追蹤它（例如以前在 ML UI 訓練的）：'
                     "移到本機就不會再出現在 Visual Studio 的 Git 變更裡。</span>", unsafe_allow_html=True)
+
+
+def model_name_users(path):
+    """What still names this model by its file name: data whose self-play seats used it, and configs that point at it."""
+    name = os.path.basename(path)
+    dumps = [d["來源"] for d in list_dumps() if "_meta" in d and any(
+        os.path.basename(str(((s_.get("params") or {}).get("valueModel")) or "")) == name for s_ in d["_meta"].get("seats", []))]
+    configs = []
+    for folder in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS, LOCAL_MATCHES):
+        for c in sorted(glob.glob(os.path.join(folder, "*.json"))):
+            cfg = read_config(c) or {}
+            if any(os.path.basename(str(((s_.get("params") or {}).get("valueModel")) or "")) == name for s_ in cfg.get("seats", [])):
+                configs.append(rel(c))
+    return dumps, configs
+
+
+@st.dialog("重新命名模型")
+def rename_dialog(path):
+    name = os.path.basename(path)
+    ext = os.path.splitext(name)[1]
+    new = st.text_input(f"新名稱（副檔名 {ext} 自動加）", value=name[:-len(ext)], key=f"rename-new-{name}").strip()
+    if new.endswith(ext):
+        new = new[:-len(ext)]
+    problems = []
+    if not new or any(c in new for c in modelmeta.INVALID_NAME_CHARS):
+        problems.append("名稱不能空白，也不能有路徑符號或空白")
+    elif new + ext == name:
+        problems.append("名稱沒有改變")
+    elif model_name_taken(new + ext):
+        problems.append(f"已經有叫 {new + ext} 的模型")
+    busy = pending_readers(rel(path)) + ([t["title"] for t in jobs.list_jobs() if t["state"] in ("waiting",) + jobs.BUSY
+                                          and str(t.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
+    if busy:
+        problems.append(f"排隊中或執行中的工作「{busy[0]}」要用這個模型，等它結束或移出佇列再改")
+    st.caption(f"會一起改 `{name}`、`{name}.meta.json`、`{name}.check.txt`（訓練紀錄、對戰紀錄都跟著走）。hash 不包含名稱，所以不會變。")
+    dumps, configs = model_name_users(path)
+    if dumps or configs:
+        st.warning("下面這些還用舊名字指向這個模型：改名後**用它們重跑會找不到模型**，"
+                   "用它產生的自我對戰資料 hash 也會因為找不到舊名字的模型而改變。\n\n"
+                   + "\n".join(f"- 資料 `{d}`" for d in dumps) + ("\n" if dumps and configs else "")
+                   + "\n".join(f"- 設定檔 `{c}`" for c in configs))
+    if problems:
+        st.markdown('<span class="act-err">無法改名：' + "；".join(plain(x) for x in problems) + "</span>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    if c1.button("取消", key=f"rename-cancel-{name}", width="stretch"):
+        st.rerun()
+    if c2.button("確定改名", type="primary", key=f"rename-ok-{name}", width="stretch", disabled=bool(problems)):
+        try:
+            target = modelmeta.rename_model(path, new)
+            st.session_state["job-started"] = f"{name} 已改名為 {os.path.basename(target)}。"
+            st.session_state["model-pick"] = os.path.basename(target)
+            st.cache_data.clear()
+            st.rerun()
+        except ValueError as e:
+            st.error(str(e))
 
 
 def model_detail(path):
@@ -1450,7 +1508,11 @@ def _models_body():
     if mode == "單一模型":
         # open on the strongest model (best win share against the original MCTS)
         scores = [(best_vs_default(model_meta(p))["winShare"] if model_meta(p) and best_vs_default(model_meta(p)) else -1) for p in paths]
-        name = st.selectbox("模型", list(by_name), index=scores.index(max(scores)))
+        if st.session_state.get("model-pick") not in by_name:
+            st.session_state.pop("model-pick", None)  # opens on the strongest model; a rename selects the renamed one
+        # passing index while the key already holds a value makes Streamlit warn: only on the first draw
+        start = {} if "model-pick" in st.session_state else {"index": scores.index(max(scores))}
+        name = st.selectbox("模型", list(by_name), key="model-pick", **start)
         model_detail(by_name[name])
     else:
         names = st.multiselect("選兩個以上的模型", list(by_name), max_selections=4)
