@@ -237,6 +237,8 @@ th.sortable:hover { color: var(--text); }
 /* simulate: seat table with headings */
 .seatgrid { display: grid; grid-template-columns: 5rem minmax(11rem, 14rem) 1fr; gap: .45rem .75rem; align-items: center; }
 .seatgrid.withtarget { grid-template-columns: 5rem 6.5rem minmax(11rem, 14rem) 1fr; }
+.seatrow { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; padding: .55rem .7rem; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.seatrow.head { padding: 0 .7rem; background: transparent; border: 0; }
 .paramcell { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
 .paramcell > input { width: 100%; box-sizing: border-box; }
 .modelpick { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--text-2); }

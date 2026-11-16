@@ -47,7 +47,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 表格一律用 `grid()`（包 `st.dataframe`）：它多留 18 px 給水平捲軸，否則 Windows 的捲軸會蓋住最後一列；最多顯示 10 列再捲動。
 - 同名檔案的檢查看配方，不只看檔名（`same_name_notice`）：配方相同→「完全相同，不需要覆寫」，不同→列出差異；被模型用過的資料覆寫時列出模型；不同名但配方相同→提示重複。覆寫（資料、模型、對戰結果）也會被「排隊中或執行中的工作要讀它」擋下（`reader_problem`，與刪除同一套規則；`job_reads` 列出工作會讀的檔案：訓練資料、對戰的模型、設定檔裡的價值模型）。工作的 spec 與 `rel(out)` 的路徑寫法要一致（`rel()` 產生）。
 - 設定檔模式的局數、種子、抽樣率輸入框的 key 含設定檔名稱，換設定檔才會重新帶入預設值（以前 key 只有模式，換設定檔後種子停在上一個）。
-- 模型清單頁：上方選模型（小卡用 `version_tiles`，和版本控管頁同樣式），下方「模型列表」卡有快篩（`st.pills`：位置、種類、建立日期；不選＝全部），數字欄用 `TextColumn(alignment="center")` 置中；並排比較用 `version_table(..., css="cmp")`（固定欄寬、不會出現水平捲軸），結果列標出最好的模型（`td.best`：勝率／R²／列數取最高，交叉熵取最低）。對戰紀錄表的「紀錄存放」＝git（正式模型追蹤中的 `.meta.json`）或本機（`ml/local/match-records/` 或本機模型自己的 `.meta.json`）。
+- 模型清單頁：上方選模型（小卡用 `version_tiles`，和版本控管頁同樣式），下方「模型列表」卡有快篩（`st.pills`：位置 git／local、種類；各包在 `st.container(key="pillbox-…")` 加框；不選＝全部），數字欄用 `TextColumn(alignment="center")` 置中；並排比較用 `version_table(..., css="cmp")`（固定欄寬、不會出現水平捲軸），結果列標出最好的模型（`td.best`：勝率／R²／列數取最高，交叉熵取最低）。對戰紀錄表（欄位設定 `MATCH_COLUMNS`，短欄置中）的「紀錄存放」＝git（正式模型追蹤中的 `.meta.json`）或 local（`ml/local/match-records/` 或本機模型自己的 `.meta.json`）。
 - 版本控管頁的小卡與表格用自己的 HTML（`version_tiles`、`version_table`，CSS `.vtile`、`table.vtable`），外觀和 Dashboard 的版本控管頁（`app.css` 的 `.vtile`、`table.data.vtable`）一致：兩邊要一起改。
 - 取消工作的按鈕（導覽最下方、排程佇列、工作詳細）key 以 `stop-` 開頭，CSS 讓它紅色；新的取消鈕照做。
 - 排程佇列的每一列是 `st.container(key="qrow-<狀態>-<id>")`，CSS 畫框並依狀態給左邊框顏色，欄位順序：名稱、狀態、經過時間、進度、備註、操作（最右）；新狀態要在 `CSS` 補顏色。

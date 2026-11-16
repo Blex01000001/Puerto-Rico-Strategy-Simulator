@@ -566,6 +566,7 @@ table.vtable td li { margin: 0; }
 table.vtable tbody tr:hover td { background: #1f2430; }
 .vtile .q { position: absolute; top: .3rem; right: .45rem; width: 1rem; height: 1rem; border: 1px solid #8892a2; border-radius: 50%;
   color: #8892a2; font-size: .68rem; line-height: .95rem; text-align: center; cursor: help; }
+div[class*="st-key-pillbox-"] { background: #111418; border: 1px solid #333a4b; border-radius: 4px; padding: .3rem .7rem .45rem; width: fit-content !important; }
 table.vtable.doc th { text-align: left; } table.vtable.doc td { vertical-align: top; }
 table.vtable.cmp { table-layout: fixed; }  /* compare: equal model columns, long data lists wrap */
 table.vtable.cmp th:first-child { width: 12rem; } table.vtable.cmp th:last-child { width: 3.5rem; }
@@ -1248,9 +1249,7 @@ def _match_body():
     if meta and meta.get("matches"):
         st.markdown(f"**{model} 已有的對戰**")
         grid(matches_frame(meta, model_path(model)), hide_index=True, width="stretch",
-                     column_config={"勝率": st.column_config.NumberColumn(format="percent"),
-                                    "±95%": st.column_config.NumberColumn(format="percent"),
-                                    "平均分": st.column_config.NumberColumn(format="%.1f")})
+                     column_config=MATCH_COLUMNS)
 
 
 # ---------------------------------------------------------------- 模型清單
@@ -1298,6 +1297,19 @@ def match_note(m, current_sha):
     return "；".join(notes)
 
 
+# match tables (model page and match page): short columns centred
+MATCH_COLUMNS = {
+    "勝率": st.column_config.NumberColumn(format="percent"),
+    "±95%": st.column_config.NumberColumn(format="percent"),
+    "平均分": st.column_config.NumberColumn(format="%.1f", alignment="center"),
+    "leafRollout": st.column_config.NumberColumn(alignment="center"),
+    "局數": st.column_config.NumberColumn(alignment="center"),
+    "種子": st.column_config.NumberColumn(alignment="center", format="%d"),
+    "紀錄存放": st.column_config.TextColumn(alignment="center"),
+    "hash": st.column_config.TextColumn(alignment="center"),
+}
+
+
 def matches_frame(meta, model_file=None):
     current_sha = fingerprint.file_sha256(model_file) if model_file and os.path.exists(model_file) else None
     official = bool(model_file) and place_of(model_file) == "正式"
@@ -1308,7 +1320,7 @@ def matches_frame(meta, model_file=None):
                      "勝率": m["winShare"], "±95%": m.get("winShareCi95"), "平均分": m["avgScore"],
                      "對手勝率": "、".join(f"{o['strategy'] if not o.get('valueModel') else 'MCTS＋模型'} {o['winShare']:.1%}" for o in m["others"]),
                      # where the record is kept: in the model's tracked .meta.json (git) or only on this machine
-                     "紀錄存放": "git" if official and not m.get("local") else "本機",
+                     "紀錄存放": "git" if official and not m.get("local") else "local",
                      "結果檔": m["result"], "hash": fingerprint.short(m.get("fingerprint")) or "—", "備註": match_note(m, current_sha)})
     return pd.DataFrame(rows)
 
@@ -1430,9 +1442,7 @@ def model_detail(path):
         st.caption("還沒有對戰紀錄。")
     else:
         grid(mf, hide_index=True, width="stretch",
-                     column_config={"勝率": st.column_config.NumberColumn(format="percent"),
-                                    "±95%": st.column_config.NumberColumn(format="percent"),
-                                    "平均分": st.column_config.NumberColumn(format="%.1f")})
+                     column_config=MATCH_COLUMNS)
         st.caption(f"結果檔可以在 Dashboard（{DASHBOARD_URL}）的「結果」「比較」頁打開。")
 
     left, right = st.columns(2)
@@ -1569,26 +1579,25 @@ def models_tab():
 
 
 def models_list():
-    """Every model, with quick filters (place, kind, creation date); empty filter = all."""
+    """Every model, with quick filters (place: git / local, kind); empty filter = all."""
     paths = model_files()
     if not paths:
         return
     table = models_table(paths)
-    dates = sorted({str(c)[:10] if str(c)[:4].isdigit() else "補寫" for c in table["建立"]}, reverse=True)
-    c1, c2, c3 = st.columns([1, 1, 3])
-    places = c1.pills("位置", ["正式", "本機"], selection_mode="multi", key="mf-place")
-    kinds = c2.pills("種類", ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
-    days = c3.pills("建立日期", dates, selection_mode="multi", key="mf-date")
-    keep = table["位置"].isin(places or ["正式", "本機"]) & table["種類"].isin(kinds or ["LightGBM", "MLP"])
-    if days:
-        keep &= [(str(c)[:10] if str(c)[:4].isdigit() else "補寫") in days for c in table["建立"]]
+    table["位置"] = table["位置"].map({"正式": "git", "本機": "local"}).fillna(table["位置"])
+    c1, c2, _ = st.columns([1, 1, 2.5])
+    with c1.container(key="pillbox-place"):  # framed like the radio groups (CSS .st-key-pillbox-)
+        places = st.pills("位置", ["git", "local"], selection_mode="multi", key="mf-place")
+    with c2.container(key="pillbox-kind"):
+        kinds = st.pills("種類", ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
+    keep = table["位置"].isin(places or ["git", "local"]) & table["種類"].isin(kinds or ["LightGBM", "MLP"])
     shown = table[keep]
     if shown.empty:
         st.caption("沒有符合篩選的模型。")
         return
     centred = {c: st.column_config.TextColumn(c, alignment="center") for c in ("人數", "R²", "交叉熵", "對戰場數", "對原版 MCTS 最佳勝率")}
     grid(shown, hide_index=True, width="stretch", column_config=centred)
-    st.caption(f"顯示 {len(shown)} / {len(table)} 個模型。快篩不選＝全部。")
+    st.caption(f"顯示 {len(shown)} / {len(table)} 個模型。快篩不選＝全部。位置：git＝正式模型（ml/models/，進 git），local＝本機模型（ml/local/models/）。")
 
 
 # ---------------------------------------------------------------- hash 說明、版本控管
