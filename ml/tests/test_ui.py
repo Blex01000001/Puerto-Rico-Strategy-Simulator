@@ -36,7 +36,7 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列", "hash 說明", "版本控管"]
     assert at.button(key="navon-data")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
@@ -247,3 +247,23 @@ def test_overwriting_an_input_of_a_queued_job_is_refused(results, monkeypatch):
     start = next(b for b in at.button if b.label == "加入排隊")
     assert start.disabled
     assert any("要讀這個檔案" in m.value and "act-err" in m.value for m in at.markdown)
+
+
+def test_hash_page_lists_what_counts_and_what_does_not(results):
+    import fingerprint
+    at = goto(run_app(), "hash")
+    text = " ".join(m.value for m in at.markdown) + " ".join(t.value.to_csv() for t in at.table)
+    assert "不計入" in text and "價值模型" in text and "座位 id" in text
+    for key in fingerprint.LGBM_OPTIONS + fingerprint.MLP_OPTIONS:  # the option lists on the page come from the code
+        assert f"`{key}`" in text, key
+    assert "指紋" not in text  # the UI says hash
+
+
+def test_versions_page_shows_the_list_and_matches_the_code(results):
+    import fingerprint
+    at = goto(run_app(), "versions")
+    assert not at.exception
+    assert not at.warning  # docs/versions.json names the current numbers
+    assert any(m.label == "規則版本" and m.value == fingerprint.rules_name(fingerprint.current_rules_revision()) for m in at.metric)
+    text = " ".join(m.value for m in at.markdown)
+    assert "規則版本（RulesRevision）" in " ".join(c.value for c in at.markdown) or "base-r" in text

@@ -68,6 +68,8 @@ public sealed class SimulationResult
     public string RulesVersion { get; set; } = EngineInfo.RulesVersion;
     /// <summary>See <see cref="EngineInfo.RulesRevision"/>; files from before it existed have no value (= revision 1).</summary>
     public int RulesRevision { get; set; } = EngineInfo.RulesRevision;
+    /// <summary>Git commit of the build that wrote the file (tracing only; "unknown" for older files).</summary>
+    public string EngineCommit { get; set; } = EngineInfo.Commit;
     /// <summary>running | completed | cancelled</summary>
     public string Status { get; set; } = "running";
     public DateTime StartedUtc { get; set; }

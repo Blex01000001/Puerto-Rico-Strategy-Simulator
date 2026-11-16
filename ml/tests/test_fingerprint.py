@@ -97,3 +97,15 @@ def test_describe_lists_the_differences_in_words():
 def test_rules_revision_is_read_from_the_engine_source():
     src = open(os.path.join(fp.ROOT, "Engine", "Game", "EngineInfo.cs"), encoding="utf-8").read()
     assert f"RulesRevision = {fp.current_rules_revision()};" in src
+
+
+def test_version_list_matches_the_numbers_in_the_engine_source():
+    tracks, error = fp.load_versions()
+    assert error is None
+    latest = {k: t["entries"][0]["version"] for k, t in tracks.items()}
+    assert latest["rules"] == str(fp.current_rules_revision())
+    assert latest["engine"] == fp.current_engine_version()
+    assert latest["features"] == str(fp.current_feature_version())
+    assert latest["format"] == str(fp.current_format_version())
+    assert fp.rules_name(2) == "base-r2"
+    assert "規則版本：base-r1 → base-r2" in fp.describe({"rulesRevision": 1}, {"rulesRevision": 2})

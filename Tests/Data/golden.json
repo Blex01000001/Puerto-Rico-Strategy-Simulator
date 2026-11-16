@@ -1,0 +1,11 @@
+{
+  "note": "Golden hashes of fixed games (Tests/VersionTests.cs). Regenerate with PR_UPDATE_GOLDEN=1 dotnet test --filter Golden, only together with a new EngineInfo.RulesRevision.",
+  "rulesRevision": 1,
+  "cases": {
+    "3p-hand": "fba37907bbd11494646cc63fe6e561623b4ade7064e6759fd54cf58fd59ce37d",
+    "4p-hand": "94029c2b2c11a73c4c6a13c7ee89a65e400b1e8e2bb012d1efc096610b4ee59a",
+    "4p-premium": "04c76729030ff26d5025990bc7cce843c3ce7830ae1bcb80de0eabe911e81bb2",
+    "4p-random": "1ab95f990f6adc0d6d915cf150f5227fdd4355055b23a2c48d2bbf65903abdb7",
+    "3p-guided": "2769926cb7c64e4a3b8015b0b3684239c0af3462feda24b3a313854da4352137"
+  }
+}

@@ -102,16 +102,18 @@ def list_dumps():
             info["_recipe"] = fingerprint.dump_recipe(info["_meta"])
             info["_fp"] = fingerprint.fingerprint(info["_recipe"])
             info["_rev"] = info["_meta"].get("rulesRevision", 1)
-            info["指紋"] = fingerprint.short(info["_fp"])
+            info["hash"] = fingerprint.short(info["_fp"])
             info["規則版本"] = rule_text(info["_rev"])
+            info["引擎 commit"] = info["_meta"].get("engineCommit", "—")
         out.append(info)
     return out
 
 
 def rule_text(revision):
-    """'1' or '1（舊；目前 2）' for a file made with an older engine behaviour."""
+    """'base-r1', or 'base-r1（舊；目前 base-r2）' for a file made with an older engine behaviour."""
     now = fingerprint.current_rules_revision()
-    return str(revision) if revision >= now else f"{revision}（舊；目前 {now}）"
+    name = fingerprint.rules_name(revision)
+    return name if revision >= now else f"{name}（舊；目前 {fingerprint.rules_name(now)}）"
 
 
 def table_view(rows, path_as=None):
@@ -165,7 +167,7 @@ def same_name_notice(noun, exists, old, new, users=(), names=None):
     if old is None:
         st.warning(f"同名{noun}已存在，但讀不出它的參數，無法比較。")
     elif fingerprint.fingerprint(old) == fingerprint.fingerprint(new):
-        st.info(f"同名{noun}的參數**完全相同**（指紋 {fingerprint.short(fingerprint.fingerprint(new))}）：重跑只會得到同一份結果，不需要覆寫。")
+        st.info(f"同名{noun}的參數**完全相同**（hash {fingerprint.short(fingerprint.fingerprint(new))}）：重跑只會得到同一份結果，不需要覆寫。")
     else:
         st.warning(f"同名{noun}的參數**不同**，覆寫會換掉它：\n\n" + "\n".join(f"- {d}" for d in fingerprint.describe(old, new, names)))
     if users:
@@ -426,9 +428,9 @@ def training_tab():
                     st.warning("勾選的 " + "、".join(f"`{n}`" for n in names_) + " 參數完全相同（同一份資料），重複放進去只會讓模型多看一次同樣的局面。")
             revs = {d["_rev"] for d in chosen}
             if len(revs) > 1:
-                st.warning(f"勾選的資料引擎規則版本不一致（{', '.join(map(str, sorted(revs)))}），不建議一起訓練。")
+                st.warning(f"勾選的資料規則版本不一致（{'、'.join(fingerprint.rules_name(r) for r in sorted(revs))}），不建議一起訓練。")
             elif min(revs) < fingerprint.current_rules_revision():
-                st.warning(f"勾選的資料是用舊版規則產生的（規則版本 {min(revs)}，目前 {fingerprint.current_rules_revision()}）：同樣的設定現在會得到不同的資料，建議重新產生。")
+                st.warning(f"勾選的資料是用舊版規則產生的（{fingerprint.rules_name(min(revs))}，目前 {fingerprint.rules_name(fingerprint.current_rules_revision())}）：同樣的設定現在會得到不同的資料，建議重新產生。")
             fp_names = {d["_fp"]: d["來源"] for d in chosen}
             old_meta = model_meta(out) if exists else None
             old_recipe = (old_meta or {}).get("recipe")
@@ -1224,9 +1226,9 @@ def models_table(paths):
             "R²": v.get("r2"), "交叉熵": v.get("crossEntropy"),
             "對戰場數": len(meta.get("matches", [])),
             "對原版 MCTS 最佳勝率": best["winShare"] if best else None,
-            "指紋": fingerprint.short(meta.get("fingerprint")) or "—",
+            "hash": fingerprint.short(meta.get("fingerprint")) or "—",
             "規則版本": rule_text(meta.get("rulesRevision", 1)),
-            "備註": "參數為補寫" if "note" in meta.get("params", {}) else ("舊紀錄：沒有配方指紋" if not meta.get("fingerprint") else ""),
+            "備註": "參數為補寫" if "note" in meta.get("params", {}) else ("舊紀錄：沒有配方 hash" if not meta.get("fingerprint") else ""),
         })
     df = pd.DataFrame(rows)
     # text columns so that missing values read "—" instead of Streamlit's grey "None"
@@ -1254,7 +1256,7 @@ def matches_frame(meta, model_file=None):
         rows.append({"設定": m.get("config"), "對手": describe_match(m), "局數": m["games"], "種子": m["seed"],
                      "勝率": m["winShare"], "±95%": m.get("winShareCi95"), "平均分": m["avgScore"],
                      "對手勝率": "、".join(f"{o['strategy'] if not o.get('valueModel') else 'MCTS＋模型'} {o['winShare']:.1%}" for o in m["others"]),
-                     "紀錄": "本機" if m.get("local") else "正式", "指紋": fingerprint.short(m.get("fingerprint")) or "—",
+                     "紀錄": "本機" if m.get("local") else "正式", "hash": fingerprint.short(m.get("fingerprint")) or "—",
                      "備註": match_note(m, current_sha), "結果檔": m["result"]})
     return pd.DataFrame(rows)
 
@@ -1340,7 +1342,7 @@ def model_detail(path):
     grid(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
                                 "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
                                 "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
-                                "指紋": fingerprint.short(d.get("fingerprint")) or "—",
+                                "hash": fingerprint.short(d.get("fingerprint")) or "—",
                                 "檔案": d["path"]} for d in meta["data"]]),
                  hide_index=True, width="stretch")
 
@@ -1366,9 +1368,9 @@ def model_detail(path):
     env = meta.get("environment") or {}
     env_text = "環境未記錄" if "note" in env else "・".join(f"{k} {val}" for k, val in env.items())
     st.caption(f"特徵版本 {meta['featureVersion']}（{meta['featureCount']} 個）・建立 {meta.get('created') or '（補寫）'}・{env_text}"
-               + (f"・配方指紋 {fingerprint.short(meta['fingerprint'])}・引擎規則版本 {meta.get('rulesRevision', 1)}" if meta.get("fingerprint") else "・舊紀錄：沒有配方指紋"))
+               + (f"・配方 hash {fingerprint.short(meta['fingerprint'])}・規則版本 {fingerprint.rules_name(meta.get('rulesRevision', 1))}" if meta.get("fingerprint") else "・舊紀錄：沒有配方 hash"))
     if meta.get("rulesRevision", 1) < fingerprint.current_rules_revision():
-        st.warning(f"這個模型的資料是用舊版規則產生的（規則版本 {meta.get('rulesRevision', 1)}，目前 {fingerprint.current_rules_revision()}）："
+        st.warning(f"這個模型的資料是用舊版規則產生的（{fingerprint.rules_name(meta.get('rulesRevision', 1))}，目前 {fingerprint.rules_name(fingerprint.current_rules_revision())}）："
                    "它學到的是舊規則下的局面，用在新規則的對戰前建議重新產生資料並重訓。")
 
 
@@ -1425,12 +1427,117 @@ def models_tab():
         _models_body()
 
 
+# ---------------------------------------------------------------- hash 說明、版本控管
+
+def _option_names(keys):
+    return "、".join(f"{PARAM_HELP[k][0].split('（')[0]}（`{k}`）" if k in PARAM_HELP else f"`{k}`" for k in keys)
+
+
+def hash_page():
+    rev, now = fingerprint.current_rules_revision(), fingerprint.rules_name(fingerprint.current_rules_revision())
+    with card("hash-what", "hash 是什麼"):
+        st.markdown(
+            "每份**資料**、每個**模型**、每場**對戰**都有一個 **hash**（SHA-256，畫面顯示前 8 碼）：把「決定結果的參數」整理成固定格式再算出來。"
+            "引擎對設定與種子是確定的，所以**參數全部一樣，hash 才會一樣，重跑也只會得到同一份內容**；任何一個參數不同，hash 就不同。\n\n"
+            "hash 只回答「是不是全部一樣」；「哪裡不一樣」由記下來的參數比出來（例如「局數：20,000 → 200,000」）。")
+        st.caption("整理格式：參數名稱排序、`100` 和 `100.0` 視為相同、座位順序不分大小寫。計算在 `ml/fingerprint.py`。")
+    with card("hash-data", "資料（.bin）的 hash"):
+        st.markdown("**計入**")
+        st.table(pd.DataFrame([
+            ("人數、局數", "局數是實際打完的局數（中途取消的資料較少）"),
+            ("種子、抽樣率、座位順序", "座位順序 random／balanced，不分大小寫"),
+            ("每個座位的策略與參數", "**依座位順序**：座位換位置，hash 就不同"),
+            ("價值模型（自我對戰用）", "用**模型檔案的內容**（SHA-256），不是檔名：同名檔案被重訓覆寫後 hash 就變了"),
+            ("最大回合數、每局最大決策數、自動跳過唯一合法動作", "設定檔的 limits、options；沒寫就用引擎預設值"),
+            ("規則版本", f"目前 {now}；見「版本控管」頁"),
+            ("特徵版本、資料格式版本", "特徵清單或 .bin 排列改了，資料就不一樣"),
+        ], columns=["參數", "說明"]).set_index("參數"))
+        st.markdown("**不計入**")
+        st.table(pd.DataFrame([
+            ("檔名、輸出名稱、設定檔名稱", "改名字不會讓資料變成另一份"),
+            ("座位 id", "只是標籤，座位的策略與參數才算"),
+            ("執行緒數", "引擎保證結果與執行緒數無關"),
+            ("引擎版本、git commit、產生時間", "只用來追溯（記在 .bin.json），不進 hash"),
+        ], columns=["參數", "原因"]).set_index("參數"))
+    with card("hash-model", "模型的 hash"):
+        st.markdown("**計入**")
+        st.table(pd.DataFrame([
+            ("種類", "LightGBM 或 MLP"),
+            ("特徵版本", ""),
+            ("每份訓練資料的 hash（排序後）", "用資料的 hash，不是檔名：資料被覆寫或換了，模型的 hash 就不同；勾選順序不影響"),
+            ("LightGBM 訓練參數", _option_names(fingerprint.LGBM_OPTIONS)),
+            ("MLP 訓練參數", _option_names(fingerprint.MLP_OPTIONS) + "；訓練引擎與裝置用**實際解析後**的值（auto 會換成 torch／numpy、cuda／cpu）"),
+        ], columns=["參數", "說明"]).set_index("參數"))
+        st.markdown("**不計入**")
+        st.table(pd.DataFrame([
+            ("模型名稱", "改名字不會讓模型變成另一個"),
+            ("執行緒數（`threads`）", "LightGBM 樹的結果與執行緒數無關（有測試驗證）"),
+            ("套件版本（lightgbm、torch、numpy）、Python 版本、訓練時間", "記錄並顯示，但不進 hash"),
+        ], columns=["參數", "原因"]).set_index("參數"))
+        st.caption("新增訓練參數時必須同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`（測試會檢查）。早期補寫的模型沒有 hash，標「舊紀錄」。")
+    with card("hash-match", "對戰結果的 hash"):
+        st.markdown("與資料相同（人數、局數、種子、座位順序、每個座位的策略與參數、價值模型的檔案內容、limits、options、規則版本），"
+                    "但**沒有**抽樣率與特徵版本。不計入：結果檔名、設定檔名稱、座位 id、執行緒數、引擎版本與 git commit。"
+                    "每場對戰另外記下當時模型檔案的 hash：模型之後被覆寫，舊結果會標「模型檔已更新」。")
+    with card("hash-use", "hash 在 ML UI 裡怎麼用"):
+        st.markdown(
+            "- **同名檔案**：hash 相同→「完全相同，不需要覆寫」；不同→列出差異；資料被模型用過會列出是哪些模型。\n"
+            "- **不同名但 hash 相同**：提示重複（避免同一份資料被勾兩次訓練，讓模型多看一次同樣的局面）。\n"
+            f"- **舊版規則**：規則版本低於目前（{now}）的資料與模型標「舊」，建議重新產生。\n"
+            "- **排隊保護**：排隊中或執行中的工作要讀的檔案（訓練資料、對戰用的模型）不能被覆寫。")
+    with card("hash-look", "查看某份資料或模型的配方"):
+        dumps = [d for d in list_dumps() if "_fp" in d]
+        choices = {f"資料　{d['來源']}": (d["_recipe"], d["_fp"]) for d in dumps}
+        for mp in model_files():
+            meta = model_meta(mp)
+            if meta and meta.get("recipe"):
+                choices[f"模型　{os.path.basename(mp)}"] = (meta["recipe"], meta["fingerprint"])
+        if not choices:
+            st.caption("還沒有資料或模型。")
+            return
+        pick = st.selectbox("選一份", list(choices), key="hash-look-pick")
+        recipe, full = choices[pick]
+        st.markdown(f"hash：`{full}`")
+        st.json(recipe, expanded=2)
+
+
+def versions_page():
+    tracks, error = fingerprint.load_versions()
+    if error:
+        st.error(error)
+        return
+    with card("ver-now", "這份程式現在的版本"):
+        c = st.columns(4)
+        c[0].metric("規則版本", fingerprint.rules_name(fingerprint.current_rules_revision()))
+        c[1].metric("引擎版本", fingerprint.current_engine_version())
+        c[2].metric("特徵版本", str(fingerprint.current_feature_version()))
+        c[3].metric("資料格式版本", str(fingerprint.current_format_version()))
+        now = {"rules": str(fingerprint.current_rules_revision()), "engine": fingerprint.current_engine_version(),
+               "features": str(fingerprint.current_feature_version()), "format": str(fingerprint.current_format_version())}
+        stale = [t["title"] for t in tracks.values() if t["id"] in now and (t["entries"] or [{}])[0].get("version") != now[t["id"]]]
+        if stale:
+            st.warning("版本清單（docs/versions.json）和程式裡的版本號不一致：" + "、".join(stale) + "。請補上這個版本做了哪些修改。")
+        st.caption("同一份清單 Dashboard 的「版本控管」頁也有。規則版本只在「同設定、同種子會得到不同結果」時加 1；"
+                   "引擎版本給人看；hash 用規則版本、特徵版本、資料格式版本判斷資料與模型是不是舊的。")
+    for t in tracks.values():
+        entries = t.get("entries", [])
+        cur = entries[0]["version"] if entries else "?"
+        with card(f"ver-{t['id']}", f"{t['title']}：{t['display'].replace('{version}', cur)}"):
+            st.caption(f"來源：`{t['source']}`")
+            st.markdown(t["meaning"])
+            st.markdown(f"**什麼時候加**：{t['bump']}")
+            for e in entries:
+                st.markdown(f"**{t['display'].replace('{version}', e['version'])}**　{e['date']}\n" + "\n".join(f"- {c}" for c in e["changes"]))
+
+
 # left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)
 PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), "流程"),
          ("train", TAB_TRAIN, "🧠", lambda: training_tab(), None),
          ("match", TAB_MATCH, "⚔️", lambda: match_tab(), None),
          ("models", TAB_MODELS, "📦", lambda: models_tab(), "管理"),
-         ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None)]
+         ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None),
+         ("hash", "hash 說明", "🔑", lambda: hash_page(), "說明"),
+         ("versions", "版本控管", "🏷️", lambda: versions_page(), None)]
 
 
 def current_page():

@@ -30,7 +30,9 @@
 
 - Dashboard 的 ML UI 啟動在 Linux 驗證過（啟動、狀態、缺套件的錯誤訊息）；Windows 上已能啟動，但多個 Python 時曾裝錯地方（`No module named 'lightgbm'`），改成挑套件齊全的 Python 並印出修正指令後還沒在 Windows 實測。
 - Windows 上曾因編碼（cp950）讓對戰工作在寫紀錄時當掉（`UnicodeEncodeError`），已改成一律 UTF-8；修正後還沒在 Windows 實測。
-- 配方指紋（`ml/fingerprint.py`）只在 Linux 驗證過；MLP 的 torch／numpy 兩個後端各算各的指紋。`train_lgbm` 的樹與執行緒數無關只用小資料驗證過（測試 `test_lightgbm_trees_do_not_depend_on_the_thread_count`），大資料與不同機器未驗證。
+- 黃金樣本（`Tests/VersionTests.cs`）不含 MCTS，且只在 Linux 驗證過：Windows 上若 hash 不一致（浮點、不同的 .NET 版本）要先看是哪個案例，不要直接重產生 `golden.json`。
+- 版本控管清單（`docs/versions.json`）的 rules 軌只有基準 `base-r1`：11-13 以前的行為修改（Settler 同分順序、手寫策略第二準則等）沒有版本號，併入基準。
+- 配方 hash（`ml/fingerprint.py`）只在 Linux 驗證過；MLP 的 torch／numpy 兩個後端各算各的 hash。`train_lgbm` 的樹與執行緒數無關只用小資料驗證過（測試 `test_lightgbm_trees_do_not_depend_on_the_thread_count`），大資料與不同機器未驗證。
 - `--resume` 續跑舊版規則產生的結果檔時，引擎不會檢查 `rulesRevision`（目前只有版本 1，之後第一次遞增前要補檢查）。
 - Windows 上長時間工作曾在約 10 分鐘後被誤判為「中斷」（心跳執行緒停止）：已改成重試、心跳不中斷，程序還在時改標「失聯」並暫停佇列；修正後還沒在 Windows 實測（失聯的程序偵測用 kernel32，只在 Linux 測過）。
 - 本機工作區 `ml/local/`（ML UI 的模型、設定、對戰紀錄，不進 git）與「設為正式模型／移到本機」只在 Linux 驗證過。

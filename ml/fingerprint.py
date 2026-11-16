@@ -100,6 +100,33 @@ def _engine_constant(key, path, name):
     return _constants[key]
 
 
+def current_engine_version():
+    """EngineInfo.Version of this checkout (e.g. '0.2.0')."""
+    if "engine" not in _constants:
+        try:
+            with open(os.path.join(ROOT, "Engine", "Game", "EngineInfo.cs"), encoding="utf-8") as f:
+                _constants["engine"] = re.search(r'public const string Version\s*=\s*"([^"]+)"', f.read()).group(1)
+        except (OSError, AttributeError):
+            _constants["engine"] = "unknown"
+    return _constants["engine"]
+
+
+def rules_name(revision):
+    """How a rules revision is shown to people: 'base-r1' (rule variant 'base', revision 1)."""
+    return f"base-r{revision}"
+
+
+def load_versions():
+    """The version control list docs/versions.json: ({track id: track dict}, error text or None)."""
+    import json
+    path = os.path.join(ROOT, "docs", "versions.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return {t["id"]: t for t in json.load(f)["tracks"]}, None
+    except (OSError, ValueError, KeyError) as e:
+        return {}, f"讀不了 docs/versions.json：{e}"
+
+
 def current_rules_revision():
     """RulesRevision of this checkout (Engine/Game/EngineInfo.cs)."""
     return _engine_constant("rules", ("Engine", "Game", "EngineInfo.cs"), "RulesRevision")
@@ -183,7 +210,7 @@ def fingerprint(recipe):
 
 LABELS = {
     "players": "人數", "games": "局數", "seed": "種子", "rate": "抽樣率", "seatOrder": "座位順序",
-    "rulesRevision": "引擎規則版本", "featureVersion": "特徵版本", "formatVersion": "資料格式版本",
+    "rulesRevision": "規則版本", "featureVersion": "特徵版本", "formatVersion": "資料格式版本",
     "limits.maxRounds": "最大回合數", "limits.maxDecisionsPerGame": "每局最大決策數",
     "options.autoAdvanceForced": "自動跳過唯一合法動作", "kind": "種類", "data": "訓練資料",
 }
@@ -242,7 +269,9 @@ def describe(old, new, names=None):
         x, y = a.get(path), b.get(path)
         if x == y:
             continue
-        if path == "data":
+        if path == "rulesRevision":
+            out.append(f"規則版本：{rules_name(x or 1)} → {rules_name(y or 1)}")
+        elif path == "data":
             gone, added = sorted(set(x or []) - set(y or [])), sorted(set(y or []) - set(x or []))
             fmt = lambda fps: "、".join(names.get(f, short(f)) for f in fps)  # noqa: E731
             parts = ([f"新增 {fmt(added)}"] if added else []) + ([f"移除 {fmt(gone)}"] if gone else [])

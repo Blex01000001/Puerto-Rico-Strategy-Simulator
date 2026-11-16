@@ -3,7 +3,11 @@ namespace PuertoRico.Engine.Game;
 /// <summary>Static engine metadata; written into result files (engineVersion, rulesVersion).</summary>
 public static class EngineInfo
 {
-    public const string Version = "0.1.0";
+    /// <summary>
+    /// Product version (SemVer, shown to people, not part of any hash): MINOR for new features, PATCH for fixes that do not
+    /// change results; every <see cref="RulesRevision"/> bump is at least a MINOR bump. Change log: docs/versions.json.
+    /// </summary>
+    public const string Version = "0.2.0";
     public const string RulesVersion = "base";
 
     /// <summary>
@@ -14,4 +18,18 @@ public static class EngineInfo
     /// Files without the field were made with revision 1.
     /// </summary>
     public const int RulesRevision = 1;
+
+    /// <summary>
+    /// The git commit this build was made from ("a1b2c3d4", with "-dirty" when the working tree had uncommitted changes;
+    /// "unknown" without git). For tracing only: it is recorded in result files and dumps but never part of a hash.
+    /// </summary>
+    public static string Commit { get; } = ReadCommit();
+
+    private static string ReadCommit()
+    {
+        var v = typeof(EngineInfo).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion;
+        int plus = v?.IndexOf('+') ?? -1;
+        return plus >= 0 && plus + 1 < v!.Length ? v[(plus + 1)..] : "unknown";
+    }
 }

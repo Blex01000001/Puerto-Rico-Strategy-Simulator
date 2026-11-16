@@ -35,7 +35,8 @@
 - **參數掃描**：設定檔加 `sweep: { target, gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值，笛卡兒積），Runner 加 `--sweep`；每個格點同一個主種子，只比 target 的勝率（95% 信賴區間）與平均分。
 - **改設定／結果 JSON 欄位**（先問使用者）：新欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`。
 
-- **改了會讓同設定同種子結果不同的東西**（規則、策略決策、MCTS／亂數用法）：把 `EngineInfo.RulesRevision` 加 1（重構與不影響結果的修改不加），並在 `docs/TODO.md` 記下哪些資料與模型因此該重產生；ML 的指紋（`ml/fingerprint.py`）靠它辨識舊資料。
+- **改了引擎行為**：跑 `dotnet test`，`GoldenTests`（`Tests/VersionTests.cs`、`Tests/Data/golden.json`：固定幾組手寫策略與隨機玩家的對局，hash 全部紀錄）失敗＝同設定同種子的結果變了。**先告訴使用者並建議版本號**（規則版本 `EngineInfo.RulesRevision` +1、引擎版本 `EngineInfo.Version` 至少次版本 +1），同意後：改兩個常數、在 `docs/versions.json` 的 rules 與 engine 兩軌補一筆、`PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json`、在 `docs/TODO.md` 記哪些資料與模型因此該重產生。黃金樣本不含 MCTS（`Math.Log` 等在不同平台可能差最後一位）：只動 MCTS 或價值模型推論時測試不會失敗，要自己判斷。完整規則在根目錄 `CLAUDE.md`「版本與 hash」。
+- **新增功能、策略、輸出欄位**：建議引擎版本次版本 +1，並在 `docs/versions.json` 補一筆。`EngineInfo.Commit` 來自組件的資訊版本（`Directory.Build.props` 的 `SetSourceRevisionId` 在建置時呼叫 `git describe`；沒有 git 時是 `unknown`），只用來追溯，不進 hash。
 
 ## 架構決策（不要改回去；要推翻先討論）
 - 策略介面固定為 `GameAction ChooseAction(GameState state, IReadOnlyList<GameAction> legalActions)`，隨機／手寫／MCTS 共用，不另開介面。

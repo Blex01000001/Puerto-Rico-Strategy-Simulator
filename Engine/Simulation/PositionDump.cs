@@ -108,6 +108,8 @@ public static class PositionDump
             status = cancelled ? "cancelled" : "completed",
             featureVersion = ValueFeatures.Version,
             rulesRevision = EngineInfo.RulesRevision,
+            engineVersion = EngineInfo.Version,
+            engineCommit = EngineInfo.Commit,
             requestedGames = cfg.Games,
             recordBytes = RecordBytes,
             layout = "float32 reward, float32 win, int32 game, int16[featureCount] features (little-endian)",

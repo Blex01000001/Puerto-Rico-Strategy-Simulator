@@ -7,4 +7,12 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
+  <!-- The git commit goes into the assembly's informational version ("0.2.0+a1b2c3d4", "-dirty" with uncommitted changes);
+       EngineInfo.Commit reads it. Without git (or outside a checkout) the build still works and the commit reads "unknown". -->
+  <Target Name="SetSourceRevisionId" BeforeTargets="InitializeSourceControlInformation" Condition="Exists('$(MSBuildThisFileDirectory).git')">
+    <Exec Command="git describe --long --always --dirty --exclude=* --abbrev=8" ConsoleToMSBuild="true" StandardOutputImportance="low"
+          StandardErrorImportance="low" IgnoreExitCode="true" ContinueOnError="true">
+      <Output PropertyName="SourceRevisionId" TaskParameter="ConsoleOutput" />
+    </Exec>
+  </Target>
 </Project>

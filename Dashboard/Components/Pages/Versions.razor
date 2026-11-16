@@ -1,0 +1,49 @@
+@page "/versions"
+@using PuertoRico.Engine.Game
+@using Dashboard.Services
+
+<PageTitle>版本控管 · 波多黎各策略模擬器</PageTitle>
+<h1>版本控管</h1>
+<p class="note">引擎版本、規則版本等各種版本號碼，以及每個版本做了哪些修改。資料來源是 docs/versions.json（和 ML UI 同一份）。</p>
+
+<div class="panel">
+    <strong>這個 Dashboard 使用的引擎</strong>
+    <div class="row" style="margin-top:.4rem">
+        <span class="muted">規則版本</span> <strong>base-r@(EngineInfo.RulesRevision)</strong>
+        <span class="muted">引擎版本</span> <strong>@EngineInfo.Version</strong>
+        <span class="muted">git commit</span> <strong>@EngineInfo.Commit</strong>
+    </div>
+    <p class="note">規則版本只在「同設定、同種子會得到不同結果」時加 1，ML 工具的 hash 用它判斷資料與模型是不是舊的；引擎版本給人看；commit 只用來追溯（不進 hash）。結果檔的 engineCommit 帶「-dirty」表示當時有未提交的修改。</p>
+</div>
+
+@if (error != null) { <div class="error">@error</div> }
+
+@foreach (var t in tracks)
+{
+    <h2>@t.Title</h2>
+    <div class="panel">
+        <p class="note"><strong>目前：@t.Show(t.Current?.Version ?? "?")</strong>・來源：<code>@t.Source</code></p>
+        <p class="note">@t.Meaning</p>
+        <p class="note"><strong>什麼時候加：</strong>@t.Bump</p>
+        <table class="data">
+            <thead><tr><th>版本</th><th>日期</th><th style="text-align:left">修改內容</th></tr></thead>
+            <tbody>
+            @foreach (var e in t.Entries)
+            {
+                <tr>
+                    <td>@t.Show(e.Version)</td>
+                    <td>@e.Date</td>
+                    <td style="text-align:left; white-space:normal"><ul style="margin:0; padding-left:1.1rem">@foreach (var c in e.Changes) { <li>@c</li> }</ul></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<VersionLog.Track> tracks = new();
+    private string? error;
+
+    protected override void OnInitialized() => (tracks, error) = VersionLog.Load();
+}
