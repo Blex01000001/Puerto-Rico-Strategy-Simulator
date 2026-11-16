@@ -5,6 +5,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 ## 檔案地圖
 - `positions.py`：讀 Runner 的 dump（`.bin`＋`.bin.json`）；`expand`（萬用字元／資料夾展開）、`read_meta`（格式、版本檢查）、`load`（多檔需同特徵清單、`featureVersion`、人數）、`split`（依局切驗證集）。
 - `modelmeta.py`：`<模型>.meta.json`（參數、資料來源、驗證成績、特徵重要度、環境、`matches` 對戰勝率）；`write`／`read`／`match_entry`／`add_match`／`move_model`。正式模型（`ml/models/`，git 追蹤）的對戰紀錄寫在 `ml/local/match-records/<模型>.matches.json`，`read` 時合併（標 `local: true`），追蹤中的 `.meta.json` 不會被改；本機模型直接寫進自己的 `.meta.json`。
+- `fingerprint.py`：**配方指紋**。同一組參數（配方）一定得到同樣的檔案（引擎對設定與種子是確定的），所以配方的 SHA-256 能回答「這兩份是不是一樣」，配方本身能回答「差在哪」（`describe`：局數 20,000 → 200,000…）。配方內容：資料＝人數、已打局數、種子、抽樣率、座位順序（小寫）、每個座位的策略與參數（依座位順序；`valueModel` 換成**檔案內容** hash）、`limits`、`options`、`RulesRevision`、dump 格式版本、特徵版本；模型＝種類、特徵版本、各份資料的指紋、訓練參數（白名單 `LGBM_OPTIONS`／`MLP_OPTIONS`；`threads` 不算，MLP 的 backend／device 用解析後的值）；對戰＝同資料但沒有抽樣率與特徵版本。**不算**：檔名、設定檔名稱、座位 id、執行緒數、套件版本（只記錄與顯示）。舊檔缺的欄位用預設值補（`rulesRevision` 1、`limits` 150／20000、`autoAdvanceForced` true），所以舊的 `.bin.json` 與對戰結果直接現算；舊模型沒有指紋（標「舊紀錄」）。`current_rules_revision`／`current_feature_version`／`current_format_version` 直接讀 C# 原始碼的常數。
 - `model_report.py`：所有模型（正式＋本機）的勝率摘要表，給 `docs/models.md` 用（數字一律從這裡取）。
 - `train_lgbm.py`、`train_mlp.py`：`train(data, out, progress=None, log=print, **options)` 可匯入（ML UI 用），命令列只是包一層；都寫 `<模型>`、`.meta.json`、`.check.txt`。
 - `ui.py`：ML UI（Streamlit，`streamlit run ml/ui.py`；左側導覽（Dashboard 樣式）：頁面「模擬對局採樣」「模型訓練/蒸餾」「對戰驗證」「模型清單」「排程佇列」列在 `PAGES`（名稱在 `TAB_*` 常數），一次只畫目前那一頁；目前頁記在 `session_state["page"]` 與網址 `?page=`（重新整理不跳頁）；導覽最下方是 `sidebar_status`（只顯示正在跑的工作，排隊數用小字）。）。版面：每區一張卡片 `card(key, title)`（`st.container(border=True, key="card-…")`，樣式在 `CSS`）；所有開始鈕用 `action_row`（藍色可按、鎖住時右邊紅字寫原因、有工作在跑時寫排第幾個）；刪除用 `delete_button`（確認後才刪，排隊或執行中的工作要用的檔案不能刪）；參數格 `param_inputs` 在 `st.container(key="params")` 裡，標題統一兩行高；參數說明表 `PARAM_DOC`（加訓練參數時一起補）。主題色在根目錄 `.streamlit/config.toml`（與 Dashboard 同色票）。啟動檔 `start-ui.sh`／`start-ui.cmd`（綁 localhost:8501、隱藏 Deploy 鈕）。路徑一律顯示成相對專案根目錄（`rel`／`scrub`，與 Dashboard 相同規則）。
@@ -24,11 +25,13 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 | 特徵清單（名稱、順序、`featureVersion`） | `Engine/Strategies/Mcts/ValueFeatures.cs` | dump、`positions.py`、模型（訓練時寫入特徵名稱）、C# 推論（載入時逐一比對） |
 | dump 格式（`formatVersion`、紀錄排列） | `Engine/Simulation/PositionDump.cs` | `positions.py`（`FORMAT_VERSION`、`record_dtype`） |
 | 模型格式（LightGBM 文字檔、MLP JSON） | 訓練腳本寫出 | `Engine/Strategies/Mcts/ValueModel.cs` |
+| 配方指紋的內容（上面 `fingerprint.py`） | `ml/fingerprint.py`；C# 端的 `EngineInfo.RulesRevision`、`.bin.json` 的 `rulesRevision`／`limits`／`options`、結果檔的 `rulesRevision` | `modelmeta.py`（寫進 `.meta.json` 的 `fingerprint`／`recipe`／`rulesRevision`、各資料的 `fingerprint`、各對戰的 `fingerprint`／`modelSha256`）、ML UI |
 
 ## 常見修改
 - **改特徵**：改 `ValueFeatures.cs`（遞增 `Version`）→ 重新產生所有資料 → 重訓；舊模型在 Engine 會被拒（刻意）。`Tests/Data/tiny-lgbm.*` 也要用新資料重產：`python3 ml/make_test_fixture.py results/ml/<任一新 dump>.bin`。
 - **改 dump 格式**：C# 遞增 `PositionDump.FormatVersion`，同步 `positions.FORMAT_VERSION` 與 `record_dtype`，兩邊測試一起跑。
-- **加訓練參數**：加進 `DEFAULTS`、`train()` 的 `params`（會寫進 `.meta.json`）與 argparse；測試在 `tests/test_train.py`。
+- **加訓練參數**：加進 `DEFAULTS`、`train()` 的 `params`（會寫進 `.meta.json`）與 argparse；**同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`**（影響模型的放白名單，不影響的放 `IGNORED_OPTIONS`；`tests/test_fingerprint.py` 會在漏掉時失敗）；測試在 `tests/test_train.py`。
+- **改指紋的內容**（新增或移除進配方的欄位）：所有舊指紋會變成「不同」，改前先問使用者；舊檔缺的欄位要有預設值（見 `DEFAULT_LIMITS`）。
 - **新模型種類**：Engine 要先能推論（`ValueModel.cs` 加類別＋與 Python 一致的測試），再寫訓練腳本；輸出格式不變的改寫（例如 MLP 改 PyTorch）只要 `.check.txt` 與 C# 比對一致。
 - **ML UI 加頁面或工作種類**：工作種類加進 `jobs.KINDS` 與 `job_runner.run`（產生資料、對戰要呼叫發佈版 Runner：`publish/runner/Runner`，進度從 Runner 輸出解析）；頁面加進 `ui.py` 的 `PAGES`（id、名稱、圖示、函式、分組標題）；需要即時更新的區塊用 `@st.fragment(run_every=...)`，工作狀態改變時整頁 `st.rerun(scope="app")`（`watch_states` 的做法）。測試：`tests/test_jobs.py`（真的開程序）、`tests/test_ui.py`（`AppTest` 無頭執行；一次只畫一頁，用 `goto(at, "<id>")` 點導覽）；畫面用 Playwright 截圖確認（Streamlit 的表格是 canvas，勾選列要點座標）。
 - **新增或刪除正式模型**：三個檔一起動（`modelmeta.move_model` 或 git），用 `python3 ml/model_report.py` 取數字更新 `docs/models.md`（刪除的保留一列、狀態改「已刪除」）。
@@ -42,6 +45,8 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 深色主題的輸入框底色（`secondaryBackgroundColor`）和卡片同色、又沒有框線，輸入框會整個看不見：`CSS` 裡另外把輸入框、下拉選單、數字框、單選群組（`stRadioGroup`）、指標（`stMetric`）改成較深的底色＋`#333a4b` 框線（聚焦時藍框）。Streamlit 1.6x 起文字框與下拉選單改用 react-aria（`data-testid="stTextInputRootElement"`、`.react-aria-ComboBox`），沒有 `data-baseweb` 了；舊版仍是 baseweb：選擇器兩種都要列（只寫 baseweb 時文字框、下拉選單沒框，數字框卻有）。新增元件種類或升版後用截圖確認。
 - 刪除鈕：`delete_button` 用 `st.dialog` 確認（`confirm_delete`），不要用 popover：popover 在刪除後的 rerun 仍保持開著。按鈕包在 `st.container(key="del-…")` 裡，CSS 用 `st-key-del-` 讓它紅底靠右；確認鈕 key `<key>-confirm` 也是紅色，取消鈕用 `keep-` 開頭避開紅色。刪除後 `del-gen` 加一，有勾選的表格把它放進 key（`dumps-<n>`、`cfg-table-<n>`）：否則舊的勾選（列號）會指到別的檔案。新的刪除鈕 key 也要以 `del-` 開頭。
 - 表格一律用 `grid()`（包 `st.dataframe`）：它多留 18 px 給水平捲軸，否則 Windows 的捲軸會蓋住最後一列；最多顯示 10 列再捲動。
+- 同名檔案的檢查看配方，不只看檔名（`same_name_notice`）：配方相同→「完全相同，不需要覆寫」，不同→列出差異；被模型用過的資料覆寫時列出模型；不同名但配方相同→提示重複。覆寫（資料、模型、對戰結果）也會被「排隊中或執行中的工作要讀它」擋下（`reader_problem`，與刪除同一套規則；`job_reads` 列出工作會讀的檔案：訓練資料、對戰的模型、設定檔裡的價值模型）。工作的 spec 與 `rel(out)` 的路徑寫法要一致（`rel()` 產生）。
+- 設定檔模式的局數、種子、抽樣率輸入框的 key 含設定檔名稱，換設定檔才會重新帶入預設值（以前 key 只有模式，換設定檔後種子停在上一個）。
 - 取消工作的按鈕（導覽最下方、排程佇列、工作詳細）key 以 `stop-` 開頭，CSS 讓它紅色；新的取消鈕照做。
 - 排程佇列的每一列是 `st.container(key="qrow-<狀態>-<id>")`，CSS 畫框並依狀態給左邊框顏色，欄位順序：名稱、狀態、經過時間、進度、備註、操作（最右）；新狀態要在 `CSS` 補顏色。
 - Streamlit 的元件 ID 由種類＋參數產生：不同頁面裡標籤相同的按鈕（例如三個「加入排隊」）會撞 ID 而報錯，要給 `key`。

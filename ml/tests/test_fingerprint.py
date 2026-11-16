@@ -1,0 +1,99 @@
+import copy
+import os
+
+import fingerprint as fp
+import train_lgbm
+import train_mlp
+
+META = {
+    "format": "pr-positions", "formatVersion": 1, "featureVersion": 1, "games": 20000, "rate": 0.01, "players": 4, "seed": 101,
+    "seatOrder": "Random", "name": "4p-hand-a",
+    "seats": [{"id": "x0", "strategy": "cheap-engine", "params": {}}, {"id": "x1", "strategy": "build-first", "params": {}},
+              {"id": "x2", "strategy": "harbor-rush", "params": {}}, {"id": "x3", "strategy": "corn-to-premium", "params": {}}],
+}
+
+
+def dump_fp(**changes):
+    meta = copy.deepcopy(META)
+    meta.update(changes)
+    return fp.fingerprint(fp.dump_recipe(meta))
+
+
+def test_canonical_form_ignores_key_order_and_number_spelling():
+    assert fp.digest({"a": 1, "b": [1.0, 2]}) == fp.digest({"b": [1, 2.0], "a": 1.0})
+    assert fp.digest({"a": 1}) != fp.digest({"a": 2})
+    assert fp.digest({"a": True}) != fp.digest({"a": 1})  # a flag is not the number 1
+
+
+def test_dump_fingerprint_depends_on_what_decides_the_data():
+    base = dump_fp()
+    assert base == dump_fp(name="renamed", threads=3)  # names and thread counts do not count
+    for change in ({"seed": 102}, {"games": 200000}, {"rate": 0.001}, {"seatOrder": "Balanced"}, {"players": 3},
+                   {"rulesRevision": 2}, {"featureVersion": 2}, {"limits": {"maxRounds": 100}},
+                   {"options": {"autoAdvanceForced": False}}):
+        assert dump_fp(**change) != base, change
+    assert dump_fp(seatOrder="random") == base  # the engine writes "Random", configs say "random"
+
+
+def test_seat_ids_do_not_count_but_seat_order_does():
+    base = dump_fp()
+    seats = copy.deepcopy(META["seats"])
+    for i, s in enumerate(seats):
+        s["id"] = f"other-{i}"
+    assert dump_fp(seats=seats) == base
+    assert dump_fp(seats=list(reversed(seats))) != base
+    seats[0]["params"] = {"x": 1}
+    assert dump_fp(seats=seats) != base
+
+
+def test_files_from_before_the_revision_field_count_as_revision_1():
+    assert dump_fp() == dump_fp(rulesRevision=1)
+    assert fp.dump_recipe(META)["limits"] == fp.DEFAULT_LIMITS  # defaults filled in for old dumps
+
+
+def test_value_models_count_by_content_not_by_name(tmp_path):
+    a, b, c = tmp_path / "a.txt", tmp_path / "b.txt", tmp_path / "c.txt"
+    a.write_text("tree 1")
+    b.write_text("tree 1")
+    c.write_text("tree 2")
+
+    def with_model(path):
+        seats = copy.deepcopy(META["seats"])
+        seats[0] = {"id": "m", "strategy": "mcts", "params": {"simulations": 100, "valueModel": str(path)}}
+        return dump_fp(seats=seats)
+    assert with_model(a) == with_model(b)  # same content, other name
+    assert with_model(a) != with_model(c)
+    assert with_model(tmp_path / "gone.txt") != with_model(a)  # a missing model never equals a present one
+    assert fp.model_digest(str(tmp_path / "gone.txt")).startswith("missing:")
+
+
+def test_model_recipe_ignores_data_order_threads_and_hidden_spelling():
+    r1 = fp.model_recipe("mlp", 1, ["b", "a"], {"hidden": "256,128", "epochs": 12, "threads": 4, "backend": "numpy", "device": "cpu"})
+    r2 = fp.model_recipe("mlp", 1, ["a", "b"], {"hidden": [256, 128], "epochs": 12, "threads": 8, "backend": "numpy", "device": "cpu"})
+    assert fp.fingerprint(r1) == fp.fingerprint(r2)
+    r3 = fp.model_recipe("mlp", 1, ["a", "b"], {"hidden": "256,64", "epochs": 12, "backend": "numpy", "device": "cpu"})
+    assert fp.fingerprint(r3) != fp.fingerprint(r1)
+
+
+def test_every_training_option_is_hashed_or_explicitly_ignored():
+    # a new option added to train_*.DEFAULTS must be listed in fingerprint.py, otherwise two different models could share a fingerprint
+    assert set(train_lgbm.DEFAULTS) <= set(fp.LGBM_OPTIONS) | set(fp.IGNORED_OPTIONS)
+    assert set(train_mlp.DEFAULTS) <= set(fp.MLP_OPTIONS) | set(fp.IGNORED_OPTIONS)
+
+
+def test_describe_lists_the_differences_in_words():
+    old = fp.dump_recipe(META)
+    new = fp.dump_recipe({**META, "games": 200000, "rate": 0.001})
+    assert fp.describe(old, new) == ["局數：20,000 → 200,000", "抽樣率：0.01 → 0.001"]
+    seats = copy.deepcopy(META["seats"])
+    seats[1]["params"] = {"simulations": 300}
+    assert "座位 2 的模擬次數：（無） → 300" in fp.describe(old, fp.dump_recipe({**META, "seats": seats}))
+    m_old = fp.model_recipe("lightgbm", 1, ["aaaaaaaa11", "bbbbbbbb22"], {"rounds": 400})
+    m_new = fp.model_recipe("lightgbm", 1, ["aaaaaaaa11", "cccccccc33"], {"rounds": 500})
+    text = fp.describe(m_old, m_new, names={"cccccccc33": "4p-hand-a-200k"})
+    assert "訓練資料：新增 4p-hand-a-200k；移除 bbbbbbbb" in text and "參數 rounds：400 → 500" in text
+
+
+def test_rules_revision_is_read_from_the_engine_source():
+    src = open(os.path.join(fp.ROOT, "Engine", "Game", "EngineInfo.cs"), encoding="utf-8").read()
+    assert f"RulesRevision = {fp.current_rules_revision()};" in src

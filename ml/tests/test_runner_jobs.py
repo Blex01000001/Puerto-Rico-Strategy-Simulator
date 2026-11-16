@@ -7,6 +7,7 @@ import time
 import pytest
 
 import jobs
+import fingerprint
 import modelmeta
 import positions
 
@@ -68,8 +69,8 @@ def test_match_job_records_the_win_rate_in_the_model(env):
     model = str(env / "tiny.txt")
     shutil.copy(os.path.join(ROOT, "Tests", "Data", "tiny-lgbm.txt"), model)
     fake = [{"path": "x.bin", "rows": 1, "games": 1, "status": "completed", "rate": 1, "seed": 1, "players": 4,
-             "featureVersion": 1, "featureCount": 430, "seats": []}]
-    modelmeta.write(model, "lightgbm", fake, {}, {}, {}, [], {})
+             "featureVersion": 1, "formatVersion": 1, "featureCount": 430, "seats": []}]
+    modelmeta.write(model, "lightgbm", fake, {}, {}, {}, [], {}, options={"rounds": 1})
     seats = [{"id": "A", "strategy": "mcts", "params": {"simulations": 5, "valueModel": model}},
              {"id": "B", "strategy": "mcts", "params": {"simulations": 5}},
              {"id": "cheap-engine", "strategy": "cheap-engine", "params": {}},
@@ -82,4 +83,7 @@ def test_match_job_records_the_win_rate_in_the_model(env):
     matches = modelmeta.read(model)["matches"]
     assert len(matches) == 1 and matches[0]["games"] == 24 and matches[0]["simulations"] == 5
     assert job["result"]["match"]["winShare"] == matches[0]["winShare"]
+    # the match records its recipe fingerprint, the engine rules revision and the content hash of the model that played
+    assert len(matches[0]["fingerprint"]) == 64 and matches[0]["rulesRevision"] >= 1
+    assert matches[0]["modelSha256"] == fingerprint.file_sha256(model)
     assert "±" in jobs.log_tail(job_id)  # the Runner's summary line reached the log intact

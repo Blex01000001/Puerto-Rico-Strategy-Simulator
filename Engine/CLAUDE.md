@@ -35,6 +35,8 @@
 - **參數掃描**：設定檔加 `sweep: { target, gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值，笛卡兒積），Runner 加 `--sweep`；每個格點同一個主種子，只比 target 的勝率（95% 信賴區間）與平均分。
 - **改設定／結果 JSON 欄位**（先問使用者）：新欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`。
 
+- **改了會讓同設定同種子結果不同的東西**（規則、策略決策、MCTS／亂數用法）：把 `EngineInfo.RulesRevision` 加 1（重構與不影響結果的修改不加），並在 `docs/TODO.md` 記下哪些資料與模型因此該重產生；ML 的指紋（`ml/fingerprint.py`）靠它辨識舊資料。
+
 ## 架構決策（不要改回去；要推翻先討論）
 - 策略介面固定為 `GameAction ChooseAction(GameState state, IReadOnlyList<GameAction> legalActions)`，隨機／手寫／MCTS 共用，不另開介面。
 - 決策點＝狀態＋合法動作清單；引擎提供 Clone／GetLegalActions／Apply／IsOver／Score；策略不直接改狀態。

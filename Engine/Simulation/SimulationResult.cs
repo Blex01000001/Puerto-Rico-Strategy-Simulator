@@ -66,6 +66,8 @@ public sealed class SimulationResult
     public int SchemaVersion { get; set; } = 1;
     public string EngineVersion { get; set; } = EngineInfo.Version;
     public string RulesVersion { get; set; } = EngineInfo.RulesVersion;
+    /// <summary>See <see cref="EngineInfo.RulesRevision"/>; files from before it existed have no value (= revision 1).</summary>
+    public int RulesRevision { get; set; } = EngineInfo.RulesRevision;
     /// <summary>running | completed | cancelled</summary>
     public string Status { get; set; } = "running";
     public DateTime StartedUtc { get; set; }

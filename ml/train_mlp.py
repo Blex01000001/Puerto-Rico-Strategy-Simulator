@@ -28,6 +28,20 @@ DEFAULTS = {"hidden": "256,128", "epochs": 12, "batch": 1024, "lr": 1e-3, "l2": 
 LR_HALVING_EPOCHS = 4
 
 
+def resolve_backend(o):
+    """(backend, device) a run with these options really uses ('auto' resolved the way train() does)."""
+    backend = o["backend"]
+    if backend == "auto":
+        backend = "torch" if torch_available() else "numpy"
+    if backend != "torch":
+        return backend, "cpu"
+    device = o["device"]
+    if device == "auto":
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    return backend, device
+
+
 def torch_available():
     try:
         import torch  # noqa: F401
@@ -248,7 +262,8 @@ def train(data, out, progress=None, log=print, **options):
                 "optimizer": "adam", "loss": "cross_entropy", "backend": backend, "device": device},
         training={"seconds": round(seconds, 1), "epochsRun": len(stop.curve), "bestEpoch": stop.best[2],
                   "validLossCurve": [round(c, 6) for c in stop.curve]},
-        validation=validation, top_features=[], libraries=libraries)
+        validation=validation, top_features=[], libraries=libraries,
+        options={**o, "backend": backend, "device": device})
     progress({"stage": "done", "model": out, "validation": validation})
     return meta
 

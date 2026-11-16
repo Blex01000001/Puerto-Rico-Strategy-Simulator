@@ -30,6 +30,8 @@
 
 - Dashboard 的 ML UI 啟動在 Linux 驗證過（啟動、狀態、缺套件的錯誤訊息）；Windows 上已能啟動，但多個 Python 時曾裝錯地方（`No module named 'lightgbm'`），改成挑套件齊全的 Python 並印出修正指令後還沒在 Windows 實測。
 - Windows 上曾因編碼（cp950）讓對戰工作在寫紀錄時當掉（`UnicodeEncodeError`），已改成一律 UTF-8；修正後還沒在 Windows 實測。
+- 配方指紋（`ml/fingerprint.py`）只在 Linux 驗證過；MLP 的 torch／numpy 兩個後端各算各的指紋。`train_lgbm` 的樹與執行緒數無關只用小資料驗證過（測試 `test_lightgbm_trees_do_not_depend_on_the_thread_count`），大資料與不同機器未驗證。
+- `--resume` 續跑舊版規則產生的結果檔時，引擎不會檢查 `rulesRevision`（目前只有版本 1，之後第一次遞增前要補檢查）。
 - Windows 上長時間工作曾在約 10 分鐘後被誤判為「中斷」（心跳執行緒停止）：已改成重試、心跳不中斷，程序還在時改標「失聯」並暫停佇列；修正後還沒在 Windows 實測（失聯的程序偵測用 kernel32，只在 Linux 測過）。
 - 本機工作區 `ml/local/`（ML UI 的模型、設定、對戰紀錄，不進 git）與「設為正式模型／移到本機」只在 Linux 驗證過。
 - ML UI 的工作佇列（一次一個、依序執行、關掉 UI 繼續、失敗／取消後接著跑）在 Linux 驗證過；Windows 還沒實測。佇列只能排「已經存在」的東西：還沒訓練出來的模型不能先排它的對戰、還沒產生的資料不能先排訓練（要等前一個完成）。

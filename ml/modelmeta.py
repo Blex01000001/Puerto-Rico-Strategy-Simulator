@@ -11,6 +11,8 @@ import platform
 
 import numpy as np
 
+import fingerprint
+
 FORMAT = "pr-model-meta"
 FORMAT_VERSION = 1
 
@@ -58,6 +60,8 @@ def data_summary(metas):
         "seed": m["seed"],
         "strategies": [s.get("strategy") for s in m.get("seats", [])],
         "valueModels": sorted({(s.get("params") or {}).get("valueModel") for s in m.get("seats", [])} - {None}),
+        "fingerprint": fingerprint.fingerprint(fingerprint.dump_recipe(m)),
+        "rulesRevision": m.get("rulesRevision", 1),
     } for m in metas]
 
 
@@ -88,7 +92,10 @@ def environment(**libraries):
             **{k: v for k, v in libraries.items()}}
 
 
-def write(model_path, kind, metas, params, training, validation, top_features, libraries):
+def write(model_path, kind, metas, params, training, validation, top_features, libraries, options):
+    """options: the training options as the trainer received them (white-listed into the recipe, see fingerprint.py)."""
+    data = data_summary(metas)
+    recipe = fingerprint.model_recipe(kind, metas[0]["featureVersion"], [d["fingerprint"] for d in data], options)
     meta = {
         "format": FORMAT,
         "formatVersion": FORMAT_VERSION,
@@ -98,7 +105,10 @@ def write(model_path, kind, metas, params, training, validation, top_features, l
         "players": metas[0]["players"],
         "featureVersion": metas[0]["featureVersion"],
         "featureCount": metas[0]["featureCount"],
-        "data": data_summary(metas),
+        "data": data,
+        "rulesRevision": max(d["rulesRevision"] for d in data),
+        "recipe": recipe,
+        "fingerprint": fingerprint.fingerprint(recipe),
         "params": params,
         "training": training,
         "validation": validation,
@@ -158,6 +168,10 @@ def match_entry(result_path, model_path):
         "winShareCi95": 1.96 * (p * (1 - p) / n) ** 0.5 if n else None,
         "avgScore": me["avgScore"],
         "others": [describe(s["id"]) for s in cfg["seats"] if s["id"] != mine[0]["id"]],
+        # same recipe -> same result; modelSha256 shows later whether the model file is still the one that played
+        "fingerprint": fingerprint.fingerprint(fingerprint.result_recipe(result)),
+        "rulesRevision": result.get("rulesRevision", 1),
+        "modelSha256": fingerprint.file_sha256(model_path),
     }
 
 

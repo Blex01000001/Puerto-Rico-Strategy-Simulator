@@ -31,6 +31,7 @@ if check_env.missing_modules():
 import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
 
+import fingerprint  # noqa: E402
 import jobs  # noqa: E402
 import modelmeta  # noqa: E402
 import positions  # noqa: E402
@@ -73,13 +74,14 @@ def _dump_info(path, mtime):
         m = positions.read_meta(path)
     except (ValueError, OSError, json.JSONDecodeError, KeyError) as e:
         return {"path": rel(path), "error": scrub(str(e))}
+    meta = {k: v for k, v in m.items() if k != "featureNames"}
     strategies = [s.get("strategy") for s in m.get("seats", [])]
     models = sorted({os.path.basename(str((s.get("params") or {}).get("valueModel"))) for s in m.get("seats", [])
                      if (s.get("params") or {}).get("valueModel")})
     return {"path": rel(path), "來源": m.get("name") or os.path.basename(path), "人數": m["players"],
             "局數": m["games"], "列數": m["rows"], "狀態": m["status"], "抽樣率": m["rate"],
             "特徵版本": m["featureVersion"], "大小 MB": round(os.path.getsize(path) / 1e6, 1),
-            "策略": "、".join(dict.fromkeys(strategies)), "自我對戰模型": "、".join(models)}
+            "策略": "、".join(dict.fromkeys(strategies)), "自我對戰模型": "、".join(models), "_meta": meta}
 
 
 def scrub(message):
@@ -94,8 +96,80 @@ def list_dumps():
         if not os.path.exists(p + ".json") and time.time() - os.path.getmtime(p) < 300:
             out.append({"path": rel(p), "writing": True, "大小 MB": round(os.path.getsize(p) / 1e6, 1)})
             continue
-        out.append(_dump_info(p, os.path.getmtime(p + ".json") if os.path.exists(p + ".json") else 0))
+        info = dict(_dump_info(p, os.path.getmtime(p + ".json") if os.path.exists(p + ".json") else 0))
+        if "_meta" in info:
+            # outside the cache: a value model a self-play dump used may have been replaced since
+            info["_recipe"] = fingerprint.dump_recipe(info["_meta"])
+            info["_fp"] = fingerprint.fingerprint(info["_recipe"])
+            info["_rev"] = info["_meta"].get("rulesRevision", 1)
+            info["指紋"] = fingerprint.short(info["_fp"])
+            info["規則版本"] = rule_text(info["_rev"])
+        out.append(info)
     return out
+
+
+def rule_text(revision):
+    """'1' or '1（舊；目前 2）' for a file made with an older engine behaviour."""
+    now = fingerprint.current_rules_revision()
+    return str(revision) if revision >= now else f"{revision}（舊；目前 {now}）"
+
+
+def table_view(rows, path_as=None):
+    """Dump rows for display: no internal columns (those starting with _); the path column is dropped or renamed."""
+    df = pd.DataFrame(rows)
+    df = df.drop(columns=[c for c in df.columns if c.startswith("_")])
+    return df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
+
+
+def models_using(dump_rel):
+    """Names of the models that were trained on this dump file (by the path recorded in their metadata)."""
+    out = []
+    for mp in model_files():
+        meta = model_meta(mp)
+        if meta and any(str(d.get("path", "")).replace("\\", "/") == dump_rel for d in meta.get("data", [])):
+            out.append(os.path.basename(mp))
+    return out
+
+
+def job_reads(job):
+    """Files a waiting / starting / running job will read (repo-relative, forward slashes): training data, the model a match
+    plays, and the value models named in its config."""
+    spec = job.get("spec", {})
+    paths = list(spec.get("data") or [])
+    if spec.get("model"):
+        paths.append(spec["model"])
+    if spec.get("config"):
+        cfg = read_config(absolute(spec["config"]))
+        for seat in (cfg or {}).get("seats", []):
+            vm = (seat.get("params") or {}).get("valueModel")
+            if vm:
+                paths.append(vm)
+    return {str(x).replace("\\", "/") for x in paths}
+
+
+def pending_readers(out_rel):
+    """Titles of the waiting / starting / running jobs that will read this file (overwriting it would change their input)."""
+    want = out_rel.replace("\\", "/")
+    return [j["title"] for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY and want in job_reads(j)]
+
+
+def reader_problem(out_rel):
+    titles = pending_readers(out_rel)
+    return f"排隊中或執行中的工作「{titles[0]}」要讀這個檔案，不能覆寫，換一個名稱" if titles else None
+
+
+def same_name_notice(noun, exists, old, new, users=(), names=None):
+    """Under a name field: what is already there under this name, and is it the same recipe?"""
+    if not exists:
+        return
+    if old is None:
+        st.warning(f"同名{noun}已存在，但讀不出它的參數，無法比較。")
+    elif fingerprint.fingerprint(old) == fingerprint.fingerprint(new):
+        st.info(f"同名{noun}的參數**完全相同**（指紋 {fingerprint.short(fingerprint.fingerprint(new))}）：重跑只會得到同一份結果，不需要覆寫。")
+    else:
+        st.warning(f"同名{noun}的參數**不同**，覆寫會換掉它：\n\n" + "\n".join(f"- {d}" for d in fingerprint.describe(old, new, names)))
+    if users:
+        st.warning("用過它的模型：" + "、".join(f"`{u}`" for u in users) + "。覆寫後這些模型的紀錄會對不上資料，建議換一個名稱。")
 
 
 def model_files():
@@ -302,7 +376,7 @@ def training_tab():
         players = sorted({d["人數"] for d in good})
         p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
         rows = [d for d in good if d["人數"] == p]
-        df = pd.DataFrame(rows).drop(columns=["path"]).set_index(pd.Index([r["path"] for r in rows], name="檔案"))
+        df = table_view(rows).set_index(pd.Index([r["path"] for r in rows], name="檔案"))
         picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
                               column_config={"列數": st.column_config.NumberColumn(format="localized"),
                                              "局數": st.column_config.NumberColumn(format="localized")})
@@ -336,6 +410,33 @@ def training_tab():
         out = os.path.join(LOCAL_MODELS, name + ext)
         exists = os.path.exists(out)
         official_taken = os.path.exists(os.path.join(MODELS_DIR, name + ext))
+        # recipe of this training run: the chosen data (by fingerprint) and the options that decide the model
+        kind_name = "lightgbm" if kind == "train_lgbm" else "mlp"
+        opts = {**defaults, **options}
+        if kind_name == "mlp":
+            backend, device = train_mlp.resolve_backend(opts)
+            opts = {**opts, "backend": backend, "device": device}
+        new_recipe = fingerprint.model_recipe(kind_name, chosen[0]["特徵版本"], [d["_fp"] for d in chosen], opts) if chosen else None
+        if chosen:
+            by_fp = {}
+            for d in chosen:
+                by_fp.setdefault(d["_fp"], []).append(d["來源"])
+            for names_ in by_fp.values():
+                if len(names_) > 1:
+                    st.warning("勾選的 " + "、".join(f"`{n}`" for n in names_) + " 參數完全相同（同一份資料），重複放進去只會讓模型多看一次同樣的局面。")
+            revs = {d["_rev"] for d in chosen}
+            if len(revs) > 1:
+                st.warning(f"勾選的資料引擎規則版本不一致（{', '.join(map(str, sorted(revs)))}），不建議一起訓練。")
+            elif min(revs) < fingerprint.current_rules_revision():
+                st.warning(f"勾選的資料是用舊版規則產生的（規則版本 {min(revs)}，目前 {fingerprint.current_rules_revision()}）：同樣的設定現在會得到不同的資料，建議重新產生。")
+            fp_names = {d["_fp"]: d["來源"] for d in chosen}
+            old_meta = model_meta(out) if exists else None
+            old_recipe = (old_meta or {}).get("recipe")
+            same_name_notice("模型", exists, old_recipe, new_recipe, names=fp_names)
+            twins = [os.path.basename(mp) for mp in model_files() if (model_meta(mp) or {}).get("fingerprint") == fingerprint.fingerprint(new_recipe)
+                     and mp != out]
+            if twins:
+                st.info("已經有相同配方（同樣的資料與參數）的模型：" + "、".join(f"`{t}`" for t in twins) + "。")
         overwrite = st.checkbox(f"覆寫已存在的 `{name + ext}`", value=False) if exists else True
 
         problems = []
@@ -351,6 +452,8 @@ def training_tab():
             problems.append(f"正式模型裡已經有 {name + ext}，換一個名稱")
         if pending_output(rel(out)):
             problems.append(f"排隊中或執行中的工作已經會寫 {name + ext}，換一個名稱")
+        if exists and reader_problem(rel(out)):
+            problems.append(reader_problem(rel(out)))
         if action_row("開始訓練", "start-train", problems):
             spec = {"data": [d["path"] for d in chosen], "out": rel(out), "options": options}
             start_job(kind, f"{KIND_TEXT[kind]} → {name + ext}", spec)
@@ -937,9 +1040,11 @@ def data_tab():
 
     with card("data-run", "2. 局數設定"):
         c1, c2, c3, c4 = st.columns(4)
-        games = c1.number_input("局數", value=default_games, min_value=1, step=1000, key=f"games-{mode[:2]}")
-        seed = c2.number_input("種子", value=default_seed, step=1, key=f"seed-{mode[:2]}")
-        rate = c3.number_input("抽樣率（每個決策被抽到的機率）", value=default_rate, min_value=0.0001, max_value=1.0, format="%g", key=f"rate-{mode[:2]}")
+        # the defaults come from the chosen config: its name is part of the keys, so picking another config reloads them
+        kk = mode[:2] + (config if mode.startswith("設定檔") else "")
+        games = c1.number_input("局數", value=default_games, min_value=1, step=1000, key=f"games-{kk}")
+        seed = c2.number_input("種子", value=default_seed, step=1, key=f"seed-{kk}")
+        rate = c3.number_input("抽樣率（每個決策被抽到的機率）", value=default_rate, min_value=0.0001, max_value=1.0, format="%g", key=f"rate-{kk}")
         threads = c4.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key=f"threads-{mode[:2]}")
         if mode.startswith("模型"):
             st.caption(f"參考：4 核心、100 次模擬、leafRollout 20 約 1 局／秒（{games:,} 局約 {games / 3600:.1f} 小時）。")
@@ -964,6 +1069,20 @@ def data_tab():
                                "params": {"simulations": int(sims), "valueModel": rel(model_path(model)), "leafRollout": int(leaf)}}
                               for i in range(players)],
                     "output": {"perGameRecords": False}}
+
+        # what this run would produce, by recipe: compared with what already exists under this name and under other names
+        eff = {**cfg, "games": int(games), "seed": int(seed)} if mode.startswith("設定檔") else new_config()
+        new_recipe = fingerprint.planned_dump_recipe(eff, float(rate))
+        new_fp = fingerprint.fingerprint(new_recipe)
+        known = [d for d in list_dumps() if "_fp" in d]
+        old_recipe = next((d["_recipe"] for d in known if d["path"] == rel(out)), None)
+        same_name_notice("資料", exists, old_recipe, new_recipe, users=models_using(rel(out)) if exists else ())
+        twins = [d["來源"] for d in known if d["_fp"] == new_fp and d["path"] != rel(out)]
+        if twins:
+            st.info("已經有相同配方（同樣的設定、種子、局數與抽樣率）的資料：" + "、".join(f"`{t}`" for t in twins)
+                    + "。重跑只會得到同一份內容，通常不需要再產生。")
+        if exists and reader_problem(rel(out)):
+            problems.append(reader_problem(rel(out)))
 
         if mode.startswith("自訂"):
             save_problems = name_problems + custom_problems
@@ -990,7 +1109,7 @@ def data_tab():
     with card("data-list", "已有的資料"):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
-            grid(pd.DataFrame(dumps).rename(columns={"path": "檔案"}), hide_index=True, width="stretch")
+            grid(table_view(dumps, "檔案"), hide_index=True, width="stretch")
             st.caption(f"要刪除資料，到「{TAB_TRAIN}」頁勾選後按刪除。")
         else:
             st.caption("還沒有資料。")
@@ -1045,6 +1164,23 @@ def _match_body():
     name = st.text_input("名稱（設定檔 ml/local/matches/<名稱>.json、結果 results/ml/<名稱>.json）", value=default_name).strip()
     out = os.path.join(jobs.results_dir(), "ml", name + ".json")
     exists = os.path.exists(out)
+    # recipe of this match (the value model counts by file content), compared with the result under this name and with
+    # the matches already recorded for the model
+    new_recipe = fingerprint.planned_match_recipe({"players": players, "games": int(games), "seed": int(seed),
+                                                   "seatOrder": "balanced", "seats": seats})
+    new_fp = fingerprint.fingerprint(new_recipe)
+    old_recipe = None
+    if exists:
+        try:
+            with open(out, encoding="utf-8") as f:
+                old_recipe = fingerprint.result_recipe(json.load(f))
+        except (OSError, ValueError, KeyError, TypeError):
+            old_recipe = None
+    same_name_notice("對戰結果", exists, old_recipe, new_recipe)
+    done_meta = model_meta(model_path(model))
+    twins = [m for m in (done_meta or {}).get("matches", []) if m.get("fingerprint") == new_fp and m.get("result") != rel(out)]
+    if twins:
+        st.info("這個模型已經有相同配方的對戰：" + "、".join(f"`{m['config']}`（勝率 {m['winShare']:.1%}）" for m in twins) + "。重跑只會得到同樣的結果。")
     overwrite = st.checkbox(f"覆寫已存在的結果 `{name}.json`") if exists else True
     problems = [p for p in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
                             None if games % perm == 0 else f"局數要是 {perm} 的倍數",
@@ -1062,7 +1198,7 @@ def _match_body():
     meta = model_meta(model_path(model))
     if meta and meta.get("matches"):
         st.markdown(f"**{model} 已有的對戰**")
-        grid(matches_frame(meta), hide_index=True, width="stretch",
+        grid(matches_frame(meta, model_path(model)), hide_index=True, width="stretch",
                      column_config={"勝率": st.column_config.NumberColumn(format="percent"),
                                     "±95%": st.column_config.NumberColumn(format="percent"),
                                     "平均分": st.column_config.NumberColumn(format="%.1f")})
@@ -1088,7 +1224,9 @@ def models_table(paths):
             "R²": v.get("r2"), "交叉熵": v.get("crossEntropy"),
             "對戰場數": len(meta.get("matches", [])),
             "對原版 MCTS 最佳勝率": best["winShare"] if best else None,
-            "備註": "參數為補寫" if "note" in meta.get("params", {}) else "",
+            "指紋": fingerprint.short(meta.get("fingerprint")) or "—",
+            "規則版本": rule_text(meta.get("rulesRevision", 1)),
+            "備註": "參數為補寫" if "note" in meta.get("params", {}) else ("舊紀錄：沒有配方指紋" if not meta.get("fingerprint") else ""),
         })
     df = pd.DataFrame(rows)
     # text columns so that missing values read "—" instead of Streamlit's grey "None"
@@ -1099,13 +1237,25 @@ def models_table(paths):
     return df.fillna("")
 
 
-def matches_frame(meta):
+def match_note(m, current_sha):
+    """Why an old result may no longer describe the model / engine of today."""
+    notes = []
+    if m.get("modelSha256") and current_sha and m["modelSha256"] != current_sha:
+        notes.append("模型檔已更新，這場是舊版模型打的")
+    if m.get("rulesRevision", 1) < fingerprint.current_rules_revision():
+        notes.append(f"舊版規則（{m.get('rulesRevision', 1)}）")
+    return "；".join(notes)
+
+
+def matches_frame(meta, model_file=None):
+    current_sha = fingerprint.file_sha256(model_file) if model_file and os.path.exists(model_file) else None
     rows = []
     for m in meta.get("matches", []):
         rows.append({"設定": m.get("config"), "對手": describe_match(m), "局數": m["games"], "種子": m["seed"],
                      "勝率": m["winShare"], "±95%": m.get("winShareCi95"), "平均分": m["avgScore"],
                      "對手勝率": "、".join(f"{o['strategy'] if not o.get('valueModel') else 'MCTS＋模型'} {o['winShare']:.1%}" for o in m["others"]),
-                     "紀錄": "本機" if m.get("local") else "正式", "結果檔": m["result"]})
+                     "紀錄": "本機" if m.get("local") else "正式", "指紋": fingerprint.short(m.get("fingerprint")) or "—",
+                     "備註": match_note(m, current_sha), "結果檔": m["result"]})
     return pd.DataFrame(rows)
 
 
@@ -1162,7 +1312,7 @@ def model_detail(path):
     c[3].metric("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—", help=describe_match(best) if best else "還沒有對戰")
 
     st.markdown("**對戰結果**（判斷模型好壞的依據）")
-    mf = matches_frame(meta)
+    mf = matches_frame(meta, path)
     if mf.empty:
         st.caption("還沒有對戰紀錄。")
     else:
@@ -1190,6 +1340,7 @@ def model_detail(path):
     grid(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
                                 "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
                                 "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
+                                "指紋": fingerprint.short(d.get("fingerprint")) or "—",
                                 "檔案": d["path"]} for d in meta["data"]]),
                  hide_index=True, width="stretch")
 
@@ -1214,7 +1365,11 @@ def model_detail(path):
             st.caption("只有 LightGBM 有（MLP 或補寫的 meta 沒有）。")
     env = meta.get("environment") or {}
     env_text = "環境未記錄" if "note" in env else "・".join(f"{k} {val}" for k, val in env.items())
-    st.caption(f"特徵版本 {meta['featureVersion']}（{meta['featureCount']} 個）・建立 {meta.get('created') or '（補寫）'}・{env_text}")
+    st.caption(f"特徵版本 {meta['featureVersion']}（{meta['featureCount']} 個）・建立 {meta.get('created') or '（補寫）'}・{env_text}"
+               + (f"・配方指紋 {fingerprint.short(meta['fingerprint'])}・引擎規則版本 {meta.get('rulesRevision', 1)}" if meta.get("fingerprint") else "・舊紀錄：沒有配方指紋"))
+    if meta.get("rulesRevision", 1) < fingerprint.current_rules_revision():
+        st.warning(f"這個模型的資料是用舊版規則產生的（規則版本 {meta.get('rulesRevision', 1)}，目前 {fingerprint.current_rules_revision()}）："
+                   "它學到的是舊規則下的局面，用在新規則的對戰前建議重新產生資料並重訓。")
 
 
 def compare(paths):

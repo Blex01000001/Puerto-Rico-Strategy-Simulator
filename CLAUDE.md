@@ -56,6 +56,7 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 - 比較策略用 `seatOrder: random`（預設）或 `balanced`，不要用 `rotate`／`fixed` 的單一排列下結論（同一桌勝率可差 20 個百分點以上）；統計看策略不看座位。
 - `results/` 已被 `.gitignore` 忽略：絕對不要 `git add -f`；`git add -A` 之前先看 `git status`。
 - 規則數字集中在靜態表；每條規則一個情境測試並註明 rules.md 節次。
+- **`EngineInfo.RulesRevision`**（`Engine/Game/EngineInfo.cs`，整數）：只要「同設定、同種子會得到不同結果」（規則實作或詮釋改了、策略決策改了、MCTS／亂數用法改了），就手動加 1；重構、UI 修改不加。它寫進結果檔與 dump，ML 工具把它放進資料／模型／對戰的配方指紋（`ml/fingerprint.py`），舊資料會被標成「舊版規則」。改了之後要提醒使用者哪些資料與模型該重產生。
 
 ## 使用者的工作習慣
 - 回覆用繁體中文；commit 訊息用英文。
