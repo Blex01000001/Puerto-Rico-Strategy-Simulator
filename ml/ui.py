@@ -546,10 +546,12 @@ button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2
 .side-note { color: #8892a2; font-size: .78rem; margin: .1rem 0; }
 /* version page: tiles and tables like the Dashboard's 版本控管 page (same look in both UIs) */
 .vtiles { display: flex; flex-wrap: wrap; gap: .75rem; margin: .2rem 0 .6rem; }
-.vtile { position: relative; flex: 1 1 9rem; min-height: 5rem; display: flex; align-items: center; justify-content: center;
-  padding: 1.2rem .8rem .5rem; background: #111418; border: 1px solid #333a4b; border-radius: 4px; text-align: center; }
-.vtile .l { position: absolute; top: .3rem; left: .55rem; color: #8892a2; font-size: .75rem; line-height: 1.1; }
-.vtile .v { font-size: 1.55rem; font-weight: 600; color: #eef1f5; line-height: 1.2; font-variant-numeric: tabular-nums; }
+/* the label takes its own line at the top (a long one wraps and pushes the value down), the value is centred in the rest */
+.vtile { position: relative; flex: 1 1 9rem; min-height: 5.6rem; display: flex; flex-direction: column;
+  padding: .35rem .55rem .55rem; background: #111418; border: 1px solid #333a4b; border-radius: 4px; }
+.vtile .l { color: #8892a2; font-size: 15px; line-height: 1.25; text-align: left; padding-right: 1.3rem; }
+.vtile .v { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
+  font-size: 1.55rem; font-weight: 600; color: #eef1f5; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .vnote { color: #b4bcc9; font-size: .85rem; line-height: 1.5; margin: .1rem 0 .35rem; }
 table.vtable { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: .4rem; font-variant-numeric: tabular-nums; }
 table.vtable th { color: #8892a2; font-weight: 600; font-size: .78rem; letter-spacing: .04em; background: #171a21; text-align: center; white-space: nowrap;
