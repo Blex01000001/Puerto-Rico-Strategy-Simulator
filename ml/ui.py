@@ -32,6 +32,7 @@ import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
 
 import fingerprint  # noqa: E402
+import folders  # noqa: E402
 import jobs  # noqa: E402
 import modelmeta  # noqa: E402
 import positions  # noqa: E402
@@ -64,6 +65,19 @@ def rel(path):
 
 def absolute(path):
     return path if os.path.isabs(path) else os.path.join(ROOT, path)
+
+
+def folder_line(path, key):
+    """A small grey line under a file list or picker: the path (relative to the project root) and a link-like 開啟資料夾 button."""
+    with st.container(key=f"folderline-{key}"):
+        c1, c2 = st.columns(2, vertical_alignment="center")
+        c1.markdown(f"<span class='folder-path'>{plain(path)}</span>", unsafe_allow_html=True)
+        if c2.button("開啟資料夾", key=f"openfolder-{key}"):
+            ok, why = folders.open_folder(absolute(path), ROOT)
+            if ok:
+                st.toast("已開啟資料夾")
+            else:
+                st.toast(why, icon="⚠️")
 
 
 # ---------------------------------------------------------------- data and models on disk
@@ -396,11 +410,12 @@ def training_tab():
         players = sorted({d["人數"] for d in good})
         p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
         rows = [d for d in good if d["人數"] == p]
-        df = table_view(rows).set_index(pd.Index([r["path"] for r in rows], name="檔案"))
+        df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name="檔案"))
         picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
                               column_config={"列數": st.column_config.NumberColumn(format="localized"),
                                              "局數": st.column_config.NumberColumn(format="localized")})
         chosen = [rows[i] for i in picked.selection.rows]
+        folder_line(os.path.dirname(rows[0]["path"]) + "/", "train-data")
         for d in writing:
             st.info(f"`{d['path']}` 產生中（目前 {d['大小 MB']} MB），完成後才會出現在表格裡。")
         for d in bad:
@@ -523,6 +538,12 @@ div[data-baseweb="select"] > div:focus-within { border-color: #4aa8ff !important
 [data-testid="stMetric"] { background: #111418; border: 1px solid #333a4b; border-radius: 4px; padding: .45rem .8rem; }
 [data-testid="stMetricValue"] > div { font-size: 1.7rem !important; }
 /* delete buttons: red, at the right edge (delete_button wraps them in st.container(key="del-…")) */
+div[class*="st-key-folderline-"] [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: .5rem !important; align-items: center; }
+div[class*="st-key-folderline-"] [data-testid="stColumn"] { flex: 0 1 auto !important; width: auto !important; min-width: 0 !important; }
+div[class*="st-key-folderline-"] { margin: -.35rem 0 .35rem; }
+.folder-path { font-size: .74rem; color: #8892a2; overflow-wrap: anywhere; }
+div[class*="st-key-folderline-"] button { background: transparent !important; border: 0 !important; padding: 0 !important; min-height: 0 !important; height: auto !important; color: #4aa8ff !important; }
+div[class*="st-key-folderline-"] button p { font-size: .74rem !important; text-decoration: underline; }
 div[class*="st-key-del-"] { align-items: flex-end !important; }
 div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
 div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
@@ -1074,8 +1095,12 @@ def config_rows():
 
 def config_table(rows):
     """All data configs with checkboxes for deleting (inside the 管理設定檔 expander)."""
-    picked = grid(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
+    shown = pd.DataFrame(rows)
+    shown["設定檔"] = shown["設定檔"].map(os.path.basename)  # the folder is in the 位置 column and the line below
+    picked = grid(shown.set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
+    for i, folder in enumerate(dict.fromkeys(os.path.dirname(r["設定檔"]) for r in rows)):
+        folder_line(folder + "/", f"configs-{i}")
     c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
     c1.caption("勾選左側方格可以刪除設定檔。" + (f"其中 {len(tracked)} 個是 repo 內建的（git 追蹤中）：刪掉後可以用 git 還原。" if tracked else ""))
@@ -1097,7 +1122,8 @@ def data_tab():
                 return
             by_name = {r["設定檔"]: r for r in rows}
             config = st.selectbox("用哪個設定檔", list(by_name),
-                                  format_func=lambda c: f"{c}（{by_name[c]['人數']} 人局：{by_name[c]['座位']}）")
+                                  format_func=lambda c: f"{os.path.basename(c)}（{by_name[c]['人數']} 人局：{by_name[c]['座位']}）")
+            folder_line(config, "config")
             with st.expander(f"管理設定檔（全部 {len(rows)} 個；勾選後可以刪除）"):
                 config_table(rows)
             cfg = read_config(absolute(config))
@@ -1203,7 +1229,8 @@ def data_tab():
     with card("data-list", "已有的資料"):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
-            grid(table_view(dumps, "檔案"), hide_index=True, width="stretch")
+            grid(table_view([{**d, "path": os.path.basename(d["path"])} for d in dumps], "檔案"), hide_index=True, width="stretch")
+            folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
             st.caption(f"要刪除資料，到「{TAB_TRAIN}」頁勾選後按刪除。")
         else:
             st.caption("還沒有資料。")
@@ -1541,8 +1568,10 @@ def model_detail(path):
                                 "hash": fingerprint.short(d.get("fingerprint")) or "—",
                                 "版本": (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + "、"
                                          + "、".join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip("、"),
-                                "檔案": d["path"]} for d in meta["data"]]),
+                                "檔案": os.path.basename(d["path"])} for d in meta["data"]]),
                  hide_index=True, width="stretch")
+    if meta.get("data"):
+        folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
 
     curve = (meta.get("training") or {}).get("validLossCurve")
     feats = meta.get("topFeatures") or []
