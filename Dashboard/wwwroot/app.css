@@ -466,5 +466,4 @@ table.data.vtable td.l { text-align: left; white-space: normal; }
 table.data.vtable td.nw { white-space: nowrap; }
 table.data.vtable td ul { margin: 0; padding-left: 1.1rem; }
 
-details.ai-summary { margin: .75rem 0 1rem; color: var(--text-2); font-size: .88rem; } details.ai-summary summary { cursor: pointer; color: var(--text-3); margin: 0; }
-.ai-summary-body { margin-top: .5rem; } .ai-summary-body pre.panel { white-space: pre-wrap; font-size: .8rem; }
+.ai-summary { margin: .75rem 0 1rem; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }

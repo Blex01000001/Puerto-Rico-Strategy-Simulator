@@ -41,14 +41,10 @@ else if (State.Result != null && State.Analysis != null)
         }
         <div class="kpi"><div class="v">@r.EngineVersion</div><div class="l">引擎 · @r.RulesVersion</div></div>
     </div>
-    <details class="ai-summary">
-        <summary>複製摘要給 AI（貼進對話用）</summary>
-        <div class="ai-summary-body">
-            <button class="secondary" @onclick="() => CopySummary(summaryText)">@(copied ? "已複製" : "複製")</button>
-            <span class="note">只有設定、勝率、耗時與版本，沒有逐局資料；路徑不含本機位置。</span>
-            <pre class="panel">@summaryText</pre>
-        </div>
-    </details>
+    <div class="ai-summary">
+        <button class="secondary" @onclick="() => CopySummary(summaryText)">@(copied ? "已複製" : "複製摘要給 AI")</button>
+        <span class="note">複製設定、勝率、耗時與版本（沒有逐局資料，路徑不含本機位置），貼進和 AI 的對話。</span>
+    </div>
     @if (r.Status != "completed")
     {
         <div class="error">這份結果狀態是「@r.Status」，只含已跑完的 @a.GamesCompleted 局 / 預定 @r.GamesRequested 局。</div>

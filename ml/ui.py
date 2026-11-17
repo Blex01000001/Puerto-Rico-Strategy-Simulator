@@ -824,6 +824,27 @@ def queue_page():
         job_detail(job_id)
 
 
+def copy_button(text, label="複製摘要給 AI"):
+    """A button that puts `text` on the clipboard without showing it (runs in a small iframe; falls back to execCommand when the
+    browser blocks navigator.clipboard there)."""
+    import streamlit.components.v1 as components
+    payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
+    components.html(f"""
+<button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
+  font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
+<script>
+const text = {payload}, b = document.getElementById('b'), label = b.textContent;
+function fallback() {{ const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+  const ok = document.execCommand('copy'); document.body.removeChild(t); return ok; }}
+b.onclick = async () => {{
+  let ok = false;
+  try {{ await navigator.clipboard.writeText(text); ok = true; }} catch (e) {{ ok = fallback(); }}
+  b.textContent = ok ? '已複製' : '複製失敗（瀏覽器擋住了剪貼簿）';
+  setTimeout(() => b.textContent = label, 2000);
+}};
+</script>""", height=44)
+
+
 def job_summary_text(job):
     """A finished data / training / match job as Markdown to paste to an AI (None when there is nothing to say or its files are gone)."""
     result, state, kind = job.get("result") or {}, job["state"], job["kind"]
@@ -906,9 +927,10 @@ def job_detail(job_id):
                                                      "平均分": st.column_config.NumberColumn(format="%.1f")})
     summary = job_summary_text(job)
     if summary:
-        with st.expander("複製摘要給 AI（貼進對話用）"):
-            st.code(scrub(summary), language="markdown")
-            st.caption("右上角的鈕可以複製。內容只有設定、數字、耗時與版本，沒有逐局資料；路徑是相對專案根目錄的。")
+        c1, c2 = st.columns([1, 3], vertical_alignment="center")
+        with c1:
+            copy_button(scrub(summary))
+        c2.caption("把這個工作的設定、數字、耗時與版本複製起來，貼進和 AI 的對話。沒有逐局資料，路徑是相對專案根目錄的。")
     with st.expander("紀錄（最後 40 行）", expanded=state == "failed"):
         st.code(scrub(jobs.log_tail(job_id)) or "（空的）", language=None)
 
@@ -1349,18 +1371,19 @@ def matches_frame(meta, model_file=None):
 
 
 def match_summary_box(meta, model_file, key):
-    """'複製摘要給 AI': one match record (or all of them) as short Markdown; st.code has a copy button."""
+    """'複製摘要給 AI': one match record (or all of them) as short Markdown, copied by a button (the text itself is not shown)."""
     matches = meta.get("matches") or []
     if not matches:
         return
     current_sha = fingerprint.file_sha256(model_file) if os.path.exists(model_file) else None
     labels = [f"{m.get('config') or m['result']}（{m['games']} 局）" for m in matches]
-    with st.expander("複製摘要給 AI（貼進對話用）"):
-        pick = st.selectbox("哪一筆對戰", ["全部"] + labels, key=f"summary-pick-{key}")
-        chosen = matches if pick == "全部" else [matches[labels.index(pick)]]
-        name = os.path.basename(model_file)
-        st.code("\n\n".join(modelmeta.match_summary(m, name, match_note(m, current_sha)) for m in chosen), language="markdown")
-        st.caption("右上角的鈕可以複製。內容只有設定、勝率、耗時與版本，沒有逐局資料；路徑是相對專案根目錄的。")
+    c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+    pick = c1.selectbox("複製摘要給 AI：哪一筆對戰", ["全部"] + labels, key=f"summary-pick-{key}",
+                        help="複製設定、勝率、耗時與版本（沒有逐局資料，路徑是相對專案根目錄的），貼進和 AI 的對話。")
+    chosen = matches if pick == "全部" else [matches[labels.index(pick)]]
+    name = os.path.basename(model_file)
+    with c2:
+        copy_button("\n\n".join(modelmeta.match_summary(m, name, match_note(m, current_sha)) for m in chosen))
 
 
 def flat_params(meta):
