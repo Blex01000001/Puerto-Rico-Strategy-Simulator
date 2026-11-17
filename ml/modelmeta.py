@@ -9,6 +9,7 @@ import glob
 import json
 import os
 import platform
+import re
 
 import numpy as np
 
@@ -145,6 +146,22 @@ def read(model_path, include_local=True):
     return meta
 
 
+def _parse_utc(text):
+    """.NET writes 7 fractional digits ('2026-11-17T12:00:00.1234567Z'); datetime wants at most 6."""
+    if not text:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def result_seconds(result):
+    """Wall-clock seconds of a Runner result (finished - started); None while running or when the file lacks the times."""
+    a, b = _parse_utc(result.get("startedUtc")), _parse_utc(result.get("finishedUtc"))
+    return round((b - a).total_seconds(), 1) if a and b else None
+
+
 def match_entry(result_path, model_path):
     """Summary of one Runner result file for the seat that used this model (MCTS valueModel)."""
     with open(result_path, encoding="utf-8") as f:
@@ -186,6 +203,9 @@ def match_entry(result_path, model_path):
         "rulesRevision": result.get("rulesRevision", 1),
         "revisions": _revisions(fingerprint.result_recipe(result)),
         "modelSha256": fingerprint.file_sha256(model_path),
+        "engineVersion": result.get("engineVersion"),
+        "engineCommit": result.get("engineCommit"),
+        "seconds": result_seconds(result),
     }
 
 
@@ -206,6 +226,119 @@ def add_match(model_path, result_path):
     with open(model_path + ".meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)
     return entry
+
+
+def _duration(seconds):
+    if seconds is None:
+        return "—"
+    s = int(round(seconds))
+    return (f"{s // 3600} 小時 {s % 3600 // 60} 分" if s >= 3600 else f"{s // 60} 分 {s % 60} 秒" if s >= 60 else f"{s} 秒")
+
+
+def _timing(entry):
+    """(seconds, engine version, engine commit) of a match entry; older entries lack them, so the result file is read when it is still here."""
+    got = (entry.get("seconds"), entry.get("engineVersion"), entry.get("engineCommit"))
+    if all(v is not None for v in got):
+        return got
+    try:
+        with open(os.path.join(os.path.dirname(ML_DIR), entry["result"]), encoding="utf-8") as f:
+            result = json.load(f)
+    except (OSError, ValueError, KeyError):
+        return got
+    return (got[0] if got[0] is not None else result_seconds(result),
+            got[1] or result.get("engineVersion"), got[2] or result.get("engineCommit"))
+
+
+def match_summary(entry, model_name, notes=""):
+    """One match record as short Markdown to paste into a chat with an AI: what was played (config, seed, seat order, simulations),
+    how long it took, the win shares with their 95% intervals, and the versions / hashes that say whether two results can be compared.
+    No per-game data and no machine paths (the result path is relative to the project root)."""
+    seconds, engine, commit = _timing(entry)
+    games = entry.get("games") or 0
+    rate = f"，{games / seconds:.2f} 局/秒" if seconds and games else ""
+    rules = fingerprint.rules_name(entry.get("rulesRevision", 1), entry.get("ruleset"))
+
+    def ci(p):
+        return f"±{1.96 * (p * (1 - p) / games) ** 0.5:.1%}" if games and p is not None else "—"
+
+    def pct(p):
+        return f"{p:.1%}" if p is not None else "—"
+
+    lines = [f"## 對戰結果：{entry.get('config') or entry['result']}（模型 {model_name}）", "",
+             f"- 結果檔：`{entry['result']}`（{entry.get('status')}，{games:,} 局，種子 {entry.get('seed')}，座位順序 {entry.get('seatOrder')}）",
+             f"- 耗時：{_duration(seconds)}{rate}",
+             f"- 引擎 {engine or '—'}（commit {(commit or '—')[:7]}），規則 {rules}",
+             "- 策略版本：" + ("、".join(fingerprint.strategy_name(k, v) for k, v in (entry.get("revisions") or {}).items()) or "—"),
+             f"- 對戰 hash {fingerprint.short(entry.get('fingerprint')) or '—'}；模型檔 sha256 {(entry.get('modelSha256') or '—')[:8]}"]
+    if notes:
+        lines.append(f"- 備註：{notes}")
+    lines += ["", "| 座位 | 策略 | 模擬次數 | 價值模型 | 勝率 | ±95% | 平均分 |", "|---|---|---|---|---|---|---|",
+              f"| 本模型 | mcts | {entry.get('simulations')}（leafRollout {entry.get('leafRollout') or 0}） | {model_name} | "
+              f"{pct(entry.get('winShare'))} | {ci(entry.get('winShare'))} | {entry.get('avgScore', 0):.1f} |"]
+    for o in entry.get("others", []):
+        sims = o.get("simulations")
+        lines.append(f"| {o['seatId']} | {o['strategy']} | {sims if sims is not None else '—'} | "
+                     f"{os.path.basename(o['valueModel']) if o.get('valueModel') else '—'} | "
+                     f"{pct(o.get('winShare'))} | {ci(o.get('winShare'))} | {o.get('avgScore', 0):.1f} |")
+    return "\n".join(lines)
+
+
+def job_seconds(job):
+    """Seconds between a background job's `started` and `finished` (ISO UTC strings); None while it has not finished."""
+    a, b = _parse_utc(job.get("started")), _parse_utc(job.get("finished"))
+    return (b - a).total_seconds() if a and b else None
+
+
+def _seat_text(seat):
+    p = seat.get("params") or {}
+    extras = [f"{k} {p[k]}" for k in ("simulations", "leafRollout") if p.get(k) is not None]
+    if p.get("valueModel"):
+        extras.append("模型 " + os.path.basename(str(p["valueModel"]).replace("\\", "/")))
+    return f"{seat['strategy']}（{'，'.join(extras)}）" if extras else seat["strategy"]
+
+
+def dump_summary(dump_meta, path, title, seconds=None):
+    """A finished (or cancelled) data job as short Markdown for an AI: the config as it played, the size, the sampling rate, the time
+    and the versions / hash. dump_meta = the dump's .bin.json (positions.read_meta), path = the .bin file as shown (relative to the project root)."""
+    d = data_summary([{**dump_meta, "path": path}])[0]
+    games = d["games"]
+    rate = f"，{games / seconds:.2f} 局/秒" if seconds and games else ""
+    seats = "、".join(f"{s.get('id', i)}={_seat_text(s)}" for i, s in enumerate(dump_meta.get("seats", [])))
+    return "\n".join([
+        f"## 資料產生：{title}", "",
+        f"- 輸出：`{d['path']}`（{d['status']}，{games:,} 局，{d['rows']:,} 列，抽樣率 {d['rate']:g}，種子 {d['seed']}，座位順序 {dump_meta.get('seatOrder')}）",
+        f"- 耗時：{_duration(seconds)}{rate}",
+        f"- {dump_meta.get('players')} 人局，規則 {fingerprint.rules_name(d['rulesRevision'], d['ruleset'])}，特徵版本 {dump_meta.get('featureVersion')}，"
+        f"策略版本 " + ("、".join(fingerprint.strategy_name(k, v) for k, v in d["revisions"].items()) or "—"),
+        f"- 座位：{seats or '—'}",
+        f"- 資料 hash {fingerprint.short(d.get('fingerprint')) or '—'}"])
+
+
+NOISY_PARAMS = {"verbose", "deterministic", "num_threads", "note", "objective", "loss", "bagging_freq"}
+
+
+def train_summary(meta, name):
+    """A trained model (its .meta.json) as short Markdown for an AI: what it was trained on, with which parameters, how long it took and
+    the validation numbers. Win rates against MCTS (the real verdict) are in the match summaries, not here."""
+    t, v = meta.get("training") or {}, meta.get("validation") or {}
+    steps = ", ".join(f"{label} {t[k]}" for k, label in (("iterations", "輪數"), ("bestIteration", "最佳輪"), ("epochsRun", "epoch"), ("bestEpoch", "最佳 epoch")) if k in t)
+    params = "、".join(f"{k} {', '.join(map(str, x)) if isinstance(x, list) else x}" for k, x in (meta.get("params") or {}).items() if k not in NOISY_PARAMS)
+    lines = [f"## 模型訓練：{name}", "",
+             f"- {meta.get('kind')}，{meta.get('players')} 人局，特徵版本 {meta.get('featureVersion')}（{meta.get('featureCount')} 個），"
+             f"規則 {fingerprint.rules_name(meta.get('rulesRevision', 1))}，hash {fingerprint.short(meta.get('fingerprint')) or '—'}",
+             f"- 耗時：{_duration(t.get('seconds'))}" + (f"（{steps}）" if steps else ""),
+             f"- 訓練參數：{params or '—'}"]
+    if v:
+        stages = "、".join(f"回合 {b['rounds']} {b['mse']:.4f}" for b in v.get("byRound", []))
+        lines += [f"- 驗證（{v.get('rows', 0):,} 列）：交叉熵 {v['crossEntropy']:.4f}，MSE {v['mse']:.4f}（常數基準 {v['constantMse']:.4f}），R² {v['r2']:.3f}",
+                  f"- 各回合段 MSE：{stages or '—'}"]
+    top = "、".join(f"{f['name']}" for f in (meta.get("topFeatures") or [])[:5])
+    lines += [f"- 最重要的特徵（前 5）：{top or '—'}", "", "| 資料 | 局數 | 列數 | 抽樣率 | 種子 | 策略 | 價值模型 |", "|---|---|---|---|---|---|---|"]
+    for d in meta.get("data", []):
+        lines.append(f"| {d['path']} | {d['games']:,} | {d['rows']:,} | {d['rate']:g} | {d['seed']} | {'、'.join(d.get('strategies', []))} | "
+                     f"{'、'.join(os.path.basename(x) for x in d.get('valueModels', [])) or '—'} |")
+    lines += ["", "（驗證成績只是檢查訓練有沒有壞掉，判斷好壞要看對戰勝率。）"]
+    return "\n".join(lines)
 
 
 MODEL_FILES = ("", ".meta.json", ".check.txt")

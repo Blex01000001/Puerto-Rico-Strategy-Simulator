@@ -87,4 +87,23 @@ public class ResultAnalysisTests
         Assert.All(a.Strategies, s => Assert.InRange(s.P10, 0, s.P90));
         Assert.True(a.Strategies[0].AvgScore > a.Strategies[1].AvgScore);
     }
+
+    [Fact]
+    public void Summary_Markdown_Has_Config_Time_Versions_And_Win_Shares()
+    {
+        var r = Fake();
+        r.Config.Name = "t-summary";
+        r.Config.Seats[1].Params["valueModel"] = System.Text.Json.JsonSerializer.SerializeToElement("ml/local/models/x.txt");
+        r.Status = "completed";
+        r.StartedUtc = new DateTime(2026, 11, 17, 12, 0, 0, DateTimeKind.Utc);
+        r.FinishedUtc = r.StartedUtc.AddSeconds(125);
+        var text = ResultSummary.ToMarkdown(r, ResultAnalysis.From(r));
+        Assert.Contains("## 模擬結果：t-summary", text);
+        Assert.Contains("3 人局，4 局（completed，預定 4）", text);
+        Assert.Contains("耗時：2 分 5 秒，0.03 局/秒", text);
+        Assert.Contains($"引擎 {PuertoRico.Engine.Game.EngineInfo.Version}", text);
+        Assert.Contains("| B | random | valueModel x.txt |", text);   // the model is shown by file name only
+        Assert.DoesNotContain("ml/local", text);
+        Assert.Contains("| A | random | — | 62.5% |", text);          // 2.5 wins of 4 games (one tie for first)
+    }
 }

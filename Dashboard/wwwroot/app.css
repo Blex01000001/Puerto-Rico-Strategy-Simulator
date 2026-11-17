@@ -465,3 +465,5 @@ table.data.vtable td.c { text-align: center; }
 table.data.vtable td.l { text-align: left; white-space: normal; }
 table.data.vtable td.nw { white-space: nowrap; }
 table.data.vtable td ul { margin: 0; padding-left: 1.1rem; }
+
+.ai-summary { margin: .75rem 0 1rem; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }

@@ -43,6 +43,10 @@ public sealed class OutputConfig
     public bool PerGameRecords { get; set; } = true;
     public int CheckpointEverySeconds { get; set; } = 60;
     public int CheckpointEveryGames { get; set; } = 5000;
+    /// <summary>Share of decision points sampled by the Runner's <c>--dump-positions</c> (training data for a value model); null = not set
+    /// (the Runner then uses its own default, 0.02). The command-line <c>--dump-rate</c> overrides it. Ignored by a normal run.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? DumpRate { get; set; }
 }
 
 public sealed class ParallelismConfig

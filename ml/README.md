@@ -42,7 +42,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 
 ## 流程
 
-1. **產生資料**：Runner 的 `--dump-positions` 照設定檔打完整局，每個決策點以 `--dump-rate` 的機率抽樣，每個抽到的局面對每個座位各寫一列（特徵從該座位的視角，標籤＝該座位終局的回傳值與勝負）。
+1. **產生資料**：Runner 的 `--dump-positions` 照設定檔打完整局，每個決策點以 `--dump-rate`（沒給就用設定檔的 `output.dumpRate`，再沒有就 0.02）的機率抽樣，每個抽到的局面對每個座位各寫一列（特徵從該座位的視角，標籤＝該座位終局的回傳值與勝負）。
    ```bash
    dotnet run -c Release --project Runner -- --config ml/data-configs/4p-hand-a.json --dump-positions results/ml/4p-hand-a.bin --dump-rate 0.01
    ```

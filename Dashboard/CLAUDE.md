@@ -23,6 +23,7 @@
 **`wwwroot/`**：`app.css`（色票 token；只有一套扁平深色主題，沒有淺色模式）、`favicon.svg`。
 
 ## 常見修改
+- **複製摘要給 AI**：結果頁的 `div.ai-summary`（只有按鈕，不顯示文字），文字由 `Engine/Simulation/ResultSummary.ToMarkdown` 產生（有單元測試），複製鈕呼叫 `App.razor` 的 `window.prCopy`（`navigator.clipboard`，localhost 可用）。
 - **圖表**：統計放 `Engine/Simulation/ResultAnalysis.cs`（加單元測試），畫圖用 `Components/Charts/`（不引入 JS 套件）；顏色用 CSS 變數（`--series-N`，策略顏色走 `Palette.Color`，顏色跟策略不跟排名）；每張圖附表格檢視；Razor 的 `@for` 裡寫 SVG `<text>` 要包在 `<g>` 裡（`<text>` 是 Razor 保留標籤）。
 - **頁面狀態要在切頁後保留**：在該頁的 `Snap` 記錄加欄位（`@implements IDisposable`、`Dispose` 存、`OnInitialized` 還原；範本 `Pages/Overview.razor`）；載入到一半離開不要存半成品（`Memory.Forget`）。
 - **策略有增改**：同步 `Services/StrategyInfo.cs`。

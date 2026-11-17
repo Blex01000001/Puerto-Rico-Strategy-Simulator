@@ -44,6 +44,7 @@
     }
   ],
   "output": {
-    "perGameRecords": false
+    "perGameRecords": false,
+    "dumpRate": 0.02
   }
 }

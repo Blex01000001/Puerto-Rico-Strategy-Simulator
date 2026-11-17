@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 import modelmeta
+import positions
 import train_lgbm
 import train_mlp
 
@@ -103,6 +104,8 @@ def test_match_results_are_appended_to_meta(dump, tmp_path):
         "summary": [{"seatId": "A", "games": 100, "winShare": 0.6, "avgScore": 45.0},
                     {"seatId": "B", "games": 100, "winShare": 0.3, "avgScore": 40.0},
                     {"seatId": "c", "games": 100, "winShare": 0.1, "avgScore": 35.0}],
+        "startedUtc": "2026-11-17T12:00:00.1234567Z", "finishedUtc": "2026-11-17T12:01:31.1234567Z",  # .NET writes 7 fractional digits
+        "engineVersion": "0.4.0", "engineCommit": "abc1234def",
     }
     path = str(tmp_path / "r.json")
     with open(path, "w", encoding="utf-8") as f:
@@ -114,6 +117,26 @@ def test_match_results_are_appended_to_meta(dump, tmp_path):
     assert entry["winShare"] == 0.6 and entry["simulations"] == 300
     assert abs(entry["winShareCi95"] - 1.96 * (0.24 / 100) ** 0.5) < 1e-12
     assert [o["seatId"] for o in entry["others"]] == ["B", "c"]
+    assert entry["seconds"] == 91.0 and entry["engineVersion"] == "0.4.0" and entry["engineCommit"] == "abc1234def"
+    text = modelmeta.match_summary(entry, "m.txt", "note here")
+    for want in ("耗時：1 分 31 秒", "引擎 0.4.0（commit abc1234）", "種子 7", "座位順序 Balanced", "備註：note here",
+                 "| 本模型 | mcts | 300（leafRollout 0） | m.txt | 60.0% | ±9.6% | 45.0 |", "| c | cheap-engine | — | — | 10.0% |"):
+        assert want in text, want
+
+
+def test_job_summaries_for_data_and_training(dump, tmp_path):
+    path = dump(games=40, seats=[{"id": "m0", "strategy": "mcts", "params": {"simulations": 300, "leafRollout": 20, "valueModel": "ml/models/4p-v2.txt"}}])
+    text = modelmeta.dump_summary(positions.read_meta(path), "results/ml/a.bin", "自我對戰", 3600)
+    for want in ("## 資料產生：自我對戰", "`results/ml/a.bin`", "40 局", "抽樣率 0.05", "耗時：1 小時 0 分", "m0=mcts（simulations 300，leafRollout 20，模型 4p-v2.txt）"):
+        assert want in text, want
+    out = str(tmp_path / "m.txt")
+    meta = train_lgbm.train([path], out, log=lambda *_: None, rounds=5, leaves=4, min_leaf=5, threads=1)
+    summary = modelmeta.train_summary(meta, "m.txt")
+    for want in ("## 模型訓練：m.txt", "num_leaves 4", "min_data_in_leaf 5", "R²", "| results/ml/" if False else "| " + path.replace("\\", "/")):
+        assert want in summary.replace("\\", "/"), want
+    assert "verbose" not in summary and "num_threads" not in summary
+    assert modelmeta.job_seconds({"started": "2026-11-17T12:00:00Z", "finished": "2026-11-17T12:10:30Z"}) == 630
+    assert modelmeta.job_seconds({"started": "2026-11-17T12:00:00Z"}) is None
 
 
 def test_official_models_keep_local_matches_beside_them(dump, tmp_path, monkeypatch):

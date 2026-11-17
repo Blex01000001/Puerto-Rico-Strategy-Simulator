@@ -824,6 +824,43 @@ def queue_page():
         job_detail(job_id)
 
 
+def copy_button(text, label="複製摘要給 AI"):
+    """A button that puts `text` on the clipboard without showing it (runs in a small iframe; falls back to execCommand when the
+    browser blocks navigator.clipboard there)."""
+    import streamlit.components.v1 as components
+    payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
+    components.html(f"""
+<button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
+  font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
+<script>
+const text = {payload}, b = document.getElementById('b'), label = b.textContent;
+function fallback() {{ const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+  const ok = document.execCommand('copy'); document.body.removeChild(t); return ok; }}
+b.onclick = async () => {{
+  let ok = false;
+  try {{ await navigator.clipboard.writeText(text); ok = true; }} catch (e) {{ ok = fallback(); }}
+  b.textContent = ok ? '已複製' : '複製失敗（瀏覽器擋住了剪貼簿）';
+  setTimeout(() => b.textContent = label, 2000);
+}};
+</script>""", height=44)
+
+
+def job_summary_text(job):
+    """A finished data / training / match job as Markdown to paste to an AI (None when there is nothing to say or its files are gone)."""
+    result, state, kind = job.get("result") or {}, job["state"], job["kind"]
+    try:
+        if kind == "dump" and state in ("done", "cancelled") and result.get("rows"):
+            return modelmeta.dump_summary(positions.read_meta(absolute(result["output"])), rel(result["output"]), plain(job["title"]),
+                                          modelmeta.job_seconds(job))
+        if kind.startswith("train") and state == "done" and result.get("model"):
+            return modelmeta.train_summary(modelmeta.read(absolute(result["model"]), include_local=False), os.path.basename(result["model"]))
+        if kind == "match" and state == "done" and result.get("match"):
+            return modelmeta.match_summary(result["match"], os.path.basename(str((job.get("spec") or {}).get("model", "")) or "model"))
+    except (OSError, ValueError, KeyError):
+        return None
+    return None
+
+
 def job_detail(job_id):
     job = jobs.read_job(job_id)
     if job is None:  # its folder was removed meanwhile
@@ -888,6 +925,12 @@ def job_detail(job_id):
                                     "勝率": o["winShare"], "平均分": o["avgScore"]} for o in m["others"]]),
                      hide_index=True, column_config={"勝率": st.column_config.NumberColumn(format="percent"),
                                                      "平均分": st.column_config.NumberColumn(format="%.1f")})
+    summary = job_summary_text(job)
+    if summary:
+        c1, c2 = st.columns([1, 3], vertical_alignment="center")
+        with c1:
+            copy_button(scrub(summary))
+        c2.caption("把這個工作的設定、數字、耗時與版本複製起來，貼進和 AI 的對話。沒有逐局資料，路徑是相對專案根目錄的。")
     with st.expander("紀錄（最後 40 行）", expanded=state == "failed"):
         st.code(scrub(jobs.log_tail(job_id)) or "（空的）", language=None)
 
@@ -1059,7 +1102,8 @@ def data_tab():
                 config_table(rows)
             cfg = read_config(absolute(config))
             default_games, default_seed = int(cfg.get("games", 20000)), int(cfg.get("seed", 1))
-            default_rate = 0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01
+            # the config's own output.dumpRate wins; without one, MCTS tables (self-play) default to 5%, the rest to 1%
+            default_rate = float((cfg.get("output") or {}).get("dumpRate") or (0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01))
             default_name = os.path.basename(config)[:-5]
             title_kind = "設定檔"
         elif mode.startswith("自訂"):
@@ -1250,6 +1294,7 @@ def _match_body():
         st.markdown(f"**{model} 已有的對戰**")
         grid(matches_frame(meta, model_path(model)), hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
+        match_summary_box(meta, model_path(model), f"match-{model}")
 
 
 # ---------------------------------------------------------------- 模型清單
@@ -1323,6 +1368,22 @@ def matches_frame(meta, model_file=None):
                      "紀錄存放": "git" if official and not m.get("local") else "local",
                      "結果檔": m["result"], "hash": fingerprint.short(m.get("fingerprint")) or "—", "備註": match_note(m, current_sha)})
     return pd.DataFrame(rows)
+
+
+def match_summary_box(meta, model_file, key):
+    """'複製摘要給 AI': one match record (or all of them) as short Markdown, copied by a button (the text itself is not shown)."""
+    matches = meta.get("matches") or []
+    if not matches:
+        return
+    current_sha = fingerprint.file_sha256(model_file) if os.path.exists(model_file) else None
+    labels = [f"{m.get('config') or m['result']}（{m['games']} 局）" for m in matches]
+    c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+    pick = c1.selectbox("複製摘要給 AI：哪一筆對戰", ["全部"] + labels, key=f"summary-pick-{key}",
+                        help="複製設定、勝率、耗時與版本（沒有逐局資料，路徑是相對專案根目錄的），貼進和 AI 的對話。")
+    chosen = matches if pick == "全部" else [matches[labels.index(pick)]]
+    name = os.path.basename(model_file)
+    with c2:
+        copy_button("\n\n".join(modelmeta.match_summary(m, name, match_note(m, current_sha)) for m in chosen))
 
 
 def flat_params(meta):
@@ -1457,6 +1518,7 @@ def model_detail(path):
         grid(mf, hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
         st.caption(f"結果檔可以在 Dashboard（{DASHBOARD_URL}）的「結果」「比較」頁打開。")
+        match_summary_box(meta, path, f"detail-{name}")
 
     left, right = st.columns(2)
     with left:
