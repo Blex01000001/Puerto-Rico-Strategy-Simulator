@@ -49,7 +49,8 @@ def test_ui_lists_dumps_and_models(results):
     at = goto(run_app(), "train")
     players = next(r for r in at.radio if r.label.startswith("人數（模型依人數分開）"))
     assert players.options == ["4 人局"]
-    assert any("results/ml/4p-test.bin" in str(d.value.index.tolist()) for d in at.dataframe)  # training tab table
+    assert any(d.value.index.tolist() == ["4p-test.bin"] for d in at.dataframe)  # training tab table: file names only, the folder is a small line below
+    assert any(b.label == "開啟資料夾" for b in at.button)
     start = next(b for b in at.button if b.label == "開始訓練")
     assert start.disabled  # nothing selected yet
     goto(at, "match")
