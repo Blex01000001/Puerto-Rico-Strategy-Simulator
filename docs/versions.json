@@ -32,6 +32,14 @@
       "bump": "新增功能、策略、輸出欄位，或規則版本、策略版本加 1 時更新。",
       "entries": [
         {
+          "version": "0.4.0",
+          "date": "2026-11-17",
+          "changes": [
+            "設定檔新增選用欄位 output.dumpRate（Runner --dump-positions 的抽樣率；命令列 --dump-rate 優先，都沒寫用 0.02）；ML UI 的「模擬對局採樣」選設定檔時會帶入。結果與 dump 不受影響（不進 hash）。"
+          ],
+          "commit": ""
+        },
+        {
           "version": "0.3.0",
           "date": "2026-11-16",
           "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",

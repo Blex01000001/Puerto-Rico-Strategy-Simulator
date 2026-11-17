@@ -21,7 +21,7 @@ public static class Program
           --replay <index>     play one game with the event log on and write the events to --out
           --sweep              parameter sweep from config.sweep (see config.sweep.example.json); result in --out (default sweep.json)
           --dump-positions <file>  play the games and write sampled positions (training data for a value model, see ml/README.md)
-          --dump-rate <p>      share of decision points sampled by --dump-positions (default 0.02)
+          --dump-rate <p>      share of decision points sampled by --dump-positions (default: config.output.dumpRate, else 0.02)
           --help
         """;
 
@@ -49,7 +49,7 @@ public static class Program
         ulong? seed = null;
         bool resume = false, sweep = false;
         string? dumpPath = null;
-        double dumpRate = 0.02;
+        double? dumpRate = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -80,7 +80,7 @@ public static class Program
 
         if (replay != null) return Replay(cfg, replay.Value, outPath);
         if (sweep) return Sweep(cfg, outPath);
-        if (dumpPath != null) return Dump(cfg, dumpPath, dumpRate);
+        if (dumpPath != null) return Dump(cfg, dumpPath, dumpRate ?? cfg.Output.DumpRate ?? 0.02);
 
         var options = new BatchOptions { OutPath = outPath };
         if (resume)

@@ -286,4 +286,16 @@ public class BatchTests : IDisposable
         Assert.Equal(40, cfg.Limits.MaxRounds);
         Assert.Equal("Y", cfg.Seats[1].Id);
     }
+
+    [Fact]
+    public void Output_DumpRate_Is_Optional_And_Not_Written_When_Unset()
+    {
+        var plain = new SimulationConfig();
+        Assert.Null(plain.Output.DumpRate);
+        Assert.DoesNotContain("dumpRate", JsonSerializer.Serialize(plain, SimulationConfig.JsonOptions));
+
+        var cfg = JsonSerializer.Deserialize<SimulationConfig>("{\"output\":{\"dumpRate\":0.02}}", SimulationConfig.JsonOptions)!;
+        Assert.Equal(0.02, cfg.Output.DumpRate);
+        Assert.Contains("\"dumpRate\":0.02", JsonSerializer.Serialize(cfg, SimulationConfig.JsonOptions));
+    }
 }

@@ -1059,7 +1059,8 @@ def data_tab():
                 config_table(rows)
             cfg = read_config(absolute(config))
             default_games, default_seed = int(cfg.get("games", 20000)), int(cfg.get("seed", 1))
-            default_rate = 0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01
+            # the config's own output.dumpRate wins; without one, MCTS tables (self-play) default to 5%, the rest to 1%
+            default_rate = float((cfg.get("output") or {}).get("dumpRate") or (0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01))
             default_name = os.path.basename(config)[:-5]
             title_kind = "設定檔"
         elif mode.startswith("自訂"):
@@ -1250,6 +1251,7 @@ def _match_body():
         st.markdown(f"**{model} 已有的對戰**")
         grid(matches_frame(meta, model_path(model)), hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
+        match_summary_box(meta, model_path(model), f"match-{model}")
 
 
 # ---------------------------------------------------------------- 模型清單
@@ -1323,6 +1325,21 @@ def matches_frame(meta, model_file=None):
                      "紀錄存放": "git" if official and not m.get("local") else "local",
                      "結果檔": m["result"], "hash": fingerprint.short(m.get("fingerprint")) or "—", "備註": match_note(m, current_sha)})
     return pd.DataFrame(rows)
+
+
+def match_summary_box(meta, model_file, key):
+    """'複製摘要給 AI': one match record (or all of them) as short Markdown; st.code has a copy button."""
+    matches = meta.get("matches") or []
+    if not matches:
+        return
+    current_sha = fingerprint.file_sha256(model_file) if os.path.exists(model_file) else None
+    labels = [f"{m.get('config') or m['result']}（{m['games']} 局）" for m in matches]
+    with st.expander("複製摘要給 AI（貼進對話用）"):
+        pick = st.selectbox("哪一筆對戰", ["全部"] + labels, key=f"summary-pick-{key}")
+        chosen = matches if pick == "全部" else [matches[labels.index(pick)]]
+        name = os.path.basename(model_file)
+        st.code("\n\n".join(modelmeta.match_summary(m, name, match_note(m, current_sha)) for m in chosen), language="markdown")
+        st.caption("右上角的鈕可以複製。內容只有設定、勝率、耗時與版本，沒有逐局資料；路徑是相對專案根目錄的。")
 
 
 def flat_params(meta):
@@ -1457,6 +1474,7 @@ def model_detail(path):
         grid(mf, hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
         st.caption(f"結果檔可以在 Dashboard（{DASHBOARD_URL}）的「結果」「比較」頁打開。")
+        match_summary_box(meta, path, f"detail-{name}")
 
     left, right = st.columns(2)
     with left:
