@@ -82,10 +82,10 @@
         var groupTables = tables.Where(t => t.Players == players).ToList();
         var orders = groupTables.Select(t => t.SeatOrder).Distinct().ToList();
         <h2>@players 人局（@groupTables.Count 張桌子）</h2>
-        <p class="note">座位順序：@string.Join("、", orders.Select(o => Palette.SeatOrderLabel(o) + "（" + groupTables.Count(t => t.SeatOrder == o) + " 張）"))</p>
+        <p class="note">座位順序：@string.Join("、", orders.Select(o => o + " (" + groupTables.Count(t => t.SeatOrder == o) + " tables)"))</p>
         @if (groupTables.Any(t => TournamentOverview.SeatOrderQuality(t) == "biased"))
         {
-            <div class="error">這組有桌子用「輪換」或「固定」座位順序：同一桌只用一種循環排列，勝率可能偏差 20 個百分點以上，不能和其他桌直接比較強弱。建議用「隨機」或「完全平衡」重跑。</div>
+            <div class="error">這組有桌子用 Rotate 或 Fixed 座位順序：同一桌只用一種循環排列，勝率可能偏差 20 個百分點以上，不能和其他桌直接比較強弱。建議用 Random 或 Balanced 重跑。</div>
         }
         else if (orders.Count > 1)
         {
@@ -181,10 +181,10 @@
 
     private static string SeatOrderText(OverviewTable t) => TournamentOverview.SeatOrderQuality(t) switch
     {
-        "exact" => "完全平衡",
-        "approx" => $"完全平衡（局數不是 {(t.Players == 3 ? 6 : 24)} 的倍數，近似）",
-        "fair" => "隨機",
-        _ => $"{Palette.SeatOrderLabel(t.SeatOrder)}（有排列偏差）",
+        "exact" => "Balanced",
+        "approx" => $"Balanced (approx.: games not a multiple of {(t.Players == 3 ? 6 : 24)})",
+        "fair" => "Random",
+        _ => $"{t.SeatOrder} (order bias)",
     };
 
     /// <summary>Share of games where <paramref name="a"/> ranked above <paramref name="b"/>; stored once per ordered pair (A &lt; B), the reverse is the complement.</summary>
@@ -247,7 +247,7 @@
                     var fi = new FileInfo(f);
                     var names = c.Seats.Select(x => x.Strategy.Equals("rule-based", StringComparison.OrdinalIgnoreCase) && x.Params.TryGetValue("profile", out var pr) ? pr.ToString() : x.Strategy)
                         .Select(Palette.DisplayName).ToList();
-                    list.Add(new FileMeta(f, System.IO.Path.GetFileNameWithoutExtension(f), c.Players, c.Games, Palette.SeatOrderLabel(c.SeatOrder),
+                    list.Add(new FileMeta(f, System.IO.Path.GetFileNameWithoutExtension(f), c.Players, c.Games, c.SeatOrder.ToString(),
                         string.Join("、", names.Distinct()), fi.Length >= 1048576 ? $"{fi.Length / 1048576.0:0.#} MB" : $"{Math.Max(1, fi.Length / 1024)} KB", fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")));
                 }
                 catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { }
