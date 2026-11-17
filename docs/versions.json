@@ -35,9 +35,10 @@
           "version": "0.4.0",
           "date": "2026-11-17",
           "changes": [
-            "設定檔新增選用欄位 output.dumpRate（Runner --dump-positions 的抽樣率；命令列 --dump-rate 優先，都沒寫用 0.02）；ML UI 的「模擬對局採樣」選設定檔時會帶入。結果與 dump 不受影響（不進 hash）。"
+            "設定檔新增選用欄位 output.dumpRate（Runner --dump-positions 的抽樣率；命令列 --dump-rate 優先，都沒寫用 0.02）；ML UI 的「模擬對局採樣」選設定檔時會帶入。結果與 dump 不受影響（不進 hash）。",
+            "新增 ResultSummary（結果檔轉成貼給 AI 的短 Markdown）；Dashboard 結果頁與 ML UI 的對戰紀錄、資料產生、模型訓練可「複製摘要給 AI」；ML 的對戰紀錄多記耗時、引擎版本與 commit。"
           ],
-          "commit": ""
+          "commit": "207aa90606a14a4d2f48385e697c5c123ee52531"
         },
         {
           "version": "0.3.0",

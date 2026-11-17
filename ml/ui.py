@@ -824,6 +824,22 @@ def queue_page():
         job_detail(job_id)
 
 
+def job_summary_text(job):
+    """A finished data / training / match job as Markdown to paste to an AI (None when there is nothing to say or its files are gone)."""
+    result, state, kind = job.get("result") or {}, job["state"], job["kind"]
+    try:
+        if kind == "dump" and state in ("done", "cancelled") and result.get("rows"):
+            return modelmeta.dump_summary(positions.read_meta(absolute(result["output"])), rel(result["output"]), plain(job["title"]),
+                                          modelmeta.job_seconds(job))
+        if kind.startswith("train") and state == "done" and result.get("model"):
+            return modelmeta.train_summary(modelmeta.read(absolute(result["model"]), include_local=False), os.path.basename(result["model"]))
+        if kind == "match" and state == "done" and result.get("match"):
+            return modelmeta.match_summary(result["match"], os.path.basename(str((job.get("spec") or {}).get("model", "")) or "model"))
+    except (OSError, ValueError, KeyError):
+        return None
+    return None
+
+
 def job_detail(job_id):
     job = jobs.read_job(job_id)
     if job is None:  # its folder was removed meanwhile
@@ -888,6 +904,11 @@ def job_detail(job_id):
                                     "勝率": o["winShare"], "平均分": o["avgScore"]} for o in m["others"]]),
                      hide_index=True, column_config={"勝率": st.column_config.NumberColumn(format="percent"),
                                                      "平均分": st.column_config.NumberColumn(format="%.1f")})
+    summary = job_summary_text(job)
+    if summary:
+        with st.expander("複製摘要給 AI（貼進對話用）"):
+            st.code(scrub(summary), language="markdown")
+            st.caption("右上角的鈕可以複製。內容只有設定、數字、耗時與版本，沒有逐局資料；路徑是相對專案根目錄的。")
     with st.expander("紀錄（最後 40 行）", expanded=state == "failed"):
         st.code(scrub(jobs.log_tail(job_id)) or "（空的）", language=None)
 

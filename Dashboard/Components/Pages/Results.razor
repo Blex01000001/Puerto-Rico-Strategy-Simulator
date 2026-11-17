@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject AppState State
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>結果總覽 · 波多黎各策略模擬器</PageTitle>
 <h1>結果總覽</h1>
@@ -23,6 +24,7 @@ else if (State.Result != null && State.Analysis != null)
     var r = State.Result;
     var a = State.Analysis;
     var strategies = a.Strategies;
+    string summaryText = ResultSummary.ToMarkdown(r, a);
     string Pct(double v) => v.ToString("P1");
     string Color(int i) => Palette.Color(strategies[i].Strategy, i);
     string Name(int i) => Palette.Label(strategies[i].SeatId, strategies[i].Strategy);
@@ -39,6 +41,14 @@ else if (State.Result != null && State.Analysis != null)
         }
         <div class="kpi"><div class="v">@r.EngineVersion</div><div class="l">引擎 · @r.RulesVersion</div></div>
     </div>
+    <details class="ai-summary">
+        <summary>複製摘要給 AI（貼進對話用）</summary>
+        <div class="ai-summary-body">
+            <button class="secondary" @onclick="() => CopySummary(summaryText)">@(copied ? "已複製" : "複製")</button>
+            <span class="note">只有設定、勝率、耗時與版本，沒有逐局資料；路徑不含本機位置。</span>
+            <pre class="panel">@summaryText</pre>
+        </div>
+    </details>
     @if (r.Status != "completed")
     {
         <div class="error">這份結果狀態是「@r.Status」，只含已跑完的 @a.GamesCompleted 局 / 預定 @r.GamesRequested 局。</div>
@@ -245,8 +255,16 @@ else if (State.Result != null && State.Analysis != null)
 
 @code {
     protected override void OnInitialized() => State.Changed += OnChanged;
-    private void OnChanged() => InvokeAsync(StateHasChanged);
+    private void OnChanged() { copied = false; InvokeAsync(StateHasChanged); }
     public void Dispose() => State.Changed -= OnChanged;
+
+    private bool copied;
+
+    private async Task CopySummary(string text)
+    {
+        try { await JS.InvokeVoidAsync("prCopy", text); copied = true; }
+        catch (JSException) { copied = false; }
+    }
 
     private void SimulateAgain()
     {

@@ -27,6 +27,8 @@
             e.preventDefault();
             button.click();
         });
+        // Results page: copy the summary text (works on localhost, which counts as a secure context).
+        window.prCopy = function (text) { return navigator.clipboard.writeText(text); };
         // ML UI button (MlUiNav): a tab opened during the click (later ones are blocked as pop-ups), sent to the ML UI once it answers.
         window.prMlTab = {
             open: function () {
