@@ -5,6 +5,7 @@ feature names); it is for people, the ML UI and later comparisons. Win rates fro
 the validation numbers are only a sanity check.
 """
 import datetime
+import glob
 import json
 import os
 import platform
@@ -213,8 +214,100 @@ MODEL_FILES = ("", ".meta.json", ".check.txt")
 INVALID_NAME_CHARS = '/\\:*?"<>| '
 
 
-def rename_model(model_path, new_name):
+def _renamed_path(value, old_name, new_name):
+    """value with its file name old_name replaced by new_name (folder and separators kept); None when it names another file."""
+    if not isinstance(value, str) or not value or os.path.basename(value.replace("\\", "/")) != old_name:
+        return None
+    return value[:len(value) - len(old_name)] + new_name
+
+
+def _rename_in_meta(meta, old_name, new_name):
+    """Points the match opponents (others[].valueModel) and the self-play data (data[].valueModels) at the new name.
+    Returns whether anything changed. Display records only: no hash includes the name."""
+    changed = False
+    for m in meta.get("matches", []):
+        for o in m.get("others", []):
+            new = _renamed_path(o.get("valueModel"), old_name, new_name)
+            if new:
+                o["valueModel"], changed = new, True
+    for d in meta.get("data", []):
+        models = d.get("valueModels") or []
+        news = [_renamed_path(v, old_name, new_name) or v for v in models]
+        if news != models:
+            d["valueModels"], changed = sorted(news), True
+    return changed
+
+
+def _meta_files_naming(name):
+    """Metadata written on this machine that names the model `name`: other local models' .meta.json and the match
+    records of official models (ml/local/match-records). Tracked official .meta.json files are never edited."""
+    out = []
+    for p in sorted(glob.glob(os.path.join(local_models_dir(), "*.meta.json"))):
+        try:
+            with open(p, encoding="utf-8") as f:
+                meta = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if _rename_in_meta(meta, name, name + "\0"):
+            out.append((p, "meta"))
+    for p in sorted(glob.glob(os.path.join(local_records_dir(), "*.matches.json"))):
+        try:
+            with open(p, encoding="utf-8") as f:
+                records = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if _rename_in_meta({"matches": records}, name, name + "\0"):
+            out.append((p, "records"))
+    return out
+
+
+def model_references(model_path):
+    """Files that name this model by its file name, as {"meta": [...], "official": [...], "configs": [...]}:
+    meta = metadata on this machine (updated by rename_model), official = tracked official .meta.json (left alone),
+    configs = data / match configs in ml/local (updated only when passed to rename_model)."""
+    name = os.path.basename(model_path)
+    official = []
+    for p in sorted(glob.glob(os.path.join(OFFICIAL_MODELS, "*.meta.json"))):
+        try:
+            with open(p, encoding="utf-8") as f:
+                if _rename_in_meta(json.load(f), name, name + "\0"):
+                    official.append(p)
+        except (OSError, json.JSONDecodeError):
+            continue
+    configs = [p for p in local_config_files() if _config_names(p, name)]
+    return {"meta": [p for p, _ in _meta_files_naming(name) if p != model_path + ".meta.json"],
+            "official": official, "configs": configs}
+
+
+def local_config_files():
+    return sorted(glob.glob(os.path.join(LOCAL_DIR, "data-configs", "*.json")) + glob.glob(os.path.join(LOCAL_DIR, "matches", "*.json")))
+
+
+def _config_names(path, name, new_name=None):
+    """Whether a config's seats point at `name` (params.valueModel); with new_name, rewrites the file to the new name."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    found = False
+    for seat in cfg.get("seats", []) if isinstance(cfg, dict) else []:
+        params = seat.get("params") or {}
+        new = _renamed_path(params.get("valueModel"), name, new_name or name)
+        if new:
+            found = True
+            params["valueModel"] = new
+    if found and new_name:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+    return found
+
+
+def rename_model(model_path, new_name, configs=()):
     """Renames a LOCAL model with its .meta.json and .check.txt (the extension stays; the name inside the metadata follows).
+    Also points the metadata on this machine that names it (other local models' matches and data, official models'
+    local match records) at the new name; tracked official .meta.json files stay as git has them. `configs`: config
+    files in ml/local to update too (data or match configs whose seats use the model); others are refused.
     Refuses official models (they are in git), invalid names and names already used in ml/models or ml/local/models.
     Returns the new path. The hash does not change (it never includes the name)."""
     ext = os.path.splitext(model_path)[1]
@@ -230,6 +323,10 @@ def rename_model(model_path, new_name):
         raise ValueError("名稱沒有改變")
     if any(os.path.exists(os.path.join(d, name + ext)) for d in (OFFICIAL_MODELS, local_models_dir(), os.path.dirname(model_path))):
         raise ValueError(f"已經有叫 {name + ext} 的模型，換一個名稱")
+    allowed = {os.path.abspath(p) for p in local_config_files()}
+    if any(os.path.abspath(c) not in allowed for c in configs):
+        raise ValueError("只能一起改 ml/local 裡的設定檔")
+    old_name = os.path.basename(model_path)
     for suffix in MODEL_FILES:
         if os.path.exists(model_path + suffix):
             os.replace(model_path + suffix, target + suffix)
@@ -239,6 +336,15 @@ def rename_model(model_path, new_name):
         meta["model"] = os.path.basename(target)
         with open(target + ".meta.json", "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2, ensure_ascii=False)
+    new_file = os.path.basename(target)
+    for p, kind in _meta_files_naming(old_name):
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+        _rename_in_meta(data if kind == "meta" else {"matches": data}, old_name, new_file)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    for c in configs:
+        _config_names(c, old_name, new_file)
     return target
 
 
