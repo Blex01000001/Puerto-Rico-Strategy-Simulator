@@ -175,6 +175,44 @@ def test_rename_moves_the_three_files_and_the_name_inside(tmp_path, monkeypatch)
     assert modelmeta.rename_model(new, "x.txt").endswith("x.txt")  # the extension may be typed or not
 
 
+def test_rename_updates_the_metadata_and_chosen_configs_that_name_the_model(tmp_path, monkeypatch):
+    import json
+    official, ws = tmp_path / "official", tmp_path / "ws"
+    local, records, cfgs = ws / "models", ws / "match-records", ws / "matches"
+    for d in (official, local, records, cfgs, ws / "data-configs"):
+        d.mkdir(parents=True)
+    monkeypatch.setattr(modelmeta, "OFFICIAL_MODELS", str(official))
+    monkeypatch.setattr(modelmeta, "LOCAL_DIR", str(ws))
+    monkeypatch.setattr(modelmeta, "local_models_dir", lambda: str(local))
+    monkeypatch.setattr(modelmeta, "local_records_dir", lambda: str(records))
+    (local / "old.txt").write_text("tree")
+    (local / "old.txt.meta.json").write_text(json.dumps({"model": "old.txt", "matches": []}))
+    other = {"model": "b.txt", "data": [{"valueModels": ["ml/local/models/old.txt", "ml/models/z.txt"]}],
+             "matches": [{"others": [{"valueModel": "ml/local/models/old.txt"}, {"valueModel": None}, {"valueModel": "ml/models/z.txt"}]}]}
+    (local / "b.txt").write_text("tree")
+    (local / "b.txt.meta.json").write_text(json.dumps(other))
+    (records / "c.txt.matches.json").write_text(json.dumps([{"others": [{"valueModel": "ml\\local\\models\\old.txt"}]}]))
+    tracked = json.dumps({"model": "c.txt", "matches": [{"others": [{"valueModel": "ml/local/models/old.txt"}]}]})
+    (official / "c.txt.meta.json").write_text(tracked)
+    seat = {"strategy": "mcts", "params": {"valueModel": "ml/local/models/old.txt"}}
+    for n in ("pick.json", "keep.json"):
+        (cfgs / n).write_text(json.dumps({"seats": [seat, {"strategy": "random"}]}))
+    refs = modelmeta.model_references(str(local / "old.txt"))
+    assert refs["meta"] == [str(local / "b.txt.meta.json"), str(records / "c.txt.matches.json")]
+    assert refs["official"] == [str(official / "c.txt.meta.json")]
+    assert refs["configs"] == [str(cfgs / "keep.json"), str(cfgs / "pick.json")]
+    with pytest.raises(ValueError):  # only configs in ml/local
+        modelmeta.rename_model(str(local / "old.txt"), "new", configs=[str(official / "c.txt.meta.json")])
+    modelmeta.rename_model(str(local / "old.txt"), "new", configs=[str(cfgs / "pick.json")])
+    b = json.loads((local / "b.txt.meta.json").read_text())
+    assert b["data"][0]["valueModels"] == ["ml/local/models/new.txt", "ml/models/z.txt"]
+    assert [o["valueModel"] for o in b["matches"][0]["others"]] == ["ml/local/models/new.txt", None, "ml/models/z.txt"]
+    assert json.loads((records / "c.txt.matches.json").read_text())[0]["others"][0]["valueModel"] == "ml\\local\\models\\new.txt"
+    assert (official / "c.txt.meta.json").read_text() == tracked  # tracked by git: untouched
+    assert json.loads((cfgs / "pick.json").read_text())["seats"][0]["params"]["valueModel"] == "ml/local/models/new.txt"
+    assert json.loads((cfgs / "keep.json").read_text())["seats"][0]["params"]["valueModel"] == "ml/local/models/old.txt"
+
+
 def test_rename_refuses_bad_names_taken_names_and_official_models(tmp_path, monkeypatch):
     official, local = tmp_path / "official", tmp_path / "local"
     official.mkdir()

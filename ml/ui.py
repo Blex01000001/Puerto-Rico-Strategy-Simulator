@@ -1398,12 +1398,25 @@ def rename_dialog(path):
     if busy:
         problems.append(f"排隊中或執行中的工作「{busy[0]}」要用這個模型，等它結束或移出佇列再改")
     st.caption(f"會一起改 `{name}`、`{name}.meta.json`、`{name}.check.txt`（訓練紀錄、對戰紀錄都跟著走）。hash 不包含名稱，所以不會變。")
+    refs = modelmeta.model_references(path)
+    if refs["meta"]:
+        st.info("其他模型的紀錄（對戰對手、自我對戰資料）也會改成新名字：\n\n"
+                + "\n".join(f"- `{rel(p)}`" for p in refs["meta"]))
+    if refs["official"]:
+        st.caption("正式模型（git 追蹤）的紀錄不會改，仍寫舊名字：" + "、".join(f"`{rel(p)}`" for p in refs["official"]))
     dumps, configs = model_name_users(path)
-    if dumps or configs:
+    local_configs = [c for c in refs["configs"] if rel(c) in configs]
+    picked = []
+    if local_configs:
+        st.markdown("一起改這些設定檔裡的價值模型路徑（改了以後用它們重跑才找得到模型）：")
+        picked = [c for c in local_configs if st.checkbox(f"`{rel(c)}`", value=True, key=f"rename-cfg-{name}-{rel(c)}")]
+    stale = [c for c in configs if c not in {rel(x) for x in picked}]
+    if dumps or stale:
         st.warning("下面這些還用舊名字指向這個模型：改名後**用它們重跑會找不到模型**，"
-                   "用它產生的自我對戰資料 hash 也會因為找不到舊名字的模型而改變。\n\n"
-                   + "\n".join(f"- 資料 `{d}`" for d in dumps) + ("\n" if dumps and configs else "")
-                   + "\n".join(f"- 設定檔 `{c}`" for c in configs))
+                   "用它產生的自我對戰資料 hash 也會因為找不到舊名字的模型而改變。"
+                   "資料檔記的是產生當時的路徑，不會改。\n\n"
+                   + "\n".join(f"- 資料 `{d}`" for d in dumps) + ("\n" if dumps and stale else "")
+                   + "\n".join(f"- 設定檔 `{c}`" for c in stale))
     if problems:
         st.markdown('<span class="act-err">無法改名：' + "；".join(plain(x) for x in problems) + "</span>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
@@ -1411,7 +1424,7 @@ def rename_dialog(path):
         st.rerun()
     if c2.button("確定改名", type="primary", key=f"rename-ok-{name}", width="stretch", disabled=bool(problems)):
         try:
-            target = modelmeta.rename_model(path, new)
+            target = modelmeta.rename_model(path, new, configs=picked)
             st.session_state["job-started"] = f"{name} 已改名為 {os.path.basename(target)}。"
             st.session_state["model-pick"] = os.path.basename(target)
             st.cache_data.clear()
