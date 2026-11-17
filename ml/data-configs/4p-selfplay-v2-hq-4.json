@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "name": "4p-selfplay-v2-hq",
+  "name": "4p-selfplay-v2-hq-4",
   "players": 4,
-  "games": 20000,
-  "seed": 203,
+  "games": 4000,
+  "seed": 206,
   "seatOrder": "random",
   "seats": [
     {
