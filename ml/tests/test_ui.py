@@ -67,6 +67,11 @@ def test_each_page_has_its_own_english_title(results):
         assert [t.value for t in at.title] == [title]
 
 
+def test_model_list_has_place_kind_and_player_count_filters(results):
+    at = goto(run_app(), "models")
+    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players"]
+
+
 def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
     at = goto(run_app(), "match")
     games = next(n for n in at.number_input if n.label.startswith("局數（24 的倍數"))

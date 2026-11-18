@@ -50,8 +50,9 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 下拉選單與表格的「檔案」欄只顯示檔名（選項的值仍是相對路徑），路徑改用小字寫在下面並附「開啟資料夾」（`folder_line(路徑, key)`，key 以 `folderline-` 開頭，CSS 讓它一行、小字、連結樣式）；新增檔案清單照做。
 - 設定檔的 `output.dumpRate`（選用，C# `OutputConfig.DumpRate`）是 dump 抽樣率的預設值：Runner 的 `--dump-rate` 優先，其次設定檔，最後 0.02；ML UI 選設定檔時帶入它，沒寫才猜（有 MCTS 座位 0.05，否則 0.01）。
 - 設定檔模式的局數、種子、抽樣率輸入框的 key 含設定檔名稱，換設定檔才會重新帶入預設值（以前 key 只有模式，換設定檔後種子停在上一個）。
-- 模型清單頁：上方選模型（小卡用 `version_tiles`，和版本控管頁同樣式），下方「模型列表」卡有快篩（`st.pills`：位置 git／local、種類；各包在 `st.container(key="pillbox-…")` 加框；不選＝全部），數字欄用 `TextColumn(alignment="center")` 置中；並排比較用 `version_table(..., css="cmp")`（固定欄寬、不會出現水平捲軸），結果列標出最好的模型（`td.best`：勝率／R²／列數取最高，交叉熵取最低）。對戰紀錄表（欄位設定 `MATCH_COLUMNS`，短欄置中）的「紀錄存放」＝git（正式模型追蹤中的 `.meta.json`）或 local（`ml/local/match-records/` 或本機模型自己的 `.meta.json`）。
+- 模型清單頁：上方選模型（小卡用 `version_tiles`，和版本控管頁同樣式），下方「模型列表」卡有快篩（`st.pills`：位置 git／local、種類、人數；三組放在同一個 `st.container(key="filterbar")`，CSS 是一條扁平的篩選列加圓角晶片，選中的填藍色；不選＝全部），數字欄用 `TextColumn(alignment="center")` 置中；並排比較用 `version_table(..., css="cmp")`（固定欄寬、不會出現水平捲軸），結果列標出最好的模型（`td.best`：勝率／R²／列數取最高，交叉熵取最低）。對戰紀錄表（欄位設定 `MATCH_COLUMNS`，短欄置中）的「紀錄存放」＝git（正式模型追蹤中的 `.meta.json`）或 local（`ml/local/match-records/` 或本機模型自己的 `.meta.json`）。
 - 版本控管頁的小卡與表格用自己的 HTML（`version_tiles`、`version_table`，CSS `.vtile`、`table.vtable`），外觀和 Dashboard 的版本控管頁（`app.css` 的 `.vtile`、`table.data.vtable`）一致：兩邊要一起改。
+- 左側導覽的「«」收折鈕和品牌列（🌱 Puerto Rico）同一行：`stSidebarHeader` 用絕對定位疊在品牌列右邊，`stSidebarUserContent` 的上方留白相應縮小。頁面標題下的流程說明與頁面簡介（內容區最上層的 `st.caption`／`st.markdown`）之間只隔約一行：用負的 `margin-bottom` 吃掉列間距（卡片裡面的不受影響）。
 - 取消工作的按鈕（導覽最下方、排程佇列、工作詳細，含排隊中的「取消佇列」）key 以 `stop-` 開頭，CSS 讓它紅色；新的取消鈕照做。排程佇列的狀態文字用英文並置中（`QUEUE_STATE`、`STATE_TEXT`）。
 - 排程佇列的每一列是 `st.container(key="qrow-<狀態>-<id>")`，CSS 畫框並依狀態給左邊框顏色，欄位順序：名稱、狀態、經過時間、進度、備註、操作（最右）；新狀態要在 `CSS` 補顏色。
 - Streamlit 的元件 ID 由種類＋參數產生：不同頁面裡標籤相同的按鈕（例如三個「加入排隊」）會撞 ID 而報錯，要給 `key`。

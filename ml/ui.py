@@ -522,10 +522,18 @@ CSS = """
 [data-testid="stHeading"] { height: var(--bar-h); display: flex; align-items: center; }
 [data-testid="stHeading"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* Streamlit gives headings -1rem here: it would shift the centring */
 [data-testid="stHeading"] h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
+/* the lines under the title (flow caption, page intro) sit one line apart: the title bar keeps its 60px for the toolbar, so pull the next
+   element up into it, and shrink the 1rem row gap after top-level captions / paragraphs (the ones inside cards are not touched) */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> [data-testid="stHeading"]) { margin-bottom: -.7rem; }
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> [data-testid="stCaptionContainer"]),
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"]) { margin-bottom: -.55rem; }
 /* narrow window: the sidebar starts collapsed and the content only has 1rem of left padding, so the re-open button would sit on the title */
 @media (max-width: 768px) { [data-testid="stHeading"] { padding-left: 2.75rem !important; } }
-[data-testid="stSidebarHeader"] { height: 1.6rem !important; padding-top: .3rem !important; padding-bottom: 0 !important; min-height: 0 !important; }
-[data-testid="stSidebarUserContent"] { padding-top: .3rem !important; }
+/* the « button shares the brand row (🌱 Puerto Rico ...) instead of having a row of its own above it */
+[data-testid="stSidebarHeader"] { position: absolute !important; top: .85rem; right: .7rem; width: auto !important; height: auto !important; min-height: 0 !important;
+  padding: 0 !important; margin: 0 !important; z-index: 3; }
+[data-testid="stSidebarHeader"] [data-testid="stLogoSpacer"] { display: none !important; }
+[data-testid="stSidebarUserContent"] { padding-top: .7rem !important; }
 /* cards: st.container(border=True, key="card-...") */
 div[class*="st-key-card-"] { background: #1f2430; border: 1px solid #333a4b !important; border-radius: 6px; padding: .55rem 1rem .8rem 1rem; }
 .card-head { display: flex; align-items: baseline; gap: .9rem; margin-bottom: .2rem; }
@@ -602,7 +610,15 @@ table.vtable td li { margin: 0; }
 table.vtable tbody tr:hover td { background: #1f2430; }
 .vtile .q { position: absolute; top: .3rem; right: .45rem; width: 1rem; height: 1rem; border: 1px solid #8892a2; border-radius: 50%;
   color: #8892a2; font-size: .68rem; line-height: .95rem; text-align: center; cursor: help; }
-div[class*="st-key-pillbox-"] { background: #111418; border: 1px solid #333a4b; border-radius: 4px; padding: .3rem .7rem .45rem; width: fit-content !important; }
+/* quick filters (model list): one flat bar, a small label and round chips per group; a chosen chip is filled blue */
+div[class*="st-key-filterbar"] { background: #171a21; border: 1px solid #2a3040; border-radius: 6px; padding: .35rem .8rem .5rem; margin-bottom: .3rem; }
+div[class*="st-key-filterbar"] [data-testid="stHorizontalBlock"] { gap: 1.6rem !important; flex-wrap: wrap; }
+div[class*="st-key-filterbar"] [data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+div[class*="st-key-filterbar"] [data-testid="stWidgetLabel"] p { font-size: .72rem; font-weight: 700; letter-spacing: .12em; color: #8892a2; margin: 0 0 .2rem; }
+div[class*="st-key-filterbar"] button[data-variant="pills"] { background: transparent; border: 1px solid #3a4258; border-radius: 999px; color: #b4bcc9;
+  padding: .1rem .75rem; min-height: 0; font-size: .85rem; }
+div[class*="st-key-filterbar"] button[data-variant="pills"]:hover { border-color: #4aa8ff; color: #eef1f5; }
+div[class*="st-key-filterbar"] button[data-variant="pills"][aria-pressed="true"] { background: #1d3a5c; border-color: #4aa8ff; color: #fff; font-weight: 600; }
 table.vtable.doc th { text-align: left; } table.vtable.doc td { vertical-align: top; }
 table.vtable.cmp { table-layout: fixed; }  /* compare: equal model columns, long data lists wrap */
 table.vtable.cmp th:first-child { width: 12rem; } table.vtable.cmp th:last-child { width: 3.5rem; }
@@ -867,6 +883,7 @@ def copy_button(text, label="複製摘要給 AI"):
     older Streamlit; falls back to execCommand when the browser blocks navigator.clipboard there)."""
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
+<style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 3px; }}</style>
 <button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
   font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
 <script>
@@ -1704,18 +1721,19 @@ def models_tab():
 
 
 def models_list():
-    """Every model, with quick filters (place: git / local, kind); empty filter = all."""
+    """Every model, with quick filters (place: git / local, kind, player count); empty filter = all."""
     paths = model_files()
     if not paths:
         return
     table = models_table(paths)
     table["位置"] = table["位置"].map({"正式": "git", "本機": "local"}).fillna(table["位置"])
-    c1, c2, _ = st.columns([1, 1, 2.5])
-    with c1.container(key="pillbox-place"):  # framed like the radio groups (CSS .st-key-pillbox-)
-        places = st.pills("位置", ["git", "local"], selection_mode="multi", key="mf-place")
-    with c2.container(key="pillbox-kind"):
-        kinds = st.pills("種類", ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
-    keep = table["位置"].isin(places or ["git", "local"]) & table["種類"].isin(kinds or ["LightGBM", "MLP"])
+    with st.container(key="filterbar"):  # one flat bar for all quick filters (CSS .st-key-filterbar)
+        c1, c2, c3, _ = st.columns([1, 1, 1, 3])
+        places = c1.pills("位置", ["git", "local"], selection_mode="multi", key="mf-place")
+        kinds = c2.pills("種類", ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
+        players = c3.pills("人數", ["3", "4"], selection_mode="multi", key="mf-players", format_func=lambda n: f"{n} 人局")
+    keep = (table["位置"].isin(places or ["git", "local"]) & table["種類"].isin(kinds or ["LightGBM", "MLP"])
+            & table["人數"].isin(players or ["3", "4"]))
     shown = table[keep]
     if shown.empty:
         st.caption("沒有符合篩選的模型。")
