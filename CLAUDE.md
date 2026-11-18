@@ -21,7 +21,7 @@
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
 | `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數，10.4 資料局數與模型大小） |
 | `docs/versions.json` | 版本控管清單：規則版本、引擎版本、特徵版本、資料格式版本與每個策略的策略版本，各自的版本號、commit 與每個版本的修改內容（兩個 UI 的「版本控管」頁讀它；規則見下面「版本與 hash」） |
-| `docs/models.md` | 局面價值模型的研發紀錄與目前狀況（每個模型的資料、勝率、狀態；新增正式模型時補一列） |
+| `docs/models.md` | 局面估值模型的研發紀錄與目前狀況（每個模型的資料、勝率、狀態；新增正式模型時補一列） |
 | `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
 | `docs/experiments.md` | 實驗設定索引：`tournaments/`、`sweeps/round*`、`mcts/` 各是什麼、怎麼重跑 |
 | `rules.md` | 遊戲規則（第 1～6 節 3 人局，第 7 節 4 人局差異） |
@@ -64,7 +64,7 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 | 版本 | 程式裡的位置 | 顯示 | 什麼時候加 |
 |---|---|---|---|
 | **規則版本** | `EngineInfo.RulesRevision`（規則集 `EngineInfo.RulesVersion` = `base`） | `base-v1`（有變體時 `base-v2-rich-start`） | 遊戲規則（建築、計分、Setup、終局…）或亂數／種子衍生改變，同設定同種子結果不同。所有資料都變舊。 |
-| **策略版本**（每個策略一個） | `StrategyRegistry.Revisions` | `harbor-rush-v1` | 該策略的**決策邏輯**改變（含它共用的程式：`HeuristicStrategy`、`TieBreakRules` 改了＝所有手寫策略各加 1；`mcts` 也包含 rollout 呼叫、價值模型推論與 `ValueFeatures` 程式）。只有用到它的資料變舊。`rule-based` 跟著它的 profile。 |
+| **策略版本**（每個策略一個） | `StrategyRegistry.Revisions` | `harbor-rush-v1` | 該策略的**決策邏輯**改變（含它共用的程式：`HeuristicStrategy`、`TieBreakRules` 改了＝所有手寫策略各加 1；`mcts` 也包含 rollout 呼叫、估值模型推論與 `ValueFeatures` 程式）。只有用到它的資料變舊。`rule-based` 跟著它的 profile。 |
 | **引擎版本**（SemVer） | `EngineInfo.Version` | `0.3.0` | 新增功能、策略、輸出欄位加次版本；不影響結果的修正加修訂版本；規則或策略版本加 1 時至少加次版本。不進 hash。 |
 | **特徵版本** | `ValueFeatures.Version` | 整數 | 特徵清單有增減或改順序（舊模型會被拒）。 |
 | **資料格式版本** | `PositionDump.FormatVersion` | 整數 | `.bin` 紀錄排列改變（只在 `.bin.json` 新增欄位不用加）。 |
@@ -76,7 +76,7 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 **黃金樣本**（`Tests/VersionTests.cs`、`Tests/Data/golden.json`）：RULES 案例只有隨機玩家（規則、亂數與 random 策略），其他每個策略各一組案例（它加隨機玩家），只 hash 對局的核心欄位；不含 MCTS（浮點在不同平台可能差一位）。失敗訊息會分開說「規則變了」「X 的預設參數變了（不用進版本）」「X 的決策變了（建議 X 加 1）」。決定好版本後才用 `PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json` 與 `ml/strategy-params.json`。
 
 **Claude Code 的責任：動到下面這些東西時，主動告訴使用者「這會影響 ○○ 版本／hash」並建議新版本號，經同意後一起改；不要默默改，也不要默默不改。**
-1. **改了引擎或策略的程式**：跑 `dotnet test`，照 `GoldenTests` 的訊息判斷：規則變了 → 建議規則版本 +1；某策略的決策變了 → 建議該策略版本 +1；只有預設值變了 → 不進版本，只更新黃金檔。進版時引擎版本至少次版本 +1、`docs/versions.json` 補對應的筆數，並告訴使用者哪些資料與模型變成「舊版」要重產生。只動 MCTS 或價值模型推論時黃金樣本不會失敗，要自己判斷 `mcts` 要不要加 1。
+1. **改了引擎或策略的程式**：跑 `dotnet test`，照 `GoldenTests` 的訊息判斷：規則變了 → 建議規則版本 +1；某策略的決策變了 → 建議該策略版本 +1；只有預設值變了 → 不進版本，只更新黃金檔。進版時引擎版本至少次版本 +1、`docs/versions.json` 補對應的筆數，並告訴使用者哪些資料與模型變成「舊版」要重產生。只動 MCTS 或估值模型推論時黃金樣本不會失敗，要自己判斷 `mcts` 要不要加 1。
 2. **新增策略**：在 `StrategyRegistry.Revisions` 給 1、`docs/versions.json` 的 `strategies` 補一條、更新黃金檔；建議引擎版本次版本 +1。**新增其他功能或輸出欄位**：次版本 +1；只修 bug 且結果不變：修訂版本 +1。
 3. **改特徵清單**：特徵版本 +1，資料要重產生、模型要重訓。**改 `.bin` 排列**：資料格式版本 +1，同步 `positions.py`。
 4. **新增訓練參數、會影響結果的設定欄位**：同步 `fingerprint.py`（`LGBM_OPTIONS`／`MLP_OPTIONS`、配方欄位）與「hash 說明」頁；**改 hash 配方的內容（`HASH_FORMAT` 加 1）會讓所有舊 hash 變成「不同」，先問使用者**。

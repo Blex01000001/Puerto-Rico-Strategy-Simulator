@@ -8,6 +8,7 @@ Jobs run in their own process (jobs.py): closing this page or the UI does not st
 Reads the same folders as the Dashboard: results/ (PR_RESULTS_DIR overrides) and ml/models/.
 """
 import datetime
+import html
 import glob
 import json
 import os
@@ -32,6 +33,7 @@ import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
 
 import fingerprint  # noqa: E402
+import folders  # noqa: E402
 import jobs  # noqa: E402
 import modelmeta  # noqa: E402
 import positions  # noqa: E402
@@ -46,8 +48,8 @@ LOCAL_CONFIGS = os.path.join(LOCAL_DIR, "data-configs")
 LOCAL_MATCHES = os.path.join(LOCAL_DIR, "matches")
 DASHBOARD_URL = "http://localhost:5080"
 
-STATE_TEXT = {"waiting": "排隊中", "queued": "啟動中", "running": "執行中", "done": "完成", "failed": "失敗", "cancelled": "已取消",
-              "interrupted": "中斷（程序已不在）", "lost": "失聯（程序還在，但沒有回報）"}
+STATE_TEXT = {"waiting": "Queued", "queued": "Starting", "running": "Running", "done": "Done", "failed": "Failed", "cancelled": "Cancelled",
+              "interrupted": "Interrupted（程序已不在）", "lost": "Lost（程序還在，但沒有回報）"}
 LOST_TEXT = ("失聯：程序還在執行，但超過 30 秒沒有回報進度。排隊的工作會先暫停，等它結束或回報恢復；"
              "確定它卡住了再按「強制結束」（會直接結束它與它啟動的 Runner）。")
 KIND_TEXT = {"train_lgbm": "LightGBM", "train_mlp": "MLP", "lightgbm": "LightGBM", "mlp": "MLP", "dump": "產生資料", "match": "對戰驗證"}
@@ -64,6 +66,19 @@ def rel(path):
 
 def absolute(path):
     return path if os.path.isabs(path) else os.path.join(ROOT, path)
+
+
+def folder_line(path, key):
+    """A small grey line under a file list or picker: the path (relative to the project root) and a link-like 開啟資料夾 button."""
+    with st.container(key=f"folderline-{key}"):
+        c1, c2 = st.columns(2, vertical_alignment="center")
+        c1.markdown(f"<span class='folder-path'>{plain(path)}</span>", unsafe_allow_html=True)
+        if c2.button("開啟資料夾", key=f"openfolder-{key}"):
+            ok, why = folders.open_folder(absolute(path), ROOT)
+            if ok:
+                st.toast("已開啟資料夾")
+            else:
+                st.toast(why, icon="⚠️")
 
 
 # ---------------------------------------------------------------- data and models on disk
@@ -396,11 +411,12 @@ def training_tab():
         players = sorted({d["人數"] for d in good})
         p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
         rows = [d for d in good if d["人數"] == p]
-        df = table_view(rows).set_index(pd.Index([r["path"] for r in rows], name="檔案"))
+        df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name="檔案"))
         picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
                               column_config={"列數": st.column_config.NumberColumn(format="localized"),
                                              "局數": st.column_config.NumberColumn(format="localized")})
         chosen = [rows[i] for i in picked.selection.rows]
+        folder_line(os.path.dirname(rows[0]["path"]) + "/", "train-data")
         for d in writing:
             st.info(f"`{d['path']}` 產生中（目前 {d['大小 MB']} MB），完成後才會出現在表格裡。")
         for d in bad:
@@ -480,8 +496,7 @@ def training_tab():
             spec = {"data": [d["path"] for d in chosen], "out": rel(out), "options": options}
             start_job(kind, f"{KIND_TEXT[kind]} → {name + ext}", spec)
 
-    with card("train-doc", "參數說明"):
-        st.caption("每個參數的作用、預設值，以及調高、調低會怎樣。不確定就用預設值；判斷好壞只看「對戰驗證」的勝率。")
+    with card("train-doc", "參數說明", "每個參數的作用、預設值，以及調高、調低會怎樣。不確定就用預設值；判斷好壞只看「對戰驗證」的勝率。"):
         doc = PARAM_DOC[kind] + PARAM_DOC["common"]
         st.table(pd.DataFrame(doc, columns=["參數", "預設", "作用", "調高會…", "調低會…", "建議"]).set_index("參數"))
 
@@ -494,13 +509,28 @@ TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "�
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
 <style>
-.block-container { padding-top: 2.9rem !important; padding-bottom: 2rem !important; }
-[data-testid="stHeader"] { height: 2.5rem !important; background: transparent !important; }
-h1 { padding-top: 0 !important; margin-bottom: .1rem !important; font-size: 1.7rem !important; }
+/* Streamlit's top toolbar is a 60px bar floating over the page (menu on the right, the re-open button of a collapsed sidebar on the
+   left). The page title lives in that bar: it is the first thing in the content and exactly as tall as the bar, so nothing
+   is lost under the toolbar and no extra padding is needed above it. The content's own left padding keeps it clear of the
+   re-open button. If a Streamlit upgrade changes the bar height, change --bar-h to match. */
+:root { --bar-h: 60px; }
+.block-container { padding-top: 0 !important; padding-bottom: 2rem !important; }
+[data-testid="stHeader"] { background: transparent !important; }
+/* the <style> block itself sits in an (empty) element container: its 1rem row gap would push the title below the bar */
+[data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style) { display: none !important; }
+[data-testid="stHeading"], [data-testid="stHeading"] h1 { margin: 0 !important; padding: 0 !important; }
+[data-testid="stHeading"] { height: var(--bar-h); display: flex; align-items: center; }
+[data-testid="stHeading"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* Streamlit gives headings -1rem here: it would shift the centring */
+[data-testid="stHeading"] h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
+/* narrow window: the sidebar starts collapsed and the content only has 1rem of left padding, so the re-open button would sit on the title */
+@media (max-width: 768px) { [data-testid="stHeading"] { padding-left: 2.75rem !important; } }
 [data-testid="stSidebarHeader"] { height: 1.6rem !important; padding-top: .3rem !important; padding-bottom: 0 !important; min-height: 0 !important; }
 [data-testid="stSidebarUserContent"] { padding-top: .3rem !important; }
 /* cards: st.container(border=True, key="card-...") */
 div[class*="st-key-card-"] { background: #1f2430; border: 1px solid #333a4b !important; border-radius: 6px; padding: .55rem 1rem .8rem 1rem; }
+.card-head { display: flex; align-items: baseline; gap: .9rem; margin-bottom: .2rem; }
+.card-head h3 { flex: none; }
+.card-head .card-sub { flex: 1 1 0; min-width: 0; font-size: .82rem; line-height: 1.35; color: #8892a2; }  /* long text wraps beside the title, never under it */
 div[class*="st-key-card-"] h3 { font-size: 1.05rem; margin: .1rem 0 .2rem 0; padding: 0; border-left: 3px solid #4aa8ff; padding-left: .55rem; }
 /* inputs like the Dashboard: darker than the card behind them, with a border (the theme's input colour equals the card
    colour). Streamlit >= 1.6x renders inputs with react-aria (data-testid / react-aria-* classes), older versions with
@@ -523,6 +553,12 @@ div[data-baseweb="select"] > div:focus-within { border-color: #4aa8ff !important
 [data-testid="stMetric"] { background: #111418; border: 1px solid #333a4b; border-radius: 4px; padding: .45rem .8rem; }
 [data-testid="stMetricValue"] > div { font-size: 1.7rem !important; }
 /* delete buttons: red, at the right edge (delete_button wraps them in st.container(key="del-…")) */
+div[class*="st-key-folderline-"] [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: .5rem !important; align-items: center; }
+div[class*="st-key-folderline-"] [data-testid="stColumn"] { flex: 0 1 auto !important; width: auto !important; min-width: 0 !important; }
+div[class*="st-key-folderline-"] { margin: -.35rem 0 .35rem; }
+.folder-path { font-size: .74rem; color: #8892a2; overflow-wrap: anywhere; }
+div[class*="st-key-folderline-"] button { background: transparent !important; border: 0 !important; padding: 0 !important; min-height: 0 !important; height: auto !important; color: #4aa8ff !important; }
+div[class*="st-key-folderline-"] button p { font-size: .74rem !important; text-decoration: underline; }
 div[class*="st-key-del-"] { align-items: flex-end !important; }
 div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
 div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
@@ -632,10 +668,13 @@ def action_row(label, key, problems, extra=None):
     return clicked
 
 
-def card(key, title=None):
-    """A bordered card like the Dashboard's panels."""
+def card(key, title=None, sub=None):
+    """A bordered card like the Dashboard's panels. `sub` (plain text) is the short explanation: it starts on the same line as the
+    title; when it is too long for the card it wraps inside its own column beside the title."""
     c = st.container(border=True, key=f"card-{key}")
-    if title:
+    if title and sub:
+        c.markdown(f"<div class='card-head'><h3>{html.escape(title)}</h3><span class='card-sub'>{html.escape(sub)}</span></div>", unsafe_allow_html=True)
+    elif title:
         c.markdown(f"### {title}")
     return c
 
@@ -723,9 +762,9 @@ def sidebar_status():
         st.markdown(f'<div class="side-note">還有 {len(waiting)} 項排隊中</div>', unsafe_allow_html=True)
 
 
-QUEUE_STATE = {"running": ("正在跑", "#4aa8ff"), "queued": ("啟動中", "#4aa8ff"), "waiting": ("排隊中", "#e0a410"),
-               "done": ("已完成", "#3fa83f"), "failed": ("失敗", "#ec6a6a"), "cancelled": ("已取消", "#8892a2"),
-               "interrupted": ("中斷", "#ec6a6a"), "lost": ("失聯", "#e8672f")}
+QUEUE_STATE = {"running": ("Running", "#4aa8ff"), "queued": ("Starting", "#4aa8ff"), "waiting": ("Queued", "#e0a410"),
+               "done": ("Done", "#3fa83f"), "failed": ("Failed", "#ec6a6a"), "cancelled": ("Cancelled", "#8892a2"),
+               "interrupted": ("Interrupted", "#ec6a6a"), "lost": ("Lost", "#e8672f")}
 
 
 def _epoch(text):
@@ -785,20 +824,19 @@ def queue_page():
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
     done = [j for j in all_jobs if j["state"] not in ("waiting",) + jobs.BUSY][:40]
     ordered = ([active] if active else []) + waiting + done
-    with card("queue", "工作列表"):
-        st.caption("一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。")
-        widths = [3.8, 1, 1.25, 2, 2.6, 1.45]
+    with card("queue", "工作列表", "一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。"):
+        widths = [3.4, 1.35, 1.25, 1.9, 2.25, 1.9]
         with st.container(key="qhead"):
             head = st.columns(widths)
             for c, t in zip(head, ["名稱", "狀態", "經過時間", "進度", "備註", "操作"]):
-                c.markdown(f"**{t}**")
+                c.markdown(f"<div style='text-align:center'><b>{t}</b></div>" if t == "狀態" else f"**{t}**", unsafe_allow_html=True)
         for job in ordered:
             # one framed row per job; the key carries the state for the coloured left edge (CSS st-key-qrow-<state>)
             cols = st.container(key=f"qrow-{job['state']}-{job['id']}").columns(widths, vertical_alignment="center")
             cols[0].markdown(f"{plain(job['title'])}  \n<span class='act-note'>{KIND_TEXT.get(job['kind'], job['kind'])}・{(job.get('created') or '').replace('T', ' ').rstrip('Z')} UTC</span>",
                              unsafe_allow_html=True)
             text, color = QUEUE_STATE.get(job["state"], (job["state"], "#8892a2"))
-            cols[1].markdown(f"<span style='color:{color};font-weight:600'>{text}</span>", unsafe_allow_html=True)
+            cols[1].markdown(f"<div style='text-align:center;color:{color};font-weight:600'>{text}</div>", unsafe_allow_html=True)
             cols[2].markdown(elapsed_text(job))
             if job["state"] in ("queued", "running"):
                 frac, ptext = progress_of(job, jobs.events(job["id"]))
@@ -811,7 +849,7 @@ def queue_page():
                 if cols[5].button("強制結束" if job["state"] == "lost" else "取消", key=f"stop-q-{job['id']}", width="stretch"):
                     jobs.cancel(job["id"])
             elif job["state"] == "waiting":
-                if cols[5].button("移出佇列", key=f"q-dequeue-{job['id']}", width="stretch"):
+                if cols[5].button("取消佇列", key=f"stop-dq-{job['id']}", width="stretch"):  # stop-: red (CSS)
                     jobs.cancel(job["id"])
                     st.rerun(scope="app")
             remark(job, cols[4])
@@ -825,11 +863,10 @@ def queue_page():
 
 
 def copy_button(text, label="複製摘要給 AI"):
-    """A button that puts `text` on the clipboard without showing it (runs in a small iframe; falls back to execCommand when the
-    browser blocks navigator.clipboard there)."""
-    import streamlit.components.v1 as components
+    """A button that puts `text` on the clipboard without showing it (runs in a small iframe via st.iframe, or components.html on an
+    older Streamlit; falls back to execCommand when the browser blocks navigator.clipboard there)."""
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
-    components.html(f"""
+    page = f"""<!doctype html>
 <button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
   font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
 <script>
@@ -842,7 +879,12 @@ b.onclick = async () => {{
   b.textContent = ok ? '已複製' : '複製失敗（瀏覽器擋住了剪貼簿）';
   setTimeout(() => b.textContent = label, 2000);
 }};
-</script>""", height=44)
+</script>"""
+    if hasattr(st, "iframe"):  # newer Streamlit: components.v1.html is deprecated (it logs a warning on every run)
+        st.iframe(page, height=44)
+    else:
+        import streamlit.components.v1 as components
+        components.html(page, height=44)
 
 
 def job_summary_text(job):
@@ -901,7 +943,7 @@ def job_detail(job_id):
                 jobs.cancel(job_id)
             st.caption("產生資料取消時，已完成的局數會保留（Windows 除外）；訓練取消不會留下模型；對戰取消不會記到模型。排隊中的下一個工作會接著開始。")
         if state == "waiting":
-            if st.button("移出佇列", key=f"dequeue-{job_id}"):
+            if st.button("取消佇列", key=f"stop-dequeue-{job_id}"):
                 jobs.cancel(job_id)
         if state == "failed":
             st.error(scrub(job.get("error", "")))
@@ -920,7 +962,7 @@ def job_detail(job_id):
     if job["kind"] == "match" and state == "done" and result.get("match"):
         m = result["match"]
         st.success(f"勝率 {m['winShare']:.1%} ± {m['winShareCi95']:.1%}（{m['games']} 局），已記到模型的 `.meta.json`。結果檔 `{rel(result['output'])}` 也可以在 Dashboard 打開。")
-        grid(pd.DataFrame([{"座位": "價值模型 MCTS", "勝率": m["winShare"], "平均分": m["avgScore"]}] +
+        grid(pd.DataFrame([{"座位": "估值模型 MCTS", "勝率": m["winShare"], "平均分": m["avgScore"]}] +
                                   [{"座位": o["seatId"] if o["strategy"] != "mcts" else ("原版 MCTS" if not o.get("valueModel") else "MCTS＋模型"),
                                     "勝率": o["winShare"], "平均分": o["avgScore"]} for o in m["others"]]),
                      hide_index=True, column_config={"勝率": st.column_config.NumberColumn(format="percent"),
@@ -1031,7 +1073,7 @@ def custom_seats(players):
             if strat == "mcts":
                 m1, m2, m3 = st.columns(3)
                 sims = m1.number_input("模擬次數", value=100, min_value=1, step=50, key=f"cu-sims{i}")
-                model = m2.selectbox("價值模型", model_names, key=f"cu-model{i}")
+                model = m2.selectbox("估值模型", model_names, key=f"cu-model{i}")
                 leaf = m3.number_input("leafRollout", value=20 if model != model_names[0] else 0, min_value=0, step=5, key=f"cu-leaf{i}")
                 params = {"simulations": int(sims)}
                 if model != model_names[0]:
@@ -1074,8 +1116,12 @@ def config_rows():
 
 def config_table(rows):
     """All data configs with checkboxes for deleting (inside the 管理設定檔 expander)."""
-    picked = grid(pd.DataFrame(rows).set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
+    shown = pd.DataFrame(rows)
+    shown["設定檔"] = shown["設定檔"].map(os.path.basename)  # the folder is in the 位置 column and the line below
+    picked = grid(shown.set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
+    for i, folder in enumerate(dict.fromkeys(os.path.dirname(r["設定檔"]) for r in rows)):
+        folder_line(folder + "/", f"configs-{i}")
     c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
     c1.caption("勾選左側方格可以刪除設定檔。" + (f"其中 {len(tracked)} 個是 repo 內建的（git 追蹤中）：刪掉後可以用 git 還原。" if tracked else ""))
@@ -1088,7 +1134,7 @@ def data_tab():
     stamp = datetime.datetime.now().strftime("%m%d-%H%M")
     custom_problems = []
     with card("data-source", "1. 採樣來源模型"):
-        mode = st.radio("採樣來源模型", ["設定檔（手寫策略、隨機）", "自訂組合（自己選每個座位的策略）", "模型自我對戰（MCTS＋價值模型）"],
+        mode = st.radio("採樣來源模型", ["設定檔（手寫策略、隨機）", "自訂組合（自己選每個座位的策略）", "模型自我對戰（MCTS＋估值模型）"],
                         horizontal=True, label_visibility="collapsed")
         if mode.startswith("設定檔"):
             rows = config_rows()
@@ -1097,7 +1143,8 @@ def data_tab():
                 return
             by_name = {r["設定檔"]: r for r in rows}
             config = st.selectbox("用哪個設定檔", list(by_name),
-                                  format_func=lambda c: f"{c}（{by_name[c]['人數']} 人局：{by_name[c]['座位']}）")
+                                  format_func=lambda c: f"{os.path.basename(c)}（{by_name[c]['人數']} 人局：{by_name[c]['座位']}）")
+            folder_line(config, "config")
             with st.expander(f"管理設定檔（全部 {len(rows)} 個；勾選後可以刪除）"):
                 config_table(rows)
             cfg = read_config(absolute(config))
@@ -1203,7 +1250,8 @@ def data_tab():
     with card("data-list", "已有的資料"):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
-            grid(table_view(dumps, "檔案"), hide_index=True, width="stretch")
+            grid(table_view([{**d, "path": os.path.basename(d["path"])} for d in dumps], "檔案"), hide_index=True, width="stretch")
+            folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
             st.caption(f"要刪除資料，到「{TAB_TRAIN}」頁勾選後按刪除。")
         else:
             st.caption("還沒有資料。")
@@ -1231,7 +1279,7 @@ def match_seats(table, players, model, sims, leaf, base_sims):
 
 
 def _match_body():
-    st.caption("用 balanced 座位打一組對局，比較價值模型版 MCTS 的勝率；結果會記到模型的 `.meta.json`，也能在 Dashboard 打開。"
+    st.caption("用 balanced 座位打一組對局，比較估值模型版 MCTS 的勝率；結果會記到模型的 `.meta.json`，也能在 Dashboard 打開。"
                "比較要做兩種：同模擬次數（模型有沒有更準），和約同時間（值不值得）：v2 的推論成本約讓 300 次模擬的時間只夠 180 次。")
     players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="m-players")
     cands = models_for(players)
@@ -1251,7 +1299,7 @@ def _match_body():
     games = c5.number_input(f"局數（{perm} 的倍數＝每種座位排列一樣多）", value=240 if table == "default" else 408, min_value=perm, step=perm)
     threads = c6.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key="m-threads")
     seats = match_seats(table, players, model, int(sims), int(leaf), int(base_sims))
-    st.caption("同桌：" + "、".join(("價值模型 MCTS" if s["id"] == "value" else "原版 MCTS" if s["strategy"] == "mcts" else s["strategy"]) for s in seats)
+    st.caption("同桌：" + "、".join(("估值模型 MCTS" if s["id"] == "value" else "原版 MCTS" if s["strategy"] == "mcts" else s["strategy"]) for s in seats)
                + f"。參考：4 核心約 {int(games) * 0.6 / 60:.0f}～{int(games) * 1.2 / 60:.0f} 分鐘（依模擬次數）。")
     stem = model.rsplit(".", 1)[0]
     default_name = f"{stem}-s{int(sims)}{f'-leaf{int(leaf)}' if leaf else ''}-vs-{'default' if table == 'default' else 'hand'}{f'{int(base_sims)}' if table == 'default' and base_sims != 300 else ''}-seed{int(seed)}"
@@ -1457,7 +1505,7 @@ def rename_dialog(path):
     busy = pending_readers(rel(path)) + ([t["title"] for t in jobs.list_jobs() if t["state"] in ("waiting",) + jobs.BUSY
                                           and str(t.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
     if busy:
-        problems.append(f"排隊中或執行中的工作「{busy[0]}」要用這個模型，等它結束或移出佇列再改")
+        problems.append(f"排隊中或執行中的工作「{busy[0]}」要用這個模型，等它結束或取消佇列再改")
     st.caption(f"會一起改 `{name}`、`{name}.meta.json`、`{name}.check.txt`（訓練紀錄、對戰紀錄都跟著走）。hash 不包含名稱，所以不會變。")
     refs = modelmeta.model_references(path)
     if refs["meta"]:
@@ -1469,7 +1517,7 @@ def rename_dialog(path):
     local_configs = [c for c in refs["configs"] if rel(c) in configs]
     picked = []
     if local_configs:
-        st.markdown("一起改這些設定檔裡的價值模型路徑（改了以後用它們重跑才找得到模型）：")
+        st.markdown("一起改這些設定檔裡的估值模型路徑（改了以後用它們重跑才找得到模型）：")
         picked = [c for c in local_configs if st.checkbox(f"`{rel(c)}`", value=True, key=f"rename-cfg-{name}-{rel(c)}")]
     stale = [c for c in configs if c not in {rel(x) for x in picked}]
     if dumps or stale:
@@ -1541,8 +1589,10 @@ def model_detail(path):
                                 "hash": fingerprint.short(d.get("fingerprint")) or "—",
                                 "版本": (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + "、"
                                          + "、".join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip("、"),
-                                "檔案": d["path"]} for d in meta["data"]]),
+                                "檔案": os.path.basename(d["path"])} for d in meta["data"]]),
                  hide_index=True, width="stretch")
+    if meta.get("data"):
+        folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
 
     curve = (meta.get("training") or {}).get("validLossCurve")
     feats = meta.get("topFeatures") or []
@@ -1695,7 +1745,7 @@ def hash_page():
             ("人數、局數", "局數是實際打完的局數（中途取消的資料較少）"),
             ("種子、抽樣率、座位順序", "座位順序 random／balanced，不分大小寫"),
             ("每個座位的策略、**策略版本**與**完整參數**", "**依座位順序**：座位換位置，hash 就不同。參數是引擎實際使用的值：設定檔沒寫的參數，用該人數的預設值補上，所以改了預設值 hash 也會不同"),
-            ("價值模型（自我對戰用）", "用**模型檔案的內容**（SHA-256），不是檔名：同名檔案被重訓覆寫後 hash 就變了"),
+            ("估值模型（自我對戰用）", "用**模型檔案的內容**（SHA-256），不是檔名：同名檔案被重訓覆寫後 hash 就變了"),
             ("最大回合數、每局最大決策數、自動跳過唯一合法動作", "設定檔的 limits、options；沒寫就用引擎預設值"),
             ("規則集與規則版本", f"目前 {now}（規則集 base、修訂 {rev}）；見「版本控管」頁"),
             ("變體與變體選項", "預留給以後的自訂規則（例如起始金錢兩倍），目前一律是「無」"),
@@ -1727,14 +1777,14 @@ def hash_page():
         ], columns=["參數", "原因"]).set_index("參數"))
         st.caption("新增訓練參數時必須同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`（測試會檢查）。早期補寫的模型沒有 hash，標「舊紀錄」。")
     with card("hash-match", "對戰結果的 hash"):
-        st.markdown("與資料相同（人數、局數、種子、座位順序、每個座位的策略、策略版本與完整參數、價值模型的檔案內容、limits、options、規則集與規則版本、變體），"
+        st.markdown("與資料相同（人數、局數、種子、座位順序、每個座位的策略、策略版本與完整參數、估值模型的檔案內容、limits、options、規則集與規則版本、變體），"
                     "但**沒有**抽樣率與特徵版本。不計入：結果檔名、設定檔名稱、座位 id、執行緒數、引擎版本與 git commit。"
                     "每場對戰另外記下當時模型檔案的 hash：模型之後被覆寫，舊結果會標「模型檔已更新」。")
     with card("hash-versions", "規則版本、策略版本與預設值"):
         st.markdown(
             f"- **規則版本**（目前 {now}）：遊戲規則與亂數／種子衍生改了才加 1，所有資料都受影響。\n"
             "- **策略版本**（例如 `harbor-rush-v1`）：每個策略自己的決策邏輯改了才加 1，**只有用到這個策略的資料**受影響；"
-            "MCTS 的版本也包含它的 rollout 策略與價值模型推論程式。\n"
+            "MCTS 的版本也包含它的 rollout 策略與估值模型推論程式。\n"
             "- **預設值**：改策略的預設參數**不需要**加版本。引擎會把每個座位實際使用的完整參數（預設值填好）記進資料與結果檔，"
             "hash 用的就是它，所以預設值一改，hash 自然不同。\n"
             "- **舊檔案**：引擎開始記錄完整參數以前的資料與結果檔，用凍結的預設值表（`ml/strategy-params.legacy.json`，"
@@ -1857,6 +1907,11 @@ PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), "流程"),
          ("versions", "版本控管", "🏷️", lambda: versions_page(), None)]
 
 
+# the heading at the top of each page (English, like the navigation brand)
+PAGE_TITLES = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "models": "Models",
+               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
+
+
 def current_page():
     ids = [p[0] for p in PAGES]
     page = st.session_state.get("page") or st.query_params.get("page")
@@ -1887,7 +1942,7 @@ def main():
         sidebar_nav(page)
         with st.container(key="side-status"):  # pinned to the bottom of the navigation (CSS)
             sidebar_status()
-    st.title(f"{TITLE}: Position Value Model")
+    st.title(PAGE_TITLES[page])
     st.caption(f"流程：{TAB_DATA} → {TAB_TRAIN} → {TAB_MATCH}。工作都在背景程序依序執行，關掉這個頁面或 UI 都不會中斷。"
                f"模擬、結果與回放請用 Dashboard（{DASHBOARD_URL}）。")
     started = st.session_state.pop("job-started", None)

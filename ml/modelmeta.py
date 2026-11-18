@@ -272,7 +272,7 @@ def match_summary(entry, model_name, notes=""):
              f"- 對戰 hash {fingerprint.short(entry.get('fingerprint')) or '—'}；模型檔 sha256 {(entry.get('modelSha256') or '—')[:8]}"]
     if notes:
         lines.append(f"- 備註：{notes}")
-    lines += ["", "| 座位 | 策略 | 模擬次數 | 價值模型 | 勝率 | ±95% | 平均分 |", "|---|---|---|---|---|---|---|",
+    lines += ["", "| 座位 | 策略 | 模擬次數 | 估值模型 | 勝率 | ±95% | 平均分 |", "|---|---|---|---|---|---|---|",
               f"| 本模型 | mcts | {entry.get('simulations')}（leafRollout {entry.get('leafRollout') or 0}） | {model_name} | "
               f"{pct(entry.get('winShare'))} | {ci(entry.get('winShare'))} | {entry.get('avgScore', 0):.1f} |"]
     for o in entry.get("others", []):
@@ -333,7 +333,7 @@ def train_summary(meta, name):
         lines += [f"- 驗證（{v.get('rows', 0):,} 列）：交叉熵 {v['crossEntropy']:.4f}，MSE {v['mse']:.4f}（常數基準 {v['constantMse']:.4f}），R² {v['r2']:.3f}",
                   f"- 各回合段 MSE：{stages or '—'}"]
     top = "、".join(f"{f['name']}" for f in (meta.get("topFeatures") or [])[:5])
-    lines += [f"- 最重要的特徵（前 5）：{top or '—'}", "", "| 資料 | 局數 | 列數 | 抽樣率 | 種子 | 策略 | 價值模型 |", "|---|---|---|---|---|---|---|"]
+    lines += [f"- 最重要的特徵（前 5）：{top or '—'}", "", "| 資料 | 局數 | 列數 | 抽樣率 | 種子 | 策略 | 估值模型 |", "|---|---|---|---|---|---|---|"]
     for d in meta.get("data", []):
         lines.append(f"| {d['path']} | {d['games']:,} | {d['rows']:,} | {d['rate']:g} | {d['seed']} | {'、'.join(d.get('strategies', []))} | "
                      f"{'、'.join(os.path.basename(x) for x in d.get('valueModels', [])) or '—'} |")

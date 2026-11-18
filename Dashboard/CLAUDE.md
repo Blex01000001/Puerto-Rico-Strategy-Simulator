@@ -3,7 +3,7 @@
 只參考 Engine；只負責設定／檢視／圖表（「模擬」頁直接呼叫 Engine 的 `BatchSimulator`）。讀到這個資料夾的檔案時自動載入。
 
 ## 檔案地圖
-**`Components/Pages/`**：Home `/`、Versions `/versions`（版本控管：規則版本、引擎版本、特徵版本、資料格式版本、每個策略的策略版本（程式裡的版本不一致時標紅）與每個版本的 commit、修改內容；讀 `docs/versions.json`，用 `Services/VersionLog.cs`，頂端用 `.vtile` 小卡顯示這個 Dashboard 的規則、引擎、特徵、資料格式版本與 git commit；表格 `table.data.vtable` 標題置中；小卡與表格的外觀和 ML UI 的版本控管頁一致，兩邊要一起改）、Simulate（每個座位是一張有框的 `.seatrow`，用 CSS subgrid 對齊標題列；座位 id＝結果裡顯示的名稱：有價值模型的 MCTS 座位寫成 `mcts(<模型名>)`，同名再加 `#1`、`#2`；頁籤「一般對戰」「參數掃描」；第一列玩家數、局數、座位順序、主種子，結果檔名獨佔一列）、Results `/results`、Overview（多檔彙整）、Compare（A/B 並排）、Replay（逐步看盤面）、Sweep、Config。
+**`Components/Pages/`**：Home `/`、Versions `/versions`（版本控管：規則版本、引擎版本、特徵版本、資料格式版本、每個策略的策略版本（程式裡的版本不一致時標紅）與每個版本的 commit、修改內容；讀 `docs/versions.json`，用 `Services/VersionLog.cs`，頂端用 `.vtile` 小卡顯示這個 Dashboard 的規則、引擎、特徵、資料格式版本與 git commit；表格 `table.data.vtable` 標題置中；小卡與表格的外觀和 ML UI 的版本控管頁一致，兩邊要一起改）、Simulate（每個座位是一張有框的 `.seatrow`，用 CSS subgrid 對齊標題列；座位 id＝結果裡顯示的名稱：有估值模型的 MCTS 座位寫成 `mcts(<模型名>)`，同名再加 `#1`、`#2`；頁籤「一般對戰」「參數掃描」；第一列玩家數、局數、座位順序、主種子，結果檔名獨佔一列）、Results `/results`、Overview（多檔彙整）、Compare（A/B 並排）、Replay（逐步看盤面）、Sweep、Config。
 
 **`Components/`**
 - `BoardView.razor`：回放盤面。精簡版面，連同上下一步要放進一個視窗；中欄寬度＝4 張職業卡（供應區、貨船、交易所）；玩家在兩側，從左下順時針為座位 1→2→3→4。
@@ -17,7 +17,7 @@
 - `AppState.cs`：載入結果／掃描檔；`ReadConfigAsync` 只讀 config（跳過逐局記錄，大檔很快）；`SetTemplate`（用這份設定再模擬）；畫面上的路徑一律用 `DisplayPath`／`Scrub` 顯示成相對專案根目錄。
 - `SimulationService.cs`（背景執行、進度、取消）、`SnapshotEventSink.cs`（回放：每個決策前的狀態、動作、搜尋摘要）。
 - `ActionText.cs`（動作的中文說明）、`StrategyInfo.cs`（流派介紹與參數文字；`Groups` 決定頁籤分組）、`Palette.cs`（策略顏色與名稱）、`OverviewPresets.cs`。
-- `ValueModelCatalog.cs`：列出正式 `ml/models/` 與本機 `ml/local/models/` 的價值模型（標「正式／本機」；讀 `.meta.json` 的人數、種類、對原版 MCTS 最佳勝率，正式模型另讀 `ml/local/match-records/`；不依賴 Python）；「策略模擬」頁 MCTS 座位參數欄下的「價值模型」下拉選單用它，選擇結果寫回參數文字（`valueModel=ml/models/…`），參數文字仍是唯一的來源。
+- `ValueModelCatalog.cs`：列出正式 `ml/models/` 與本機 `ml/local/models/` 的估值模型（標「正式／本機」；讀 `.meta.json` 的人數、種類、對原版 MCTS 最佳勝率，正式模型另讀 `ml/local/match-records/`；不依賴 Python）；「策略模擬」頁 MCTS 座位參數欄下的「估值模型」下拉選單用它，選擇結果寫回參數文字（`valueModel=ml/models/…`），參數文字仍是唯一的來源。
 - `PageMemory.cs`：每個瀏覽器分頁一份的頁面記憶（Results／Sweep 的資料在 `AppState`，本來就保留）。
 
 **`wwwroot/`**：`app.css`（色票 token；只有一套扁平深色主題，沒有淺色模式）、`favicon.svg`。

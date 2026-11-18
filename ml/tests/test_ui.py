@@ -49,12 +49,22 @@ def test_ui_lists_dumps_and_models(results):
     at = goto(run_app(), "train")
     players = next(r for r in at.radio if r.label.startswith("人數（模型依人數分開）"))
     assert players.options == ["4 人局"]
-    assert any("results/ml/4p-test.bin" in str(d.value.index.tolist()) for d in at.dataframe)  # training tab table
+    assert any(d.value.index.tolist() == ["4p-test.bin"] for d in at.dataframe)  # training tab table: file names only, the folder is a small line below
+    assert any(b.label == "開啟資料夾" for b in at.button)
     start = next(b for b in at.button if b.label == "開始訓練")
     assert start.disabled  # nothing selected yet
     goto(at, "match")
     assert next(b for b in at.button if b.label == "開始對戰")  # match tab offers the repo models (they carry .meta.json)
     assert any(s.label == "模型" for s in at.selectbox)
+
+
+def test_each_page_has_its_own_english_title(results):
+    at = run_app()
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "models": "Models",
+              "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
+    for pid, title in titles.items():
+        goto(at, pid)
+        assert [t.value for t in at.title] == [title]
 
 
 def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
@@ -253,7 +263,7 @@ def test_hash_page_lists_what_counts_and_what_does_not(results):
     import fingerprint
     at = goto(run_app(), "hash")
     text = " ".join(m.value for m in at.markdown) + " ".join(t.value.to_csv() for t in at.table)
-    assert "不計入" in text and "價值模型" in text and "座位 id" in text
+    assert "不計入" in text and "估值模型" in text and "座位 id" in text
     for key in fingerprint.LGBM_OPTIONS + fingerprint.MLP_OPTIONS:  # the option lists on the page come from the code
         assert f"`{key}`" in text, key
     assert "指紋" not in text  # the UI says hash

@@ -117,7 +117,7 @@
   "strategyTrack": {
     "title": "策略版本",
     "display": "{id}-v{version}",
-    "meaning": "每個策略自己的邏輯版本（StrategyRegistry.Revisions）：同樣的參數，決策卻不同時加 1（決策邏輯改了，或它共用的程式改了：HeuristicStrategy、TieBreakRules 改了就是所有手寫策略各加 1；mcts 也包含價值模型推論與 ValueFeatures 的程式）。改參數或預設值不用加：實際使用的完整參數已在 hash 裡。只有用到這個策略的資料會被標成舊版。",
+    "meaning": "每個策略自己的邏輯版本（StrategyRegistry.Revisions）：同樣的參數，決策卻不同時加 1（決策邏輯改了，或它共用的程式改了：HeuristicStrategy、TieBreakRules 改了就是所有手寫策略各加 1；mcts 也包含估值模型推論與 ValueFeatures 的程式）。改參數或預設值不用加：實際使用的完整參數已在 hash 裡。只有用到這個策略的資料會被標成舊版。",
     "bump": "黃金樣本測試裡該策略的案例失敗、且參數沒變時（測試會分辨）才加 1；只改預設值時更新黃金檔就好。rule-based 沒有自己的版本，跟著它的 profile。"
   },
   "strategies": [
@@ -246,7 +246,7 @@
           "date": "2026-11-16",
           "commit": "5903b6d496a62f6ace0ff932c47a26d3cb875c12",
           "changes": [
-            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。包含 UCT 搜尋、截斷 rollout、價值模型（LightGBM、MLP）推論與 leafRollout。"
+            "基準版本：目前的決策邏輯與預設參數（預設值見 ml/strategy-params.json）。包含 UCT 搜尋、截斷 rollout、估值模型（LightGBM、MLP）推論與 leafRollout。"
           ]
         }
       ]

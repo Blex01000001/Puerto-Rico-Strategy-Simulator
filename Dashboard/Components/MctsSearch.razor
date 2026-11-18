@@ -15,7 +15,7 @@
                 }
                 @if (Search.ValueModel != "")
                 {
-                    <span class="chip" title="葉節點不打到停止點，改由學習得到的局面價值模型估計每個座位的結果（勝率欄位此時也是模型估值）。">價值模型：@Search.ValueModel@(Search.LeafRollout > 0 ? $"（先打 {Search.LeafRollout} 步）" : "")</span>
+                    <span class="chip" title="葉節點不打到停止點，改由學習得到的局面估值模型估計每個座位的結果（勝率欄位此時也是模型估值）。">估值模型：@Search.ValueModel@(Search.LeafRollout > 0 ? $"（先打 {Search.LeafRollout} 步）" : "")</span>
                 }
                 else
                 {

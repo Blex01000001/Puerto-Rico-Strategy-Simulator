@@ -1,6 +1,6 @@
-# 局面價值模型：研發紀錄與目前狀況
+# 局面估值模型：研發紀錄與目前狀況
 
-MCTS 用的學習型局面價值模型（`valueModel`）的總表：每個模型是什麼、怎麼來的、多強、現在用不用。細節與實驗過程在 `docs/strategy-analysis.md` 第 10 節，流程在 `ml/README.md`。
+MCTS 用的學習型局面估值模型（`valueModel`）的總表：每個模型是什麼、怎麼來的、多強、現在用不用。細節與實驗過程在 `docs/strategy-analysis.md` 第 10 節，流程在 `ml/README.md`。
 **只記目前狀態**；勝率一律來自模型 `.meta.json` 的對戰紀錄（`python3 ml/model_report.py` 會印出最新數字），不要憑記憶填。
 
 ## 目前結論（4 人局為主）

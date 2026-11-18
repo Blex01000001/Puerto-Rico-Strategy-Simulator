@@ -84,7 +84,7 @@ dotnet run -c Release --project Dashboard
 
 > 若 Dashboard 版面看起來沒有套用樣式，請按 Ctrl+F5 強制重新整理。Dashboard 可讀取伺服器上任意路徑，只在本機使用。
 
-機器學習（ML UI，訓練 MCTS 的局面價值模型）需要 Python 3。**新裝置第一次使用前，先在專案根目錄執行一次：**
+機器學習（ML UI，訓練 MCTS 的局面估值模型）需要 Python 3。**新裝置第一次使用前，先在專案根目錄執行一次：**
 
 ```bash
 python -m pip install -r ml/requirements.txt
