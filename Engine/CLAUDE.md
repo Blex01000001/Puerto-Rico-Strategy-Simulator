@@ -16,7 +16,7 @@
 - `RuleBased/TieBreakRules.cs`：同分的第二準則（字典式，只在主要分數完全相同時生效）。文字參數 `tieTile`／`tieGood`／`tieRole`／`tieBuild`，`tieOpponent` 預留。預設＝引擎順序；只有 build-first／harbor-rush／wharf-rush 有 `DefaultTieTile`＝`hacienda>corn>sugar>indigo>tobacco>coffee>quarry`（`tieTile: ""` 關閉）。策略的偏好寫在自己的規則裡，基底不內建「常理」。
 - 實驗參數 `randomTies`（預設 0；1＝開拓者＋工匠額外貨物、2＝市長以外所有階段、3＝只有開拓者、4＝只有工匠額外貨物，同分時隨機）。
 - `Mcts/MctsStrategy.cs`：UCT，`params.simulations`／`rolloutStrategy`／`rolloutRounds`／`exploration`／`valueModel`（葉節點改用模型估值）／`leafRollout`。
-- `Mcts/ValueFeatures.cs`（局面特徵，從某座位視角；改了要重訓）、`Mcts/ValueModel.cs`（`IValueModel`：LightGBM 文字模型與 MLP JSON 的純 C# 推論，依路徑快取；`ValueModels.Resolve`：相對路徑找不到時往目前目錄與程式目錄的上層找）。
+- `Mcts/FeatureSets.cs`（`FeatureSet` 抽象類別＋`FeatureSets` 登錄：`All`、`Latest`、`Get(版本)`、`Find(名稱)`；`LatestVersion` 常數給 `ml/fingerprint.py` 讀）、`Mcts/FeaturesV1.cs`（版本 1，430 個特徵，**凍結**）、`Mcts/FeaturesV2.cs`（版本 2 ＝ 版本 1 原樣＋82 個衍生特徵：各職業被誰選走、每個座位能出貨／能賣／能蓋／能生產多少…）；局面特徵都從某座位視角、全部小整數。`Mcts/ValueModel.cs`（`IValueModel`：LightGBM 文字模型與 MLP JSON 的純 C# 推論，依路徑快取；`ValueModels.Resolve`：相對路徑找不到時往目前目錄與程式目錄的上層找）。
 - 選用介面：`IDecisionExplainer`（MCTS 回報 `SearchSummary` → `IGameEventSink.OnSearch`）、`IScoreExplainer`（手寫策略回報每個動作的分數 → `OnScores`；`RecordScores` 只有回放 sink 會由 `GameRunner` 打開，不影響大量模擬與選擇結果）。
 
 **`Simulation/`**
@@ -35,7 +35,7 @@
 - **參數掃描**：設定檔加 `sweep: { target, gamesPerPoint, parameters: { 名稱: [值…] } }`（只掃數值，笛卡兒積），Runner 加 `--sweep`；每個格點同一個主種子，只比 target 的勝率（95% 信賴區間）與平均分。
 - **改設定／結果 JSON 欄位**（先問使用者）：新欄位給預設值以相容舊檔，破壞性改動遞增 `SchemaVersion`；同步 `config.example.json` 與 `BatchSimulator.EnsureCompatible`。
 
-- **改了引擎或策略的程式**：跑 `dotnet test`，`GoldenTests`（`Tests/VersionTests.cs`、`Tests/Data/golden.json`）會分開報告：RULES 案例（只有隨機玩家）變了＝規則或亂數 → 建議規則版本 `EngineInfo.RulesRevision` +1；某策略的案例變了且預設參數沒變＝它的決策邏輯變了 → 建議 `StrategyRegistry.Revisions["<名稱>"]` +1；只有預設參數變了 → 不進版本（完整參數已在 hash 裡）。**先告訴使用者並建議版本號**，同意後改常數、在 `docs/versions.json` 補對應的筆數（引擎版本至少次版本 +1）、`PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json` 與 `ml/strategy-params.json`、在 `docs/TODO.md` 記哪些資料與模型因此該重產生。黃金樣本不含 MCTS：只動 MCTS、估值模型推論或 `ValueFeatures` 程式時要自己判斷 `mcts` 要不要加 1。完整規則在根目錄 `CLAUDE.md`「版本與 hash」。
+- **改了引擎或策略的程式**：跑 `dotnet test`，`GoldenTests`（`Tests/VersionTests.cs`、`Tests/Data/golden.json`）會分開報告：RULES 案例（只有隨機玩家）變了＝規則或亂數 → 建議規則版本 `EngineInfo.RulesRevision` +1；某策略的案例變了且預設參數沒變＝它的決策邏輯變了 → 建議 `StrategyRegistry.Revisions["<名稱>"]` +1；只有預設參數變了 → 不進版本（完整參數已在 hash 裡）。**先告訴使用者並建議版本號**，同意後改常數、在 `docs/versions.json` 補對應的筆數（引擎版本至少次版本 +1）、`PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json` 與 `ml/strategy-params.json`、在 `docs/TODO.md` 記哪些資料與模型因此該重產生。黃金樣本不含 MCTS：只動 MCTS、估值模型推論或特徵集程式時要自己判斷 `mcts` 要不要加 1。完整規則在根目錄 `CLAUDE.md`「版本與 hash」。
 - **參數**：策略一律用 `StrategyRegistry.GetDouble`／`GetString` 讀參數（`Resolve` 靠它們記錄實際使用的值；直接讀字典的參數不會進結果檔與 hash）；要等知道人數才讀的，實作 `IResolvesParameters`（`HeuristicStrategy` 已實作）。
 - **加策略**：除了註冊 `Factories`，在 `StrategyRegistry.Revisions` 給 1、`docs/versions.json` 的 `strategies` 補一條、重產生黃金檔（`Every_Strategy_Has_A_Revision` 與版本清單測試會檢查）。
 - **新增功能、輸出欄位**：建議引擎版本次版本 +1，並在 `docs/versions.json` 補一筆。`EngineInfo.Commit` 來自組件的資訊版本（`Directory.Build.props` 的 `SetSourceRevisionId` 在建置時呼叫 `git describe`；沒有 git 時是 `unknown`），只用來追溯，不進 hash。續跑（`--resume`）會拒絕規則版本、策略版本或預設參數不同的結果檔（`BatchSimulator.EnsureSameBehaviour`）。
@@ -57,6 +57,6 @@
 - 玩家陣列固定開 4 個座位，3 人局第 4 座位全是 0：迴圈與模數用 `s.PlayerCount`、`s.RoleCount`、`s.ShipCap`；`GameConstants.XXX(players)` 是依人數查的函式。
 - 手寫策略預設參數依人數不同，且在第一次 `ChooseAction` 才解析；`StrategyTests` 多半是 3 人局，用到 4 人預設值（如 premium 的 `switchRound`、harbor 的 `harborReadyTiles`）要明確傳參數。設定檔寫明的參數永遠優先。
 - 隨機玩家座位 3（玉米起手）勝率約 49% 不是 bug（三家都改染料起手後各 33%）。
-- 改 `ValueFeatures` 的特徵清單後，舊模型載入時會因特徵名稱不符被拒（刻意的）：要重新產生資料、重訓（`ml/README.md`）。
+- 特徵集並存：模型檔記著訓練時的特徵名稱，載入時 `FeatureSets.Find` 依名稱挑對應的集（`IValueModel.Features`），MCTS 與 dump 都用那一套；名稱不屬於任何已知版本才會被拒。**一個特徵版本一經有模型或資料就不要再改**（改了舊檔就對不上）：要換特徵清單就新增 `FeaturesV{N}.cs`、登錄進 `FeatureSets.All`、`LatestVersion` 加 1，新版寫成「舊版原樣＋新特徵」最省事（`FeaturesV2` 呼叫 `FeaturesV1.ExtractAll` 再填後面）。測試鎖住版本 1 模型的對局不變（`ValueModelTests`），新版要補名稱、取值、dump 與載入的測試（`FeatureSetTests`）。
 - 長時間的 Runner 背景工作用發佈版（`dotnet publish Runner -c Release -o publish/runner` 後執行 `./publish/runner/Runner`，Windows 是 `publish\runner\Runner.exe`）；用 `dotnet run` 跑時不要同時 `dotnet build`（會覆寫執行中的 dll）。發佈版不會自動跟著 Engine 更新：改了 Engine 要重新發佈。
 - 測試建情境用 `Tests/Sc.cs`（`New`、`Start`、`Own`、`SetTiles`、`SetGoods`、`Legal`、`A`）。

@@ -2,6 +2,7 @@ using System.Text.Json;
 using PuertoRico.Engine.Events;
 using PuertoRico.Engine.Game;
 using PuertoRico.Engine.Simulation;
+using PuertoRico.Engine.Strategies.Mcts;
 
 namespace PuertoRico.Runner;
 
@@ -22,6 +23,7 @@ public static class Program
           --sweep              parameter sweep from config.sweep (see config.sweep.example.json); result in --out (default sweep.json)
           --dump-positions <file>  play the games and write sampled positions (training data for a value model, see ml/README.md)
           --dump-rate <p>      share of decision points sampled by --dump-positions (default: config.output.dumpRate, else 0.02)
+          --feature-version <n>  feature set of --dump-positions (default: the newest; 1 = the first, 430 features; ml/README.md lists them)
           --help
         """;
 
@@ -50,6 +52,7 @@ public static class Program
         bool resume = false, sweep = false;
         string? dumpPath = null;
         double? dumpRate = null;
+        int? featureVersion = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -65,6 +68,7 @@ public static class Program
                 case "--replay": replay = int.Parse(Next()); break;
                 case "--sweep": sweep = true; break;
                 case "--dump-positions": dumpPath = Next(); break;
+                case "--feature-version": featureVersion = int.Parse(Next()); break;
                 case "--dump-rate": dumpRate = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture); break;
                 case "--help" or "-h": Console.WriteLine(Usage); return 0;
                 default: throw new ArgumentException($"unknown argument '{args[i]}'\n\n{Usage}");
@@ -80,7 +84,7 @@ public static class Program
 
         if (replay != null) return Replay(cfg, replay.Value, outPath);
         if (sweep) return Sweep(cfg, outPath);
-        if (dumpPath != null) return Dump(cfg, dumpPath, dumpRate ?? cfg.Output.DumpRate ?? 0.02);
+        if (dumpPath != null) return Dump(cfg, dumpPath, dumpRate ?? cfg.Output.DumpRate ?? 0.02, featureVersion);
 
         var options = new BatchOptions { OutPath = outPath };
         if (resume)
@@ -125,8 +129,9 @@ public static class Program
         return result.Status == "completed" ? 0 : 130;
     }
 
-    private static int Dump(SimulationConfig cfg, string path, double rate)
+    private static int Dump(SimulationConfig cfg, string path, double rate, int? featureVersion)
     {
+        var features = featureVersion is { } v ? FeatureSets.Get(v) : FeatureSets.Latest;
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
         {
@@ -136,9 +141,9 @@ public static class Program
         };
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var progress = new Progress<int>(n => Console.Error.Write($"\r{n}/{cfg.Games} games  {n / Math.Max(0.001, sw.Elapsed.TotalSeconds):F0} games/s   "));
-        var r = PositionDump.Run(cfg, path, rate, progress, cts.Token);
+        var r = PositionDump.Run(cfg, path, rate, progress, cts.Token, features);
         Console.Error.WriteLine();
-        Console.WriteLine($"{(r.Cancelled ? "cancelled" : "completed")}: {r.Games} games, {r.Positions} positions, {r.Rows} rows ({PositionDump.RecordBytes} bytes each) -> {path} (+ .json)");
+        Console.WriteLine($"{(r.Cancelled ? "cancelled" : "completed")}: {r.Games} games, {r.Positions} positions, {r.Rows} rows ({PositionDump.RecordBytes(features)} bytes each, feature version {features.Version}) -> {path} (+ .json)");
         return r.Cancelled ? 130 : 0;
     }
 

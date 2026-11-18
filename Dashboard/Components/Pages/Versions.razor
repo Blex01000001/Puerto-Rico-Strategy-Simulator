@@ -16,7 +16,7 @@
     <div class="vtiles">
         <div class="vtile"><div class="l">規則版本</div><div class="v">@(EngineInfo.RulesVersion)-v@(EngineInfo.RulesRevision)</div></div>
         <div class="vtile"><div class="l">引擎版本</div><div class="v">@EngineInfo.Version</div></div>
-        <div class="vtile"><div class="l">特徵版本</div><div class="v">@ValueFeatures.Version</div></div>
+        <div class="vtile"><div class="l">特徵版本</div><div class="v">@FeatureSets.LatestVersion</div></div>
         <div class="vtile"><div class="l">資料格式版本</div><div class="v">@PositionDump.FormatVersion</div></div>
         <div class="vtile wide"><div class="l">git commit</div><div class="v">@CommitId</div>@if (Dirty) { <div class="sub">建置時有未提交的修改（-dirty）</div> }</div>
     </div>

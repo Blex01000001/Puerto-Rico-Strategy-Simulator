@@ -47,7 +47,7 @@ public static class StrategyRegistry
     /// <summary>
     /// Logic revision of every strategy (shown as <c>harbor-rush-v1</c>). Bumped BY HAND when the strategy decides
     /// differently for the same parameters: its decision logic changed, or code it shares changed (HeuristicStrategy,
-    /// TieBreakRules: bump every strategy built on it; MCTS also covers the value-model inference and ValueFeatures code).
+    /// TieBreakRules: bump every strategy built on it; MCTS also covers the value-model inference and the feature sets code).
     /// Changing a parameter's DEFAULT does not need a bump: the resolved parameters (defaults filled in) are recorded in
     /// result files and dumps and go into the ML hash. Tests/VersionTests.cs (GoldenTests) tells which strategy changed;
     /// docs/versions.json lists what each revision changed. "rule-based" has none of its own: it is its profile.

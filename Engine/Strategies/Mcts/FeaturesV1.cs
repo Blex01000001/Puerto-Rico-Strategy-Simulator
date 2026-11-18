@@ -3,13 +3,16 @@ using PuertoRico.Engine.Game;
 namespace PuertoRico.Engine.Strategies.Mcts;
 
 /// <summary>
-/// Fixed-length numeric description of a game state from the point of view of one seat ("me"), used by the
-/// learned value function (<see cref="IValueModel"/>) and by the position dump that produces its training data.
-/// Player blocks are ordered relative to me (me, next seat, ...): 4 blocks, the 4th is all zero in 3-player games.
-/// Every value is a small integer (the dump stores them as int16). Changing the list changes <see cref="Names"/>,
-/// and models trained on the old list refuse to load (their feature names no longer match), so retrain after a change.
+/// Feature set version 1 (430 features): fixed-length numeric description of a game state from the point of view of one
+/// seat ("me"), used by the learned value function (<see cref="IValueModel"/>) and by the position dump that produces its
+/// training data. Player blocks are ordered relative to me (me, next seat, ...): 4 blocks, the 4th is all zero in 3-player games.
+/// Every value is a small integer (the dump stores them as int16).
+/// <para>
+/// Frozen: models and data made with version 1 depend on exactly this list and order. A new list is a new feature set
+/// (see <see cref="FeatureSets"/>, <see cref="FeaturesV2"/>), never an edit of this one.
+/// </para>
 /// </summary>
-public static class ValueFeatures
+public static class FeaturesV1
 {
     private const int P = GameConstants.MaxPlayers;
     private const int G = GameConstants.GoodCount;
@@ -18,7 +21,6 @@ public static class ValueFeatures
     private const int R = GameConstants.MaxRoleCount;
     private const int Phases = (int)Phase.GameOver; // GameOver itself is never valued
 
-    /// <summary>Version of the feature list (written to the dump metadata).</summary>
     public const int Version = 1;
 
     public static readonly string[] Names = BuildNames();

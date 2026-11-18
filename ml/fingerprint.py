@@ -138,8 +138,14 @@ def current_rules_revision():
 
 
 def current_feature_version():
-    """ValueFeatures.Version of this checkout (Engine/Strategies/Mcts/ValueFeatures.cs)."""
-    return _engine_constant("features", ("Engine", "Strategies", "Mcts", "ValueFeatures.cs"), r"public const int Version")
+    """The newest feature set of this checkout: FeatureSets.LatestVersion (Engine/Strategies/Mcts/FeatureSets.cs). Older versions
+    (1 .. this) stay readable: models and data of an older version keep working, so a data run may ask for any of them."""
+    return _engine_constant("features", ("Engine", "Strategies", "Mcts", "FeatureSets.cs"), r"public const int LatestVersion")
+
+
+def feature_versions():
+    """Every feature version the engine supports, oldest first."""
+    return list(range(1, current_feature_version() + 1))
 
 
 def current_format_version():
@@ -244,10 +250,11 @@ def dump_recipe(meta):
     return {**r, "kind": "dump", "rate": meta["rate"], "featureVersion": meta["featureVersion"], "formatVersion": meta["formatVersion"]}
 
 
-def planned_dump_recipe(cfg, rate):
-    """Recipe of the dump a config would produce with this checkout's engine (cfg: games and seed already applied)."""
+def planned_dump_recipe(cfg, rate, feature_version=None):
+    """Recipe of the dump a config would produce with this checkout's engine (cfg: games and seed already applied);
+    feature_version: the feature set asked for (default: the newest)."""
     return {**sim_recipe(cfg, current_rules_revision(), legacy=False), "kind": "dump", "rate": rate,
-            "featureVersion": current_feature_version(), "formatVersion": current_format_version()}
+            "featureVersion": feature_version or current_feature_version(), "formatVersion": current_format_version()}
 
 
 def planned_match_recipe(cfg):

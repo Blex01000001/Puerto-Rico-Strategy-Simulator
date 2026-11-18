@@ -32,12 +32,21 @@
       "bump": "新增功能、策略、輸出欄位，或規則版本、策略版本加 1 時更新。",
       "entries": [
         {
+          "version": "0.5.0",
+          "date": "2026-11-18",
+          "changes": [
+            "特徵集並存：FeatureSet／FeatureSets（FeaturesV1 凍結不動、新增 FeaturesV2）。模型記著訓練時的特徵名稱，引擎依名稱挑對應的特徵集（IValueModel.Features），所以版本 1 的模型與資料在新版加入後照常可用；MCTS 用模型自己的特徵集（版本 1 模型的對局與以前逐局相同，有測試鎖住）。",
+            "Runner --dump-positions 新增 --feature-version（預設最新版）；PositionDump.Run 多一個 features 參數，RecordBytes 改成依特徵集計算。"
+          ],
+          "commit": ""
+        },
+        {
           "version": "0.4.1",
           "date": "2026-11-18",
           "changes": [
             "Dashboard 的結果檔清單（結果總覽、對戰總覽、並排比較、模擬重播）也列出 results/ml/ 裡 ML UI 的對戰結果（新增 ResultFiles；結果與 dump 不受影響）。"
           ],
-          "commit": ""
+          "commit": "1ffa9554d079010717d41c3e04ff86178df34b4e"
         },
         {
           "version": "0.4.0",
@@ -86,12 +95,21 @@
     },
     {
       "id": "features",
-      "title": "特徵版本（ValueFeatures.Version）",
-      "source": "Engine/Strategies/Mcts/ValueFeatures.cs：Version",
+      "title": "特徵版本（FeatureSets.LatestVersion）",
+      "source": "Engine/Strategies/Mcts/FeatureSets.cs：LatestVersion",
       "display": "{version}",
-      "meaning": "局面特徵清單（名稱與順序）。改了之後舊模型會因特徵名稱不符被拒，要重新產生資料並重訓。",
-      "bump": "特徵清單有任何增減或改順序時加 1。",
+      "meaning": "局面特徵集的版本。多個版本並存：模型記著訓練時的特徵名稱，引擎依名稱挑對應的特徵集，所以舊版的模型與資料在新版加入後仍可使用（顯示的是最新版）。一個版本一經有模型或資料就不再修改。局面資料 dump 預設用最新版，Runner --feature-version 可指定舊版。",
+      "bump": "要換特徵清單時，新增一個特徵集（FeaturesV{N}.cs，登錄在 FeatureSets.All）並把 LatestVersion 加 1；不要改舊版的清單。新版的資料與模型要重新產生、重訓。",
       "entries": [
+        {
+          "version": "2",
+          "date": "2026-11-18",
+          "changes": [
+            "512 個特徵 = 版本 1 的 430 個（名稱與順序不變）＋82 個衍生特徵：全域 picksLeft（這一回合還沒選職業的座位數）、minCitySpacesLeft（最接近城市蓋滿的座位還剩幾格）、roleTakenRel{k}_{職業}（各職業被相對第 k 位座位選走）；每個座位區塊 goodsTotal、goodTypes、productionTotal、productionTypes、shippable（現在能上船的桶數，依船的規則）、tradableGoods、bestSalePrice、affordableBuildings、bestAffordableVp、smallBuildings、largeBuildings、unfilledLarge（沒有殖民者的大型建築）、citySpacesLeft。目的：讓模型看得到每個座位現在最可能選哪個職業（能出貨、能賣、能蓋、能生產）。",
+            "版本 1 的模型與資料照常可用；版本 2 的資料與模型要重新產生、重訓。"
+          ],
+          "commit": ""
+        },
         {
           "version": "1",
           "date": "2026-11-14",
@@ -125,7 +143,7 @@
   "strategyTrack": {
     "title": "策略版本",
     "display": "{id}-v{version}",
-    "meaning": "每個策略自己的邏輯版本（StrategyRegistry.Revisions）：同樣的參數，決策卻不同時加 1（決策邏輯改了，或它共用的程式改了：HeuristicStrategy、TieBreakRules 改了就是所有手寫策略各加 1；mcts 也包含估值模型推論與 ValueFeatures 的程式）。改參數或預設值不用加：實際使用的完整參數已在 hash 裡。只有用到這個策略的資料會被標成舊版。",
+    "meaning": "每個策略自己的邏輯版本（StrategyRegistry.Revisions）：同樣的參數，決策卻不同時加 1（決策邏輯改了，或它共用的程式改了：HeuristicStrategy、TieBreakRules 改了就是所有手寫策略各加 1；mcts 也包含估值模型推論與特徵集（FeatureSets、FeaturesV1／V2）的程式）。改參數或預設值不用加：實際使用的完整參數已在 hash 裡。只有用到這個策略的資料會被標成舊版。",
     "bump": "黃金樣本測試裡該策略的案例失敗、且參數沒變時（測試會分辨）才加 1；只改預設值時更新黃金檔就好。rule-based 沒有自己的版本，跟著它的 profile。"
   },
   "strategies": [

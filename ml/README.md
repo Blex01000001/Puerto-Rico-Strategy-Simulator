@@ -74,7 +74,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 | `models/` | 訓練好的模型（LightGBM 文字檔約 3 MB、MLP JSON 約 3 MB） |
 
 ## 注意
-- 特徵清單在 `Engine/Strategies/Mcts/ValueFeatures.cs`（全部是小整數；玩家區塊依「自己、下家…」排列，3 人局第 4 區塊全 0）。**改了特徵清單，舊模型會拒絕載入**（載入時逐一比對特徵名稱），要重新產生資料並重訓。
+- 特徵集在 `Engine/Strategies/Mcts/`：`FeaturesV1.cs`（430 個，凍結）、`FeaturesV2.cs`（512 個＝版本 1 原樣＋82 個衍生特徵）（全部是小整數；玩家區塊依「自己、下家…」排列，3 人局第 4 區塊全 0）。**多個版本並存**：模型記著訓練時的特徵名稱，引擎依名稱挑對應的版本，所以舊模型與舊資料照常可用；新資料預設用最新版（「模擬對局採樣」的「特徵版本」，或 Runner `--feature-version`），一次訓練只能用同一版的資料，訓練出的模型屬於那一版。
 - C# 只支援 LightGBM 的數值切分（不支援類別特徵）與單一輸出；MLP 只支援 ReLU。MLP 推論每個輸出依輸入順序累加，結果不受 CPU 的 SIMD 寬度影響。
 - 模型依人數分開訓練與使用（`4p-*` 只給 4 人局）。
 - 推論成本：LightGBM 400 棵樹約 20 µs、MLP 256-128 約 30 µs（每個座位一次；一次 8 回合隨機 rollout 約 130 µs）。
