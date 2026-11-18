@@ -883,6 +883,7 @@ def copy_button(text, label="複製摘要給 AI"):
     older Streamlit; falls back to execCommand when the browser blocks navigator.clipboard there)."""
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
+<style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 3px; }}</style>
 <button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
   font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
 <script>
