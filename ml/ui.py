@@ -8,6 +8,7 @@ Jobs run in their own process (jobs.py): closing this page or the UI does not st
 Reads the same folders as the Dashboard: results/ (PR_RESULTS_DIR overrides) and ml/models/.
 """
 import datetime
+import html
 import glob
 import json
 import os
@@ -495,8 +496,7 @@ def training_tab():
             spec = {"data": [d["path"] for d in chosen], "out": rel(out), "options": options}
             start_job(kind, f"{KIND_TEXT[kind]} → {name + ext}", spec)
 
-    with card("train-doc", "參數說明"):
-        st.caption("每個參數的作用、預設值，以及調高、調低會怎樣。不確定就用預設值；判斷好壞只看「對戰驗證」的勝率。")
+    with card("train-doc", "參數說明", "每個參數的作用、預設值，以及調高、調低會怎樣。不確定就用預設值；判斷好壞只看「對戰驗證」的勝率。"):
         doc = PARAM_DOC[kind] + PARAM_DOC["common"]
         st.table(pd.DataFrame(doc, columns=["參數", "預設", "作用", "調高會…", "調低會…", "建議"]).set_index("參數"))
 
@@ -522,10 +522,15 @@ CSS = """
 [data-testid="stHeading"] { height: var(--bar-h); display: flex; align-items: center; }
 [data-testid="stHeading"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* Streamlit gives headings -1rem here: it would shift the centring */
 [data-testid="stHeading"] h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
+/* narrow window: the sidebar starts collapsed and the content only has 1rem of left padding, so the re-open button would sit on the title */
+@media (max-width: 768px) { [data-testid="stHeading"] { padding-left: 2.75rem !important; } }
 [data-testid="stSidebarHeader"] { height: 1.6rem !important; padding-top: .3rem !important; padding-bottom: 0 !important; min-height: 0 !important; }
 [data-testid="stSidebarUserContent"] { padding-top: .3rem !important; }
 /* cards: st.container(border=True, key="card-...") */
 div[class*="st-key-card-"] { background: #1f2430; border: 1px solid #333a4b !important; border-radius: 6px; padding: .55rem 1rem .8rem 1rem; }
+.card-head { display: flex; align-items: baseline; gap: .9rem; margin-bottom: .2rem; }
+.card-head h3 { flex: none; }
+.card-head .card-sub { flex: 1 1 0; min-width: 0; font-size: .82rem; line-height: 1.35; color: #8892a2; }  /* long text wraps beside the title, never under it */
 div[class*="st-key-card-"] h3 { font-size: 1.05rem; margin: .1rem 0 .2rem 0; padding: 0; border-left: 3px solid #4aa8ff; padding-left: .55rem; }
 /* inputs like the Dashboard: darker than the card behind them, with a border (the theme's input colour equals the card
    colour). Streamlit >= 1.6x renders inputs with react-aria (data-testid / react-aria-* classes), older versions with
@@ -663,10 +668,13 @@ def action_row(label, key, problems, extra=None):
     return clicked
 
 
-def card(key, title=None):
-    """A bordered card like the Dashboard's panels."""
+def card(key, title=None, sub=None):
+    """A bordered card like the Dashboard's panels. `sub` (plain text) is the short explanation: it starts on the same line as the
+    title; when it is too long for the card it wraps inside its own column beside the title."""
     c = st.container(border=True, key=f"card-{key}")
-    if title:
+    if title and sub:
+        c.markdown(f"<div class='card-head'><h3>{html.escape(title)}</h3><span class='card-sub'>{html.escape(sub)}</span></div>", unsafe_allow_html=True)
+    elif title:
         c.markdown(f"### {title}")
     return c
 
@@ -816,8 +824,7 @@ def queue_page():
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
     done = [j for j in all_jobs if j["state"] not in ("waiting",) + jobs.BUSY][:40]
     ordered = ([active] if active else []) + waiting + done
-    with card("queue", "工作列表"):
-        st.caption("一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。")
+    with card("queue", "工作列表", "一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。"):
         widths = [3.4, 1.35, 1.25, 1.9, 2.25, 1.9]
         with st.container(key="qhead"):
             head = st.columns(widths)
