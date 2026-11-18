@@ -593,6 +593,10 @@ button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2
 .vtile .l { color: #8892a2; font-size: 15px; line-height: 1.25; text-align: left; padding-right: 1.3rem; }
 .vtile .v { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
   font-size: 1.55rem; font-weight: 600; color: #eef1f5; line-height: 1.2; font-variant-numeric: tabular-nums; }
+/* the model details page: the value sits in the middle of the whole tile (the label stays at the top, the tile is a bit taller so a two-line label clears it) */
+.vtiles.mid .vtile { min-height: 6.8rem; }
+.vtiles.mid .vtile .v { position: absolute; inset: 0; pointer-events: none; }
+.vtiles.mid .vtile .q { z-index: 2; }
 .vnote { color: #b4bcc9; font-size: .85rem; line-height: 1.5; margin: .1rem 0 .35rem; }
 table.vtable { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: .4rem; font-variant-numeric: tabular-nums; }
 table.vtable th { color: #8892a2; font-weight: 600; font-size: .78rem; letter-spacing: .04em; background: #171a21; text-align: center; white-space: nowrap;
@@ -942,9 +946,7 @@ def job_detail(job_id):
             st.info(text)
         steps = [e for e in evs if e["stage"] in ("iteration", "epoch")]
         if steps:
-            curve = pd.DataFrame({"步": [e.get("iteration") or e.get("epoch") for e in steps],
-                                  "驗證 loss（交叉熵）": [e["validLoss"] for e in steps]}).set_index("步")
-            st.line_chart(curve, height=220)
+            st.altair_chart(loss_chart([e["validLoss"] for e in steps], [e.get("iteration") or e.get("epoch") for e in steps], height=220), width="stretch")
     with right:
         st.markdown(f"**種類**：{KIND_TEXT.get(job['kind'], job['kind'])}")
         st.markdown(f"**狀態**：{STATE_TEXT.get(state, state)}")
@@ -1580,7 +1582,7 @@ def model_detail(path):
                                ("資料列數", f"{sum(d['rows'] for d in meta['data']):,}"),
                                ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—", METRIC_HELP["R²"]),
                                ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
-                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")]), unsafe_allow_html=True)
+                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")], centre=True), unsafe_allow_html=True)
     st.caption(("最佳勝率來自：" + describe_match(best) + "。") if best else "還沒有對原版 MCTS 的對戰。")
 
     st.markdown("**對戰結果**（判斷模型好壞的依據）")
@@ -1625,7 +1627,7 @@ def model_detail(path):
     with left:
         st.markdown("**驗證 loss 曲線**")
         if curve:
-            st.line_chart(pd.DataFrame({"驗證 loss": curve}, index=pd.RangeIndex(1, len(curve) + 1, name="步")), height=240)
+            st.altair_chart(loss_chart(curve, height=240), width="stretch")
         else:
             st.caption("沒有紀錄（舊模型或補寫的 meta）。")
     with right:
@@ -1847,14 +1849,31 @@ def _esc(text):
     return html.escape(str(text))
 
 
-def version_tiles(items):
+def loss_chart(values, steps=None, height=240):
+    """The validation-loss curve as a fixed chart: no zoom or pan, both axes fixed to the data plus a margin on every side (so the line
+    never touches the frame), whole steps on the x axis."""
+    steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
+    df = pd.DataFrame({"步": steps, "驗證 loss": list(values)})
+    lo, hi = float(df["驗證 loss"].min()), float(df["驗證 loss"].max())
+    ypad = (hi - lo) * 0.12 or max(abs(hi) * 0.02, 0.001)
+    first, last = float(min(steps)), float(max(steps))
+    xpad = max(0.5, (last - first) * 0.04)
+    chart = alt.Chart(df).mark_line(color="#4aa8ff", strokeWidth=2, point=alt.OverlayMarkDef(color="#4aa8ff", size=18)).encode(
+        x=alt.X("步:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title="步")),
+        y=alt.Y("驗證 loss:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title="驗證 loss", format=".3f")),
+        tooltip=[alt.Tooltip("步:Q", format="d"), alt.Tooltip("驗證 loss:Q", format=".4f")])
+    return chart.properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10})
+
+
+def version_tiles(items, centre=False):
     """Tiles like the Dashboard's (label small and muted at the top left, value centred): [(label, value)] or
-    [(label, value, help)]; a help text puts a "?" at the top right that shows it on hover."""
+    [(label, value, help)]; a help text puts a "?" at the top right that shows it on hover.
+    centre=True: the value is centred in the whole tile (vertically too), not just in the space under the label."""
     def tile(item):
         label, value, tip = (tuple(item) + (None,))[:3]
         q = f'<span class="q" title="{_esc(tip)}">?</span>' if tip else ""
         return f'<div class="vtile"><div class="l">{_esc(label)}</div>{q}<div class="v">{_esc(value)}</div></div>'
-    return '<div class="vtiles">' + "".join(tile(i) for i in items) + "</div>"
+    return f'<div class="vtiles{" mid" if centre else ""}">' + "".join(tile(i) for i in items) + "</div>"
 
 
 METRIC_HELP = {
