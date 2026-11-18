@@ -509,9 +509,19 @@ TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "�
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
 <style>
-.block-container { padding-top: 2.9rem !important; padding-bottom: 2rem !important; }
-[data-testid="stHeader"] { height: 2.5rem !important; background: transparent !important; }
-h1 { padding-top: 0 !important; margin-bottom: .1rem !important; font-size: 1.7rem !important; }
+/* Streamlit's top toolbar is a 60px bar floating over the page (menu on the right, the re-open button of a collapsed sidebar on the
+   left). The page title lives in that bar: it is the first thing in the content and exactly as tall as the bar, so nothing
+   is lost under the toolbar and no extra padding is needed above it. The content's own left padding keeps it clear of the
+   re-open button. If a Streamlit upgrade changes the bar height, change --bar-h to match. */
+:root { --bar-h: 60px; }
+.block-container { padding-top: 0 !important; padding-bottom: 2rem !important; }
+[data-testid="stHeader"] { background: transparent !important; }
+/* the <style> block itself sits in an (empty) element container: its 1rem row gap would push the title below the bar */
+[data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style) { display: none !important; }
+[data-testid="stHeading"], [data-testid="stHeading"] h1 { margin: 0 !important; padding: 0 !important; }
+[data-testid="stHeading"] { height: var(--bar-h); display: flex; align-items: center; }
+[data-testid="stHeading"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }  /* Streamlit gives headings -1rem here: it would shift the centring */
+[data-testid="stHeading"] h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
 [data-testid="stSidebarHeader"] { height: 1.6rem !important; padding-top: .3rem !important; padding-bottom: 0 !important; min-height: 0 !important; }
 [data-testid="stSidebarUserContent"] { padding-top: .3rem !important; }
 /* cards: st.container(border=True, key="card-...") */

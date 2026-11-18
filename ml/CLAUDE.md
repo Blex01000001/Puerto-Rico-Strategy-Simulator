@@ -42,7 +42,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 訓練資料很大（約 870 bytes／列）：LightGBM 會轉成 float32（257 萬列約 4.4 GB），MLP 保持 int16 逐批標準化；不要在 MLP 先整份轉 float（第一次就因記憶體不足被系統停掉）。
 - 驗證集 MSE／R² 和勝率對不上（資料分布換了 R² 就會變），判斷模型只看對戰勝率（`matches`）。
 - 長時間產生資料用發佈版 Runner（`./publish/runner/Runner`），見 `ml/README.md`。
-- Streamlit 的 header 會蓋住頁面頂端：`.block-container` 的 padding-top 不要小於約 2.9rem（太小標題會被切掉）。表格（dataframe）不能放按鈕：要逐列操作就用勾選＋一個按鈕（`delete_button`），或用 `st.columns` 自己畫列（`queue_page`）。
+- Streamlit 頂部工具列是固定 60px、浮在內容上方的透明條（右邊選單、側邊欄收起時左邊有重新展開鈕）。頁面標題（`st.title`）放在這條裡：`.block-container` 的 padding-top 是 0，標題元件高度 `--bar-h`（60px）並垂直置中，所以標題和選單同一水平線、上面沒有多餘留白；內容左邊的 padding（約 5rem）讓標題不會被重新展開鈕蓋住。不要再加 padding-top，也不要在標題前放會佔高度的元件（CSS 的 `<style>` 區塊所在的元素容器已用 `:has` 隱藏，否則它的 1rem 間距會把標題推下去）；升版後若工具列高度變了，改 `--bar-h`，並用截圖確認標題中心與選單對齊。表格（dataframe）不能放按鈕：要逐列操作就用勾選＋一個按鈕（`delete_button`），或用 `st.columns` 自己畫列（`queue_page`）。
 - 深色主題的輸入框底色（`secondaryBackgroundColor`）和卡片同色、又沒有框線，輸入框會整個看不見：`CSS` 裡另外把輸入框、下拉選單、數字框、單選群組（`stRadioGroup`）、指標（`stMetric`）改成較深的底色＋`#333a4b` 框線（聚焦時藍框）。Streamlit 1.6x 起文字框與下拉選單改用 react-aria（`data-testid="stTextInputRootElement"`、`.react-aria-ComboBox`），沒有 `data-baseweb` 了；舊版仍是 baseweb：選擇器兩種都要列（只寫 baseweb 時文字框、下拉選單沒框，數字框卻有）。新增元件種類或升版後用截圖確認。
 - 刪除鈕：`delete_button` 用 `st.dialog` 確認（`confirm_delete`），不要用 popover：popover 在刪除後的 rerun 仍保持開著。按鈕包在 `st.container(key="del-…")` 裡，CSS 用 `st-key-del-` 讓它紅底靠右；確認鈕 key `<key>-confirm` 也是紅色，取消鈕用 `keep-` 開頭避開紅色。刪除後 `del-gen` 加一，有勾選的表格把它放進 key（`dumps-<n>`、`cfg-table-<n>`）：否則舊的勾選（列號）會指到別的檔案。新的刪除鈕 key 也要以 `del-` 開頭。
 - 表格一律用 `grid()`（包 `st.dataframe`）：它多留 18 px 給水平捲軸，否則 Windows 的捲軸會蓋住最後一列；最多顯示 10 列再捲動。
