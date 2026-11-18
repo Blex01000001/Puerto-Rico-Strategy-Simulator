@@ -7,7 +7,7 @@ public static class EngineInfo
     /// Product version (SemVer, shown to people, not part of any hash): MINOR for new features, PATCH for fixes that do not
     /// change results; every <see cref="RulesRevision"/> bump is at least a MINOR bump. Change log: docs/versions.json.
     /// </summary>
-    public const string Version = "0.4.1";
+    public const string Version = "0.5.0";
     public const string RulesVersion = "base";
 
     /// <summary>

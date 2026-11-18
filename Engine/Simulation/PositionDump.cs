@@ -8,7 +8,7 @@ namespace PuertoRico.Engine.Simulation;
 
 /// <summary>
 /// Training data for the learned value function (ml/): plays the configured games and samples decision points;
-/// every sampled position gives one row per seat (features from that seat's view, <see cref="ValueFeatures"/>)
+/// every sampled position gives one row per seat (features from that seat's view, a <see cref="FeatureSet"/>: the newest unless a version is asked for)
 /// labelled with that seat's final MCTS reward (0.6 × win + 0.4 × rank score) and win share.
 /// Output: <c>&lt;out&gt;</c> = fixed-size little-endian records (float32 reward, float32 win, int32 game, int16 × feature count),
 /// <c>&lt;out&gt;.json</c> = metadata (feature names, layout, config, rulesRevision, requestedGames, limits, options; ml/fingerprint.py hashes these). Deterministic in (config, game index, rate) and
@@ -24,32 +24,35 @@ public static class PositionDump
 
     public sealed record Summary(long Rows, int Games, long Positions, bool Cancelled = false);
 
-    public static int RecordBytes => 4 + 4 + 4 + 2 * ValueFeatures.Count;
+    public static int RecordBytes(FeatureSet features) => 4 + 4 + 4 + 2 * features.Count;
 
     private sealed class SampleSink : IGameEventSink
     {
         private ulong _rng;
         private readonly double _rate;
         public readonly List<float[][]> Positions = new();
-        private readonly float[] _scratch = new float[ValueFeatures.ScratchLength];
-        public SampleSink(ulong seed, double rate) { _rng = seed; _rate = rate; }
+        private readonly FeatureSet _features;
+        private readonly float[] _scratch;
+        public SampleSink(ulong seed, double rate, FeatureSet features) { _rng = seed; _rate = rate; _features = features; _scratch = new float[features.ScratchLength]; }
         public bool Enabled => true;
         public void OnDecision(GameState before, GameAction action)
         {
             if ((Rng.Next(ref _rng) >> 11) * (1.0 / (1UL << 53)) >= _rate) return;
             var rows = new float[before.PlayerCount][];
-            for (int i = 0; i < rows.Length; i++) rows[i] = new float[ValueFeatures.Count];
-            ValueFeatures.ExtractAll(before, rows, _scratch);
+            for (int i = 0; i < rows.Length; i++) rows[i] = new float[_features.Count];
+            _features.ExtractAll(before, rows, _scratch);
             Positions.Add(rows);
         }
     }
 
-    public static Summary Run(SimulationConfig cfg, string outPath, double rate, IProgress<int>? progress = null, CancellationToken cancel = default)
+    public static Summary Run(SimulationConfig cfg, string outPath, double rate, IProgress<int>? progress = null, CancellationToken cancel = default,
+        FeatureSet? features = null)
     {
+        features ??= FeatureSets.Latest;
         if (rate <= 0 || rate > 1) throw new ArgumentException("--dump-rate must be in (0, 1]");
         string? dir = Path.GetDirectoryName(Path.GetFullPath(outPath));
         if (dir != null) Directory.CreateDirectory(dir);
-        int f = ValueFeatures.Count;
+        int f = features.Count;
         long rows = 0, positions = 0;
         int done = 0;
         bool cancelled = false;
@@ -67,7 +70,7 @@ public static class PositionDump
                     Parallel.For(0, n, po, k =>
                     {
                         int game = start + k;
-                        var sink = new SampleSink(Rng.Mix(SeedDeriver.GameSeed(cfg.Seed, game) ^ 0x5D0F_3A11_7C2B_9E41UL), rate);
+                        var sink = new SampleSink(Rng.Mix(SeedDeriver.GameSeed(cfg.Seed, game) ^ 0x5D0F_3A11_7C2B_9E41UL), rate, features);
                         GameRunner.Play(cfg, game, sink, out var final);
                         var reward = new double[GameConstants.MaxPlayers];
                         var win = new double[GameConstants.MaxPlayers];
@@ -107,16 +110,16 @@ public static class PositionDump
             format = Format,
             formatVersion = FormatVersion,
             status = cancelled ? "cancelled" : "completed",
-            featureVersion = ValueFeatures.Version,
+            featureVersion = features.Version,
             rulesVersion = EngineInfo.RulesVersion,
             rulesRevision = EngineInfo.RulesRevision,
             engineVersion = EngineInfo.Version,
             engineCommit = EngineInfo.Commit,
             requestedGames = cfg.Games,
-            recordBytes = RecordBytes,
+            recordBytes = RecordBytes(features),
             layout = "float32 reward, float32 win, int32 game, int16[featureCount] features (little-endian)",
             featureCount = f,
-            featureNames = ValueFeatures.Names,
+            featureNames = features.Names,
             rows,
             positions,
             games = done,

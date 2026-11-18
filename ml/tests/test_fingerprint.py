@@ -147,3 +147,13 @@ def test_stale_notes_name_what_is_older_than_this_checkout(monkeypatch):
 def test_recipe_reserves_ruleset_and_variant():
     r = fp.dump_recipe(META)
     assert r["ruleset"] == "base" and r["variant"] == "" and r["variantOptions"] == {} and r["hashFormat"] == fp.HASH_FORMAT
+
+
+def test_planned_dump_recipe_follows_the_feature_version_asked_for():
+    cfg = {"players": 4, "games": 100, "seed": 1, "seatOrder": "random", "seats": [{"id": "a", "strategy": "random"}] * 4}
+    newest = fp.planned_dump_recipe(cfg, 0.01)
+    assert newest["featureVersion"] == fp.current_feature_version() >= 2
+    assert fp.planned_dump_recipe(cfg, 0.01, fp.current_feature_version()) == newest
+    older = fp.planned_dump_recipe(cfg, 0.01, 1)
+    assert older["featureVersion"] == 1 and fp.fingerprint(older) != fp.fingerprint(newest)
+    assert fp.feature_versions() == list(range(1, fp.current_feature_version() + 1))

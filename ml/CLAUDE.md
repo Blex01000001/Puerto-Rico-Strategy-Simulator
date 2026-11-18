@@ -23,13 +23,13 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 ## 契約（兩邊要一起改）
 | 契約 | 定義在 | 讀的人 |
 |---|---|---|
-| 特徵清單（名稱、順序、`featureVersion`） | `Engine/Strategies/Mcts/ValueFeatures.cs` | dump、`positions.py`、模型（訓練時寫入特徵名稱）、C# 推論（載入時逐一比對） |
+| 特徵清單（名稱、順序、`featureVersion`；多個版本並存） | `Engine/Strategies/Mcts/FeaturesV1.cs`、`FeaturesV2.cs`…（登錄在 `FeatureSets.cs`） | dump、`positions.py`、模型（訓練時寫入特徵名稱）、C# 推論（載入時逐一比對） |
 | dump 格式（`formatVersion`、紀錄排列） | `Engine/Simulation/PositionDump.cs` | `positions.py`（`FORMAT_VERSION`、`record_dtype`） |
 | 模型格式（LightGBM 文字檔、MLP JSON） | 訓練腳本寫出 | `Engine/Strategies/Mcts/ValueModel.cs` |
 | 配方 hash 的內容（上面 `fingerprint.py`） | `ml/fingerprint.py`；C# 端的 `EngineInfo.RulesRevision`、`StrategyRegistry.Revisions`／`Resolve`、`.bin.json` 與結果檔的 `rulesVersion`／`rulesRevision`／`resolvedSeats`／`limits`／`options`；`ml/strategy-params.json`（C# 產生）與凍結的 `ml/strategy-params.legacy.json` | `modelmeta.py`（寫進 `.meta.json` 的 `fingerprint`／`recipe`／`rulesRevision`、各資料的 `fingerprint`、各對戰的 `fingerprint`／`modelSha256`）、ML UI |
 
 ## 常見修改
-- **改特徵**：改 `ValueFeatures.cs`（遞增 `Version`）→ 重新產生所有資料 → 重訓；舊模型在 Engine 會被拒（刻意）。`Tests/Data/tiny-lgbm.*` 也要用新資料重產：`python3 ml/make_test_fixture.py results/ml/<任一新 dump>.bin`。
+- **換特徵**：不要改舊版。在 Engine 新增特徵集（`FeaturesV{N}.cs`，登錄進 `FeatureSets.All`，`LatestVersion` 加 1）→ 用 `Runner --dump-positions … --feature-version N`（ML UI「模擬對局採樣」的「特徵版本」，預設最新版）重新產生資料 → 重訓。舊版的模型與資料照常可用（`positions.load` 一次只能讀同一版的資料）。`Tests/Data/tiny-lgbm.*` 是版本 1 的固定樣本，不用重產。
 - **改 dump 格式**：C# 遞增 `PositionDump.FormatVersion`，同步 `positions.FORMAT_VERSION` 與 `record_dtype`，兩邊測試一起跑。
 - **加訓練參數**：加進 `DEFAULTS`、`train()` 的 `params`（會寫進 `.meta.json`）與 argparse；**同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`**（影響模型的放白名單，不影響的放 `IGNORED_OPTIONS`；`tests/test_fingerprint.py` 會在漏掉時失敗）；測試在 `tests/test_train.py`。
 - **改 hash 的內容**（新增或移除進配方的欄位）：所有舊 hash 會變成「不同」，改前先問使用者；舊檔缺的欄位要有預設值（見 `DEFAULT_LIMITS`）。

@@ -1201,13 +1201,17 @@ def data_tab():
             title_kind = f"自我對戰 {model}"
 
     with card("data-run", "2. 局數設定"):
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         # the defaults come from the chosen config: its name is part of the keys, so picking another config reloads them
         kk = mode[:2] + (config if mode.startswith("設定檔") else "")
         games = c1.number_input("局數", value=default_games, min_value=1, step=1000, key=f"games-{kk}")
         seed = c2.number_input("種子", value=default_seed, step=1, key=f"seed-{kk}")
         rate = c3.number_input("抽樣率（每個決策被抽到的機率）", value=default_rate, min_value=0.0001, max_value=1.0, format="%g", key=f"rate-{kk}")
         threads = c4.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key=f"threads-{mode[:2]}")
+        feature_versions = fingerprint.feature_versions()
+        feature = c5.selectbox("特徵版本", feature_versions, index=len(feature_versions) - 1, key="feature-version",
+                               help="資料裡每個局面用哪一版特徵描述。預設最新版；版本 1 是舊模型（v1～v3）用的 430 個特徵。"
+                                    "訓練時只能選同一版的資料，訓練出來的模型也屬於這一版。")
         if mode.startswith("模型"):
             st.caption(f"參考：4 核心、100 次模擬、leafRollout 20 約 1 局／秒（{games:,} 局約 {games / 3600:.1f} 小時）。")
         name = st.text_input("輸出名稱（results/ml/<名稱>.bin）", value=default_name).strip()
@@ -1234,7 +1238,7 @@ def data_tab():
 
         # what this run would produce, by recipe: compared with what already exists under this name and under other names
         eff = {**cfg, "games": int(games), "seed": int(seed)} if mode.startswith("設定檔") else new_config()
-        new_recipe = fingerprint.planned_dump_recipe(eff, float(rate))
+        new_recipe = fingerprint.planned_dump_recipe(eff, float(rate), int(feature))
         new_fp = fingerprint.fingerprint(new_recipe)
         known = [d for d in list_dumps() if "_fp" in d]
         old_recipe = next((d["_recipe"] for d in known if d["path"] == rel(out)), None)
@@ -1266,7 +1270,8 @@ def data_tab():
                 spec_config = rel(os.path.join(LOCAL_CONFIGS, name + ".json"))
                 write_config(absolute(spec_config), new_config())  # kept with the other data configs: reusable and reproducible
             start_job("dump", f"資料（{title_kind}）→ {name}.bin", {"config": spec_config, "out": rel(out), "rate": float(rate),
-                                                                  "games": int(games), "seed": int(seed), "threads": int(threads)})
+                                                                  "games": int(games), "seed": int(seed), "threads": int(threads),
+                                                                  "featureVersion": int(feature)})
 
     with card("data-list", "已有的資料"):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
@@ -1406,6 +1411,7 @@ def models_table(paths):
         v = meta.get("validation") or {}
         rows.append({
             "模型": name, "位置": place_of(p), "種類": KIND_TEXT.get(meta["kind"], meta["kind"]), "人數": meta["players"],
+            "特徵版本": meta.get("featureVersion"),
             "建立": (meta.get("created") or "（補寫）")[:16].replace("T", " "),
             "資料列數": sum(d["rows"] for d in meta["data"]),
             "自我對戰資料": "、".join(sorted({os.path.basename(m) for d in meta["data"] for m in d.get("valueModels", [])})),
@@ -1418,7 +1424,7 @@ def models_table(paths):
         })
     df = pd.DataFrame(rows)
     # text columns so that missing values read "—" instead of Streamlit's grey "None"
-    fmt = {"R²": "{:.3f}", "交叉熵": "{:.4f}", "對原版 MCTS 最佳勝率": "{:.1%}", "資料列數": "{:,.0f}", "人數": "{:.0f}", "對戰場數": "{:.0f}"}
+    fmt = {"R²": "{:.3f}", "交叉熵": "{:.4f}", "對原版 MCTS 最佳勝率": "{:.1%}", "資料列數": "{:,.0f}", "人數": "{:.0f}", "對戰場數": "{:.0f}", "特徵版本": "{:.0f}"}
     for col, f in fmt.items():
         if col in df:
             df[col] = [f.format(v) if v is not None and v == v else "—" for v in df[col]]
@@ -1772,7 +1778,7 @@ def models_list():
     if shown.empty:
         st.caption("沒有符合篩選的模型。")
         return
-    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in ("人數", "R²", "交叉熵", "對戰場數", "對原版 MCTS 最佳勝率")}
+    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in ("人數", "特徵版本", "R²", "交叉熵", "對戰場數", "對原版 MCTS 最佳勝率")}
     grid(shown, hide_index=True, width="stretch", column_config=centred)
     st.caption(f"顯示 {len(shown)} / {len(table)} 個模型。快篩不選＝全部。位置：git＝正式模型（ml/models/，進 git），local＝本機模型（ml/local/models/）。")
 

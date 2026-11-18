@@ -245,7 +245,8 @@ def _config_dump(results, name, **meta):
     cfg_path = os.path.join(os.path.dirname(UI), "data-configs", "3p-hand-a.json")
     with open(cfg_path, encoding="utf-8") as f:
         cfg = json.load(f)
-    fields = {"games": cfg["games"], "seed": cfg["seed"], "rate": 0.01,
+    import fingerprint
+    fields = {"games": cfg["games"], "seed": cfg["seed"], "rate": 0.01, "featureVersion": fingerprint.current_feature_version(),  # the form's default: the newest
               "seats": [{"id": s["id"], "strategy": s["strategy"], "params": s.get("params", {})} for s in cfg["seats"]]}
     fields.update(meta)
     return write_dump(str(results / "ml" / name), per_game=2, players=cfg["players"], **fields)
@@ -260,6 +261,17 @@ def test_same_name_data_shows_whether_the_recipe_is_the_same_or_what_differs(res
     assert "參數**不同**" in text and "局數：20,000 → 200,000" in text
     next(n for n in at.number_input if n.label.startswith("抽樣率")).set_value(0.001).run()
     assert "抽樣率：0.01 → 0.001" in " ".join(w.value for w in at.warning)
+
+
+def test_the_feature_version_of_new_data_is_chosen_on_the_sampling_page(results):
+    import fingerprint
+    _config_dump(results, "3p-hand-a.bin")  # newest version: same recipe
+    at = goto(run_app(), "data")
+    pick = next(x for x in at.selectbox if x.label == "特徵版本")
+    assert pick.options == [str(v) for v in fingerprint.feature_versions()] and pick.value == fingerprint.current_feature_version()
+    assert any("完全相同" in i.value for i in at.info)
+    pick.select(1).run()  # an older feature set is another recipe: the existing data differ in the feature version
+    assert "特徵版本：" in " ".join(w.value for w in at.warning)
 
 
 def test_other_name_with_the_same_recipe_is_reported_as_a_duplicate(results):

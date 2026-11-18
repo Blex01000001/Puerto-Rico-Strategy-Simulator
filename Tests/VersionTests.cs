@@ -202,7 +202,7 @@ public class GoldenTests
             t => t.GetProperty("id").GetString()!, t => t.GetProperty("entries")[0].GetProperty("version").GetString());
         Assert.Equal(EngineInfo.RulesRevision.ToString(), latest["rules"]);
         Assert.Equal(EngineInfo.Version, latest["engine"]);
-        Assert.Equal(ValueFeatures.Version.ToString(), latest["features"]);
+        Assert.Equal(FeatureSets.LatestVersion.ToString(), latest["features"]);
         Assert.Equal(PositionDump.FormatVersion.ToString(), latest["format"]);
         var strategies = doc.RootElement.GetProperty("strategies").EnumerateArray().ToDictionary(
             t => t.GetProperty("id").GetString()!, t => t.GetProperty("entries")[0].GetProperty("version").GetString());

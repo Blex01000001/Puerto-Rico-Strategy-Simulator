@@ -210,10 +210,10 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         if (_featRows == null)
         {
             _featRows = new float[GameConstants.MaxPlayers][];
-            for (int i = 0; i < _featRows.Length; i++) _featRows[i] = new float[ValueFeatures.Count];
-            _featScratch = new float[ValueFeatures.ScratchLength];
+            for (int i = 0; i < _featRows.Length; i++) _featRows[i] = new float[_value!.Features.Count];
+            _featScratch = new float[_value!.Features.ScratchLength];
         }
-        ValueFeatures.ExtractAll(s, _featRows, _featScratch!);
+        _value!.Features.ExtractAll(s, _featRows, _featScratch!);
         for (int seat = 0; seat < s.PlayerCount; seat++)
         {
             double v = Math.Clamp(_value!.Predict(_featRows[seat]), 0, 1);
@@ -235,6 +235,6 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         }
     }
 
-    /// <summary>Reward of every seat at a finished game (the training label of the value model, see <see cref="ValueFeatures"/>).</summary>
+    /// <summary>Reward of every seat at a finished game (the training label of the value model, see <see cref="FeatureSet"/>).</summary>
     public static void TerminalReward(GameState s, Span<double> reward, Span<double> wins) => ScoreLeaf(s, reward, wins);
 }

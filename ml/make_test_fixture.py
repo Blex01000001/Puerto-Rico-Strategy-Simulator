@@ -2,7 +2,7 @@
 
     python3 ml/make_test_fixture.py results/ml/4p-hand-a.bin
 
-Needed after the feature list changes (ValueFeatures.Version): the fixture's feature names must match the engine.
+Feature set version 1 is frozen (Engine/Strategies/Mcts/FeaturesV1.cs), so the fixture never has to be regenerated; use a version-1 dump (Runner --feature-version 1).
 Writes Tests/Data/tiny-lgbm.txt (6 trees, 8 leaves) and Tests/Data/tiny-lgbm.check.txt (python prediction + features, 40 rows).
 """
 import os

@@ -5,13 +5,16 @@ using System.Text.Json;
 namespace PuertoRico.Engine.Strategies.Mcts;
 
 /// <summary>
-/// Learned position value: features (<see cref="ValueFeatures"/>, from one seat's point of view) -> expected MCTS reward
+/// Learned position value: features (a <see cref="FeatureSet"/>, from one seat's point of view) -> expected MCTS reward
 /// of that seat (0.6 × win + 0.4 × rank score, in [0,1]). Models are trained offline (ml/) and only evaluated here,
 /// in plain C# (no ML library), so inference is deterministic and has no native dependency. Instances are immutable
 /// and shared between threads.
 /// </summary>
 public interface IValueModel
 {
+    /// <summary>The feature set the model was trained on (picked by its feature names when the model is loaded); callers extract exactly these features.</summary>
+    FeatureSet Features { get; }
+
     double Predict(ReadOnlySpan<float> features);
 }
 
@@ -57,14 +60,22 @@ public static class ValueModels
         return direct;
     }
 
-    internal static void CheckFeatureNames(IReadOnlyList<string> names, string what)
+    /// <summary>The feature set a model's feature names belong to; models with any other list (a feature list that no longer exists) are refused.</summary>
+    internal static FeatureSet FindFeatures(IReadOnlyList<string> names, string what)
     {
-        var expected = ValueFeatures.Names;
-        if (names.Count != expected.Length)
-            throw new InvalidDataException($"{what}: {names.Count} features, the engine has {expected.Length} (feature version {ValueFeatures.Version}); retrain the model");
-        for (int i = 0; i < expected.Length; i++)
-            if (names[i] != expected[i])
-                throw new InvalidDataException($"{what}: feature {i} is '{names[i]}', the engine expects '{expected[i]}'; retrain the model");
+        var found = FeatureSets.Find(names);
+        if (found != null) return found;
+        string detail = FeatureSets.All.FirstOrDefault(f => f.Names.Count == names.Count) is { } sameSize
+            ? FirstDifference(names, sameSize)
+            : $"{names.Count} features, the engine knows {string.Join(" and ", FeatureSets.All.Select(f => f.Count))} (feature versions {FeatureSets.SupportedText})";
+        throw new InvalidDataException($"{what}: {detail}; train the model on a supported feature version ({FeatureSets.SupportedText})");
+    }
+
+    private static string FirstDifference(IReadOnlyList<string> names, FeatureSet set)
+    {
+        for (int i = 0; i < set.Count; i++)
+            if (names[i] != set.Names[i]) return $"feature {i} is '{names[i]}', feature version {set.Version} expects '{set.Names[i]}'";
+        return "feature names do not match";
     }
 
     internal static double Sigmoid(double x) => 1.0 / (1.0 + Math.Exp(-x));
@@ -104,8 +115,11 @@ public sealed class LightGbmValueModel : IValueModel
     private readonly int[] _roots; // node index, or ~leaf for single-leaf trees
     private readonly double[] _leaves;
 
-    private LightGbmValueModel(Tree[] trees, bool sigmoid, double scale, bool average)
+    public FeatureSet Features { get; }
+
+    private LightGbmValueModel(Tree[] trees, bool sigmoid, double scale, bool average, FeatureSet features)
     {
+        Features = features;
         _trees = trees; _sigmoid = sigmoid; _sigmoidScale = scale; _average = average;
         _plain = trees.All(t => t.DecisionType.All(d => ((d >> 2) & 3) == 0 && (d & 1) == 0));
         var nodes = new List<FlatNode>();
@@ -163,7 +177,7 @@ public sealed class LightGbmValueModel : IValueModel
             }
         }
         if (names == null) throw new InvalidDataException("LightGBM model: no feature_names line");
-        ValueModels.CheckFeatureNames(names, "LightGBM model");
+        var features = ValueModels.FindFeatures(names, "LightGBM model");
         if (trees.Count == 0) throw new InvalidDataException("LightGBM model: no trees");
 
         string obj = objective.Split(' ')[0];
@@ -173,7 +187,7 @@ public sealed class LightGbmValueModel : IValueModel
             if (part.StartsWith("sigmoid:", StringComparison.Ordinal)) scale = double.Parse(part[8..], CultureInfo.InvariantCulture);
         if (!sigmoid && !obj.StartsWith("regression", StringComparison.Ordinal))
             throw new InvalidDataException($"LightGBM model: unsupported objective '{objective}'");
-        return new LightGbmValueModel(trees.ToArray(), sigmoid, obj == "binary" ? scale : 1, average);
+        return new LightGbmValueModel(trees.ToArray(), sigmoid, obj == "binary" ? scale : 1, average, features);
     }
 
     private static int[] Ints(string v) => v.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => int.Parse(x, CultureInfo.InvariantCulture)).ToArray();
@@ -244,8 +258,11 @@ public sealed class MlpValueModel : IValueModel
     private readonly bool _sigmoidOut;
     private readonly int _width;
 
-    private MlpValueModel(float[] w0t, float[] b0, int in0, float[][] w, float[][] b, int[] inSize, int[] outSize, bool sigmoidOut)
+    public FeatureSet Features { get; }
+
+    private MlpValueModel(float[] w0t, float[] b0, int in0, float[][] w, float[][] b, int[] inSize, int[] outSize, bool sigmoidOut, FeatureSet features)
     {
+        Features = features;
         _w0t = w0t; _b0 = b0; _in0 = in0; _h0 = b0.Length;
         _w = w; _b = b; _in = inSize; _out = outSize; _sigmoidOut = sigmoidOut;
         _width = Math.Max(_h0, outSize.Length > 0 ? outSize.Max() : 1);
@@ -257,7 +274,7 @@ public sealed class MlpValueModel : IValueModel
         var root = doc.RootElement;
         if (root.GetProperty("format").GetString() != "mlp") throw new InvalidDataException("MLP model: format must be 'mlp'");
         var names = root.GetProperty("features").EnumerateArray().Select(e => e.GetString() ?? "").ToList();
-        ValueModels.CheckFeatureNames(names, "MLP model");
+        var features = ValueModels.FindFeatures(names, "MLP model");
         string act = root.TryGetProperty("activation", out var a) ? a.GetString() ?? "relu" : "relu";
         if (act != "relu") throw new InvalidDataException($"MLP model: unsupported activation '{act}'");
         string output = root.TryGetProperty("output", out var o) ? o.GetString() ?? "sigmoid" : "sigmoid";
@@ -303,7 +320,7 @@ public sealed class MlpValueModel : IValueModel
         var bs = layers.Skip(1).Select(l => l.Bias).ToArray();
         var ins = layers.Skip(1).Select(l => l.Rows[0].Length).ToArray();
         var outs = layers.Skip(1).Select(l => l.Bias.Length).ToArray();
-        return new MlpValueModel(w0t, b0, n0, ws, bs, ins, outs, output == "sigmoid");
+        return new MlpValueModel(w0t, b0, n0, ws, bs, ins, outs, output == "sigmoid", features);
     }
 
     /// <summary>

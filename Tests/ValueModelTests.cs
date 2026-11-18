@@ -21,7 +21,7 @@ public class ValueModelTests
         {
             var v = line.Split(' ').Select(x => double.Parse(x, CultureInfo.InvariantCulture)).ToArray();
             var x = v.Skip(1).Select(d => (float)d).ToArray();
-            Assert.Equal(ValueFeatures.Count, x.Length);
+            Assert.Equal(FeaturesV1.Count, x.Length);
             Assert.Equal(v[0], model.Predict(x), 6);
             rows++;
         }
@@ -34,21 +34,21 @@ public class ValueModelTests
         var lines = File.ReadAllLines(DataPath("tiny-lgbm.txt"))
             .Select(l => l.StartsWith("feature_names=") ? l.Replace(" round ", " roundX ") : l).ToArray();
         var e = Assert.Throws<InvalidDataException>(() => LightGbmValueModel.Parse(lines));
-        Assert.Contains("retrain", e.Message);
+        Assert.Contains("supported feature version", e.Message);
     }
 
     [Fact]
     public void Mlp_json_model_applies_standardisation_relu_and_sigmoid()
     {
-        int f = ValueFeatures.Count;
-        int round = Array.IndexOf(ValueFeatures.Names, "round");
+        int f = FeaturesV1.Count;
+        int round = Array.IndexOf(FeaturesV1.Names, "round");
         var w1 = new float[2][];
         w1[0] = new float[f]; w1[0][round] = 1f;   // relu((round - 1) / 2)
         w1[1] = new float[f]; w1[1][round] = -1f;  // relu(-(round - 1) / 2) = 0 for round >= 1
         var json = JsonSerializer.Serialize(new
         {
             format = "mlp",
-            features = ValueFeatures.Names,
+            features = FeaturesV1.Names,
             mean = Enumerable.Repeat(1f, f).ToArray(),
             scale = Enumerable.Repeat(2f, f).ToArray(),
             activation = "relu",
@@ -73,23 +73,23 @@ public class ValueModelTests
         var s = Setup.NewGame(7, 150, 4);
         s.Coins[2] = 17;
         s.VpChips[3] = 9;
-        int coins0 = Array.IndexOf(ValueFeatures.Names, "p0_coins");
-        int coins3 = Array.IndexOf(ValueFeatures.Names, "p3_coins");
-        int vp1 = Array.IndexOf(ValueFeatures.Names, "p1_vpChips");
-        int actor0 = Array.IndexOf(ValueFeatures.Names, "actorRel0");
-        int players = Array.IndexOf(ValueFeatures.Names, "players");
-        var f2 = ValueFeatures.Extract(s, 2);
+        int coins0 = Array.IndexOf(FeaturesV1.Names, "p0_coins");
+        int coins3 = Array.IndexOf(FeaturesV1.Names, "p3_coins");
+        int vp1 = Array.IndexOf(FeaturesV1.Names, "p1_vpChips");
+        int actor0 = Array.IndexOf(FeaturesV1.Names, "actorRel0");
+        int players = Array.IndexOf(FeaturesV1.Names, "players");
+        var f2 = FeatureSets.V1.Extract(s, 2);
         Assert.Equal(17, f2[coins0]);
         Assert.Equal(9, f2[vp1]);           // seat 3 is the next seat after 2
         Assert.Equal(4, f2[players]);
-        var f3 = ValueFeatures.Extract(s, 3);
+        var f3 = FeatureSets.V1.Extract(s, 3);
         Assert.Equal(17, f3[coins3]);       // seat 2 is three seats after 3
         Assert.Equal(s.Actor == 3 ? 1 : 0, f3[actor0]);
 
         var three = Setup.NewGame(7, 150, 3);
-        int present3 = Array.IndexOf(ValueFeatures.Names, "p3_present");
-        Assert.Equal(0, ValueFeatures.Extract(three, 0)[present3]); // 3-player games leave the 4th block empty
-        Assert.All(ValueFeatures.Extract(three, 1), v => Assert.True(v >= short.MinValue && v <= short.MaxValue && v == Math.Floor(v)));
+        int present3 = Array.IndexOf(FeaturesV1.Names, "p3_present");
+        Assert.Equal(0, FeatureSets.V1.Extract(three, 0)[present3]); // 3-player games leave the 4th block empty
+        Assert.All(FeatureSets.V1.Extract(three, 1), v => Assert.True(v >= short.MinValue && v <= short.MaxValue && v == Math.Floor(v)));
     }
 
     private static SimulationConfig MctsValueConfig(string model, int leafRollout)
@@ -102,6 +102,24 @@ public class ValueModelTests
         cfg.Seats.Add(m);
         for (int i = 1; i < 4; i++) cfg.Seats.Add(new SeatConfig { Id = $"c{i}", Strategy = "cheap-engine" });
         return cfg;
+    }
+
+    /// <summary>Locks the behaviour of MCTS with a version-1 model (the models trained so far): adding feature sets must not change a single game.</summary>
+    private static string V1ModelGamesHash()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (int leaf in new[] { 0, 5 })
+        {
+            var cfg = MctsValueConfig(DataPath("tiny-lgbm.txt"), leaf);
+            for (int game = 0; game < 3; game++) sb.Append(JsonSerializer.Serialize(GameRunner.Play(cfg, game)));
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sb.ToString())))[..16];
+    }
+
+    [Fact]
+    public void Mcts_with_a_version_1_model_plays_the_same_games_as_before_feature_sets_existed()
+    {
+        Assert.Equal("22DDFB30F908B645", V1ModelGamesHash());
     }
 
     [Fact]
@@ -139,12 +157,13 @@ public class ValueModelTests
             Assert.True(a.Rows > 0);
             Assert.Equal(3 * a.Positions, a.Rows);
             var bytesA = File.ReadAllBytes(Path.Combine(dir, "a.bin"));
-            Assert.Equal(a.Rows * PositionDump.RecordBytes, bytesA.Length);
+            Assert.Equal(a.Rows * PositionDump.RecordBytes(FeatureSets.Latest), bytesA.Length);
             Assert.Equal(bytesA, File.ReadAllBytes(Path.Combine(dir, "b.bin")));
             using var meta = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "a.bin.json")));
-            Assert.Equal(ValueFeatures.Count, meta.RootElement.GetProperty("featureCount").GetInt32());
+            Assert.Equal(FeatureSets.Latest.Count, meta.RootElement.GetProperty("featureCount").GetInt32());
+            Assert.Equal(FeatureSets.LatestVersion, meta.RootElement.GetProperty("featureVersion").GetInt32());
             // rewards of one position sum to 0.6 + 0.4 * (sum of rank scores) for a 3-player game without ties: 0.6 + 0.4 * 1.5 = 1.2
-            float r0 = BitConverter.ToSingle(bytesA, 0), r1 = BitConverter.ToSingle(bytesA, PositionDump.RecordBytes), r2 = BitConverter.ToSingle(bytesA, 2 * PositionDump.RecordBytes);
+            float r0 = BitConverter.ToSingle(bytesA, 0), r1 = BitConverter.ToSingle(bytesA, PositionDump.RecordBytes(FeatureSets.Latest)), r2 = BitConverter.ToSingle(bytesA, 2 * PositionDump.RecordBytes(FeatureSets.Latest));
             Assert.InRange(r0 + r1 + r2, 1.1, 1.3);
         }
         finally
@@ -175,7 +194,7 @@ public class PositionDumpCancelTests
             var r = PositionDump.Run(cfg, path, 0.05, new CancelAfterFirst(cts), cts.Token);
             Assert.True(r.Cancelled);
             Assert.True(r.Games > 0 && r.Games < 500);
-            Assert.Equal(r.Rows * PositionDump.RecordBytes, new FileInfo(path).Length);
+            Assert.Equal(r.Rows * PositionDump.RecordBytes(FeatureSets.Latest), new FileInfo(path).Length);
             using var meta = JsonDocument.Parse(File.ReadAllText(path + ".json"));
             Assert.Equal("cancelled", meta.RootElement.GetProperty("status").GetString());
             Assert.Equal(r.Games, meta.RootElement.GetProperty("games").GetInt32());

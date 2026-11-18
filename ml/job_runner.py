@@ -182,6 +182,8 @@ def run_runner(job, args):
 
 def run_dump(job, spec):
     args = ["--config", spec["config"], "--dump-positions", spec["out"], "--dump-rate", str(spec["rate"])]
+    if spec.get("featureVersion"):  # without it the Runner uses the newest feature set
+        args += ["--feature-version", str(spec["featureVersion"])]
     for key in ("games", "seed", "threads"):
         if spec.get(key) is not None:
             args += [f"--{key}", str(spec[key])]

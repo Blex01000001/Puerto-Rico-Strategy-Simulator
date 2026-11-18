@@ -64,9 +64,9 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 | 版本 | 程式裡的位置 | 顯示 | 什麼時候加 |
 |---|---|---|---|
 | **規則版本** | `EngineInfo.RulesRevision`（規則集 `EngineInfo.RulesVersion` = `base`） | `base-v1`（有變體時 `base-v2-rich-start`） | 遊戲規則（建築、計分、Setup、終局…）或亂數／種子衍生改變，同設定同種子結果不同。所有資料都變舊。 |
-| **策略版本**（每個策略一個） | `StrategyRegistry.Revisions` | `harbor-rush-v1` | 該策略的**決策邏輯**改變（含它共用的程式：`HeuristicStrategy`、`TieBreakRules` 改了＝所有手寫策略各加 1；`mcts` 也包含 rollout 呼叫、估值模型推論與 `ValueFeatures` 程式）。只有用到它的資料變舊。`rule-based` 跟著它的 profile。 |
+| **策略版本**（每個策略一個） | `StrategyRegistry.Revisions` | `harbor-rush-v1` | 該策略的**決策邏輯**改變（含它共用的程式：`HeuristicStrategy`、`TieBreakRules` 改了＝所有手寫策略各加 1；`mcts` 也包含 rollout 呼叫、估值模型推論與特徵集（`FeatureSets`、`FeaturesV1`／`V2`）程式；只「新增」特徵集、舊版模型的對局逐局不變時不用加）。只有用到它的資料變舊。`rule-based` 跟著它的 profile。 |
 | **引擎版本**（SemVer） | `EngineInfo.Version` | `0.3.0` | 新增功能、策略、輸出欄位加次版本；不影響結果的修正加修訂版本；規則或策略版本加 1 時至少加次版本。不進 hash。 |
-| **特徵版本** | `ValueFeatures.Version` | 整數 | 特徵清單有增減或改順序（舊模型會被拒）。 |
+| **特徵版本** | `FeatureSets.LatestVersion` | 整數（最新版；舊版並存） | 要換特徵清單時，**新增一個特徵集**（`FeaturesV{N}.cs`，登錄在 `FeatureSets.All`）並把最新版加 1；**不要改舊版的清單**（模型與資料依它的名稱與順序）。多個版本並存：模型記著訓練時的特徵名稱，引擎依名稱挑對應的特徵集，舊版模型與資料照常可用。 |
 | **資料格式版本** | `PositionDump.FormatVersion` | 整數 | `.bin` 紀錄排列改變（只在 `.bin.json` 新增欄位不用加）。 |
 
 **改參數或預設值不用進版本**：引擎把每個座位實際使用的**完整參數**（預設值依人數填好，`StrategyRegistry.Resolve`）連同策略版本記進結果檔與 dump（`resolvedSeats`），hash 用它，所以預設值一改 hash 就不同。新的參數一律透過 `StrategyRegistry.GetDouble`／`GetString` 讀（否則 Resolve 看不到）；延遲到知道人數才讀的策略要實作 `IResolvesParameters`。
@@ -78,7 +78,7 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 **Claude Code 的責任：動到下面這些東西時，主動告訴使用者「這會影響 ○○ 版本／hash」並建議新版本號，經同意後一起改；不要默默改，也不要默默不改。**
 1. **改了引擎或策略的程式**：跑 `dotnet test`，照 `GoldenTests` 的訊息判斷：規則變了 → 建議規則版本 +1；某策略的決策變了 → 建議該策略版本 +1；只有預設值變了 → 不進版本，只更新黃金檔。進版時引擎版本至少次版本 +1、`docs/versions.json` 補對應的筆數，並告訴使用者哪些資料與模型變成「舊版」要重產生。只動 MCTS 或估值模型推論時黃金樣本不會失敗，要自己判斷 `mcts` 要不要加 1。
 2. **新增策略**：在 `StrategyRegistry.Revisions` 給 1、`docs/versions.json` 的 `strategies` 補一條、更新黃金檔；建議引擎版本次版本 +1。**新增其他功能或輸出欄位**：次版本 +1；只修 bug 且結果不變：修訂版本 +1。
-3. **改特徵清單**：特徵版本 +1，資料要重產生、模型要重訓。**改 `.bin` 排列**：資料格式版本 +1，同步 `positions.py`。
+3. **新增特徵集**（不要改舊的）：最新特徵版本 +1、引擎版本次版本 +1；新版的資料要重產生、模型要重訓，舊版的資料與模型不變舊、照常可用（`mcts` 策略版本不用加：版本 1 模型的對局有測試鎖住逐局相同）。**改 `.bin` 排列**：資料格式版本 +1，同步 `positions.py`。
 4. **新增訓練參數、會影響結果的設定欄位**：同步 `fingerprint.py`（`LGBM_OPTIONS`／`MLP_OPTIONS`、配方欄位）與「hash 說明」頁；**改 hash 配方的內容（`HASH_FORMAT` 加 1）會讓所有舊 hash 變成「不同」，先問使用者**。
 5. 每次改版本號都在 `docs/versions.json` 補一筆（版本、日期、修改內容，最新的在最上面；commit 在推送後補）。
 6. commit 後三段回報的「建議」要包含版本建議（若本次有動到上面這些）。
