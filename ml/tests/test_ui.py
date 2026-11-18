@@ -58,6 +58,15 @@ def test_ui_lists_dumps_and_models(results):
     assert any(s.label == "模型" for s in at.selectbox)
 
 
+def test_each_page_has_its_own_english_title(results):
+    at = run_app()
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "models": "Models",
+              "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
+    for pid, title in titles.items():
+        goto(at, pid)
+        assert [t.value for t in at.title] == [title]
+
+
 def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
     at = goto(run_app(), "match")
     games = next(n for n in at.number_input if n.label.startswith("局數（24 的倍數"))
@@ -254,7 +263,7 @@ def test_hash_page_lists_what_counts_and_what_does_not(results):
     import fingerprint
     at = goto(run_app(), "hash")
     text = " ".join(m.value for m in at.markdown) + " ".join(t.value.to_csv() for t in at.table)
-    assert "不計入" in text and "價值模型" in text and "座位 id" in text
+    assert "不計入" in text and "估值模型" in text and "座位 id" in text
     for key in fingerprint.LGBM_OPTIONS + fingerprint.MLP_OPTIONS:  # the option lists on the page come from the code
         assert f"`{key}`" in text, key
     assert "指紋" not in text  # the UI says hash

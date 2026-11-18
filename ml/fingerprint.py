@@ -308,7 +308,7 @@ LABELS = {
     "options.autoAdvanceForced": "自動跳過唯一合法動作", "kind": "種類", "data": "訓練資料",
     "hashFormat": "hash 格式版本", "ruleset": "規則集", "variant": "變體",
 }
-PARAM_LABELS = {"simulations": "模擬次數", "valueModel": "價值模型（檔案內容）", "leafRollout": "leafRollout"}
+PARAM_LABELS = {"simulations": "模擬次數", "valueModel": "估值模型（檔案內容）", "leafRollout": "leafRollout"}
 
 
 def _flatten(x, prefix=""):

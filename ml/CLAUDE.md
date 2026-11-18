@@ -34,7 +34,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - **加訓練參數**：加進 `DEFAULTS`、`train()` 的 `params`（會寫進 `.meta.json`）與 argparse；**同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`**（影響模型的放白名單，不影響的放 `IGNORED_OPTIONS`；`tests/test_fingerprint.py` 會在漏掉時失敗）；測試在 `tests/test_train.py`。
 - **改 hash 的內容**（新增或移除進配方的欄位）：所有舊 hash 會變成「不同」，改前先問使用者；舊檔缺的欄位要有預設值（見 `DEFAULT_LIMITS`）。
 - **新模型種類**：Engine 要先能推論（`ValueModel.cs` 加類別＋與 Python 一致的測試），再寫訓練腳本；輸出格式不變的改寫（例如 MLP 改 PyTorch）只要 `.check.txt` 與 C# 比對一致。
-- **ML UI 加頁面或工作種類**：工作種類加進 `jobs.KINDS` 與 `job_runner.run`（產生資料、對戰要呼叫發佈版 Runner：`publish/runner/Runner`，進度從 Runner 輸出解析）；頁面加進 `ui.py` 的 `PAGES`（id、名稱、圖示、函式、分組標題）；需要即時更新的區塊用 `@st.fragment(run_every=...)`，工作狀態改變時整頁 `st.rerun(scope="app")`（`watch_states` 的做法）。測試：`tests/test_jobs.py`（真的開程序）、`tests/test_ui.py`（`AppTest` 無頭執行；一次只畫一頁，用 `goto(at, "<id>")` 點導覽）；畫面用 Playwright 截圖確認（Streamlit 的表格是 canvas，勾選列要點座標）。
+- **ML UI 加頁面或工作種類**：工作種類加進 `jobs.KINDS` 與 `job_runner.run`（產生資料、對戰要呼叫發佈版 Runner：`publish/runner/Runner`，進度從 Runner 輸出解析）；頁面加進 `ui.py` 的 `PAGES`（id、名稱、圖示、函式、分組標題），並在 `PAGE_TITLES` 補頁面最上方的英文標題；需要即時更新的區塊用 `@st.fragment(run_every=...)`，工作狀態改變時整頁 `st.rerun(scope="app")`（`watch_states` 的做法）。測試：`tests/test_jobs.py`（真的開程序）、`tests/test_ui.py`（`AppTest` 無頭執行；一次只畫一頁，用 `goto(at, "<id>")` 點導覽）；畫面用 Playwright 截圖確認（Streamlit 的表格是 canvas，勾選列要點座標）。
 - **新增或刪除正式模型**：三個檔一起動（`modelmeta.move_model` 或 git），用 `python3 ml/model_report.py` 取數字更新 `docs/models.md`（刪除的保留一列、狀態改「已刪除」）。
 - **對戰結果記到模型**：`modelmeta.add_match(<模型>, <Runner 結果檔>)`（同一結果檔重覆加只會取代）。
 
@@ -46,13 +46,13 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 深色主題的輸入框底色（`secondaryBackgroundColor`）和卡片同色、又沒有框線，輸入框會整個看不見：`CSS` 裡另外把輸入框、下拉選單、數字框、單選群組（`stRadioGroup`）、指標（`stMetric`）改成較深的底色＋`#333a4b` 框線（聚焦時藍框）。Streamlit 1.6x 起文字框與下拉選單改用 react-aria（`data-testid="stTextInputRootElement"`、`.react-aria-ComboBox`），沒有 `data-baseweb` 了；舊版仍是 baseweb：選擇器兩種都要列（只寫 baseweb 時文字框、下拉選單沒框，數字框卻有）。新增元件種類或升版後用截圖確認。
 - 刪除鈕：`delete_button` 用 `st.dialog` 確認（`confirm_delete`），不要用 popover：popover 在刪除後的 rerun 仍保持開著。按鈕包在 `st.container(key="del-…")` 裡，CSS 用 `st-key-del-` 讓它紅底靠右；確認鈕 key `<key>-confirm` 也是紅色，取消鈕用 `keep-` 開頭避開紅色。刪除後 `del-gen` 加一，有勾選的表格把它放進 key（`dumps-<n>`、`cfg-table-<n>`）：否則舊的勾選（列號）會指到別的檔案。新的刪除鈕 key 也要以 `del-` 開頭。
 - 表格一律用 `grid()`（包 `st.dataframe`）：它多留 18 px 給水平捲軸，否則 Windows 的捲軸會蓋住最後一列；最多顯示 10 列再捲動。
-- 同名檔案的檢查看配方，不只看檔名（`same_name_notice`）：配方相同→「完全相同，不需要覆寫」，不同→列出差異；被模型用過的資料覆寫時列出模型；不同名但配方相同→提示重複。覆寫（資料、模型、對戰結果）也會被「排隊中或執行中的工作要讀它」擋下（`reader_problem`，與刪除同一套規則；`job_reads` 列出工作會讀的檔案：訓練資料、對戰的模型、設定檔裡的價值模型）。工作的 spec 與 `rel(out)` 的路徑寫法要一致（`rel()` 產生）。
+- 同名檔案的檢查看配方，不只看檔名（`same_name_notice`）：配方相同→「完全相同，不需要覆寫」，不同→列出差異；被模型用過的資料覆寫時列出模型；不同名但配方相同→提示重複。覆寫（資料、模型、對戰結果）也會被「排隊中或執行中的工作要讀它」擋下（`reader_problem`，與刪除同一套規則；`job_reads` 列出工作會讀的檔案：訓練資料、對戰的模型、設定檔裡的估值模型）。工作的 spec 與 `rel(out)` 的路徑寫法要一致（`rel()` 產生）。
 - 下拉選單與表格的「檔案」欄只顯示檔名（選項的值仍是相對路徑），路徑改用小字寫在下面並附「開啟資料夾」（`folder_line(路徑, key)`，key 以 `folderline-` 開頭，CSS 讓它一行、小字、連結樣式）；新增檔案清單照做。
 - 設定檔的 `output.dumpRate`（選用，C# `OutputConfig.DumpRate`）是 dump 抽樣率的預設值：Runner 的 `--dump-rate` 優先，其次設定檔，最後 0.02；ML UI 選設定檔時帶入它，沒寫才猜（有 MCTS 座位 0.05，否則 0.01）。
 - 設定檔模式的局數、種子、抽樣率輸入框的 key 含設定檔名稱，換設定檔才會重新帶入預設值（以前 key 只有模式，換設定檔後種子停在上一個）。
 - 模型清單頁：上方選模型（小卡用 `version_tiles`，和版本控管頁同樣式），下方「模型列表」卡有快篩（`st.pills`：位置 git／local、種類；各包在 `st.container(key="pillbox-…")` 加框；不選＝全部），數字欄用 `TextColumn(alignment="center")` 置中；並排比較用 `version_table(..., css="cmp")`（固定欄寬、不會出現水平捲軸），結果列標出最好的模型（`td.best`：勝率／R²／列數取最高，交叉熵取最低）。對戰紀錄表（欄位設定 `MATCH_COLUMNS`，短欄置中）的「紀錄存放」＝git（正式模型追蹤中的 `.meta.json`）或 local（`ml/local/match-records/` 或本機模型自己的 `.meta.json`）。
 - 版本控管頁的小卡與表格用自己的 HTML（`version_tiles`、`version_table`，CSS `.vtile`、`table.vtable`），外觀和 Dashboard 的版本控管頁（`app.css` 的 `.vtile`、`table.data.vtable`）一致：兩邊要一起改。
-- 取消工作的按鈕（導覽最下方、排程佇列、工作詳細）key 以 `stop-` 開頭，CSS 讓它紅色；新的取消鈕照做。
+- 取消工作的按鈕（導覽最下方、排程佇列、工作詳細，含排隊中的「取消佇列」）key 以 `stop-` 開頭，CSS 讓它紅色；新的取消鈕照做。排程佇列的狀態文字用英文並置中（`QUEUE_STATE`、`STATE_TEXT`）。
 - 排程佇列的每一列是 `st.container(key="qrow-<狀態>-<id>")`，CSS 畫框並依狀態給左邊框顏色，欄位順序：名稱、狀態、經過時間、進度、備註、操作（最右）；新狀態要在 `CSS` 補顏色。
 - Streamlit 的元件 ID 由種類＋參數產生：不同頁面裡標籤相同的按鈕（例如三個「加入排隊」）會撞 ID 而報錯，要給 `key`。
 - Streamlit 的下拉選單不會更新已顯示選項的文字：選項標籤不要放會變的狀態（`queue_page` 的「工作詳細」下拉選單只放名稱與時間）。表格裡數值欄的缺值會顯示灰色 None：要顯示「—」就先轉成文字（`models_table`）。

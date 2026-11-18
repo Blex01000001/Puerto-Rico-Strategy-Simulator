@@ -96,8 +96,8 @@
                 {
                     var models = ValueModelCatalog.List(players);
                     string current = CurrentValueModel(seat);
-                    <label class="modelpick" title="學習得到的局面價值模型（ML UI 訓練，放在 ml/models/）：葉節點改用模型估值，不再 rollout。會寫進左邊的參數欄（valueModel=…）。">
-                        價值模型
+                    <label class="modelpick" title="學習得到的局面估值模型（ML UI 訓練，放在 ml/models/）：葉節點改用模型估值，不再 rollout。會寫進左邊的參數欄（valueModel=…）。">
+                        估值模型
                         <select value="@current" @onchange="e => SetValueModel(seat, e.Value?.ToString() ?? string.Empty)" disabled="@Sim.Running">
                             <option value="">不用（隨機 rollout）</option>
                             @foreach (var m in models) { <option value="@m.Path">@m.Label</option> }
