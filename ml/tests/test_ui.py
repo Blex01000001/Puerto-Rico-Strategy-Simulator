@@ -67,6 +67,20 @@ def test_each_page_has_its_own_english_title(results):
         assert [t.value for t in at.title] == [title]
 
 
+def test_match_page_offers_a_model_versus_model_table(results):
+    at = goto(run_app(), "match")
+    radio = next(r for r in at.radio if r.label == "對手")
+    assert "model" in radio.options or any("另一個估值模型" in o for o in radio.options)
+    radio.set_value("model").run()
+    assert not at.exception, at.exception
+    rival = next(s for s in at.selectbox if s.label == "對手模型")
+    model = next(s for s in at.selectbox if s.label == "模型")
+    assert rival.value != model.value and rival.value in rival.options and model.value not in rival.options
+    assert any("對手模型模擬次數" in n.label for n in at.number_input)
+    assert next(n for n in at.number_input if n.label.startswith("局數")).value == 480
+    assert any(f"MCTS＋{rival.value}" in c.value for c in at.caption)  # the table is spelled out under the form
+
+
 def test_model_list_has_place_kind_and_player_count_filters(results):
     at = goto(run_app(), "modellist")  # the list lives on its own page
     assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players"]

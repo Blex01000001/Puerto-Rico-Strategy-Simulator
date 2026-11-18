@@ -1289,14 +1289,23 @@ def data_tab():
 MATCH_TABLES = {
     "default": "對原版 MCTS（同桌另有手寫策略）",
     "hand": "對手寫策略（分析文件第 5 節那桌）",
+    "model": "對另一個估值模型（同桌另有手寫策略）",
 }
 
 
-def match_seats(table, players, model, sims, leaf, base_sims):
+def match_seats(table, players, model, sims, leaf, base_sims, rival=None):
+    """The seats of a match: the model under test first. table "model": a second MCTS seat plays another value model (`rival`, with
+    `base_sims` simulations and the same leafRollout), so the two models are compared on the same table."""
     me = {"id": "value", "strategy": "mcts", "params": {"simulations": sims, "valueModel": rel(model_path(model))}}
     if leaf:
         me["params"]["leafRollout"] = leaf
     hand = lambda name: {"id": name, "strategy": name, "params": {}}  # noqa: E731
+    if table == "model":
+        other = {"id": "rival", "strategy": "mcts", "params": {"simulations": base_sims, "valueModel": rel(model_path(rival))}}
+        if leaf:
+            other["params"]["leafRollout"] = leaf
+        rest = ["cheap-engine", "build-first"] if players == 4 else ["cheap-engine"]
+        return [me, other] + [hand(n) for n in rest]
     if table == "default":
         base = {"id": "mcts-default", "strategy": "mcts", "params": {"simulations": base_sims}}
         rest = ["cheap-engine", "build-first"] if players == 4 else ["cheap-engine"]
@@ -1307,7 +1316,8 @@ def match_seats(table, players, model, sims, leaf, base_sims):
 
 def _match_body():
     st.caption("用 balanced 座位打一組對局，比較估值模型版 MCTS 的勝率；結果會記到模型的 `.meta.json`，也能在 Dashboard 打開。"
-               "比較要做兩種：同模擬次數（模型有沒有更準），和約同時間（值不值得）：v2 的推論成本約讓 300 次模擬的時間只夠 180 次。")
+               "比較要做兩種：同模擬次數（模型有沒有更準），和約同時間（值不值得）：v2 的推論成本約讓 300 次模擬的時間只夠 180 次。"
+               "兩個模型誰比較強，選「對另一個估值模型」同桌打（兩個 MCTS 同桌）；結果只記在上面選的模型，對手模型的紀錄不變。")
     players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="m-players")
     cands = models_for(players)
     if not cands:
@@ -1316,20 +1326,30 @@ def _match_body():
     names = [os.path.basename(p) for p in cands]
     model = st.selectbox("模型", names, index=len(names) - 1, key="m-model")
     table = st.radio("對手", list(MATCH_TABLES), format_func=MATCH_TABLES.get, horizontal=True)
+    rival = None
+    if table == "model":
+        others = [n for n in names if n != model]
+        if not others:
+            st.info(f"{players} 人局只有這一個模型，沒有可以對打的另一個。")
+            return
+        # open on the strongest other model (best win share against the original MCTS)
+        best = lambda n: (best_vs_default(model_meta(model_path(n))) or {}).get("winShare", -1) if model_meta(model_path(n)) else -1  # noqa: E731
+        rival = st.selectbox("對手模型", others, index=others.index(max(others, key=best)), key="m-rival")
     c1, c2, c3, c4 = st.columns(4)
     sims = c1.number_input("模型版模擬次數", value=300, min_value=1, step=10)
-    leaf = c2.number_input("leafRollout", value=0, min_value=0, step=5)
-    base_sims = c3.number_input("原版 MCTS 模擬次數", value=300, min_value=1, step=10, disabled=table != "default")
+    leaf = c2.number_input("leafRollout（兩個模型相同）" if table == "model" else "leafRollout", value=0, min_value=0, step=5)
+    base_sims = c3.number_input("對手模型模擬次數" if table == "model" else "原版 MCTS 模擬次數", value=300, min_value=1, step=10, disabled=table == "hand")
     seed = c4.number_input("種子", value=9191, step=1)
     perm = 24 if players == 4 else 6
     c5, c6 = st.columns(2)
-    games = c5.number_input(f"局數（{perm} 的倍數＝每種座位排列一樣多）", value=240 if table == "default" else 408, min_value=perm, step=perm)
+    games = c5.number_input(f"局數（{perm} 的倍數＝每種座位排列一樣多）", value={"default": 240, "model": 480}.get(table, 408), min_value=perm, step=perm)
     threads = c6.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key="m-threads")
-    seats = match_seats(table, players, model, int(sims), int(leaf), int(base_sims))
-    st.caption("同桌：" + "、".join(("估值模型 MCTS" if s["id"] == "value" else "原版 MCTS" if s["strategy"] == "mcts" else s["strategy"]) for s in seats)
+    seats = match_seats(table, players, model, int(sims), int(leaf), int(base_sims), rival)
+    st.caption("同桌：" + "、".join(("估值模型 MCTS" if s["id"] == "value" else f"MCTS＋{rival}（{int(base_sims)} 次）" if s["id"] == "rival" else "原版 MCTS" if s["strategy"] == "mcts" else s["strategy"]) for s in seats)
                + f"。參考：4 核心約 {int(games) * 0.6 / 60:.0f}～{int(games) * 1.2 / 60:.0f} 分鐘（依模擬次數）。")
     stem = model.rsplit(".", 1)[0]
-    default_name = f"{stem}-s{int(sims)}{f'-leaf{int(leaf)}' if leaf else ''}-vs-{'default' if table == 'default' else 'hand'}{f'{int(base_sims)}' if table == 'default' and base_sims != 300 else ''}-seed{int(seed)}"
+    versus = {"default": "default", "hand": "hand", "model": rival.rsplit(".", 1)[0] if rival else ""}[table]
+    default_name = f"{stem}-s{int(sims)}{f'-leaf{int(leaf)}' if leaf else ''}-vs-{versus}{f'{int(base_sims)}' if table == 'default' and base_sims != 300 else ''}{f'-s{int(base_sims)}' if table == 'model' and base_sims != sims else ''}-seed{int(seed)}"
     name = st.text_input("名稱（設定檔 ml/local/matches/<名稱>.json、結果 results/ml/<名稱>.json）", value=default_name).strip()
     out = os.path.join(jobs.results_dir(), "ml", name + ".json")
     exists = os.path.exists(out)
@@ -1362,7 +1382,7 @@ def _match_body():
             cfg["parallelism"] = {"maxDegree": int(threads)}
         config = rel(os.path.join(LOCAL_MATCHES, name + ".json"))
         write_config(absolute(config), cfg)
-        start_job("match", f"對戰 {model}（{int(sims)} 次）{'vs 原版' if table == 'default' else 'vs 手寫'} → {name}",
+        start_job("match", f"對戰 {model}（{int(sims)} 次）{'vs 原版' if table == 'default' else f'vs {rival}' if table == 'model' else 'vs 手寫'} → {name}",
                   {"config": config, "out": rel(out), "model": rel(model_path(model))})
     meta = model_meta(model_path(model))
     if meta and meta.get("matches"):
