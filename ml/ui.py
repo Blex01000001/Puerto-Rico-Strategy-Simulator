@@ -846,11 +846,10 @@ def queue_page():
 
 
 def copy_button(text, label="複製摘要給 AI"):
-    """A button that puts `text` on the clipboard without showing it (runs in a small iframe; falls back to execCommand when the
-    browser blocks navigator.clipboard there)."""
-    import streamlit.components.v1 as components
+    """A button that puts `text` on the clipboard without showing it (runs in a small iframe via st.iframe, or components.html on an
+    older Streamlit; falls back to execCommand when the browser blocks navigator.clipboard there)."""
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
-    components.html(f"""
+    page = f"""<!doctype html>
 <button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
   font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
 <script>
@@ -863,7 +862,12 @@ b.onclick = async () => {{
   b.textContent = ok ? '已複製' : '複製失敗（瀏覽器擋住了剪貼簿）';
   setTimeout(() => b.textContent = label, 2000);
 }};
-</script>""", height=44)
+</script>"""
+    if hasattr(st, "iframe"):  # newer Streamlit: components.v1.html is deprecated (it logs a warning on every run)
+        st.iframe(page, height=44)
+    else:
+        import streamlit.components.v1 as components
+        components.html(page, height=44)
 
 
 def job_summary_text(job):
