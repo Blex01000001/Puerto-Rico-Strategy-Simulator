@@ -10,10 +10,10 @@
 <div class="panel">
     <div class="row">
         <label>A（基準）
-            <select @bind="pathA"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@Path.GetFileName(f)</option> }</select>
+            <select @bind="pathA"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@ResultFiles.Label(dir, f)</option> }</select>
         </label>
         <label>B（新的）
-            <select @bind="pathB"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@Path.GetFileName(f)</option> }</select>
+            <select @bind="pathB"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@ResultFiles.Label(dir, f)</option> }</select>
         </label>
         <button @onclick="Load" disabled="@(string.IsNullOrEmpty(pathA) || string.IsNullOrEmpty(pathB) || loading)">比較</button>
         <button class="secondary" @onclick="Refresh">重新整理</button>
@@ -93,9 +93,7 @@
     public void Dispose() => Memory.Set("compare", new Snap(files, pathA, pathB, error, resA, resB, ra, rb, rows));
 
     private void Refresh() =>
-        files = Directory.Exists(dir)
-            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
-            : new List<string>();
+        files = ResultFiles.List(dir);
 
     private async Task Load()
     {

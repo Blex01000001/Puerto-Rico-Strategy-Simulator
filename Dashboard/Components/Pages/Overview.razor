@@ -235,8 +235,8 @@
         var list = new List<FileMeta>();
         if (Directory.Exists(dir))
         {
-            var paths = Directory.GetFiles(dir, "*.json")
-                .Where(f => !f.EndsWith(".tmp") && !System.IO.Path.GetFileName(f).StartsWith("sweep", StringComparison.OrdinalIgnoreCase))
+            var paths = ResultFiles.List(dir)
+                .Where(f => !System.IO.Path.GetFileName(f).StartsWith("sweep", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(f => File.GetLastWriteTime(f)).ToList();
             foreach (var f in paths)
             {
@@ -247,7 +247,7 @@
                     var fi = new FileInfo(f);
                     var names = c.Seats.Select(x => x.Strategy.Equals("rule-based", StringComparison.OrdinalIgnoreCase) && x.Params.TryGetValue("profile", out var pr) ? pr.ToString() : x.Strategy)
                         .Select(Palette.DisplayName).ToList();
-                    list.Add(new FileMeta(f, System.IO.Path.GetFileNameWithoutExtension(f), c.Players, c.Games, c.SeatOrder.ToString(),
+                    list.Add(new FileMeta(f, System.IO.Path.ChangeExtension(ResultFiles.Label(dir, f), null), c.Players, c.Games, c.SeatOrder.ToString(),
                         string.Join("、", names.Distinct()), fi.Length >= 1048576 ? $"{fi.Length / 1048576.0:0.#} MB" : $"{Math.Max(1, fi.Length / 1024)} KB", fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")));
                 }
                 catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { }
