@@ -2,7 +2,7 @@
 
     streamlit run ml/ui.py --server.address localhost      (or ml/start-ui.sh / ml\\start-ui.cmd)
 
-Tabs: 訓練 (choose dumps and parameters, start a background job, live loss curve) and 模型清單 (every model in
+Tabs: 訓練 (choose dumps and parameters, start a background job, live loss curve) and 模型詳細資料 / 模型清單 (every model in
 ml/models with its .meta.json: parameters, data, validation, feature importance, match win rates; compare two).
 Jobs run in their own process (jobs.py): closing this page or the UI does not stop them.
 Reads the same folders as the Dashboard: results/ (PR_RESULTS_DIR overrides) and ml/models/.
@@ -423,14 +423,10 @@ def training_tab():
             st.warning(f"讀不了 `{d['path']}`：{d['error']}")
         versions = {d["特徵版本"] for d in chosen}
         total = sum(d["列數"] for d in chosen)
-        c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
         if chosen:
-            c1.caption(f"已選 {len(chosen)} 份、{total:,} 列。LightGBM 約需 {total * 430 * 4 * 2.2 / 1e9:.1f} GB 記憶體，MLP 約 {total * 430 * 2 * 1.5 / 1e9:.1f} GB。")
+            st.caption(f"已選 {len(chosen)} 份、{total:,} 列。LightGBM 約需 {total * 430 * 4 * 2.2 / 1e9:.1f} GB 記憶體，MLP 約 {total * 430 * 2 * 1.5 / 1e9:.1f} GB。")
         else:
-            c1.caption("在表格左側勾選要用的資料（可多選）；勾選後也可以刪除。")
-        with c2:
-            delete_button("del-dumps", f"🗑 刪除勾選（{len(chosen)}）", [absolute(d["path"]) for d in chosen],
-                          extra_suffixes=(".json",), busy=busy_files("data"))
+            st.caption(f"在表格左側勾選要用的資料（可多選）。要刪除資料，到「{TAB_DATA}」頁。")
 
     with card("train-model", "2. 模型與參數"):
         kind = st.radio("模型", ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True)
@@ -438,7 +434,7 @@ def training_tab():
         options = param_inputs(defaults, kind)
         ext = ".txt" if kind == "train_lgbm" else ".json"
         stamp = datetime.datetime.now().strftime("%m%d-%H%M")
-        name = st.text_input("模型名稱（存到本機工作區 ml/local/models/，副檔名自動加；之後可在「模型清單」設為正式模型）",
+        name = st.text_input("模型名稱（存到本機工作區 ml/local/models/，副檔名自動加；之後可在「模型詳細資料」設為正式模型）",
                              value=f"{p}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}")
         name = name.strip()
         if name.endswith(ext):
@@ -504,7 +500,8 @@ def training_tab():
 # ---------------------------------------------------------------- jobs (shared by every tab)
 
 TITLE = "Puerto Rico Machine Learning"
-TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列"
+TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型詳細資料", "排程佇列"
+TAB_MODELLIST = "模型清單"
 
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
@@ -524,7 +521,7 @@ CSS = """
 [data-testid="stHeading"] h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
 /* the lines under the title (flow caption, page intro) sit one line apart: the title bar keeps its 60px for the toolbar, so pull the next
    element up into it, and shrink the 1rem row gap after top-level captions / paragraphs (the ones inside cards are not touched) */
-[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> [data-testid="stHeading"]) { margin-bottom: -.7rem; }
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> [data-testid="stHeading"]) { margin-bottom: -1.3rem; }
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> [data-testid="stCaptionContainer"]),
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"]) { margin-bottom: -.55rem; }
 /* narrow window: the sidebar starts collapsed and the content only has 1rem of left padding, so the re-open button would sit on the title */
@@ -557,7 +554,7 @@ div[data-baseweb="select"] > div:focus-within { border-color: #4aa8ff !important
 /* radio groups (人數, 模型, 對手…) get the same frame, sized to their options */
 [data-testid="stRadioGroup"], div[role="radiogroup"] { display: inline-flex !important; width: auto !important; background: #111418;
   border: 1px solid #333a4b; border-radius: 4px; padding: .35rem .8rem; }
-/* metrics (模型清單: 種類, 資料列數, R², 最佳勝率) as framed tiles */
+/* metrics (模型詳細資料: 種類, 資料列數, R², 最佳勝率) as framed tiles */
 [data-testid="stMetric"] { background: #111418; border: 1px solid #333a4b; border-radius: 4px; padding: .45rem .8rem; }
 [data-testid="stMetricValue"] > div { font-size: 1.7rem !important; }
 /* delete buttons: red, at the right edge (delete_button wraps them in st.container(key="del-…")) */
@@ -596,6 +593,10 @@ button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2
 .vtile .l { color: #8892a2; font-size: 15px; line-height: 1.25; text-align: left; padding-right: 1.3rem; }
 .vtile .v { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
   font-size: 1.55rem; font-weight: 600; color: #eef1f5; line-height: 1.2; font-variant-numeric: tabular-nums; }
+/* the model details page: the value sits in the middle of the whole tile (the label stays at the top, the tile is a bit taller so a two-line label clears it) */
+.vtiles.mid .vtile { min-height: 6.8rem; }
+.vtiles.mid .vtile .v { position: absolute; inset: 0; pointer-events: none; }
+.vtiles.mid .vtile .q { z-index: 2; }
 .vnote { color: #b4bcc9; font-size: .85rem; line-height: 1.5; margin: .1rem 0 .35rem; }
 table.vtable { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: .4rem; font-variant-numeric: tabular-nums; }
 table.vtable th { color: #8892a2; font-weight: 600; font-size: .78rem; letter-spacing: .04em; background: #171a21; text-align: center; white-space: nowrap;
@@ -610,6 +611,11 @@ table.vtable td li { margin: 0; }
 table.vtable tbody tr:hover td { background: #1f2430; }
 .vtile .q { position: absolute; top: .3rem; right: .45rem; width: 1rem; height: 1rem; border: 1px solid #8892a2; border-radius: 50%;
   color: #8892a2; font-size: .68rem; line-height: .95rem; text-align: center; cursor: help; }
+/* the model picker of the details page: a bigger label and dropdown */
+div[class*="st-key-modelpick"] [data-testid="stWidgetLabel"] p { font-size: 1.15rem; font-weight: 700; }
+div[class*="st-key-modelpick"] [data-testid="stSelectbox"] { font-size: 1.15rem; }
+div[class*="st-key-modelpick"] .react-aria-ComboBox > div, div[class*="st-key-modelpick"] div[data-baseweb="select"] > div { min-height: 3.1rem; }
+div[class*="st-key-modelpick"] [data-testid="stSelectbox"] input, div[class*="st-key-modelpick"] [data-testid="stSelectbox"] div { font-size: 1.15rem; }
 /* quick filters (model list): one flat bar, a small label and round chips per group; a chosen chip is filled blue */
 div[class*="st-key-filterbar"] { background: #171a21; border: 1px solid #2a3040; border-radius: 6px; padding: .35rem .8rem .5rem; margin-bottom: .3rem; }
 div[class*="st-key-filterbar"] [data-testid="stHorizontalBlock"] { gap: 1.6rem !important; flex-wrap: wrap; }
@@ -940,9 +946,7 @@ def job_detail(job_id):
             st.info(text)
         steps = [e for e in evs if e["stage"] in ("iteration", "epoch")]
         if steps:
-            curve = pd.DataFrame({"步": [e.get("iteration") or e.get("epoch") for e in steps],
-                                  "驗證 loss（交叉熵）": [e["validLoss"] for e in steps]}).set_index("步")
-            st.line_chart(curve, height=220)
+            st.altair_chart(loss_chart([e["validLoss"] for e in steps], [e.get("iteration") or e.get("epoch") for e in steps], height=220), width="stretch")
     with right:
         st.markdown(f"**種類**：{KIND_TEXT.get(job['kind'], job['kind'])}")
         st.markdown(f"**狀態**：{STATE_TEXT.get(state, state)}")
@@ -1267,9 +1271,15 @@ def data_tab():
     with card("data-list", "已有的資料"):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
-            grid(table_view([{**d, "path": os.path.basename(d["path"])} for d in dumps], "檔案"), hide_index=True, width="stretch")
+            df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name="檔案"))
+            picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-manage-{delete_gen()}")
+            chosen = [dumps[i] for i in picked.selection.rows]
             folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
-            st.caption(f"要刪除資料，到「{TAB_TRAIN}」頁勾選後按刪除。")
+            c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
+            c1.caption(f"勾選左側方格可以刪除資料（連同它的 .json）；訓練要用哪些資料，到「{TAB_TRAIN}」頁選。")
+            with c2:
+                delete_button("del-dumps", f"🗑 刪除勾選（{len(chosen)}）", [absolute(d["path"]) for d in chosen],
+                              extra_suffixes=(".json",), busy=busy_files("data"))
         else:
             st.caption("還沒有資料。")
 
@@ -1362,7 +1372,7 @@ def _match_body():
         match_summary_box(meta, model_path(model), f"match-{model}")
 
 
-# ---------------------------------------------------------------- 模型清單
+# ---------------------------------------------------------------- 模型詳細資料、模型清單
 
 def models_table(paths):
     rows = []
@@ -1572,7 +1582,7 @@ def model_detail(path):
                                ("資料列數", f"{sum(d['rows'] for d in meta['data']):,}"),
                                ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—", METRIC_HELP["R²"]),
                                ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
-                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")]), unsafe_allow_html=True)
+                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")], centre=True), unsafe_allow_html=True)
     st.caption(("最佳勝率來自：" + describe_match(best) + "。") if best else "還沒有對原版 MCTS 的對戰。")
 
     st.markdown("**對戰結果**（判斷模型好壞的依據）")
@@ -1584,6 +1594,18 @@ def model_detail(path):
                      column_config=MATCH_COLUMNS)
         st.caption(f"結果檔可以在 Dashboard（{DASHBOARD_URL}）的「結果」「比較」頁打開。")
         match_summary_box(meta, path, f"detail-{name}")
+
+    st.markdown("**訓練資料**")
+    grid(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
+                                "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
+                                "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
+                                "hash": fingerprint.short(d.get("fingerprint")) or "—",
+                                "版本": (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + "、"
+                                         + "、".join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip("、"),
+                                "檔案": os.path.basename(d["path"])} for d in meta["data"]]),
+                 hide_index=True, width="stretch")
+    if meta.get("data"):
+        folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
 
     left, right = st.columns(2)
     with left:
@@ -1599,25 +1621,13 @@ def model_detail(path):
             st.caption("沒有紀錄。")
         st.caption("驗證成績只是檢查訓練有沒有壞掉；資料分布不同時 R² 不能互相比較。")
 
-    st.markdown("**訓練資料**")
-    grid(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
-                                "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
-                                "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
-                                "hash": fingerprint.short(d.get("fingerprint")) or "—",
-                                "版本": (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + "、"
-                                         + "、".join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip("、"),
-                                "檔案": os.path.basename(d["path"])} for d in meta["data"]]),
-                 hide_index=True, width="stretch")
-    if meta.get("data"):
-        folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
-
     curve = (meta.get("training") or {}).get("validLossCurve")
     feats = meta.get("topFeatures") or []
     left, right = st.columns(2)
     with left:
         st.markdown("**驗證 loss 曲線**")
         if curve:
-            st.line_chart(pd.DataFrame({"驗證 loss": curve}, index=pd.RangeIndex(1, len(curve) + 1, name="步")), height=240)
+            st.altair_chart(loss_chart(curve, height=240), width="stretch")
         else:
             st.caption("沒有紀錄（舊模型或補寫的 meta）。")
     with right:
@@ -1689,7 +1699,8 @@ def _models_body():
             st.session_state.pop("model-pick", None)  # opens on the strongest model; a rename selects the renamed one
         # passing index while the key already holds a value makes Streamlit warn: only on the first draw
         start = {} if "model-pick" in st.session_state else {"index": scores.index(max(scores))}
-        name = st.selectbox("模型", list(by_name), key="model-pick", **start)
+        with st.container(key="modelpick"):  # a bigger label and dropdown (CSS .st-key-modelpick)
+            name = st.selectbox("選擇模型", list(by_name), key="model-pick", **start)
         model_detail(by_name[name])
     else:
         names = st.multiselect("選兩個以上的模型", list(by_name), max_selections=4)
@@ -1704,11 +1715,14 @@ def match_tab():
         _match_body()
 
 
-def models_tab():
-    with card("models", "模型（正式 ml/models/ ＋ 本機 ml/local/models/）"):
-        _models_body()
-    with card("models-list", "模型列表"):
+def model_list_page():
+    with card("models-list", "模型清單", "正式 ml/models/ ＋ 本機 ml/local/models/ 的每個模型；看單一模型的細節與管理，到「" + TAB_MODELS + "」頁。"):
         models_list()
+
+
+def models_tab():
+    with card("models", "模型詳細資料（正式 ml/models/ ＋ 本機 ml/local/models/）"):
+        _models_body()
     with card("models-metrics", "R² 與交叉熵是什麼"):
         st.markdown(version_table(["指標", "意思", "範圍", "怎麼看"], [
             [("R²", "l nw"), ("模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中", "l"),
@@ -1835,14 +1849,31 @@ def _esc(text):
     return html.escape(str(text))
 
 
-def version_tiles(items):
+def loss_chart(values, steps=None, height=240):
+    """The validation-loss curve as a fixed chart: no zoom or pan, both axes fixed to the data plus a margin on every side (so the line
+    never touches the frame), whole steps on the x axis."""
+    steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
+    df = pd.DataFrame({"步": steps, "驗證 loss": list(values)})
+    lo, hi = float(df["驗證 loss"].min()), float(df["驗證 loss"].max())
+    ypad = (hi - lo) * 0.12 or max(abs(hi) * 0.02, 0.001)
+    first, last = float(min(steps)), float(max(steps))
+    xpad = max(0.5, (last - first) * 0.04)
+    chart = alt.Chart(df).mark_line(color="#4aa8ff", strokeWidth=2, point=alt.OverlayMarkDef(color="#4aa8ff", size=18)).encode(
+        x=alt.X("步:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title="步")),
+        y=alt.Y("驗證 loss:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title="驗證 loss", format=".3f")),
+        tooltip=[alt.Tooltip("步:Q", format="d"), alt.Tooltip("驗證 loss:Q", format=".4f")])
+    return chart.properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10})
+
+
+def version_tiles(items, centre=False):
     """Tiles like the Dashboard's (label small and muted at the top left, value centred): [(label, value)] or
-    [(label, value, help)]; a help text puts a "?" at the top right that shows it on hover."""
+    [(label, value, help)]; a help text puts a "?" at the top right that shows it on hover.
+    centre=True: the value is centred in the whole tile (vertically too), not just in the space under the label."""
     def tile(item):
         label, value, tip = (tuple(item) + (None,))[:3]
         q = f'<span class="q" title="{_esc(tip)}">?</span>' if tip else ""
         return f'<div class="vtile"><div class="l">{_esc(label)}</div>{q}<div class="v">{_esc(value)}</div></div>'
-    return '<div class="vtiles">' + "".join(tile(i) for i in items) + "</div>"
+    return f'<div class="vtiles{" mid" if centre else ""}">' + "".join(tile(i) for i in items) + "</div>"
 
 
 METRIC_HELP = {
@@ -1919,14 +1950,15 @@ def versions_page():
 PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), "流程"),
          ("train", TAB_TRAIN, "🧠", lambda: training_tab(), None),
          ("match", TAB_MATCH, "⚔️", lambda: match_tab(), None),
-         ("models", TAB_MODELS, "📦", lambda: models_tab(), "管理"),
+         ("modellist", TAB_MODELLIST, "📋", lambda: model_list_page(), "管理"),
+         ("models", TAB_MODELS, "📦", lambda: models_tab(), None),
          ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None),
          ("hash", "hash 說明", "🔑", lambda: hash_page(), "說明"),
          ("versions", "版本控管", "🏷️", lambda: versions_page(), None)]
 
 
 # the heading at the top of each page (English, like the navigation brand)
-PAGE_TITLES = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "models": "Models",
+PAGE_TITLES = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "modellist": "Model List", "models": "Model Details",
                "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
 
 

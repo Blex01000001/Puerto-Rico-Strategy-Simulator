@@ -10,7 +10,7 @@
                 <option value="">（@(files.Count == 0 ? "資料夾內沒有 .json" : "選擇檔案")）</option>
                 @foreach (var f in files)
                 {
-                    <option value="@f">@Path.GetFileName(f) （@(FileSize(f))）</option>
+                    <option value="@f">@ResultFiles.Label(dir, f) （@(FileSize(f))）</option>
                 }
             </select>
         </label>
@@ -18,7 +18,7 @@
         <button class="secondary" @onclick="Refresh">重新整理</button>
         @ChildContent
     </div>
-    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)（可在 appsettings.json 的 Dashboard:ResultsDirectory 改）。大檔案（10 萬局約 40 MB）載入需要幾秒。</p>
+    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)（含其下的 ml/ 子資料夾：ML UI 的對戰結果在那裡；可在 appsettings.json 的 Dashboard:ResultsDirectory 改）。大檔案（10 萬局約 40 MB）載入需要幾秒。</p>
     @if (State.Loading) { <p>載入並計算中…</p> }
     @if (State.Error != null) { <div class="error">@State.Error</div> }
 </div>
@@ -42,9 +42,7 @@
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
     private void Refresh() =>
-        files = Directory.Exists(dir)
-            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
-            : new List<string>();
+        files = ResultFiles.List(dir);
 
     private static string FileSize(string f)
     {

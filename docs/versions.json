@@ -32,6 +32,14 @@
       "bump": "新增功能、策略、輸出欄位，或規則版本、策略版本加 1 時更新。",
       "entries": [
         {
+          "version": "0.4.1",
+          "date": "2026-11-18",
+          "changes": [
+            "Dashboard 的結果檔清單（結果總覽、對戰總覽、並排比較、模擬重播）也列出 results/ml/ 裡 ML UI 的對戰結果（新增 ResultFiles；結果與 dump 不受影響）。"
+          ],
+          "commit": ""
+        },
+        {
           "version": "0.4.0",
           "date": "2026-11-17",
           "changes": [

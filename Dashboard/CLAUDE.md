@@ -11,6 +11,7 @@
 - `LegalActions.razor`：沒有 MCTS 搜尋的決策，列出當時所有合法動作並標示選中的（手寫策略有分數時依分數排序）；用決策前的盤面快照重列，不改引擎。
 - `GameList.razor`：結果頁的對局列表（`GameFilter` 篩選、排序、分頁，「重播」連到 `replay?file=&game=`）。
 - `Layout/MlUiNav.razor`（側欄最後「機器學習」）：一行「🌱 ML UI 執行中●」（綠，新分頁連結）或「ML UI 未啟動○」（紅，按下啟動；啟動中黃◐）；狀態是膠囊標籤，執行中有流光掃過（`prefers-reduced-motion` 時不動）。每 5 秒檢查 `127.0.0.1:8501`（不用 localhost：Windows 會先試 IPv6，被拒要等約 2 秒），逾時 3 秒，連續兩次失敗才變「未啟動」（ML UI 忙時偶爾慢一次不會閃）。側欄收合時改成圖示的綠／紅／黃框。啟動：`Services/MlUiLauncher.cs` 先用 `ml/check_env.py` 依啟動檔同樣的順序找套件齊全的 Python（`PR_PYTHON`，Windows `python`→`py`），都沒有就顯示 check_env 的訊息（哪個 Python、要執行的那一行；專案路徑經 `Scrub` 顯示成相對路徑），否則 Windows 用新的 cmd 視窗執行 `ml/start-ui.cmd`、其他系統背景執行 `ml/start-ui.sh`（紀錄 `results/logs/ml-ui.log`），等健康檢查通過。分頁在按下時先開（`App.razor` 的 `prMlTab`，之後才開會被擋成彈出視窗），好了再導向、失敗就關掉。未啟動時下方顯示「新裝置先 python -m pip install -r ml/requirements.txt」。Dashboard 不依賴 ML UI；啟動的 ML UI 獨立於 Dashboard。
+- 結果檔清單（`FilePicker`、結果總覽、並排比較、模擬重播）一律用 `Engine/Simulation/ResultFiles.List`：`results/*.json` 加 `results/ml/*.json`（ML UI 的對戰結果；`*.bin.json` 是 dump 資料不算），選單顯示 `ml/<檔名>`。
 - `FilePicker.razor`、`Charts/`（純 SVG：BarChart／StackedBars／LineChart）、`App.razor`（含一小段 JS：回放頁 ←／→ 會點 `#replay-prev`／`#replay-next`；`prMlTab` 給 ML UI 按鈕預先開分頁）、`Layout/`。
 
 **`Services/`**

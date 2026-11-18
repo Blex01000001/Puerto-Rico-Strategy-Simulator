@@ -12,7 +12,7 @@
 <div class="panel">
     <div class="row">
         <label>結果檔
-            <select @bind="path"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@Path.GetFileName(f)</option> }</select>
+            <select @bind="path"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@ResultFiles.Label(dir, f)</option> }</select>
         </label>
         <label>局號（0 起算）<input type="number" min="0" @bind="index" /></label>
         <button @onclick="Run" disabled="@(string.IsNullOrEmpty(path) || loading)">回放</button>
@@ -176,9 +176,7 @@
     }
 
     private void Refresh() =>
-        files = Directory.Exists(dir)
-            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
-            : new List<string>();
+        files = ResultFiles.List(dir);
 
     private async Task Run()
     {

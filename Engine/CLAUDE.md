@@ -22,7 +22,7 @@
 **`Simulation/`**
 - `SimulationConfig.cs`、`SimulationResult.cs`（`PlayerRecord`：分數構成、`Buildings`／`BuiltRounds`、`Tiles`、金幣、出貨次數；舊檔這些欄位為 null）、`SeedDeriver.cs`。
 - `GameRunner.cs`（單局＋座位分配）、`BatchSimulator.cs`（Parallel／checkpoint／取消／續跑）、`Sweep.cs`（參數掃描）、`PositionDump.cs`（價值函數的訓練資料，Runner `--dump-positions`）。
-- Dashboard 用的統計（UI 無關，有單元測試）：`ResultAnalysis.cs`、`GameFilter.cs`（對局列表篩選）、`ResultComparison.cs`（兩份結果並排）、`TournamentOverview.cs`（多檔彙整、兩兩對戰矩陣）、`ResultSummary.cs`（結果檔轉成貼給 AI 的短 Markdown，Dashboard 結果頁「複製摘要給 AI」用；ML UI 有對應的 Python 版 `modelmeta.match_summary`／`dump_summary`／`train_summary`，欄位風格要一致）。
+- Dashboard 用的統計（UI 無關，有單元測試）：`ResultAnalysis.cs`、`GameFilter.cs`（對局列表篩選）、`ResultComparison.cs`（兩份結果並排）、`TournamentOverview.cs`（多檔彙整、兩兩對戰矩陣）、`ResultFiles.cs`（Dashboard 選單列哪些結果檔：`results/*.json`＋`results/ml/*.json`）、`ResultSummary.cs`（結果檔轉成貼給 AI 的短 Markdown，Dashboard 結果頁「複製摘要給 AI」用；ML UI 有對應的 Python 版 `modelmeta.match_summary`／`dump_summary`／`train_summary`，欄位風格要一致）。
 
 **`Events/`**：`IGameEventSink`、`NullEventSink`（大量模擬）、`ListEventSink`（回放）。
 

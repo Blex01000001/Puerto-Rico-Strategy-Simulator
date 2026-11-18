@@ -36,7 +36,7 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "排程佇列", "hash 說明", "版本控管"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "模型詳細資料", "排程佇列", "hash 說明", "版本控管"]
     assert at.button(key="navon-data")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
@@ -60,7 +60,7 @@ def test_ui_lists_dumps_and_models(results):
 
 def test_each_page_has_its_own_english_title(results):
     at = run_app()
-    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "models": "Models",
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "modellist": "Model List", "models": "Model Details",
               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
     for pid, title in titles.items():
         goto(at, pid)
@@ -68,8 +68,10 @@ def test_each_page_has_its_own_english_title(results):
 
 
 def test_model_list_has_place_kind_and_player_count_filters(results):
-    at = goto(run_app(), "models")
+    at = goto(run_app(), "modellist")  # the list lives on its own page
     assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players"]
+    goto(at, "models")
+    assert not at.get("button_group")
 
 
 def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
@@ -194,15 +196,18 @@ def test_deleting_closes_the_dialog_and_clears_the_selection(results):
     from conftest import write_dump
     write_dump(str(results / "ml" / "4p-a.bin"), games=10)
     write_dump(str(results / "ml" / "4p-b.bin"), games=10)
-    at = goto(run_app(), "train")
-    table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-"))
-    assert table.key == "dumps-0"
+    at = goto(run_app(), "data")  # data are deleted on the sampling page; the training page only selects
+    table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
+    assert table.key == "dumps-manage-0"
+    assert any(b.label.startswith("🗑 刪除勾選") for b in at.button)
     # deleting is done in a dialog (AppTest cannot click inside it): emulate the confirmed deletion's bookkeeping
     at.session_state["del-gen"] = 1
     os.remove(results / "ml" / "4p-a.bin")
     at.run()
-    table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-"))
-    assert table.key == "dumps-1"  # a new key: the old row selection is gone
+    table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
+    assert table.key == "dumps-manage-1"  # a new key: the old row selection is gone
+    goto(at, "train")
+    assert not any(b.label.startswith("🗑 刪除勾選") for b in at.button)  # selecting only
 
 
 def test_queue_rows_are_framed_cards(results, monkeypatch):
