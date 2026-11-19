@@ -5,22 +5,22 @@
 @using PuertoRico.Engine.Simulation
 @using Dashboard.Services
 
-<PageTitle>版本控管 · 波多黎各策略模擬器</PageTitle>
+<PageTitle>@L.T("vs.page_title")</PageTitle>
 <div class="vpage">
-<h1>版本控管</h1>
-<p class="note">規則版本、引擎版本、策略版本等各種版本號碼，以及每個版本做了哪些修改。資料來源是 docs/versions.json（和 ML UI 同一份）。</p>
+<h1>@L.T("nav.versions")</h1>
+<p class="note">@L.T("vs.intro")</p>
 
 <div class="panel">
-    <strong>這個 Dashboard 使用的引擎</strong>
-    @* same tiles as the ML UI's 版本控管 page *@
+    <strong>@L.T("vs.engine_box")</strong>
+    @* same tiles as the ML UI's version page *@
     <div class="vtiles">
-        <div class="vtile"><div class="l">規則版本</div><div class="v">@(EngineInfo.RulesVersion)-v@(EngineInfo.RulesRevision)</div></div>
-        <div class="vtile"><div class="l">引擎版本</div><div class="v">@EngineInfo.Version</div></div>
-        <div class="vtile"><div class="l">特徵版本</div><div class="v">@FeatureSets.LatestVersion</div></div>
-        <div class="vtile"><div class="l">資料格式版本</div><div class="v">@PositionDump.FormatVersion</div></div>
-        <div class="vtile wide"><div class="l">git commit</div><div class="v">@CommitId</div>@if (Dirty) { <div class="sub">建置時有未提交的修改（-dirty）</div> }</div>
+        <div class="vtile"><div class="l">@L.T("vs.rules")</div><div class="v">@(EngineInfo.RulesVersion)-v@(EngineInfo.RulesRevision)</div></div>
+        <div class="vtile"><div class="l">@L.T("vs.engine")</div><div class="v">@EngineInfo.Version</div></div>
+        <div class="vtile"><div class="l">@L.T("vs.features")</div><div class="v">@FeatureSets.LatestVersion</div></div>
+        <div class="vtile"><div class="l">@L.T("vs.format")</div><div class="v">@PositionDump.FormatVersion</div></div>
+        <div class="vtile wide"><div class="l">git commit</div><div class="v">@CommitId</div>@if (Dirty) { <div class="sub">@L.T("vs.dirty")</div> }</div>
     </div>
-    <p class="note">規則版本只管遊戲規則與亂數，每個策略另有自己的策略版本；這兩種版本號和完整參數一起決定 ML 工具的 hash，用來判斷資料與模型是不是舊的。引擎版本給人看，commit 只用來追溯（不進 hash）；結果檔的 engineCommit 帶「-dirty」表示當時有未提交的修改。</p>
+    <p class="note">@L.T("vs.note")</p>
 </div>
 
 @if (error != null) { <div class="error">@error</div> }
@@ -29,11 +29,11 @@
 {
     <h2>@t.Title</h2>
     <div class="panel">
-        <p class="note"><strong>目前：@t.Show(t.Current?.Version ?? "?")</strong>・來源：<code>@t.Source</code></p>
+        <p class="note"><strong>@L.T("vs.current", t.Show(t.Current?.Version ?? "?"))</strong>・@L.T("vs.source")<code>@t.Source</code></p>
         <p class="note">@t.Meaning</p>
-        <p class="note"><strong>什麼時候加：</strong>@t.Bump</p>
+        <p class="note"><strong>@L.T("vs.bump")</strong>@t.Bump</p>
         <table class="data vtable">
-            <thead><tr><th>版本</th><th>日期</th><th>commit</th><th>修改內容</th></tr></thead>
+            <thead><tr><th>@L.T("vs.th.version")</th><th>@L.T("vs.th.date")</th><th>commit</th><th>@L.T("vs.th.changes")</th></tr></thead>
             <tbody>
             @foreach (var e in t.Entries)
             {
@@ -52,12 +52,12 @@
 @{ var strategies = tracks.Where(t => t.Id.StartsWith("strategy:")).ToList(); }
 @if (strategies.Count > 0)
 {
-    <h2>策略版本</h2>
+    <h2>@L.T("vs.h.strategies")</h2>
     <div class="panel">
         <p class="note">@strategies[0].Meaning</p>
-        <p class="note"><strong>什麼時候加：</strong>@strategies[0].Bump</p>
+        <p class="note"><strong>@L.T("vs.bump")</strong>@strategies[0].Bump</p>
         <table class="data vtable">
-            <thead><tr><th>策略</th><th>目前版本</th><th>程式裡</th><th>日期</th><th>commit</th><th>這個版本的修改</th></tr></thead>
+            <thead><tr><th>@L.T("vs.th.strategy")</th><th>@L.T("vs.th.current")</th><th>@L.T("vs.th.code")</th><th>@L.T("vs.th.date")</th><th>commit</th><th>@L.T("vs.th.this")</th></tr></thead>
             <tbody>
             @foreach (var t in strategies)
             {
@@ -75,9 +75,9 @@
             </tbody>
         </table>
         <details style="margin-top:.6rem">
-            <summary>每個策略的完整歷史</summary>
+            <summary>@L.T("vs.history")</summary>
             <table class="data vtable">
-                <thead><tr><th>版本</th><th>日期</th><th>commit</th><th>修改內容</th></tr></thead>
+                <thead><tr><th>@L.T("vs.th.version")</th><th>@L.T("vs.th.date")</th><th>commit</th><th>@L.T("vs.th.changes")</th></tr></thead>
                 <tbody>
                 @foreach (var t in strategies)
                 {
@@ -106,5 +106,5 @@
     private List<VersionLog.Track> tracks = new();
     private string? error;
 
-    protected override void OnInitialized() => (tracks, error) = VersionLog.Load();
+    protected override void OnInitialized() => (tracks, error) = VersionLog.Load(L);
 }

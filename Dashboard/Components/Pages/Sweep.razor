@@ -3,20 +3,20 @@
 @inject AppState State
 @inject NavigationManager Nav
 
-<PageTitle>參數掃描 · 波多黎各策略模擬器</PageTitle>
-<h1>參數掃描</h1>
-<p class="note">載入 <code>Runner --sweep</code> 輸出的 sweep.json。每個格點用同一個主種子與同樣的對手，只改目標策略的參數，所以格點之間可以直接比較。</p>
+<PageTitle>@L.T("sw.page_title")</PageTitle>
+<h1>@L.T("nav.sweep")</h1>
+<p class="note">@((MarkupString)L.T("sw.intro"))</p>
 
 <FilePicker>
     @if (State.Sweep != null && State.Result == null)
     {
-        <button @onclick="SimulateAgain" title="把這份掃描的策略、對手與掃描參數帶到「策略模擬」頁">用這份設定再掃描</button>
+        <button @onclick="SimulateAgain" title="@L.T("sw.again_title")">@L.T("sw.again")</button>
     }
 </FilePicker>
 
 @if (State.Result != null)
 {
-    <div class="ok">目前載入的是一般模擬結果，請到「結果總覽」頁檢視。</div>
+    <div class="ok">@L.T("sw.result_loaded")</div>
 }
 else if (State.Sweep != null)
 {
@@ -28,24 +28,24 @@ else if (State.Sweep != null)
     var best = sw.BestIndex >= 0 && sw.BestIndex < sw.Points.Count ? sw.Points[sw.BestIndex] : null;
 
     <div class="kpis">
-        <div class="kpi"><div class="v">@sw.Points.Count / @sw.PointsPlanned</div><div class="l">格點（@sw.Status）</div></div>
-        <div class="kpi"><div class="v">@Palette.Label(sw.Target, target?.Strategy ?? "")</div><div class="l">目標策略</div></div>
-        <div class="kpi"><div class="v">@(sw.Points.Count == 0 ? 0 : sw.Points[0].Games.ToString("N0"))</div><div class="l">每格局數</div></div>
-        <div class="kpi"><div class="v">@sw.Config.Players</div><div class="l">玩家數</div></div>
+        <div class="kpi"><div class="v">@sw.Points.Count / @sw.PointsPlanned</div><div class="l">@L.T("sw.kpi.points", sw.Status)</div></div>
+        <div class="kpi"><div class="v">@Palette.Label(sw.Target, target?.Strategy ?? "")</div><div class="l">@L.T("sw.kpi.target")</div></div>
+        <div class="kpi"><div class="v">@(sw.Points.Count == 0 ? 0 : sw.Points[0].Games.ToString("N0"))</div><div class="l">@L.T("sw.kpi.games")</div></div>
+        <div class="kpi"><div class="v">@sw.Config.Players</div><div class="l">@L.T("res.kpi.players")</div></div>
         @if (best != null)
         {
-            <div class="kpi"><div><div class="v">@best.WinShare.ToString("P1")</div><div class="sub">@Describe(best)</div></div><div class="l">最佳勝率</div></div>
+            <div class="kpi"><div><div class="v">@best.WinShare.ToString("P1")</div><div class="sub">@Describe(best)</div></div><div class="l">@L.T("sw.kpi.best")</div></div>
         }
     </div>
 
-    <h2>各格點勝率</h2>
-    <p class="note">由高到低；誤差線 = 95% 信賴區間。信賴區間重疊的格點差異不顯著。</p>
+    <h2>@L.T("sw.h.points")</h2>
+    <p class="note">@L.T("sw.points_note")</p>
     <figure class="chartbox">
-        <BarChart Title="各格點勝率" LabelWidth="260" Format="@(v => v.ToString("P1"))"
+        <BarChart Title="@L.T("sw.h.points")" LabelWidth="260" Format="@(v => v.ToString("P1"))"
                   Items="@(ordered.Take(40).Select(x => new BarChart.BarItem(Describe(x.p), x.p.WinShare, x.p.WinShareCi95, color,
-                       $"{Describe(x.p)}　勝率 {x.p.WinShare:P1} ± {x.p.WinShareCi95:P1}，平均 {x.p.AvgScore:0.0} 分")).ToList())" />
+                       L.T("sw.tip", Describe(x.p), x.p.WinShare.ToString("P1"), x.p.WinShareCi95.ToString("P1"), x.p.AvgScore.ToString("0.0")))).ToList())" />
     </figure>
-    @if (ordered.Count > 40) { <p class="note">只畫前 40 個格點，完整資料在下方表格。</p> }
+    @if (ordered.Count > 40) { <p class="note">@L.T("sw.first40")</p> }
 
     @if (names.Count == 2)
     {
@@ -53,11 +53,11 @@ else if (State.Sweep != null)
         var rowVals = sw.Points.Select(p => p.Params[rowName]).Distinct().OrderBy(v => v).ToList();
         var colVals = sw.Points.Select(p => p.Params[colName]).Distinct().OrderBy(v => v).ToList();
         double lo = sw.Points.Min(p => p.WinShare), hi = sw.Points.Max(p => p.WinShare);
-        <h2>雙參數熱圖</h2>
-        <p class="note">列 = @rowName，欄 = @colName；顏色越深勝率越高。</p>
+        <h2>@L.T("sw.h.heat")</h2>
+        <p class="note">@L.T("sw.heat_note", rowName, colName)</p>
         <div class="tablewrap">
             <table class="data heat">
-                <thead><tr><th>@rowName ＼ @colName</th>@foreach (var c in colVals) { <th>@c.ToString("0.##")</th> }</tr></thead>
+                <thead><tr><th>@rowName \ @colName</th>@foreach (var c in colVals) { <th>@c.ToString("0.##")</th> }</tr></thead>
                 <tbody>
                 @foreach (var rv in rowVals)
                 {
@@ -76,12 +76,12 @@ else if (State.Sweep != null)
         </div>
     }
 
-    <h2>數據表</h2>
+    <h2>@L.T("res.h.data")</h2>
     <details open>
-        <summary>所有格點</summary>
+        <summary>@L.T("sw.all_points")</summary>
         <div class="tablewrap">
             <table class="data">
-                <thead><tr><th>參數</th><th>局數</th><th>勝率</th><th>±95%</th><th>平均分</th><th>標準差</th></tr></thead>
+                <thead><tr><th>@L.T("sw.th.params")</th><th>@L.T("res.th.games")</th><th>@L.T("res.th.win")</th><th>±95%</th><th>@L.T("res.th.avg")</th><th>@L.T("res.th.std")</th></tr></thead>
                 <tbody>
                 @foreach (var x in ordered)
                 {
@@ -104,7 +104,7 @@ else if (State.Sweep != null)
     private void SimulateAgain()
     {
         if (State.Sweep == null) return;
-        State.SetTemplate(State.Sweep.Config, State.Source ?? "目前掃描");
+        State.SetTemplate(State.Sweep.Config, State.Source ?? L.T("sw.current"));
         Nav.NavigateTo("simulate");
     }
 
