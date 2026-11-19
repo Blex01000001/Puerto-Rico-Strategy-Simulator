@@ -26,8 +26,8 @@
 ### 引擎 1.0.0（公開發佈）
 8. 【先討論】引擎升到 1.0.0。1.0.0 的承諾：設定檔／結果檔格式、命令列、資料與模型格式（特徵版本並存）向下相容，同設定同種子同規則版本結果相同；之後弄壞這些的改動才升主版本。條件：
    (a) 規則詮釋由使用者逐條確認（「已知問題」裡引擎採用的詮釋；清單已整理在 `docs/rules-interpretations.md`，等使用者逐條回覆；不對的就規則版本 +1，要在 1.0.0 之前做完，因為之後規則版本一變所有資料都變舊）。
-   (b) 英文 README、Dashboard 與 ML UI 中英切換完成（共用 `i18n/` 目錄、代號查表、預設英文；順序：機制＋ML UI → Dashboard → 版本說明／策略說明／事件文字的雙語資料 → 雙語截圖與 README；約 8～9 輪；英文模式下不能出現中文字，用測試檢查）。
-   (c) 公開配件：`LICENSE`（使用者決定授權）、CI（GitHub Actions 跑 `dotnet test` 與 `pytest`）、tag `v1.0.0` 與 release notes；README 寫相容性承諾與已知限制（Linux／Windows 的驗證範圍、3 人局模型與調參以 4 人局為主、不支援 5 人局與擴充）。
+   (b) 英文化只做 README 與 UI（Dashboard、ML UI）中英切換（使用者決定：分析文件、版本說明等長文件維持中文）：共用 `i18n/` 目錄、代號查表、預設英文；順序：機制＋ML UI → Dashboard → 英文 README（含雙語截圖）；英文模式下 UI 不能出現中文字，用測試檢查。
+   (c) 公開配件：已完成 `LICENSE`（MIT，Blex）與 CI（`.github/workflows/ci.yml`，跑 `dotnet test` 與 `pytest`，第一次推送後確認通過）；剩 tag `v1.0.0` 與 release notes；README 寫相容性承諾與已知限制（Linux／Windows 的驗證範圍、3 人局模型與調參以 4 人局為主、不支援 5 人局與擴充）。
    (d) Windows：「已知問題」裡「還沒在 Windows 實測」的項目至少跑一輪，或明列為已知限制。
    進 1.0.0 時在 `CLAUDE.md` 的版本規則補一條：弄壞設定檔、結果檔、命令列或資料格式的改動才升主版本。
 
