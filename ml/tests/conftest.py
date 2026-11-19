@@ -42,3 +42,9 @@ def write_dump(path, games=40, per_game=5, players=4, names=NAMES, seed=0, **met
 @pytest.fixture
 def dump(tmp_path):
     return lambda name="a.bin", **kw: write_dump(str(tmp_path / name), **kw)
+
+
+@pytest.fixture(autouse=True)
+def _zh_ui_by_default(monkeypatch):
+    """The existing UI tests look for Chinese labels; English is the product default (tests/test_i18n.py sets it explicitly)."""
+    monkeypatch.setenv("PR_LANG", "zh-TW")

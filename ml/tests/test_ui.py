@@ -58,7 +58,8 @@ def test_ui_lists_dumps_and_models(results):
     assert any(s.label == "模型" for s in at.selectbox)
 
 
-def test_each_page_has_its_own_english_title(results):
+def test_each_page_has_its_own_english_title(results, monkeypatch):
+    monkeypatch.setenv("PR_LANG", "en")
     at = run_app()
     titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "modellist": "Model List", "models": "Model Details",
               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}

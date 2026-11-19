@@ -18,15 +18,31 @@ import time
 import streamlit as st
 
 import check_env
+import i18n
+
+LANG_ENV = "PR_LANG"  # default language when neither the session nor ?lang= chose one (tests set zh-TW)
+
+
+def lang():
+    """Active language: the sidebar toggle (session), then ?lang= in the URL, then PR_LANG, then English."""
+    for choice in (st.session_state.get("lang"), st.query_params.get("lang"), os.environ.get(LANG_ENV)):
+        if choice in i18n.LANGS:
+            return choice
+    return i18n.DEFAULT
+
+
+def t(key, **values):
+    return i18n.translate(lang(), key, **values)
+
 
 if check_env.missing_modules():
     # started with a Python that lacks the packages (e.g. pip installed them into another Python): say so plainly
     st.set_page_config(page_title="Puerto Rico Machine Learning", page_icon="🌱")
-    st.error(f"這個 Python 缺少 ML UI 需要的套件：{', '.join(check_env.missing_modules())}")
-    st.markdown(f"ML UI 現在用的 Python：`{check_env.sys.executable}`")
-    st.markdown("在終端機執行下面這一行（指定同一個 Python，套件才會裝到對的地方），然後關掉 ML UI 再啟動一次：")
+    st.error(t("missing.error", names=", ".join(check_env.missing_modules())))
+    st.markdown(t("missing.python", python=check_env.sys.executable))
+    st.markdown(t("missing.fix"))
     st.code(check_env.fix_command(), language=None)
-    st.caption("電腦上有好幾個 Python（例如 Anaconda 和 python.org）時，直接打 `pip install` 可能裝到另一個 Python。")
+    st.caption(t("missing.note"))
     st.stop()
 
 import altair as alt  # noqa: E402
@@ -501,8 +517,8 @@ def training_tab():
 # ---------------------------------------------------------------- jobs (shared by every tab)
 
 TITLE = "Puerto Rico Machine Learning"
-TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型詳細資料", "排程佇列"
-TAB_MODELLIST = "模型清單"
+TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE, TAB_MODELLIST = (
+    t(f"page.{p}") for p in ("data", "train", "match", "models", "queue", "modellist"))
 
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
@@ -765,7 +781,7 @@ def sidebar_status():
     all_jobs = jobs.list_jobs()
     watch_states(all_jobs)
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
-    st.markdown('<div class="navsec">目前工作</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="navsec">{t("side.current")}</div>', unsafe_allow_html=True)
     if active:
         st.markdown(f'<div class="side-title" title="{html.escape(active["title"])}">{html.escape(active["title"])}</div>',
                     unsafe_allow_html=True)
@@ -773,16 +789,16 @@ def sidebar_status():
         lost = active["state"] == "lost"
         c1, c2 = st.columns([3, 1.3], vertical_alignment="bottom")
         if lost:
-            c1.markdown('<div class="side-state lost">失聯：程序還在，但沒有回報；排隊暫停</div>', unsafe_allow_html=True)
+            c1.markdown(f'<div class="side-state lost">{t("side.lost")}</div>', unsafe_allow_html=True)
         else:
             c1.progress(frac or 0.0, text=text)
-        if c2.button("結束" if lost else "取消", key=f"stop-side-{active['id']}", width="stretch",  # stop-: red (CSS)
+        if c2.button(t("side.end") if lost else t("side.cancel"), key=f"stop-side-{active['id']}", width="stretch",  # stop-: red (CSS)
                      help=LOST_TEXT if lost else None):
             jobs.cancel(active["id"])
     else:
-        st.markdown('<div class="side-note">沒有正在執行的工作</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="side-note">{t("side.idle")}</div>', unsafe_allow_html=True)
     if waiting:
-        st.markdown(f'<div class="side-note">還有 {len(waiting)} 項排隊中</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="side-note">{t("side.queued", n=len(waiting))}</div>', unsafe_allow_html=True)
 
 
 QUEUE_STATE = {"running": ("Running", "#4aa8ff"), "queued": ("Starting", "#4aa8ff"), "waiting": ("Queued", "#e0a410"),
@@ -1974,19 +1990,14 @@ def versions_page():
 
 
 # left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)
-PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), "流程"),
+PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), t("section.flow")),
          ("train", TAB_TRAIN, "🧠", lambda: training_tab(), None),
          ("match", TAB_MATCH, "⚔️", lambda: match_tab(), None),
-         ("modellist", TAB_MODELLIST, "📋", lambda: model_list_page(), "管理"),
+         ("modellist", TAB_MODELLIST, "📋", lambda: model_list_page(), t("section.manage")),
          ("models", TAB_MODELS, "📦", lambda: models_tab(), None),
          ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None),
-         ("hash", "hash 說明", "🔑", lambda: hash_page(), "說明"),
-         ("versions", "版本控管", "🏷️", lambda: versions_page(), None)]
-
-
-# the heading at the top of each page (English, like the navigation brand)
-PAGE_TITLES = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "modellist": "Model List", "models": "Model Details",
-               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
+         ("hash", t("page.hash"), "🔑", lambda: hash_page(), t("section.help")),
+         ("versions", t("page.versions"), "🏷️", lambda: versions_page(), None)]
 
 
 def current_page():
@@ -2000,6 +2011,12 @@ def go(page):
     st.query_params["page"] = page  # a reload stays on the same page
 
 
+def switch_language():
+    other = "zh-TW" if lang() == "en" else "en"
+    st.session_state["lang"] = other
+    st.query_params["lang"] = other
+
+
 def sidebar_nav(page):
     st.markdown(f'<div class="nav-brand"><span class="nav-icon">🌱</span><span>Puerto Rico<br>Machine Learning</span></div>',
                 unsafe_allow_html=True)
@@ -2009,6 +2026,7 @@ def sidebar_nav(page):
         # the active entry gets another key prefix (navon-) so the CSS can highlight it
         st.button(f"{icon} {title}", key=f"{'navon' if pid == page else 'nav'}-{pid}", width="stretch",
                   on_click=go, args=(pid,))
+    st.button(t("lang.switch"), key="lang-toggle", on_click=switch_language)
 
 
 def main():
@@ -2019,9 +2037,8 @@ def main():
         sidebar_nav(page)
         with st.container(key="side-status"):  # pinned to the bottom of the navigation (CSS)
             sidebar_status()
-    st.title(PAGE_TITLES[page])
-    st.caption(f"流程：{TAB_DATA} → {TAB_TRAIN} → {TAB_MATCH}。工作都在背景程序依序執行，關掉這個頁面或 UI 都不會中斷。"
-               f"模擬、結果與回放請用 Dashboard（{DASHBOARD_URL}）。")
+    st.title(t(f"page.{page}"))
+    st.caption(t("header.flow", data=TAB_DATA, train=TAB_TRAIN, match=TAB_MATCH, url=DASHBOARD_URL))
     started = st.session_state.pop("job-started", None)
     if started:
         st.toast(started)
