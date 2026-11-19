@@ -21,6 +21,7 @@
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
 | `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數，10.4 資料局數與模型大小） |
 | `docs/versions.json` | 版本控管清單：規則版本、引擎版本、特徵版本、資料格式版本與每個策略的策略版本，各自的版本號、commit 與每個版本的修改內容（兩個 UI 的「版本控管」頁讀它；規則見下面「版本與 hash」） |
+| `docs/rules-interpretations.md` | 規則詮釋確認清單（TODO 8(a)）：六條引擎自行採用的詮釋，附規則原文、做法與例子，等使用者確認 |
 | `docs/models.md` | 局面估值模型的研發紀錄與目前狀況（每個模型的資料、勝率、狀態；新增正式模型時補一列） |
 | `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
 | `docs/experiments.md` | 實驗設定索引：`tournaments/`、`sweeps/round*`、`mcts/` 各是什麼、怎麼重跑 |
