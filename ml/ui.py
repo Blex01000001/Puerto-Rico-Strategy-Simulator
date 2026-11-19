@@ -96,7 +96,7 @@ def _dump_info(path, mtime):
     return {"path": rel(path), "來源": m.get("name") or os.path.basename(path), "人數": m["players"],
             "局數": m["games"], "列數": m["rows"], "狀態": m["status"], "抽樣率": m["rate"],
             "特徵版本": m["featureVersion"], "大小 MB": round(os.path.getsize(path) / 1e6, 1),
-            "策略": "、".join(dict.fromkeys(strategies)), "自我對戰模型": "、".join(models), "_meta": meta}
+            "策略": "、".join(dict.fromkeys(strategies)), "自我對戰模型": "、".join(models), "_features": m.get("featureCount"), "_meta": meta}
 
 
 def scrub(message):
@@ -424,7 +424,8 @@ def training_tab():
         versions = {d["特徵版本"] for d in chosen}
         total = sum(d["列數"] for d in chosen)
         if chosen:
-            st.caption(f"已選 {len(chosen)} 份、{total:,} 列。LightGBM 約需 {total * 430 * 4 * 2.2 / 1e9:.1f} GB 記憶體，MLP 約 {total * 430 * 2 * 1.5 / 1e9:.1f} GB。")
+            f = max(d.get("_features") or 430 for d in chosen)  # the feature count of the chosen version (430 for version 1, 512 for version 2)
+            st.caption(f"已選 {len(chosen)} 份、{total:,} 列（每列 {f} 個特徵）。LightGBM 約需 {total * f * 4 * 2.2 / 1e9:.1f} GB 記憶體，MLP 約 {total * f * 2 * 1.5 / 1e9:.1f} GB。")
         else:
             st.caption(f"在表格左側勾選要用的資料（可多選）。要刪除資料，到「{TAB_DATA}」頁。")
 
