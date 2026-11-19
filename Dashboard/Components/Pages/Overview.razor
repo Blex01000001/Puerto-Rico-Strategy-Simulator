@@ -3,42 +3,42 @@
 @inject IConfiguration Config
 @inject PageMemory Memory
 
-<PageTitle>對戰總覽 · 波多黎各策略模擬器</PageTitle>
-<h1>對戰總覽</h1>
-<p class="note">勾選多份一般模擬結果檔（例如 <code>tournaments/</code> 跑出來的 4 人局全場與四種 3 人組合），依玩家數彙整每個策略：每張桌子的勝率取平均（每張桌子權重相同），並列出各桌的勝率。「優勢」= 平均勝率 − 均分基準（1/玩家數）。</p>
+<PageTitle>@L.T("ov.page_title")</PageTitle>
+<h1>@L.T("nav.overview")</h1>
+<p class="note">@((MarkupString)L.T("ov.intro"))</p>
 
 <div class="panel">
     <div class="row">
-        <label>玩家數
+        <label>@L.T("ov.players")
             <select @bind="playersFilter">
-                <option value="0">全部</option>
-                <option value="3">3 人</option>
-                <option value="4">4 人</option>
+                <option value="0">@L.T("ov.all")</option>
+                <option value="3">@L.T("sim.p3")</option>
+                <option value="4">@L.T("sim.p4")</option>
             </select>
         </label>
-        <label>檔名或策略含 <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="例如 harbor、4p" /></label>
-        <button class="secondary" @onclick="Refresh">重新整理</button>
+        <label>@L.T("ov.filter") <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="@L.T("ov.filter_ph")" /></label>
+        <button class="secondary" @onclick="Refresh">@L.T("sim.refresh")</button>
     </div>
     <div class="row" style="margin-top:.5rem">
-        <label>預設組合
+        <label>@L.T("ov.preset")
             <select @bind="presetName">
-                <option value="">（@(presets.Count == 0 ? "尚無，先勾選檔案再儲存" : "選擇組合")）</option>
-                @foreach (var n in presets.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase)) { <option value="@n">@n（@presets[n].Count 份）</option> }
+                <option value="">(@(presets.Count == 0 ? L.T("ov.preset_none") : L.T("ov.preset_choose")))</option>
+                @foreach (var n in presets.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase)) { <option value="@n">@L.T("ov.preset_item", n, presets[n].Count)</option> }
             </select>
         </label>
-        <button class="secondary" @onclick="ApplyPreset" disabled="@string.IsNullOrEmpty(presetName)">套用</button>
-        <button class="secondary" @onclick="DeletePreset" disabled="@string.IsNullOrEmpty(presetName)">刪除</button>
+        <button class="secondary" @onclick="ApplyPreset" disabled="@string.IsNullOrEmpty(presetName)">@L.T("sim.apply")</button>
+        <button class="secondary" @onclick="DeletePreset" disabled="@string.IsNullOrEmpty(presetName)">@L.T("ov.delete")</button>
         <span class="grow"></span>
-        <label>另存勾選為 <input type="text" style="width:9rem" placeholder="組合名稱，例如 五選四" @bind="newPresetName" @bind:event="oninput" /></label>
-        <button class="secondary" @onclick="SavePreset" disabled="@(selected.Count == 0 || string.IsNullOrWhiteSpace(newPresetName))">儲存</button>
+        <label>@L.T("ov.save_as") <input type="text" style="width:9rem" placeholder="@L.T("ov.save_ph")" @bind="newPresetName" @bind:event="oninput" /></label>
+        <button class="secondary" @onclick="SavePreset" disabled="@(selected.Count == 0 || string.IsNullOrWhiteSpace(newPresetName))">@L.T("ov.save")</button>
     </div>
     @if (presetNote != null) { <div class="ok" style="margin-top:.4rem">@presetNote</div> }
     <div class="tablewrap" style="max-height:20rem; overflow-y:auto; margin-top:.5rem">
         <table class="data filetable">
             <thead>
                 <tr>
-                    <th class="chk"><input type="checkbox" title="全選／取消目前列出的檔案" checked="@AllShownSelected" disabled="@(shown.Count == 0)" @onchange="@(e => ToggleShown((bool)(e.Value ?? false)))" /></th>
-                    <th class="left">檔名</th><th>人數</th><th>局數</th><th class="left">座位順序</th><th class="left">策略</th><th>大小</th><th class="left">修改時間</th>
+                    <th class="chk"><input type="checkbox" title="@L.T("ov.check_title")" checked="@AllShownSelected" disabled="@(shown.Count == 0)" @onchange="@(e => ToggleShown((bool)(e.Value ?? false)))" /></th>
+                    <th class="left">@L.T("ov.th.file")</th><th>@L.T("ov.th.players")</th><th>@L.T("ov.th.games")</th><th class="left">@L.T("ov.th.order")</th><th class="left">@L.T("ov.th.strategies")</th><th>@L.T("ov.th.size")</th><th class="left">@L.T("ov.th.modified")</th>
                 </tr>
             </thead>
             <tbody>
@@ -58,19 +58,19 @@
             }
             @if (shown.Count == 0)
             {
-                <tr><td colspan="8" class="muted left">@(metas.Count == 0 ? "資料夾內沒有可用的結果檔" : "沒有符合篩選條件的檔案")</td></tr>
+                <tr><td colspan="8" class="muted left">@(metas.Count == 0 ? L.T("ov.empty_folder") : L.T("ov.empty_filter"))</td></tr>
             }
             </tbody>
         </table>
     </div>
     <div class="actionbar">
-        <span class="muted">已選 <strong>@selected.Count</strong> 份 / 共 @metas.Count 份（目前列出 @shown.Count 份）</span>
+        <span class="muted">@((MarkupString)L.T("ov.selected", selected.Count, metas.Count, shown.Count))</span>
         <span class="grow"></span>
-        <button class="go" @onclick="Build" disabled="@(loading || !selected.Any())">@(loading ? "產生中…" : $"產生總覽（{selected.Count} 份）")</button>
+        <button class="go" @onclick="Build" disabled="@(loading || !selected.Any())">@(loading ? L.T("ov.building") : L.T("ov.build", selected.Count))</button>
     </div>
-    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)。點整列或勾選方塊即可選取；表頭的方塊會全選／取消目前列出的檔案（先用上方篩選縮小範圍）。參數掃描檔（sweep）與無法讀取的檔案不會列出；每份大檔載入需要幾秒。</p>
-    @if (loading) { <p>載入中…（@done / @selected.Count）</p> }
-    @foreach (var m in skipped) { <div class="error">略過：@m</div> }
+    <p class="note">@L.T("ov.note", AppState.DisplayPath(dir))</p>
+    @if (loading) { <p>@L.T("ov.loading", done, selected.Count)</p> }
+    @foreach (var m in skipped) { <div class="error">@L.T("ov.skipped", m)</div> }
 </div>
 
 @if (tables.Count > 0)
@@ -81,24 +81,24 @@
         var group = rows.Where(r => r.Players == players).ToList();
         var groupTables = tables.Where(t => t.Players == players).ToList();
         var orders = groupTables.Select(t => t.SeatOrder).Distinct().ToList();
-        <h2>@players 人局（@groupTables.Count 張桌子）</h2>
-        <p class="note">座位順序：@string.Join("、", orders.Select(o => o + " (" + groupTables.Count(t => t.SeatOrder == o) + " tables)"))</p>
+        <h2>@L.T("ov.group", players, groupTables.Count)</h2>
+        <p class="note">@L.T("ov.seat_orders", string.Join(L.T("common.list"), orders.Select(o => o + " (" + groupTables.Count(t => t.SeatOrder == o) + " tables)")))</p>
         @if (groupTables.Any(t => TournamentOverview.SeatOrderQuality(t) == "biased"))
         {
-            <div class="error">這組有桌子用 Rotate 或 Fixed 座位順序：同一桌只用一種循環排列，勝率可能偏差 20 個百分點以上，不能和其他桌直接比較強弱。建議用 Random 或 Balanced 重跑。</div>
+            <div class="error">@L.T("ov.biased")</div>
         }
         else if (orders.Count > 1)
         {
-            <div class="ok">這組的桌子座位順序不一致，平均勝率時請留意。</div>
+            <div class="ok">@L.T("ov.mixed")</div>
         }
         <figure class="chartbox">
-            <BarChart Title="@($"{players} 人局平均勝率")" LabelWidth="220" Format="@(v => v.ToString("P1"))"
+            <BarChart Title="@L.T("ov.chart", players)" LabelWidth="220" Format="@(v => v.ToString("P1"))"
                       Items="@(group.Select((r, i) => new BarChart.BarItem(Palette.DisplayName(r.Strategy), r.AvgWinShare, r.AvgWinShareCi95, Palette.Color(r.Strategy, i),
-                           $"{Palette.DisplayName(r.Strategy)}　平均勝率 {r.AvgWinShare:P1} ± {r.AvgWinShareCi95:P1}（{r.Tables} 桌，範圍 {r.MinWinShare:P1}～{r.MaxWinShare:P1}），均分基準 {1.0 / players:P1}")).ToList())" />
+                           L.T("ov.tip", Palette.DisplayName(r.Strategy), r.AvgWinShare.ToString("P1"), r.AvgWinShareCi95.ToString("P1"), r.Tables, r.MinWinShare.ToString("P1"), r.MaxWinShare.ToString("P1"), (1.0 / players).ToString("P1")))).ToList())" />
         </figure>
         <div class="tablewrap">
             <table class="data">
-                <thead><tr><th>策略</th><th>桌數</th><th>局數</th><th>平均勝率</th><th>±95%</th><th>優勢</th><th>最低～最高</th><th>平均分</th></tr></thead>
+                <thead><tr><th>@L.T("ov.th.strategy")</th><th>@L.T("ov.th.tables")</th><th>@L.T("ov.th.games")</th><th>@L.T("ov.th.avg_win")</th><th>±95%</th><th>@L.T("ov.th.edge")</th><th>@L.T("ov.th.range")</th><th>@L.T("ov.th.avg_score")</th></tr></thead>
                 <tbody>
                 @foreach (var r in group)
                 {
@@ -106,7 +106,7 @@
                         <td>@Palette.DisplayName(r.Strategy)</td><td>@r.Tables</td><td>@r.Games.ToString("N0")</td>
                         <td>@r.AvgWinShare.ToString("P1")</td><td>@r.AvgWinShareCi95.ToString("P1")</td>
                         <td>@((r.Edge >= 0 ? "+" : "−") + Math.Abs(r.Edge * 100).ToString("0.0")) pp</td>
-                        <td>@r.MinWinShare.ToString("P1")～@r.MaxWinShare.ToString("P1")</td>
+                        <td>@L.T("ov.range", r.MinWinShare.ToString("P1"), r.MaxWinShare.ToString("P1"))</td>
                         <td>@r.AvgScore.ToString("0.0")</td>
                     </tr>
                 }
@@ -117,15 +117,15 @@
 
     @if (pairs.Count > 0)
     {
-        <h2>兩兩對戰矩陣</h2>
-        <p class="note">格子 = 列策略的名次高於欄策略的局數比例（平手不算），在兩者同桌的所有桌子上取平均；需要結果檔含逐局記錄。顏色越深代表列越占優勢。</p>
+        <h2>@L.T("ov.h.matrix")</h2>
+        <p class="note">@L.T("ov.matrix_note")</p>
         foreach (int players in pairs.Select(p => p.Players).Distinct().OrderBy(p => p))
         {
             var names = pairs.Where(p => p.Players == players).SelectMany(p => new[] { p.A, p.B }).Distinct().OrderBy(n => n, StringComparer.Ordinal).ToList();
-            <h3>@players 人局</h3>
+            <h3>@L.T("ov.pg", players)</h3>
             <div class="tablewrap">
                 <table class="data heat">
-                    <thead><tr><th>列 ＼ 欄</th>@foreach (var c in names) { <th>@Palette.DisplayName(c)</th> }</tr></thead>
+                    <thead><tr><th>@L.T("ov.row_col")</th>@foreach (var c in names) { <th>@Palette.DisplayName(c)</th> }</tr></thead>
                     <tbody>
                     @foreach (var rname in names)
                     {
@@ -134,7 +134,7 @@
                             @foreach (var c in names)
                             {
                                 var cell = rname == c ? null : Lookup(players, rname, c);
-                                <td class="cell" style="@(cell == null ? "" : HeatStyle(cell.Value))">@(rname == c ? "—" : cell == null ? "（沒同桌）" : cell.Value.ToString("P0"))</td>
+                                <td class="cell" style="@(cell == null ? "" : HeatStyle(cell.Value))">@(rname == c ? "—" : cell == null ? L.T("ov.never") : cell.Value.ToString("P0"))</td>
                             }
                         </tr>
                     }
@@ -144,17 +144,17 @@
         }
     }
 
-    <h2>各桌明細</h2>
+    <h2>@L.T("ov.h.details")</h2>
     <div class="tablewrap">
         <table class="data">
-            <thead><tr><th>檔案</th><th>人數</th><th>局數</th><th>座位順序</th><th>座位（勝率／平均分）</th></tr></thead>
+            <thead><tr><th>@L.T("ov.th.file2")</th><th>@L.T("ov.th.players")</th><th>@L.T("ov.th.games")</th><th>@L.T("ov.th.order")</th><th>@L.T("ov.th.seats")</th></tr></thead>
             <tbody>
             @foreach (var t in tables.OrderBy(t => t.Players).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
             {
                 <tr>
                     <td>@t.Name</td><td>@t.Players</td><td>@t.Games.ToString("N0")</td>
                     <td class="@(TournamentOverview.SeatOrderQuality(t) == "biased" ? "warn" : "")">@SeatOrderText(t)</td>
-                    <td>@string.Join("；", t.Seats.OrderByDescending(s => s.WinShare).Select(s => $"{Palette.DisplayName(s.Strategy)} {s.WinShare:P1}／{s.AvgScore:0.0}"))</td>
+                    <td>@string.Join(L.T("common.sep"), t.Seats.OrderByDescending(s => s.WinShare).Select(s => $"{Palette.DisplayName(s.Strategy)} {s.WinShare:P1} / {s.AvgScore:0.0}"))</td>
                 </tr>
             }
             </tbody>
@@ -210,7 +210,7 @@
     protected override async Task OnInitializedAsync()
     {
         dir = AppState.ResultsDirectory(Config);
-        // coming back from another page: show what was there (the file list is not scanned again, "重新整理" does that)
+        // coming back from another page: show what was there (the file list is not scanned again, "Refresh" does that)
         if (Memory.Get<Snap>("overview") is { } m)
         {
             metas = m.Metas; playersFilter = m.PlayersFilter; textFilter = m.TextFilter; presets = m.Presets;
@@ -248,7 +248,7 @@
                     var names = c.Seats.Select(x => x.Strategy.Equals("rule-based", StringComparison.OrdinalIgnoreCase) && x.Params.TryGetValue("profile", out var pr) ? pr.ToString() : x.Strategy)
                         .Select(Palette.DisplayName).ToList();
                     list.Add(new FileMeta(f, System.IO.Path.ChangeExtension(ResultFiles.Label(dir, f), null), c.Players, c.Games, c.SeatOrder.ToString(),
-                        string.Join("、", names.Distinct()), fi.Length >= 1048576 ? $"{fi.Length / 1048576.0:0.#} MB" : $"{Math.Max(1, fi.Length / 1024)} KB", fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")));
+                        string.Join(L.T("common.list"), names.Distinct()), fi.Length >= 1048576 ? $"{fi.Length / 1048576.0:0.#} MB" : $"{Math.Max(1, fi.Length / 1024)} KB", fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")));
                 }
                 catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or LocException or IOException) { }
             }
@@ -267,7 +267,7 @@
         selected.Clear();
         foreach (var f in found) selected.Add(f);
         playersFilter = 0; textFilter = "";
-        presetNote = $"已套用「{presetName}」：選取 {found.Count} 份" + (found.Count < names.Count ? $"（有 {names.Count - found.Count} 份檔案已不存在）" : "") + "。";
+        presetNote = L.T("ov.note.applied", presetName, found.Count) + (found.Count < names.Count ? L.T("ov.note.missing", names.Count - found.Count) : "") + L.T("ov.note.end");
     }
 
     private void SavePreset()
@@ -277,13 +277,13 @@
         OverviewPresets.Save(dir, name, selected);
         presets = OverviewPresets.Load(dir);
         presetName = name; newPresetName = "";
-        presetNote = $"已{(replaced ? "更新" : "儲存")}組合「{name}」（{selected.Count} 份）。";
+        presetNote = L.T(replaced ? "ov.note.updated" : "ov.note.saved", name, selected.Count);
     }
 
     private void DeletePreset()
     {
         OverviewPresets.Delete(dir, presetName);
-        presetNote = $"已刪除組合「{presetName}」。";
+        presetNote = L.T("ov.note.deleted", presetName);
         presets = OverviewPresets.Load(dir);
         presetName = "";
     }
