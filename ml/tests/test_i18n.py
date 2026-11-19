@@ -95,3 +95,54 @@ def test_versions_page_chrome_is_english(monkeypatch, tmp_path):
         assert text in html, text
     # the version list itself (docs/versions.json: titles, meanings, changes) is project data and stays Chinese; the labels around it are translated
     assert "什麼時候加" not in html and "目前：" not in html and "來源：" not in html
+
+
+def _english_app(monkeypatch, tmp_path, page):
+    monkeypatch.delenv("PR_LANG", raising=False)
+    monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
+    at = AppTest.from_file(UI, default_timeout=60).run()
+    at.button(key=f"nav-{page}").click().run()
+    assert not at.exception, at.exception
+    return at
+
+
+def _page_text(at):
+    out = _texts(at) + [i.value for i in at.info] + [r.label for r in at.main.radio] + [n.label for n in at.main.number_input]
+    out += [x.label for x in at.main.text_input] + [c.label for c in at.main.checkbox]
+    out += [o for r in at.main.radio for o in r.options if isinstance(o, str)]
+    return out
+
+
+def test_match_page_is_english(monkeypatch, tmp_path):
+    at = _english_app(monkeypatch, tmp_path, "match")
+    texts = _page_text(at)
+    assert any("Match Validation" in x for x in texts) or at.title[0].value == "Match Validation"
+    assert "Start match" in [b.label for b in at.main.button]
+    bad = [x for x in texts if CJK.search(x)]
+    assert not bad, bad
+    for choice in ("default", "hand", "model"):  # every opponent table (the radio holds the keys, the labels are formatted)
+        at.radio(key="m-table").set_value(choice).run()
+        assert not at.exception, at.exception
+        bad = [x for x in _page_text(at) if CJK.search(x)]
+        assert not bad, (choice, bad)
+    assert not at.exception, at.exception
+    bad = [x for x in _page_text(at) if CJK.search(x)]
+    assert not bad, bad
+    # the matches already recorded on a model (table columns are translated; the values come from the model's .meta.json)
+    frames = [d.value for d in at.dataframe]
+    cols = [c for f in frames for c in f.columns]
+    assert "Win rate" in cols and "Record kept in" in cols
+    assert not [c for c in cols if CJK.search(str(c))], cols
+
+
+def test_model_list_page_is_english(monkeypatch, tmp_path):
+    at = _english_app(monkeypatch, tmp_path, "modellist")
+    assert any("Model List" in x for x in [c.value for c in at.main.caption] + [m.value for m in at.main.markdown])
+    cols = [c for d in at.dataframe for c in d.value.columns]
+    for name in ("Model", "Location", "Type", "Players", "Best win rate vs original MCTS", "Version status"):
+        assert name in cols, (name, cols)
+    assert not [c for c in cols if CJK.search(str(c))], cols
+    cells = [str(v) for d in at.dataframe for v in d.value.to_numpy().ravel()]
+    bad = [x for x in cells if CJK.search(x)]
+    assert not bad, bad[:5]
+    assert not [x for x in _page_text(at) if CJK.search(x)]
