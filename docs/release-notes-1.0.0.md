@@ -36,7 +36,7 @@ Everything generated before revision 2 (data, models, tournament results, the nu
 - The value models, tuning and most analysis target the **4-player** game; 3-player models are older and weaker.
 - Hidden information (opponents' VP chips) is protected by convention only; strategies are trusted not to read it.
 - The Dashboard and the ML UI are meant for **localhost only**: they can read arbitrary paths on the machine they run on.
-- Windows: the .NET and Python test suites run on `windows-latest` in CI (see the CI badge/results); the ML UI's background-process handling on Windows (detached processes, cancelling jobs) has had less real-world use than on Linux.
+- Windows: the full .NET test suite (including the golden-sample hashes, so results are identical to Linux) and the Python suite (including real background-job processes) pass on `windows-latest` in CI. Cancelling a data-generation job on Windows ends the Runner outright, so the games finished so far are not kept (Linux keeps them). Nobody has driven the ML UI by hand on Windows yet.
 
 ## Upgrading
 

@@ -27,8 +27,8 @@
 8. 【先討論】引擎升到 1.0.0。1.0.0 的承諾：設定檔／結果檔格式、命令列、資料與模型格式（特徵版本並存）向下相容，同設定同種子同規則版本結果相同；之後弄壞這些的改動才升主版本。條件：
    (a) 規則詮釋：使用者已逐條確認並依官方規則改完（`docs/rules-interpretations.md`；Factory、Craftsman 特權、倉庫三條已改，規則版本 2、引擎 0.6.0）。
    (b) 英文化只做 README 與 UI（使用者決定：分析文件、版本說明等長文件維持中文）：共用 `i18n/` 目錄、代號查表、預設英文，英文模式下 UI 不能出現中文字（ML UI 有測試；Dashboard 用 Playwright 手動驗證）。ML UI 與 Dashboard 全部頁面完成，「複製摘要給 AI」也跟著語言。剩：英文 README（使用者改完中文版後再翻譯，含雙語截圖）、語言鈕免整頁重載、英文模式的版面截圖檢查（例如供應區貨物表頭被截斷）、`ResultSummary` 加英文版這個新功能還沒進引擎版本（建議次版本 +1，待同意）；`docs/versions.json` 的內容與 `Engine` 的錯誤訊息維持中文。
-   (c) 公開配件：已完成 `LICENSE`（MIT，Blex）與 CI（`.github/workflows/ci.yml`，跑 `dotnet test` 與 `pytest`，第一次推送後確認通過）；剩 tag `v1.0.0` 與 release notes；README 寫相容性承諾與已知限制（Linux／Windows 的驗證範圍、3 人局模型與調參以 4 人局為主、不支援 5 人局與擴充）。
-   (d) Windows：「已知問題」裡「還沒在 Windows 實測」的項目至少跑一輪，或明列為已知限制。
+   (c) 公開配件：`LICENSE`（MIT，Blex）、CI（Linux＋Windows）、release notes 草稿（`docs/release-notes-1.0.0.md`）已完成；剩 README 的相容性承諾與已知限制（使用者改 README，文字取自 release notes）、升版 1.0.0（引擎版本、`docs/versions.json`、`CLAUDE.md` 版本規則補「弄壞設定檔、結果檔、命令列或資料格式的改動才升主版本」）、PR 合併到 main、在 main 打 tag `v1.0.0` 並建立 GitHub release。
+   (d) Windows：CI 已在 `windows-latest` 跑 .NET 與 Python 全部測試（全綠，黃金樣本 hash 與 Linux 一致）；真人在 Windows 操作 ML UI 還沒做，寫成已知限制（release notes）。
    進 1.0.0 時在 `CLAUDE.md` 的版本規則補一條：弄壞設定檔、結果檔、命令列或資料格式的改動才升主版本。
 
 ### 擱置（使用者指示，暫不處理）
