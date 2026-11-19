@@ -1,65 +1,65 @@
 {
   "note": "Golden hashes of fixed games (Tests/VersionTests.cs). Regenerate with PR_UPDATE_GOLDEN=1 dotnet test --filter Golden, only after deciding the versions (CLAUDE.md, 版本與 hash).",
   "rules": {
-    "3p": "a5c7a7283bfa069e36ad78a0b44e96ed2df76340b9fe3af36139b61c30d83625",
-    "4p": "91ab77f47e3e55829c589f0d12cd5430149358c3852337151a3c78abcadea0ef"
+    "3p": "d21f89d0cd67319c0ee15a610c80a1ad2666da9206b4965c447dd2d43c795e64",
+    "4p": "71bf4d0a50afde4af24b927d43999c3a268c6bd0709d905bfe71aad70e8f93bc"
   },
-  "rulesRevision": 1,
+  "rulesRevision": 2,
   "strategies": {
     "build-first": {
       "revision": 1,
       "h3": "9d2f2b82301a6e11596461ad14c04ffee17acd679c452674b6ab84d9f70583ea",
-      "h4": "519580cd23306858f059c63b9590351af5c4e9f54774362805ba6343ed5f470c"
+      "h4": "8322a9ba1d53dd02a4c318f3dd77152799d6f904643029de0f005170caa42ffb"
     },
     "cheap-engine": {
       "revision": 1,
-      "h3": "fa36b062d4174dee6c622af2094aeb1769fb0c89d316e15ffe0184698f352c42",
-      "h4": "93c71a7a1ef425ebce7a0ba954afd8bd2c8ecc05a3c24da076383c36b02fbf97"
+      "h3": "3ed9f201f56fe86df5dba5b50634020a3628caa773fb4ae2c2ba02726797e749",
+      "h4": "a1e8e50957527ba0f9b6b138d396a35b2fd635509d621bff0d7b043446de703b"
     },
     "corn-monopoly": {
       "revision": 1,
-      "h3": "711dffe7442873ea41fa60e190d31c8b328c0b5147a264312f3e1995f0f643f5",
-      "h4": "e8c144cd13b23fab568c02072bc90751032861cbd05ce59d1db3d54fab2a319e"
+      "h3": "4513fac4a23cb1dffaf0ae83919ca746824768318bbc5c5585ca87b7e01273a6",
+      "h4": "38676755b6395286dc6e363e9194583565d5355bd2381f3275edfac1f094a8c7"
     },
     "corn-monopoly-hoard": {
       "revision": 1,
-      "h3": "5b699b377a41a400722debcf2d9f5f207cb6f00e2d2c44aaa9f3d94ee29a3976",
-      "h4": "bb831a58e95c212668658e75f050f3b6f744369c300d711ae5d617806243f1ce"
+      "h3": "8b1ade2e14f09c271367c4e91b401679e4529056d25f5ded4c46d5168d6e6aa5",
+      "h4": "bafddcabb20599dfe5eaba2ae8a6d6d7a0fbf3257405db3d9dff26ae5959f3b7"
     },
     "corn-monopoly-tiles": {
       "revision": 1,
-      "h3": "0e160a80974a7253a39497d45ea16bda422cb795c948527abde6f788680f9b25",
-      "h4": "1a3a2f92d49161ef0545047a0250d8b8b8c06b2ca30712cb6556d10a17111b9f"
+      "h3": "505b9197b7d215365a4325869585bc7d69788df334020bed43fbc3e8c2d7c61c",
+      "h4": "24f9901d60e9bdda296debc0704ed47fd81bc6d093bfa06b6b574fb42c4d84fa"
     },
     "corn-shipper": {
       "revision": 1,
-      "h3": "5b6d17cedf01282a616bb24970c817283bea633a2db7927e07ca95708f317539",
-      "h4": "68e0a923d0851c4e5ce853d20d687b5b387c2f569d0cf67c064fda7c8569f7f4"
+      "h3": "9d8d89c9bf064b98439374296fc3a9ca4965e7aff1713137d606a32de4b7c2c1",
+      "h4": "cbcb2cebead099a15f4820d56ffbe127101bb42f3857bcf0acc35bdac62436ee"
     },
     "corn-to-premium": {
       "revision": 1,
       "h3": "93c01afaae04c38076d4bfe267dbe0bf7f40f0ec06fdc4cb0920a075edd00096",
-      "h4": "ce140d55a9bedaa7b8db65860c2a3467eef7b165d790b0b700e5598b0542df9f"
+      "h4": "a4cc2ce1aa2bdf113136057fe745095a2d224e88d7f157c69511f69fbc79a57f"
     },
     "guided-random": {
       "revision": 1,
-      "h3": "0e8ec8ac52572580331e94c70a755dbcf09da0de92de1d7396c77d2bd740ff3e",
-      "h4": "cb5524f22cce5774d79e87c453158d6e5aed3f8600ee152c79b7d723f30f0ba4"
+      "h3": "a4e67a1744751a837855d67e981db8ab730697b0997006c4c8c4f95969f11808",
+      "h4": "124002a90cd4cb5ad385f87f7b483d7e7cd95dfb06fbf5c72aec9146bac0f4dc"
     },
     "harbor-rush": {
       "revision": 1,
-      "h3": "bf26efcb17082c9f9f3c04b2c2fe0c8aa86b30581b29f162023314c99a157d70",
-      "h4": "f75426bbf8d4e4f2ec99047e5e9c1324a99ce259dc66f516c3e03e461db52635"
+      "h3": "f0525cb23532789087a14d88b25e21ac29dbd842023d4d35ef92db3a2172f2f8",
+      "h4": "8c2fa6dcdc33e68ae3099ee40d723f986d5a693520330c11e9067ca3eae6cca3"
     },
     "wharf-premium": {
       "revision": 1,
-      "h3": "e97cbce36670d937bed974603cfab03f78a85fa81773673c92f6c8ba4a09719d",
-      "h4": "e7981af3a2da055e7af3fa928183b08748fbb7cd7217162bb73c152791b59507"
+      "h3": "ca9f5e445da391d3a2b26cd1df467979f7a254425e4c223ccf360e564fdcd254",
+      "h4": "7210311c6e68cf7e9f48d5ad6837b1ac50c0f6bb116ba4753048a418470a2a9e"
     },
     "wharf-rush": {
       "revision": 1,
       "h3": "93573e35120ad45aabc74e6146c8b2053cac9bb5280c3910a8265715493929f7",
-      "h4": "ae03d19847786e72cd35a77a60fcb037251c8ab312a3e43e2ffe52b84cd69ecf"
+      "h4": "e878e92fbe87441e138679dc1fc64fb9c1cb5611ad5cffe256d0adf2ab3423f7"
     }
   }
 }

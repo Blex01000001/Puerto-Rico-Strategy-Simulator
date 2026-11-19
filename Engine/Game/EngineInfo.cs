@@ -7,7 +7,7 @@ public static class EngineInfo
     /// Product version (SemVer, shown to people, not part of any hash): MINOR for new features, PATCH for fixes that do not
     /// change results; every <see cref="RulesRevision"/> bump is at least a MINOR bump. Change log: docs/versions.json.
     /// </summary>
-    public const string Version = "0.5.0";
+    public const string Version = "0.6.0";
     public const string RulesVersion = "base";
 
     /// <summary>
@@ -17,7 +17,7 @@ public static class EngineInfo
     /// the "recipe fingerprint" of data, models and matches (ml/fingerprint.py) so old data is recognised after a bump.
     /// Files without the field were made with revision 1.
     /// </summary>
-    public const int RulesRevision = 1;
+    public const int RulesRevision = 2;
 
     /// <summary>
     /// The git commit this build was made from ("a1b2c3d4", with "-dirty" when the working tree had uncommitted changes;

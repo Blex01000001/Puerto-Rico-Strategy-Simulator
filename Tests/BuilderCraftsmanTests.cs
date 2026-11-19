@@ -231,4 +231,23 @@ public class CraftsmanTests
         Do(s, Legal(s)[0]);
         Assert.Equal(coins + 2, s.Coins[0]); // 3 kinds -> 2 coins
     }
+
+    [Fact]
+    public void Factory_Counts_Only_Kinds_Really_Received_From_The_Supply()
+    {
+        // rules.md section 3 (Factory), confirmed 2026-11-19: "produce" means receiving barrels from the supply.
+        var s = New();
+        Own(s, 0, BuildingId.Factory, 1);
+        SetTiles(s, 0, (int)Good.Corn, 1, occupied: 1);
+        SetTiles(s, 0, (int)Good.Indigo, 1, occupied: 1);
+        Own(s, 0, BuildingId.SmallIndigoPlant, 1);
+        SetTiles(s, 0, (int)Good.Sugar, 1, occupied: 1);
+        Own(s, 0, BuildingId.SmallSugarMill, 1);
+        s.GoodsSupply[(int)Good.Indigo] = 0; // the indigo supply is empty when the seat's turn to collect comes
+        int coins = s.Coins[0];
+        Start(s, 0, Role.Craftsman);
+        Do(s, Legal(s)[0]);
+        Assert.Equal(0, s.Goods[0 * 5 + (int)Good.Indigo]);
+        Assert.Equal(coins + 1, s.Coins[0]); // only corn and sugar were received: 2 kinds -> 1 coin
+    }
 }

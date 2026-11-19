@@ -50,9 +50,9 @@ public static partial class Rules
             for (int g = 0; g < G; g++)
             {
                 int produced = s.Production[p * G + g];
-                if (produced > 0) kinds++;
                 int owed = produced + (p == s.CurrentOwner && g == bonusGood ? 1 : 0);
                 int take = Math.Min(owed, s.GoodsSupply[g]);
+                if (take > 0) kinds++; // rules.md section 3 (Factory): a kind counts only when the seat really received barrels of it
                 s.Goods[p * G + g] += take;
                 s.GoodsSupply[g] -= take;
             }
