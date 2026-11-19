@@ -120,7 +120,7 @@ def ensure_runner(job):
     out = runner_dir()
     dll = os.path.join(out, "Runner.dll")
     if sources_newer_than(dll):
-        print(f"publishing Runner to {os.path.relpath(out, jobs.ROOT)} (missing or older than the C# sources)...", flush=True)
+        print(f"publishing Runner to {jobs.relpath(out)} (missing or older than the C# sources)...", flush=True)
         job.event({"stage": "publish"})
         cmd = ["dotnet", "publish", os.path.join(jobs.ROOT, "Runner"), "-c", "Release", "-o", out, "--nologo", "-v", "q"]
         try:

@@ -49,7 +49,7 @@
 - 配方 hash（`ml/fingerprint.py`）只在 Linux 驗證過；MLP 的 torch／numpy 兩個後端各算各的 hash。`train_lgbm` 的樹與執行緒數無關只用小資料驗證過（測試 `test_lightgbm_trees_do_not_depend_on_the_thread_count`），大資料與不同機器未驗證。
 - Windows 上長時間工作曾在約 10 分鐘後被誤判為「中斷」（心跳執行緒停止）：已改成重試、心跳不中斷，程序還在時改標「失聯」並暫停佇列；修正後還沒在 Windows 實測（失聯的程序偵測用 kernel32，只在 Linux 測過）。
 - 本機工作區 `ml/local/`（ML UI 的模型、設定、對戰紀錄，不進 git）與「設為正式模型／移到本機」只在 Linux 驗證過。
-- ML UI 的工作佇列（一次一個、依序執行、關掉 UI 繼續、失敗／取消後接著跑）在 Linux 驗證過；Windows 還沒實測。佇列只能排「已經存在」的東西：還沒訓練出來的模型不能先排它的對戰、還沒產生的資料不能先排訓練（要等前一個完成）。
+- ML UI 的工作佇列（一次一個、依序執行、關掉 UI 繼續、失敗／取消後接著跑）在 Linux 驗證過；Windows 由 CI（`windows-latest`）跑 pytest（含真的開程序的測試），沒有真人操作過。佇列只能排「已經存在」的東西：還沒訓練出來的模型不能先排它的對戰、還沒產生的資料不能先排訓練（要等前一個完成）。
 - ML UI 只在 Linux（Chromium）實際操作驗證過；Windows 上的背景程序（`DETACHED_PROCESS`）、`start-ui.cmd` 與 Ctrl+C 後工作繼續執行，還沒在 Windows 實測。Windows 上取消資料／對戰工作是直接結束 Runner（沒有共用的主控台可送 Ctrl+C），不會保留已完成的局數。
 - 策略模擬頁（`Simulate.razor`）的「完全平衡」選項與局數提示、局數千分位輸入、MCTS 耗時警告、自訂結果檔名、策略下拉選單名稱只通過編譯與單元測試，沒有在瀏覽器實際操作驗證（驗證時環境的安全檢查擋下了 Playwright 指令）；下次開 Dashboard 時順手點一次。
 - 分析文件第 1、2、7 節的數字是 `balanced` 座位 + 新同分預設（`tournaments/` 4 人 100,008／3 人 100,002 局）；第 3～4 節的調參與第 5 節 MCTS 實驗是舊預設下做的（第一到第三輪調參是 `rotate`、未重跑，MCTS 的對手 build-first／harbor-rush 也是舊同分順序）；總覽頁的「座位順序」欄會標示每份結果用哪種。

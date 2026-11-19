@@ -149,15 +149,43 @@ def _alive_windows(pid, started):
         size = wintypes.DWORD(1024)
         if k32.QueryFullProcessImageNameW(handle, 0, name, ctypes.byref(size)) and "python" not in name.value.lower():
             return False  # the pid now belongs to another program
-        if started:
-            times = [wintypes.FILETIME() for _ in range(4)]
-            if k32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
-                ft = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
-                created = ft / 1e7 - 11644473600  # FILETIME (100 ns since 1601) -> Unix time
-                return created <= started + 5
-        return True
+        created = None
+        times = [wintypes.FILETIME() for _ in range(4)]
+        if k32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
+            ft = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+            created = ft / 1e7 - 11644473600  # FILETIME (100 ns since 1601) -> Unix time
+            if started and created > started + 5:
+                return False
+        # any Python started before the job could still be another program (pytest, a notebook): the command line must name job_runner
+        line = _windows_command_line(pid, created)
+        return line is None or "job_runner" in line  # None: it could not be read, trust the checks above
     finally:
         k32.CloseHandle(handle)
+
+
+_CMDLINES = {}
+
+
+def _windows_command_line(pid, created):
+    """Command line of a process (PowerShell/CIM), cached per (pid, start time) since it never changes; None when unreadable."""
+    key = (pid, created)
+    if key not in _CMDLINES:
+        try:
+            out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                  f"(Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}').CommandLine"],
+                                 capture_output=True, text=True, timeout=20)
+            _CMDLINES[key] = out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
+        except (OSError, subprocess.SubprocessError):
+            _CMDLINES[key] = None
+    return _CMDLINES[key]
+
+
+def relpath(path, start=None):
+    """os.path.relpath that does not fail when the two paths are on different drives (Windows): then the path is returned as is."""
+    try:
+        return os.path.relpath(path, start or ROOT)
+    except ValueError:
+        return path
 
 
 def force_stop(job):
