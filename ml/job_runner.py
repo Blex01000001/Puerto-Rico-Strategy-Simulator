@@ -189,6 +189,8 @@ def run_dump(job, spec):
             args += [f"--{key}", str(spec[key])]
     code, lines = run_runner(job, args)
     summary = next((l for l in reversed(lines) if " rows " in l), "")
+    if job.cancelling and code != 0:  # Ctrl+C (130) on Linux, ended by terminate() (exit 1) on Windows: either way the user cancelled it
+        raise Cancelled({"output": spec["out"], "summary": summary or "cancelled"})
     if code not in (0, 130) or (code == 130 and not job.cancelling):
         raise RuntimeError(f"Runner exit {code}")
     m = re.search(r"(\d+) games, (\d+) positions, (\d+) rows", summary)
@@ -206,7 +208,7 @@ def run_match(job, spec):
     if spec.get("threads") is not None:
         args += ["--threads", str(spec["threads"])]
     code, lines = run_runner(job, args)
-    if code == 130 and job.cancelling:
+    if job.cancelling and code != 0:
         raise Cancelled({"output": spec["out"], "summary": "partial result (not recorded in the model)"})
     if code != 0:
         raise RuntimeError(f"Runner exit {code}")
