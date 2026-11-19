@@ -105,5 +105,14 @@ public class ResultAnalysisTests
         Assert.Contains("| B | random | valueModel x.txt |", text);   // the model is shown by file name only
         Assert.DoesNotContain("ml/local", text);
         Assert.Contains("| A | random | — | 62.5% |", text);          // 2.5 wins of 4 games (one tie for first)
+
+        // the English text says the same things and contains no Chinese
+        var en = ResultSummary.ToMarkdown(r, ResultAnalysis.From(r), english: true);
+        Assert.Contains("## Simulation result: t-summary", en);
+        Assert.Contains("3 players, 4 games (completed, 4 planned)", en);
+        Assert.Contains("Duration: 2 min 5 s, 0.03 games/s", en);
+        Assert.Contains("| B | random | valueModel x.txt |", en);
+        Assert.Contains("| A | random | — | 62.5% |", en);
+        Assert.DoesNotContain(en, c => c >= (char)0x4e00 && c <= (char)0x9fff);
     }
 }

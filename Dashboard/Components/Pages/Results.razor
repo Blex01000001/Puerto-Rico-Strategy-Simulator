@@ -24,7 +24,7 @@ else if (State.Result != null && State.Analysis != null)
     var r = State.Result;
     var a = State.Analysis;
     var strategies = a.Strategies;
-    string summaryText = ResultSummary.ToMarkdown(r, a);
+    string summaryText = ResultSummary.ToMarkdown(r, a, !L.Chinese);
     string Pct(double v) => v.ToString("P1");
     string Color(int i) => Palette.Color(strategies[i].Strategy, i);
     string Name(int i) => Palette.Label(strategies[i].SeatId, strategies[i].Strategy);

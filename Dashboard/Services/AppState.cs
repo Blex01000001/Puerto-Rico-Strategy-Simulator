@@ -36,12 +36,40 @@ public sealed class AppState
         return t;
     }
 
-    /// <summary>Reads only the <c>config</c> section of a result or sweep file (skips the per-game records, so big files are fast).</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, long Length, long Ticks), SimulationConfig> ConfigCache = new();
+
+    /// <summary>
+    /// Reads only the <c>config</c> section of a result or sweep file. The config is among the first properties of the file, so only the
+    /// beginning is read (64 KB, doubled until the config is complete): a folder of big result files lists in moments and nothing is
+    /// held in memory. The answer is cached per file (path, size, modification time).
+    /// </summary>
     public static async Task<SimulationConfig> ReadConfigAsync(string path)
     {
         if (!File.Exists(path)) throw new LocException("err.not_found", DisplayPath(path));
-        byte[] bytes = await File.ReadAllBytesAsync(path);
-        return ExtractConfig(bytes, Path.GetFileName(path));
+        var info = new FileInfo(path);
+        var key = (path, info.Length, info.LastWriteTimeUtc.Ticks);
+        if (ConfigCache.TryGetValue(key, out var cached)) return SimulationConfig.Clone(cached);
+        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, useAsync: true);
+        long size = Math.Min(64 * 1024, fs.Length);
+        while (true)
+        {
+            var bytes = new byte[size];
+            fs.Position = 0;
+            int read = 0;
+            while (read < size) { int n = await fs.ReadAsync(bytes.AsMemory(read, (int)size - read)); if (n == 0) break; read += n; }
+            bool whole = read >= fs.Length;
+            try
+            {
+                var cfg = ExtractConfig(read == bytes.Length ? bytes : bytes[..read], Path.GetFileName(path));
+                if (ConfigCache.Count > 2000) ConfigCache.Clear();
+                ConfigCache[key] = SimulationConfig.Clone(cfg);
+                return cfg;
+            }
+            catch (Exception e) when (!whole && (e is JsonException || e is LocException))
+            {
+                size = Math.Min(size * 4, fs.Length); // the config did not fit in what was read: read more
+            }
+        }
     }
 
     private static SimulationConfig ExtractConfig(byte[] bytes, string fileName)
