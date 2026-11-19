@@ -26,7 +26,7 @@
 ### 引擎 1.0.0（公開發佈）
 8. 【先討論】引擎升到 1.0.0。1.0.0 的承諾：設定檔／結果檔格式、命令列、資料與模型格式（特徵版本並存）向下相容，同設定同種子同規則版本結果相同；之後弄壞這些的改動才升主版本。條件：
    (a) 規則詮釋由使用者逐條確認（「已知問題」裡引擎採用的詮釋；清單已整理在 `docs/rules-interpretations.md`，等使用者逐條回覆；不對的就規則版本 +1，要在 1.0.0 之前做完，因為之後規則版本一變所有資料都變舊）。
-   (b) 英文化只做 README 與 UI（Dashboard、ML UI）中英切換（使用者決定：分析文件、版本說明等長文件維持中文）：共用 `i18n/` 目錄、代號查表、預設英文；進度：機制（`i18n/`、`ml/i18n.py`）與 ML UI 外殼（導覽、側欄、標題、缺套件訊息）、排程佇列、版本控管、對戰驗證、模型清單、模型詳細、模擬對局採樣已完成（工作標題也跟著語言）（`docs/versions.json` 內容維持中文；`fingerprint.py` 的差異說明已可翻譯），其餘頁內文還是中文；ML UI 全部頁面已完成；Dashboard 機制（`Loc`、`i18n/dash.*.json`、側欄語言鈕）、外殼、Home、Simulate、`StrategyInfo`、Results（含 GameList、AppState 訊息）、Overview、Compare 已完成，其餘頁、`ActionText`、引擎的 `ResultSummary`（複製摘要給 AI）還是中文；順序：Replay → Replay（BoardView、MctsSearch、LegalActions）→ ActionText → Sweep／Config／Versions → 英文 README → 英文 README（含雙語截圖）→ Dashboard → 英文 README（含雙語截圖）；英文模式下 UI 不能出現中文字，用測試檢查。
+   (b) 英文化只做 README 與 UI（使用者決定：分析文件、版本說明等長文件維持中文）：共用 `i18n/` 目錄、代號查表、預設英文，英文模式下 UI 不能出現中文字（ML UI 有測試；Dashboard 用 Playwright 手動驗證）。進度：ML UI 全部頁面完成；Dashboard 機制（`Loc`、`i18n/dash.*.json`、側欄語言鈕）、外殼、Home、Simulate、`StrategyInfo`、Results（含 GameList、AppState 訊息）、Overview、Compare 完成。剩：Replay（BoardView、MctsSearch、LegalActions）、`ActionText`、Sweep、Config、Versions、引擎 `ResultSummary`（複製摘要給 AI，仍是中文）、語言鈕免整頁重載、英文 README（含雙語截圖）；`docs/versions.json` 的內容與 `Engine` 的錯誤訊息維持中文。
    (c) 公開配件：已完成 `LICENSE`（MIT，Blex）與 CI（`.github/workflows/ci.yml`，跑 `dotnet test` 與 `pytest`，第一次推送後確認通過）；剩 tag `v1.0.0` 與 release notes；README 寫相容性承諾與已知限制（Linux／Windows 的驗證範圍、3 人局模型與調參以 4 人局為主、不支援 5 人局與擴充）。
    (d) Windows：「已知問題」裡「還沒在 Windows 實測」的項目至少跑一輪，或明列為已知限制。
    進 1.0.0 時在 `CLAUDE.md` 的版本規則補一條：弄壞設定檔、結果檔、命令列或資料格式的改動才升主版本。
