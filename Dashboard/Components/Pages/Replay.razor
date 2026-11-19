@@ -5,67 +5,67 @@
 @inject IConfiguration Config
 @inject PageMemory Memory
 
-<PageTitle>模擬重播 · 波多黎各策略模擬器</PageTitle>
-<h1>模擬重播</h1>
-<p class="note">從結果檔取出設定與種子，重新打指定的那一局並列出每個決策（同一份設定與局號一定重現同一局，也不需要結果檔含逐局記錄）。需要用同版本的引擎產生的結果檔才會與原結果一致。</p>
+<PageTitle>@L.T("rp.page_title")</PageTitle>
+<h1>@L.T("nav.replay")</h1>
+<p class="note">@L.T("rp.intro")</p>
 
 <div class="panel">
     <div class="row">
-        <label>結果檔
-            <select @bind="path"><option value="">（選擇檔案）</option>@foreach (var f in files) { <option value="@f">@ResultFiles.Label(dir, f)</option> }</select>
+        <label>@L.T("fp.label")
+            <select @bind="path"><option value="">(@L.T("fp.choose"))</option>@foreach (var f in files) { <option value="@f">@ResultFiles.Label(dir, f)</option> }</select>
         </label>
-        <label>局號（0 起算）<input type="number" min="0" @bind="index" /></label>
-        <button @onclick="Run" disabled="@(string.IsNullOrEmpty(path) || loading)">回放</button>
-        <button class="secondary" @onclick="Refresh">重新整理</button>
-        <span class="note">@(cfg == null ? "" : $"{cfg.Players} 人局 · {cfg.Games:N0} 局 · 主種子 {cfg.Seed} · {Palette.SeatOrderLabel(cfg.SeatOrder, L)}")</span>
+        <label>@L.T("rp.game_no")<input type="number" min="0" @bind="index" /></label>
+        <button @onclick="Run" disabled="@(string.IsNullOrEmpty(path) || loading)">@L.T("rp.run")</button>
+        <button class="secondary" @onclick="Refresh">@L.T("sim.refresh")</button>
+        <span class="note">@(cfg == null ? "" : L.T("rp.cfg_line", cfg.Players, cfg.Games.ToString("N0"), cfg.Seed, Palette.SeatOrderLabel(cfg.SeatOrder, L)))</span>
     </div>
-    @if (loading) { <p>讀取並重打中…</p> }
+    @if (loading) { <p>@L.T("rp.loading")</p> }
     @if (error != null) { <div class="error">@error</div> }
 </div>
 
 @if (record != null && cfg != null)
 {
     <div class="kpis">
-        <div class="kpi"><div class="v">@record.Rounds</div><div class="l">回合數</div></div>
-        <div class="kpi"><div class="v">@record.Decisions</div><div class="l">決策數</div></div>
-        <div class="kpi"><div class="v">@record.EndReason</div><div class="l">終局原因</div></div>
-        <div class="kpi"><div class="v">@string.Join("、", record.Winners.Select(w => SeatName(w)))</div><div class="l">贏家</div></div>
+        <div class="kpi"><div class="v">@record.Rounds</div><div class="l">@L.T("rp.kpi.rounds")</div></div>
+        <div class="kpi"><div class="v">@record.Decisions</div><div class="l">@L.T("rp.kpi.decisions")</div></div>
+        <div class="kpi"><div class="v">@L.EndReason(record.EndReason)</div><div class="l">@L.T("rp.kpi.reason")</div></div>
+        <div class="kpi"><div class="v">@string.Join(L.T("common.list"), record.Winners.Select(w => SeatName(w)))</div><div class="l">@L.T("rp.kpi.winner")</div></div>
     </div>
 
-    <h2>各玩家結果</h2>
+    <h2>@L.T("rp.h.players")</h2>
     <div class="tablewrap">
         <table class="data">
-            <thead><tr><th>桌位</th><th>策略</th><th>名次</th><th>總分</th><th>出貨籌碼</th><th>建築分</th><th>大型建築加成</th><th>金幣</th><th>出貨次數</th><th class="left">建築（購買回合）</th></tr></thead>
+            <thead><tr><th>@L.T("rp.th.seat")</th><th>@L.T("rp.th.strategy")</th><th>@L.T("rp.th.rank")</th><th>@L.T("rp.th.total")</th><th>@L.T("rp.th.chips")</th><th>@L.T("rp.th.bld")</th><th>@L.T("rp.th.bonus")</th><th>@L.T("rp.th.coins")</th><th>@L.T("rp.th.shipments")</th><th class="left">@L.T("rp.th.buildings")</th></tr></thead>
             <tbody>
             @foreach (var p in record.Players.OrderBy(p => p.Rank))
             {
                 <tr>
                     <td>@(p.Seat + 1)</td><td>@SeatName(p.Seat)</td><td>@p.Rank</td><td>@p.Vp</td><td>@p.Chips</td><td>@p.BuildingPoints</td><td>@p.BonusPoints</td><td>@p.Coins</td><td>@p.Shipments</td>
-                    <td class="left">@(p.Buildings == null ? "—" : string.Join("、", p.Buildings.Select((b, i) => $"{Buildings.All[b].Name}（{p.BuiltRounds![i]}）")))</td>
+                    <td class="left">@(p.Buildings == null ? "—" : string.Join(L.T("common.list"), p.Buildings.Select((b, i) => L.T("rp.bld_item", Buildings.All[b].Name, p.BuiltRounds![i]))))</td>
                 </tr>
             }
             </tbody>
         </table>
     </div>
 
-    <h2>盤面</h2>
-    <p class="note">顯示「第 @step 個決策之前」的盤面（輪到的玩家以藍框標示）；拉到最右邊是終局盤面；鍵盤 ←／→ 可切換上一步／下一步。種植園方塊裡的 ● 代表有殖民者，建築名稱下的 ●○ 是殖民者／空位。</p>
+    <h2>@L.T("rp.h.board")</h2>
+    <p class="note">@L.T("rp.board_note", step)</p>
     <div class="stepdock">
     <div class="stepbar">
-        <button class="secondary" @onclick="@(() => Go(0))" disabled="@(step == 0)">⏮ 開頭</button>
-        <button class="secondary" id="replay-prev" title="鍵盤 ←" @onclick="@(() => Go(step - 1))" disabled="@(step == 0)">◀ 上一步</button>
+        <button class="secondary" @onclick="@(() => Go(0))" disabled="@(step == 0)">@L.T("rp.first")</button>
+        <button class="secondary" id="replay-prev" title="@L.T("rp.key_left")" @onclick="@(() => Go(step - 1))" disabled="@(step == 0)">@L.T("rp.prev")</button>
         <input type="range" min="0" max="@events.Count" value="@step" @oninput="@(e => Go(int.Parse(e.Value?.ToString() ?? "0")))" />
-        <button class="secondary" id="replay-next" title="鍵盤 →" @onclick="@(() => Go(step + 1))" disabled="@(step >= events.Count)">下一步 ▶</button>
-        <button class="secondary" @onclick="@(() => Go(events.Count))" disabled="@(step >= events.Count)">⏭ 終局</button>
-        <span>第 <input type="number" min="0" max="@events.Count" value="@step" @onchange="@(e => Go(int.TryParse(e.Value?.ToString(), out var v) ? v : step))" style="width:5.5rem" /> / @events.Count 步</span>
+        <button class="secondary" id="replay-next" title="@L.T("rp.key_right")" @onclick="@(() => Go(step + 1))" disabled="@(step >= events.Count)">@L.T("rp.next")</button>
+        <button class="secondary" @onclick="@(() => Go(events.Count))" disabled="@(step >= events.Count)">@L.T("rp.last")</button>
+        <span>@L.T("rp.step_prefix")<input type="number" min="0" max="@events.Count" value="@step" @onchange="@(e => Go(int.TryParse(e.Value?.ToString(), out var v) ? v : step))" style="width:5.5rem" />@L.T("rp.step_suffix", events.Count)</span>
     </div>
     <div class="panel">
         @if (step < events.Count)
         {
             var ev = events[step];
-            <span>第 @ev.Round 回合 · @PhaseLabel(ev.Phase) · 座位 @(ev.Seat + 1)（@SeatNameFn(ev.Seat)）：<strong>@ActionText.Describe(snaps[step], ParseAction(step))</strong> <span class="muted">（@ev.Action）</span></span>
+            <span>@L.T("rp.line", ev.Round, PhaseLabel(ev.Phase), ev.Seat + 1, SeatNameFn(ev.Seat))<strong>@ActionText.Describe(L, snaps[step], ParseAction(step))</strong> <span class="muted">（@ev.Action）</span></span>
         }
-        else { <span>終局盤面（所有決策已執行完）。</span> }
+        else { <span>@L.T("rp.final")</span> }
     </div>
     </div>
     <BoardView S="@(step < events.Count ? snaps[step] : finalState!)" SeatNameOf="@((Func<int, string>)SeatNameFn)" />
@@ -74,7 +74,7 @@
         <div class="panel">
             @if (searches[step] is { } sr)
             {
-                <MctsSearch Search="sr" Actions="@ActionText.DescribeAll(snaps[step], sr)" Chosen="@actions[step]" />
+                <MctsSearch Search="sr" Actions="@ActionText.DescribeAll(L, snaps[step], sr)" Chosen="@actions[step]" />
             }
             else
             {
@@ -83,31 +83,31 @@
         </div>
     }
 
-    <h2>決策記錄（@shown.Count / @events.Count）</h2>
+    <h2>@L.T("rp.h.log", shown.Count, events.Count)</h2>
     <div class="panel">
         <div class="row">
-            <label>桌位
+            <label>@L.T("rp.seat")
                 <select @bind="seatFilter">
-                    <option value="-1">全部</option>
+                    <option value="-1">@L.T("ov.all")</option>
                     @foreach (var p in record.Players) { <option value="@p.Seat">@(p.Seat + 1) · @SeatName(p.Seat)</option> }
                 </select>
             </label>
-            <label>回合 <input type="number" min="0" max="@record.Rounds" @bind="roundFilter" /> （0 = 全部）</label>
-            <label>動作含 <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="例如 Build、LoadShip" /></label>
+            <label>@L.T("rp.round") <input type="number" min="0" max="@record.Rounds" @bind="roundFilter" /> @L.T("rp.round_all")</label>
+            <label>@L.T("rp.action_has") <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="@L.T("rp.action_ph")" /></label>
         </div>
     </div>
     <div class="tablewrap">
         <table class="data">
-            <thead><tr><th>#</th><th>回合</th><th>階段</th><th>桌位</th><th>策略</th><th class="left">動作說明</th><th class="left">原始動作</th></tr></thead>
+            <thead><tr><th>#</th><th>@L.T("rp.th.round")</th><th>@L.T("rp.th.phase")</th><th>@L.T("rp.th.seat")</th><th>@L.T("rp.th.strategy")</th><th class="left">@L.T("rp.th.desc")</th><th class="left">@L.T("rp.th.raw")</th></tr></thead>
             <tbody>
             @foreach (var (e, i) in shown.Take(1500))
             {
-                <tr class="clickable @(i == step ? "cur" : "")" @onclick="@(() => Go(i))" title="點一下，在上面的盤面看這一步之前的局面"><td>@i</td><td>@e.Round</td><td>@e.Phase</td><td>@(e.Seat + 1)</td><td>@SeatName(e.Seat)</td><td class="left">@ActionText.Describe(snaps[i], actions[i])@(searches[i] != null ? " 🔍" : "")</td><td class="left muted">@e.Action</td></tr>
+                <tr class="clickable @(i == step ? "cur" : "")" @onclick="@(() => Go(i))" title="@L.T("rp.row_title")"><td>@i</td><td>@e.Round</td><td>@e.Phase</td><td>@(e.Seat + 1)</td><td>@SeatName(e.Seat)</td><td class="left">@ActionText.Describe(L, snaps[i], actions[i])@(searches[i] != null ? " 🔍" : "")</td><td class="left muted">@e.Action</td></tr>
             }
             </tbody>
         </table>
     </div>
-    @if (shown.Count > 1500) { <p class="note">只顯示前 1500 筆，請用上方篩選縮小範圍。</p> }
+    @if (shown.Count > 1500) { <p class="note">@L.T("rp.only_first")</p> }
 }
 
 @code {
@@ -129,10 +129,10 @@
     private string SeatNameFn(int seat) => record == null || cfg == null ? "" : Palette.DisplayName(cfg.Seats.First(s => s.Id == record.Players.First(p => p.Seat == seat).SeatId).Strategy);
     private string SeatName(int seat) => SeatNameFn(seat);
     private GameAction ParseAction(int i) => actions[i];
-    private static string PhaseLabel(Phase p) => p switch
+    private string PhaseLabel(Phase p) => p switch
     {
-        Phase.ChooseRole => "選職業", Phase.Settler => "開拓者", Phase.Mayor => "市長", Phase.Builder => "建築師",
-        Phase.CraftsmanBonus => "工匠", Phase.Trader => "商人", Phase.Captain => "船長", Phase.CaptainStorage => "船長（保留貨物）", _ => p.ToString(),
+        Phase.ChooseRole or Phase.Settler or Phase.Mayor or Phase.Builder or Phase.CraftsmanBonus or Phase.Trader or Phase.Captain or Phase.CaptainStorage => L.T("phase." + p),
+        _ => p.ToString(),
     };
     private void Go(int s) => step = Math.Clamp(s, 0, events.Count);
     private int seatFilter = -1, roundFilter;
@@ -184,7 +184,7 @@
         try
         {
             cfg = await AppState.ReadConfigAsync(path);
-            if (index < 0 || index >= cfg.Games) throw new InvalidDataException($"局號要在 0～{cfg.Games - 1} 之間");
+            if (index < 0 || index >= cfg.Games) throw new LocException("rp.err.index", cfg.Games - 1);
             var sink = new SnapshotEventSink();
             GameState end = null!;
             record = await Task.Run(() => GameRunner.Play(cfg, index, sink, out end));
