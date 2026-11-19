@@ -88,10 +88,10 @@ def folder_line(path, key):
     with st.container(key=f"folderline-{key}"):
         c1, c2 = st.columns(2, vertical_alignment="center")
         c1.markdown(f"<span class='folder-path'>{plain(path)}</span>", unsafe_allow_html=True)
-        if c2.button("開啟資料夾", key=f"openfolder-{key}"):
+        if c2.button(t("common.open_folder"), key=f"openfolder-{key}"):
             ok, why = folders.open_folder(absolute(path), ROOT)
             if ok:
-                st.toast("已開啟資料夾")
+                st.toast(t("common.folder_opened"))
             else:
                 st.toast(why, icon="⚠️")
 
@@ -132,7 +132,7 @@ def list_dumps():
             info["_recipe"] = fingerprint.dump_recipe(info["_meta"])
             info["_fp"] = fingerprint.fingerprint(info["_recipe"])
             info["_rules"] = (info["_recipe"]["ruleset"], info["_recipe"]["rulesRevision"])
-            info["_stale"] = fingerprint.stale_notes(info["_recipe"])
+            info["_stale"] = fingerprint.stale_notes(info["_recipe"], lang())
             info["hash"] = fingerprint.short(info["_fp"])
             info["規則版本"] = fingerprint.rules_name(info["_recipe"]["rulesRevision"], info["_recipe"]["ruleset"])
             info["版本狀態"] = version_text(info["_stale"])
@@ -151,7 +151,7 @@ def entry_stale(rules_revision, ruleset, revisions, strategies=()):
     revisions were recorded count as revision 1 of the strategies they name."""
     if not revisions:
         revisions = {str(n).lower(): 1 for n in strategies if n}
-    return fingerprint.stale_notes({"rulesRevision": rules_revision or 1, "ruleset": ruleset, "seats": [{"revisions": revisions}]})
+    return fingerprint.stale_notes({"rulesRevision": rules_revision or 1, "ruleset": ruleset, "seats": [{"revisions": revisions}]}, lang())
 
 
 def model_stale(meta):
@@ -217,7 +217,7 @@ def same_name_notice(noun, exists, old, new, users=(), names=None):
     elif fingerprint.fingerprint(old) == fingerprint.fingerprint(new):
         st.info(t("same.identical", noun=noun, hash=fingerprint.short(fingerprint.fingerprint(new))))
     else:
-        st.warning(t("same.differs", noun=noun, diff="\n".join(f"- {d}" for d in fingerprint.describe(old, new, names))))
+        st.warning(t("same.differs", noun=noun, diff="\n".join(f"- {d}" for d in fingerprint.describe(old, new, names, lang()))))
     if users:
         st.warning(t("same.users", names=t("common.list").join(f"`{u}`" for u in users)))
 
@@ -1507,39 +1507,37 @@ def flat_params(meta):
 
 
 def move_buttons(path):
-    """設為正式模型 (local -> ml/models, then commit it) and 移到本機 (an official-folder model git does not track)."""
+    """Make official (local -> ml/models, then commit it) and move to local (an official-folder model git does not track)."""
     name = os.path.basename(path)
     if place_of(path) == "local":
         c1, c3, c2 = st.columns([2.2, 2.2, 5], vertical_alignment="center")
         with c3:
-            if st.button("重新命名", key=f"rename-{name}", width="stretch"):
+            if st.button(t("md.rename"), key=f"rename-{name}", width="stretch"):
                 rename_dialog(path)
         with c1:
-            with st.popover("設為正式模型", width="stretch"):
-                st.markdown(f"把 `{name}`（連同 `.meta.json`、`.check.txt`）搬到 `ml/models/`。之後在 Visual Studio commit，才會進 git、別台電腦和 Claude 才看得到。"
-                            "也請在 `docs/models.md` 的模型列表補一列。")
-                if st.button("確定搬過去", type="primary", key=f"promote-{name}"):
+            with st.popover(t("md.promote"), width="stretch"):
+                st.markdown(t("md.promote_text", name=name))
+                if st.button(t("md.promote_ok"), type="primary", key=f"promote-{name}"):
                     try:
                         modelmeta.move_model(path, MODELS_DIR)
-                        st.session_state["job-started"] = f"{name} 已設為正式模型（ml/models/）。"
+                        st.session_state["job-started"] = t("md.promoted", name=name)
                         st.cache_data.clear()
                         st.rerun()
                     except ValueError as e:
                         st.error(str(e))
-        c2.markdown('<span class="act-note">本機模型：只在這台電腦（ml/local/models/），不會進 git。</span>', unsafe_allow_html=True)
+        c2.markdown(f'<span class="act-note">{t("md.local_note")}</span>', unsafe_allow_html=True)
     elif not tracked_by_git([path]):
         c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
         with c1:
-            if st.button("移到本機", key=f"demote-{name}", width="stretch"):
+            if st.button(t("md.demote"), key=f"demote-{name}", width="stretch"):
                 try:
                     modelmeta.move_model(path, LOCAL_MODELS)
-                    st.session_state["job-started"] = f"{name} 已移到本機工作區（ml/local/models/）。"
+                    st.session_state["job-started"] = t("md.demoted", name=name)
                     st.cache_data.clear()
                     st.rerun()
                 except ValueError as e:
                     st.error(str(e))
-        c2.markdown('<span class="act-note">這個模型在正式資料夾 ml/models/，但 git 沒有追蹤它（例如以前在 ML UI 訓練的）：'
-                    "移到本機就不會再出現在 Visual Studio 的 Git 變更裡。</span>", unsafe_allow_html=True)
+        c2.markdown(f'<span class="act-note">{t("md.demote_note")}</span>', unsafe_allow_html=True)
 
 
 def model_name_users(path):
@@ -1556,53 +1554,49 @@ def model_name_users(path):
     return dumps, configs
 
 
-@st.dialog("重新命名模型")
+@st.dialog(t("md.rename_title"))
 def rename_dialog(path):
     name = os.path.basename(path)
     ext = os.path.splitext(name)[1]
-    new = st.text_input(f"新名稱（副檔名 {ext} 自動加）", value=name[:-len(ext)], key=f"rename-new-{name}").strip()
+    new = st.text_input(t("md.rename_new", ext=ext), value=name[:-len(ext)], key=f"rename-new-{name}").strip()
     if new.endswith(ext):
         new = new[:-len(ext)]
     problems = []
     if not new or any(c in new for c in modelmeta.INVALID_NAME_CHARS):
-        problems.append("名稱不能空白，也不能有路徑符號或空白")
+        problems.append(t("md.rn.p.name"))
     elif new + ext == name:
-        problems.append("名稱沒有改變")
+        problems.append(t("md.rn.p.same"))
     elif model_name_taken(new + ext):
-        problems.append(f"已經有叫 {new + ext} 的模型")
+        problems.append(t("md.rn.p.taken", name=new + ext))
     busy = pending_readers(rel(path)) + ([t["title"] for t in jobs.list_jobs() if t["state"] in ("waiting",) + jobs.BUSY
                                           and str(t.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
     if busy:
-        problems.append(f"排隊中或執行中的工作「{busy[0]}」要用這個模型，等它結束或取消佇列再改")
-    st.caption(f"會一起改 `{name}`、`{name}.meta.json`、`{name}.check.txt`（訓練紀錄、對戰紀錄都跟著走）。hash 不包含名稱，所以不會變。")
+        problems.append(t("md.rn.p.busy", title=busy[0]))
+    st.caption(t("md.rn.caption", name=name))
     refs = modelmeta.model_references(path)
     if refs["meta"]:
-        st.info("其他模型的紀錄（對戰對手、自我對戰資料）也會改成新名字：\n\n"
-                + "\n".join(f"- `{rel(p)}`" for p in refs["meta"]))
+        st.info(t("md.rn.refs", list="\n".join(f"- `{rel(p)}`" for p in refs["meta"])))
     if refs["official"]:
-        st.caption("正式模型（git 追蹤）的紀錄不會改，仍寫舊名字：" + "、".join(f"`{rel(p)}`" for p in refs["official"]))
+        st.caption(t("md.rn.official", list=t("common.list").join(f"`{rel(p)}`" for p in refs["official"])))
     dumps, configs = model_name_users(path)
     local_configs = [c for c in refs["configs"] if rel(c) in configs]
     picked = []
     if local_configs:
-        st.markdown("一起改這些設定檔裡的估值模型路徑（改了以後用它們重跑才找得到模型）：")
+        st.markdown(t("md.rn.cfgs"))
         picked = [c for c in local_configs if st.checkbox(f"`{rel(c)}`", value=True, key=f"rename-cfg-{name}-{rel(c)}")]
     stale = [c for c in configs if c not in {rel(x) for x in picked}]
     if dumps or stale:
-        st.warning("下面這些還用舊名字指向這個模型：改名後**用它們重跑會找不到模型**，"
-                   "用它產生的自我對戰資料 hash 也會因為找不到舊名字的模型而改變。"
-                   "資料檔記的是產生當時的路徑，不會改。\n\n"
-                   + "\n".join(f"- 資料 `{d}`" for d in dumps) + ("\n" if dumps and stale else "")
-                   + "\n".join(f"- 設定檔 `{c}`" for c in stale))
+        st.warning(t("md.rn.stale", items="\n".join(t("md.rn.item_data", d=d) for d in dumps) + ("\n" if dumps and stale else "")
+                                   + "\n".join(t("md.rn.item_cfg", c=c) for c in stale)))
     if problems:
-        st.markdown('<span class="act-err">無法改名：' + "；".join(plain(x) for x in problems) + "</span>", unsafe_allow_html=True)
+        st.markdown(f'<span class="act-err">{t("md.rn.cannot", reasons=t("common.sep").join(plain(x) for x in problems))}</span>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    if c1.button("取消", key=f"rename-cancel-{name}", width="stretch"):
+    if c1.button(t("queue.cancel"), key=f"rename-cancel-{name}", width="stretch"):
         st.rerun()
-    if c2.button("確定改名", type="primary", key=f"rename-ok-{name}", width="stretch", disabled=bool(problems)):
+    if c2.button(t("md.rn.ok"), type="primary", key=f"rename-ok-{name}", width="stretch", disabled=bool(problems)):
         try:
             target = modelmeta.rename_model(path, new, configs=picked)
-            st.session_state["job-started"] = f"{name} 已改名為 {os.path.basename(target)}。"
+            st.session_state["job-started"] = t("md.rn.done", name=name, new=os.path.basename(target))
             st.session_state["model-pick"] = os.path.basename(target)
             st.cache_data.clear()
             st.rerun()
@@ -1615,64 +1609,65 @@ def model_detail(path):
     name = os.path.basename(path)
     move_buttons(path)
     if not meta:
-        st.warning(f"`{name}` 沒有 `.meta.json`（不知道怎麼訓練的）。")
+        st.warning(t("md.no_meta", name=name))
         return
     v = meta.get("validation") or {}
     best = best_vs_default(meta)
-    st.markdown(version_tiles([("種類", KIND_TEXT.get(meta["kind"], meta["kind"])),
-                               ("資料列數", f"{sum(d['rows'] for d in meta['data']):,}"),
+    st.markdown(version_tiles([(t("mlist.col.kind"), KIND_TEXT.get(meta["kind"], meta["kind"])),
+                               (t("mlist.col.rows"), f"{sum(d['rows'] for d in meta['data']):,}"),
                                ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—", METRIC_HELP["R²"]),
-                               ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
-                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")], centre=True), unsafe_allow_html=True)
-    st.caption(("最佳勝率來自：" + describe_match(best) + "。") if best else "還沒有對原版 MCTS 的對戰。")
+                               (t("mlist.col.ce"), f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
+                               (t("mlist.col.best"), f"{best['winShare']:.1%}" if best else "—")], centre=True), unsafe_allow_html=True)
+    st.caption(t("md.best_from", desc=describe_match(best)) if best else t("md.no_best"))
 
-    st.markdown("**對戰結果**（判斷模型好壞的依據）")
+    st.markdown(t("md.matches_title"))
     mf = matches_frame(meta, path)
     if mf.empty:
-        st.caption("還沒有對戰紀錄。")
+        st.caption(t("md.no_matches"))
     else:
         grid(mf, hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
-        st.caption(f"結果檔可以在 Dashboard（{DASHBOARD_URL}）的「結果」「比較」頁打開。")
+        st.caption(t("md.dash_note", url=DASHBOARD_URL))
         match_summary_box(meta, path, f"detail-{name}")
 
-    st.markdown("**訓練資料**")
-    grid(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
-                                "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
-                                "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
+    st.markdown(t("md.data_title"))
+    sep = t("common.list")
+    grid(pd.DataFrame([{t("md.dcol.source"): d["source"], t("md.dcol.games"): d["games"], t("md.dcol.rows"): d["rows"], t("md.dcol.rate"): d["rate"],
+                                t("md.dcol.status"): d["status"], t("md.dcol.strategies"): sep.join(dict.fromkeys(s for s in d["strategies"] if s)),
+                                t("md.dcol.selfplay"): sep.join(os.path.basename(m) for m in d.get("valueModels", [])),
                                 "hash": fingerprint.short(d.get("fingerprint")) or "—",
-                                "版本": (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + "、"
-                                         + "、".join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip("、"),
-                                "檔案": os.path.basename(d["path"])} for d in meta["data"]]),
+                                t("md.dcol.version"): (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + sep
+                                         + sep.join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip(sep),
+                                t("md.dcol.file"): os.path.basename(d["path"])} for d in meta["data"]]),
                  hide_index=True, width="stretch")
     if meta.get("data"):
         folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
 
     left, right = st.columns(2)
     with left:
-        st.markdown("**訓練參數**")
-        grid(pd.DataFrame(list(flat_params(meta).items()), columns=["參數", "值"]).astype(str),
+        st.markdown(t("md.params_title"))
+        grid(pd.DataFrame(list(flat_params(meta).items()), columns=[t("md.pcol.param"), t("md.pcol.value")]).astype(str),
                      hide_index=True, width="stretch")
     with right:
-        st.markdown("**驗證（各回合段）**")
+        st.markdown(t("md.valid_title"))
         if v.get("byRound"):
-            grid(pd.DataFrame(v["byRound"]).rename(columns={"rounds": "回合", "rows": "列數", "mse": "MSE"}),
+            grid(pd.DataFrame(v["byRound"]).rename(columns={"rounds": t("md.vcol.rounds"), "rows": t("md.vcol.rows"), "mse": "MSE"}),
                          hide_index=True, width="stretch")
         else:
-            st.caption("沒有紀錄。")
-        st.caption("驗證成績只是檢查訓練有沒有壞掉；資料分布不同時 R² 不能互相比較。")
+            st.caption(t("md.no_record"))
+        st.caption(t("md.valid_note"))
 
     curve = (meta.get("training") or {}).get("validLossCurve")
     feats = meta.get("topFeatures") or []
     left, right = st.columns(2)
     with left:
-        st.markdown("**驗證 loss 曲線**")
+        st.markdown(t("md.curve_title"))
         if curve:
             st.altair_chart(loss_chart(curve, height=240), width="stretch")
         else:
-            st.caption("沒有紀錄（舊模型或補寫的 meta）。")
+            st.caption(t("md.no_curve"))
     with right:
-        st.markdown("**特徵重要度（前 20，gain）**")
+        st.markdown(t("md.feat_title"))
         if feats:
             fd = pd.DataFrame(feats[:20])
             chart = alt.Chart(fd).mark_bar().encode(x=alt.X("gain:Q", title="gain"),
@@ -1680,15 +1675,15 @@ def model_detail(path):
                                                     tooltip=["name", alt.Tooltip("gain:Q", format=",.0f")])
             st.altair_chart(chart.properties(height=420), width="stretch")
         else:
-            st.caption("只有 LightGBM 有（MLP 或補寫的 meta 沒有）。")
+            st.caption(t("md.no_feat"))
     env = meta.get("environment") or {}
-    env_text = "環境未記錄" if "note" in env else "・".join(f"{k} {val}" for k, val in env.items())
-    st.caption(f"特徵版本 {meta['featureVersion']}（{meta['featureCount']} 個）・建立 {meta.get('created') or '（補寫）'}・{env_text}"
-               + (f"・配方 hash {fingerprint.short(meta['fingerprint'])}・規則版本 {fingerprint.rules_name(meta.get('rulesRevision', 1), (meta.get('data') or [{}])[0].get('ruleset'))}" if meta.get("fingerprint") else "・舊紀錄：沒有配方 hash"))
+    env_text = t("md.env_missing") if "note" in env else "・".join(f"{k} {val}" for k, val in env.items())
+    st.caption(t("md.foot", version=meta["featureVersion"], count=meta["featureCount"], created=meta.get("created") or t("mlist.backfilled"), env=env_text)
+               + (t("md.foot_hash", hash=fingerprint.short(meta["fingerprint"]), rules=fingerprint.rules_name(meta.get("rulesRevision", 1), (meta.get("data") or [{}])[0].get("ruleset")))
+                  if meta.get("fingerprint") else t("md.foot_old")))
     stale = model_stale(meta)
     if stale:
-        st.warning("這個模型的資料有些是用舊版規則或舊版策略產生的（" + "；".join(stale) + "）："
-                   "它學到的是舊版下的局面，建議用目前的版本重新產生資料並重訓。")
+        st.warning(t("md.stale_warn", notes=t("common.sep").join(stale)))
 
 
 def compare(paths):
@@ -1708,11 +1703,11 @@ def compare(paths):
         return [(label, "l nw")] + [(fmt(x) if x is not None else "—", k) for x, k in zip(values, kinds)] + [("", "c")]
 
     rows = [
-        metric_row("對原版 MCTS 最佳勝率", lambda m: best_vs_default(m)["winShare"] if best_vs_default(m) else None, lambda x: f"{x:.1%}"),
+        metric_row(t("mlist.col.best"), lambda m: best_vs_default(m)["winShare"] if best_vs_default(m) else None, lambda x: f"{x:.1%}"),
         metric_row("R²", lambda m: (m.get("validation") or {}).get("r2"), lambda x: f"{x:.3f}"),
-        metric_row("交叉熵（越低越好）", lambda m: (m.get("validation") or {}).get("crossEntropy"), lambda x: f"{x:.4f}", higher=False),
-        metric_row("資料列數", lambda m: sum(d["rows"] for d in m["data"]), lambda x: f"{x:,}"),
-        [("資料來源", "l nw")] + [("、".join(d["source"] for d in metas[n]["data"]) if metas[n] else "—", "l") for n in names] + [("", "c")],
+        metric_row(t("md.cmp.ce"), lambda m: (m.get("validation") or {}).get("crossEntropy"), lambda x: f"{x:.4f}", higher=False),
+        metric_row(t("mlist.col.rows"), lambda m: sum(d["rows"] for d in m["data"]), lambda x: f"{x:,}"),
+        [(t("md.cmp.source"), "l nw")] + [(t("common.list").join(d["source"] for d in metas[n]["data"]) if metas[n] else "—", "l") for n in names] + [("", "c")],
     ]
     keys = []
     for m in metas.values():
@@ -1722,18 +1717,18 @@ def compare(paths):
     for k in keys:
         vals = [str(flat_params(metas[n] or {}).get(k, "—")) for n in names]
         rows.append([(k, "l nw")] + [(x, "c") for x in vals] + [("●" if len(set(vals)) > 1 else "", "c")])
-    st.markdown(version_table(["項目"] + names + ["不同"], rows, css="cmp"), unsafe_allow_html=True)
-    st.caption("藍底粗體＝這一列最好的模型（勝率、R²、資料列數取最高，交叉熵取最低）；「不同」標出參數不一樣的列。判斷好壞只看對戰勝率。")
+    st.markdown(version_table([t("md.cmp.item")] + names + [t("md.cmp.diff")], rows, css="cmp"), unsafe_allow_html=True)
+    st.caption(t("md.cmp.note"))
 
 
 def _models_body():
     paths = model_files()
     if not paths:
-        st.info("還沒有模型（正式 ml/models/、本機 ml/local/models/ 都是空的）。")
+        st.info(t("md.none"))
         return
     by_name = {os.path.basename(p): p for p in paths}
-    mode = st.radio("檢視", ["單一模型", "並排比較"], horizontal=True)
-    if mode == "單一模型":
+    mode = st.radio(t("md.view"), ["single", "compare"], horizontal=True, format_func=lambda m: t(f"md.view.{m}"), key="models-view")
+    if mode == "single":
         # open on the strongest model (best win share against the original MCTS)
         scores = [(best_vs_default(model_meta(p))["winShare"] if model_meta(p) and best_vs_default(model_meta(p)) else -1) for p in paths]
         if st.session_state.get("model-pick") not in by_name:
@@ -1741,14 +1736,14 @@ def _models_body():
         # passing index while the key already holds a value makes Streamlit warn: only on the first draw
         start = {} if "model-pick" in st.session_state else {"index": scores.index(max(scores))}
         with st.container(key="modelpick"):  # a bigger label and dropdown (CSS .st-key-modelpick)
-            name = st.selectbox("選擇模型", list(by_name), key="model-pick", **start)
+            name = st.selectbox(t("md.pick"), list(by_name), key="model-pick", **start)
         model_detail(by_name[name])
     else:
-        names = st.multiselect("選兩個以上的模型", list(by_name), max_selections=4)
+        names = st.multiselect(t("md.pick_many"), list(by_name), max_selections=4)
         if len(names) >= 2:
             compare([by_name[n] for n in names])
         else:
-            st.caption("選兩個以上的模型來比較參數、資料與勝率。")
+            st.caption(t("md.pick_hint"))
 
 
 def match_tab():
@@ -1762,17 +1757,14 @@ def model_list_page():
 
 
 def models_tab():
-    with card("models", "模型詳細資料（正式 ml/models/ ＋ 本機 ml/local/models/）"):
+    with card("models", t("md.card")):
         _models_body()
-    with card("models-metrics", "R² 與交叉熵是什麼"):
-        st.markdown(version_table(["指標", "意思", "範圍", "怎麼看"], [
-            [("R²", "l nw"), ("模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中", "l"),
-             ("0～1，越高越好", "l nw"), ("目前約 0.47～0.58：只看局面就能解釋一半左右的結果，剩下的是之後的決策與運氣", "l")],
-            [("交叉熵", "l nw"), ("訓練時真正在降低的損失。模型輸出一個 0～1 的值（「這個座位的最終回報」），交叉熵衡量它和實際結果的差距；"
-                                  "把錯的事很有信心地說對，懲罰特別重", "l"),
-             ("越接近 0 越好", "l nw"), ("目前約 0.45～0.48", "l")],
+    with card("models-metrics", t("md.metrics_card")):
+        st.markdown(version_table([t("md.m.col.metric"), t("md.m.col.meaning"), t("md.m.col.range"), t("md.m.col.read")], [
+            [("R²", "l nw"), (t("md.m.r2.meaning"), "l"), (t("md.m.r2.range"), "l nw"), (t("md.m.r2.read"), "l")],
+            [(t("mlist.col.ce"), "l nw"), (t("md.m.ce.meaning"), "l"), (t("md.m.ce.range"), "l nw"), (t("md.m.ce.read"), "l")],
         ], css="doc"), unsafe_allow_html=True)
-        st.caption("這兩個數字只能在同一份驗證資料上比。資料組成一變，數字就不能比。判斷模型好壞一律看對戰勝率。")
+        st.caption(t("md.m.note"))
 
 
 def models_list():
@@ -1894,15 +1886,16 @@ def loss_chart(values, steps=None, height=240):
     """The validation-loss curve as a fixed chart: no zoom or pan, both axes fixed to the data plus a margin on every side (so the line
     never touches the frame), whole steps on the x axis."""
     steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
-    df = pd.DataFrame({"步": steps, "驗證 loss": list(values)})
-    lo, hi = float(df["驗證 loss"].min()), float(df["驗證 loss"].max())
+    step, loss = t("md.step"), t("md.valid_loss")
+    df = pd.DataFrame({step: steps, loss: list(values)})
+    lo, hi = float(df[loss].min()), float(df[loss].max())
     ypad = (hi - lo) * 0.12 or max(abs(hi) * 0.02, 0.001)
     first, last = float(min(steps)), float(max(steps))
     xpad = max(0.5, (last - first) * 0.04)
     chart = alt.Chart(df).mark_line(color="#4aa8ff", strokeWidth=2, point=alt.OverlayMarkDef(color="#4aa8ff", size=18)).encode(
-        x=alt.X("步:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title="步")),
-        y=alt.Y("驗證 loss:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title="驗證 loss", format=".3f")),
-        tooltip=[alt.Tooltip("步:Q", format="d"), alt.Tooltip("驗證 loss:Q", format=".4f")])
+        x=alt.X(f"{step}:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title=step)),
+        y=alt.Y(f"{loss}:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title=loss, format=".3f")),
+        tooltip=[alt.Tooltip(f"{step}:Q", format="d"), alt.Tooltip(f"{loss}:Q", format=".4f")])
     return chart.properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10})
 
 
@@ -1917,12 +1910,7 @@ def version_tiles(items, centre=False):
     return f'<div class="vtiles{" mid" if centre else ""}">' + "".join(tile(i) for i in items) + "</div>"
 
 
-METRIC_HELP = {
-    "R²": "模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中。越高越好。"
-          "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
-    "交叉熵": "訓練時真正在降低的損失：模型輸出的 0～1 回報和實際結果的差距，很有信心卻猜錯會被重罰。越接近 0 越好。"
-             "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
-}
+METRIC_HELP = {"R²": t("md.help.r2"), "交叉熵": t("md.help.ce")}
 
 
 def version_table(head, rows, css=""):

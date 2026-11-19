@@ -20,6 +20,8 @@ import hashlib
 import os
 import re
 
+import i18n
+
 ML_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(ML_DIR)
 
@@ -272,12 +274,12 @@ def strategy_name(name, revision):
     return f"{name}-v{revision}"
 
 
-def stale_notes(recipe):
+def stale_notes(recipe, lang="zh-TW"):
     """Why a data / match recipe no longer matches this checkout's engine: older rules or strategy revisions ([] = current)."""
     notes = []
     rev = recipe.get("rulesRevision", 1)
     if rev < current_rules_revision():
-        notes.append(f"規則 {rules_name(rev, recipe.get('ruleset'))} → {rules_name(current_rules_revision(), recipe.get('ruleset'))}")
+        notes.append(i18n.translate(lang, "fp.stale_rules", a=rules_name(rev, recipe.get("ruleset")), b=rules_name(current_rules_revision(), recipe.get("ruleset"))))
     seen = set()
     for seat in recipe.get("seats", []):
         for name, r in (seat.get("revisions") or {}).items():
@@ -308,14 +310,9 @@ def fingerprint(recipe):
 
 # ---------------------------------------------------------------- differences
 
-LABELS = {
-    "players": "人數", "games": "局數", "seed": "種子", "rate": "抽樣率", "seatOrder": "座位順序",
-    "rulesRevision": "規則版本", "featureVersion": "特徵版本", "formatVersion": "資料格式版本",
-    "limits.maxRounds": "最大回合數", "limits.maxDecisionsPerGame": "每局最大決策數",
-    "options.autoAdvanceForced": "自動跳過唯一合法動作", "kind": "種類", "data": "訓練資料",
-    "hashFormat": "hash 格式版本", "ruleset": "規則集", "variant": "變體",
-}
-PARAM_LABELS = {"simulations": "模擬次數", "valueModel": "估值模型（檔案內容）", "leafRollout": "leafRollout"}
+LABELS = {"players", "games", "seed", "rate", "seatOrder", "rulesRevision", "featureVersion", "formatVersion", "limits.maxRounds",
+          "limits.maxDecisionsPerGame", "options.autoAdvanceForced", "kind", "data", "hashFormat", "ruleset", "variant"}  # texts: i18n/ml.<lang>.json fp.label.*
+PARAM_LABELS = {"simulations", "valueModel", "leafRollout"}  # fp.param.*
 
 
 def _flatten(x, prefix=""):
@@ -329,27 +326,30 @@ def _flatten(x, prefix=""):
         yield prefix, x
 
 
-def _label(path):
+def _label(path, lang="zh-TW"):
+    tr = lambda key, **kw: i18n.translate(lang, key, **kw)  # noqa: E731
     m = re.match(r"seats\[(\d+)\]\.(.*)", path)
     if m:
         n, rest = int(m.group(1)) + 1, m.group(2)
         if rest == "strategy":
-            return f"座位 {n} 的策略"
+            return tr("fp.seat_strategy", n=n)
         if rest.startswith("revisions."):
-            return f"座位 {n} 的策略版本 {rest[len('revisions.'):]}"
-        return f"座位 {n} 的" + PARAM_LABELS.get(rest.removeprefix("params."), rest.removeprefix("params."))
+            return tr("fp.seat_rev", n=n, name=rest[len("revisions."):])
+        param = rest.removeprefix("params.")
+        return tr("fp.seat_param", n=n, param=tr(f"fp.param.{param}") if param in PARAM_LABELS else param)
     if re.fullmatch(r"seats\[\d+\]", path):
-        return f"座位 {int(path[6:-1]) + 1}"
-    if path.startswith("options."):
-        return LABELS.get(path, "參數 " + path[len("options."):])
-    return LABELS.get(path, path)
+        return tr("fp.seat", n=int(path[6:-1]) + 1)
+    if path.startswith("options.") and path not in LABELS:
+        return tr("fp.option", name=path[len("options."):])
+    return tr(f"fp.label.{path}") if path in LABELS else path
 
 
-def _show(v):
+def _show(v, lang="zh-TW"):
+    tr = lambda key, **kw: i18n.translate(lang, key, **kw)  # noqa: E731
     if v is None:
-        return "（無）"
+        return tr("fp.none")
     if isinstance(v, bool):
-        return "是" if v else "否"
+        return tr("fp.yes") if v else tr("fp.no")
     if isinstance(v, int):
         return f"{v:,}"
     if isinstance(v, float):
@@ -357,14 +357,15 @@ def _show(v):
     if isinstance(v, str) and v.startswith("model:"):
         return "model " + v[6:14]
     if isinstance(v, list):
-        return "、".join(str(x) for x in v)
+        return tr("fp.list_sep").join(str(x) for x in v)
     return str(v)
 
 
-def describe(old, new, names=None):
-    """Human-readable differences old -> new, e.g. ['局數：20,000 → 200,000', '抽樣率：0.01 → 0.001'].
+def describe(old, new, names=None, lang="zh-TW"):
+    """Human-readable differences old -> new, e.g. ['局數：20,000 → 200,000', '抽樣率：0.01 → 0.001'] (lang picks the texts in i18n/ml.<lang>.json).
 
     names maps a data fingerprint to a readable name (for the model recipe's 'data' list)."""
+    tr = lambda key, **kw: i18n.translate(lang, key, **kw)  # noqa: E731
     names = names or {}
     a, b = dict(_flatten(old)), dict(_flatten(new))
     out = []
@@ -373,14 +374,14 @@ def describe(old, new, names=None):
         if x == y:
             continue
         if path == "rulesRevision":
-            out.append(f"規則版本：{rules_name(x or 1, old.get('ruleset'))} → {rules_name(y or 1, new.get('ruleset'))}")
+            out.append(tr("fp.diff", label=_label(path, lang), x=rules_name(x or 1, old.get("ruleset")), y=rules_name(y or 1, new.get("ruleset"))))
         elif re.match(r"seats\[\d+\]\.revisions\.", path):
-            out.append(f"{_label(path)}：{'v' + str(x) if x is not None else '（無）'} → {'v' + str(y) if y is not None else '（無）'}")
+            out.append(tr("fp.diff", label=_label(path, lang), x="v" + str(x) if x is not None else tr("fp.none"), y="v" + str(y) if y is not None else tr("fp.none")))
         elif path == "data":
             gone, added = sorted(set(x or []) - set(y or [])), sorted(set(y or []) - set(x or []))
-            fmt = lambda fps: "、".join(names.get(f, short(f)) for f in fps)  # noqa: E731
-            parts = ([f"新增 {fmt(added)}"] if added else []) + ([f"移除 {fmt(gone)}"] if gone else [])
-            out.append("訓練資料：" + "；".join(parts))
+            fmt = lambda fps: tr("fp.list_sep").join(names.get(f, short(f)) for f in fps)  # noqa: E731
+            parts = ([tr("fp.added", x=fmt(added))] if added else []) + ([tr("fp.removed", x=fmt(gone))] if gone else [])
+            out.append(_label(path, lang) + tr("fp.colon") + tr("fp.sep").join(parts))
         else:
-            out.append(f"{_label(path)}：{_show(x)} → {_show(y)}")
+            out.append(tr("fp.diff", label=_label(path, lang), x=_show(x, lang), y=_show(y, lang)))
     return out

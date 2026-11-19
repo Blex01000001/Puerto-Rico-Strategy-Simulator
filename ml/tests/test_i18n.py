@@ -146,3 +146,38 @@ def test_model_list_page_is_english(monkeypatch, tmp_path):
     bad = [x for x in cells if CJK.search(x)]
     assert not bad, bad[:5]
     assert not [x for x in _page_text(at) if CJK.search(x)]
+
+
+def test_model_details_page_is_english(monkeypatch, tmp_path):
+    at = _english_app(monkeypatch, tmp_path, "models")
+    texts = _page_text(at) + [m.value for m in at.main.markdown if not m.value.lstrip().startswith("<style>")]
+    assert any("What R² and cross-entropy mean" in x for x in texts)
+    assert any("Matches" in x or "No match records yet." in x for x in texts)
+    bad = [x for x in texts if CJK.search(x)]
+    assert not bad, bad[:3]
+    cells = [str(v) for d in at.dataframe for v in list(d.value.columns) + list(d.value.to_numpy().ravel())]
+    bad = [x for x in cells if CJK.search(x)]
+    assert not bad, bad[:5]
+    # side by side: pick the first two models
+    names = list(at.selectbox(key="model-pick").options)
+    at.radio(key="models-view").set_value("compare").run()
+    assert not at.exception, at.exception
+    at.multiselect[0].set_value(names[:2]).run()
+    assert not at.exception, at.exception
+    bad = [x for x in [m.value for m in at.main.markdown if not m.value.lstrip().startswith("<style>")] + [c.value for c in at.main.caption] if CJK.search(x)]
+    assert not bad, bad[:3]
+
+
+def test_fingerprint_texts_follow_the_language():
+    import fingerprint
+    old = {"hashFormat": 2, "players": 4, "games": 20000, "rate": 0.01, "rulesRevision": 1, "ruleset": "base",
+           "seats": [{"strategy": "mcts", "revisions": {"mcts": 1}, "params": {"simulations": 300}}], "options": {"autoAdvanceForced": True}}
+    new = {**old, "games": 200000, "rulesRevision": 2, "options": {"autoAdvanceForced": False, "x": 1},
+           "seats": [{"strategy": "mcts", "revisions": {"mcts": 2}, "params": {"simulations": 100}}]}
+    zh, en = fingerprint.describe(old, new), fingerprint.describe(old, new, lang="en")
+    assert "局數：20,000 → 200,000" in zh  # the default stays Chinese (existing callers, tests)
+    assert "Games: 20,000 → 200,000" in en and "Seat 1 simulations: 300 → 100" in en
+    assert not [x for x in en if CJK.search(x)], en
+    assert len(zh) == len(en)
+    notes = fingerprint.stale_notes({"rulesRevision": 1, "ruleset": "base", "seats": []}, "en")
+    assert all(n.startswith("Rules ") for n in notes)
