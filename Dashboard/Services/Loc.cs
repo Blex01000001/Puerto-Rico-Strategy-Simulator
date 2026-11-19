@@ -38,6 +38,13 @@ public sealed class Loc
         return args.Length == 0 ? text : string.Format(text, args);
     }
 
+    /// <summary>The message of an exception in this language: a <see cref="LocException"/> is looked up by key, anything else keeps its own text.</summary>
+    public string Describe(Exception e) => e is LocException le ? T(le.Key, le.Args) : e.Message;
+
+    /// <summary>End-of-game reason(s) of a game record ("a+b" = several at once).</summary>
+    public string EndReason(string? key) =>
+        string.IsNullOrEmpty(key) ? T("reason.none") : string.Join(T("reason.sep"), key.Split('+').Select(k => Has("reason." + k) ? T("reason." + k) : k));
+
     public bool Has(string key) => Tables.Value[Lang].ContainsKey(key) || Tables.Value[Default].ContainsKey(key);
 
     /// <summary>All keys of a language (for the consistency check of the i18n files).</summary>
@@ -50,4 +57,12 @@ public sealed class Loc
             ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? new()
             : new();
     }
+}
+
+/// <summary>A data error (bad or missing file) whose text is looked up by key when it is shown (see <see cref="Loc.Describe"/>); the key is its fallback message.</summary>
+public sealed class LocException : Exception
+{
+    public string Key { get; }
+    public object?[] Args { get; }
+    public LocException(string key, params object?[] args) : base(key) { Key = key; Args = args; }
 }

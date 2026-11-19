@@ -5,21 +5,21 @@
 
 <div class="panel">
     <div class="row picker">
-        <label>結果檔
+        <label>@L.T("fp.label")
             <select @bind="selected">
-                <option value="">（@(files.Count == 0 ? "資料夾內沒有 .json" : "選擇檔案")）</option>
+                <option value="">(@(files.Count == 0 ? L.T("fp.empty") : L.T("fp.choose")))</option>
                 @foreach (var f in files)
                 {
-                    <option value="@f">@ResultFiles.Label(dir, f) （@(FileSize(f))）</option>
+                    <option value="@f">@ResultFiles.Label(dir, f) (@(FileSize(f)))</option>
                 }
             </select>
         </label>
-        <button @onclick="LoadSelected" disabled="@(string.IsNullOrEmpty(selected) || State.Loading)">載入</button>
-        <button class="secondary" @onclick="Refresh">重新整理</button>
+        <button @onclick="LoadSelected" disabled="@(string.IsNullOrEmpty(selected) || State.Loading)">@L.T("fp.load")</button>
+        <button class="secondary" @onclick="Refresh">@L.T("sim.refresh")</button>
         @ChildContent
     </div>
-    <p class="note">掃描資料夾：@AppState.DisplayPath(dir)（含其下的 ml/ 子資料夾：ML UI 的對戰結果在那裡；可在 appsettings.json 的 Dashboard:ResultsDirectory 改）。大檔案（10 萬局約 40 MB）載入需要幾秒。</p>
-    @if (State.Loading) { <p>載入並計算中…</p> }
+    <p class="note">@L.T("fp.note", AppState.DisplayPath(dir))</p>
+    @if (State.Loading) { <p>@L.T("fp.loading")</p> }
     @if (State.Error != null) { <div class="error">@State.Error</div> }
 </div>
 

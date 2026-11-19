@@ -250,7 +250,7 @@
                     list.Add(new FileMeta(f, System.IO.Path.ChangeExtension(ResultFiles.Label(dir, f), null), c.Players, c.Games, c.SeatOrder.ToString(),
                         string.Join("、", names.Distinct()), fi.Length >= 1048576 ? $"{fi.Length / 1048576.0:0.#} MB" : $"{Math.Max(1, fi.Length / 1024)} KB", fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")));
                 }
-                catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { }
+                catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or LocException or IOException) { }
             }
         }
         metas = list;
@@ -297,7 +297,7 @@
         foreach (var f in selected.OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList())
         {
             try { tables.Add(await AppState.ReadOverviewAsync(f)); }
-            catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException) { skipped.Add($"{Path.GetFileName(f)}：{AppState.Scrub(e.Message)}"); }
+            catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or LocException or IOException) { skipped.Add($"{Path.GetFileName(f)}：{AppState.Scrub(L.Describe(e))}"); }
             done++; StateHasChanged();
         }
         pairs = TournamentOverview.Pairwise(tables);

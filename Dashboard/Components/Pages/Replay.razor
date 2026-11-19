@@ -191,9 +191,9 @@
             events = sink.Events; snaps = sink.Before; actions = sink.Actions; searches = sink.Searches; scores = sink.Scores; finalState = end; step = 0;
             seatFilter = -1; roundFilter = 0; textFilter = "";
         }
-        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
+        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or LocException or IOException)
         {
-            error = AppState.Scrub(e.Message);
+            error = AppState.Scrub(L.Describe(e));
         }
         loading = false;
     }

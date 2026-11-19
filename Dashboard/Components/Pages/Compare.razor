@@ -104,9 +104,9 @@
             (resB, rb) = await AppState.ReadResultAsync(pathB);
             rows = ResultComparison.Compare(ra!, rb!);
         }
-        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
+        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or LocException or IOException)
         {
-            error = AppState.Scrub(e.Message);
+            error = AppState.Scrub(L.Describe(e));
         }
         loading = false;
     }

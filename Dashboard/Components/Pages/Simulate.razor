@@ -261,9 +261,9 @@
     {
         templateError = templateNote = null;
         try { ApplyConfig(await AppState.ReadConfigAsync(templateFile), Path.GetFileName(templateFile)); }
-        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
+        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or LocException or IOException)
         {
-            templateError = L.T("sim.err.read_config", AppState.Scrub(e.Message));
+            templateError = L.T("sim.err.read_config", AppState.Scrub(L.Describe(e)));
         }
     }
 
