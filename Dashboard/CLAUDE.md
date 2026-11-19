@@ -15,6 +15,7 @@
 - `FilePicker.razor`、`Charts/`（純 SVG：BarChart／StackedBars／LineChart）、`App.razor`（含一小段 JS：回放頁 ←／→ 會點 `#replay-prev`／`#replay-next`；`prMlTab` 給 ML UI 按鈕預先開分頁）、`Layout/`。
 
 **`Services/`**
+- `Loc.cs`（UI 文字查表，注入成 `@inject Loc L`，`_Imports.razor` 已加）：`L.T("鍵", 參數…)`，文字在根目錄 `i18n/dash.en.json`／`dash.zh-TW.json`（占位符 `{0}`、`{1}`；預設英文，缺字退回英文，再缺顯示鍵）。語言由 cookie `pr-lang` 決定（`App.razor` 在靜態頁讀它，經 `Routes` 的 `Lang` 參數交給 `Loc.Use`；沒有 cookie 時看環境變數 `PR_LANG`）；側欄的 🌐 按鈕全頁導向 `/lang/{code}`（`Program.cs`）設 cookie 後回到原頁。翻譯進度：外殼（側欄、ML UI 入口、錯誤列）、Home 已完成；其餘頁與 `StrategyInfo`／`ActionText`／`Palette` 還是中文寫死，逐頁搬進兩個 JSON；`ml/tests/test_i18n.py` 檢查兩個檔鍵與占位符一致、英文沒有中文、程式裡用到的鍵都存在（寫死的鍵要寫成 `L.T("…")` 這種字面形式才會被掃到）。`MlUiLauncher.StartAsync(Loc, …)` 用它翻訊息，也把語言傳給 `ml/check_env.py --lang`。
 - `AppState.cs`：載入結果／掃描檔；`ReadConfigAsync` 只讀 config（跳過逐局記錄，大檔很快）；`SetTemplate`（用這份設定再模擬）；畫面上的路徑一律用 `DisplayPath`／`Scrub` 顯示成相對專案根目錄。
 - `SimulationService.cs`（背景執行、進度、取消）、`SnapshotEventSink.cs`（回放：每個決策前的狀態、動作、搜尋摘要）。
 - `ActionText.cs`（動作的中文說明）、`StrategyInfo.cs`（流派介紹與參數文字；`Groups` 決定頁籤分組）、`Palette.cs`（策略顏色與名稱）、`OverviewPresets.cs`。

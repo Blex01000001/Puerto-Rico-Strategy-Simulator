@@ -18,7 +18,6 @@ public static class MlUiLauncher
     /// now and then and the status light flickered.
     /// </summary>
     private const string HealthUrl = "http://127.0.0.1:8501/_stcore/health";
-    public const string InstallHint = "新裝置第一次使用前，先在專案根目錄執行一次：python -m pip install -r ml/requirements.txt";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(3) };
 
     /// <summary>True when the ML UI answers its health check.</summary>
@@ -37,17 +36,17 @@ public static class MlUiLauncher
 
     /// <summary>
     /// Checks Python and the packages, runs the start script and waits until the ML UI answers.
-    /// Returns null on success, otherwise a message for the user (in Traditional Chinese).
+    /// Returns null on success, otherwise a message for the user (in the language of <paramref name="l"/>).
     /// </summary>
-    public static async Task<string?> StartAsync(CancellationToken cancel = default)
+    public static async Task<string?> StartAsync(Loc l, CancellationToken cancel = default)
     {
         if (await IsRunningAsync(cancel)) return null;
         string root = AppState.RepoRoot();
         bool windows = OperatingSystem.IsWindows();
         string script = Path.Combine(root, "ml", windows ? "start-ui.cmd" : "start-ui.sh");
-        if (!File.Exists(script)) return $"找不到啟動檔 {AppState.DisplayPath(script)}。";
+        if (!File.Exists(script)) return l.T("ml.err.no_script", AppState.DisplayPath(script));
 
-        string? missing = await CheckPythonAsync(windows, cancel);
+        string? missing = await CheckPythonAsync(l, windows, cancel);
         if (missing != null) return missing;
 
         try
@@ -73,7 +72,7 @@ public static class MlUiLauncher
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
-            return $"無法執行啟動檔：{AppState.Scrub(e.Message)}";
+            return l.T("ml.err.run", AppState.Scrub(e.Message));
         }
 
         for (int i = 0; i < 60; i++)
@@ -82,8 +81,8 @@ public static class MlUiLauncher
             if (await IsRunningAsync(cancel)) return null;
         }
         return windows
-            ? "ML UI 在 60 秒內沒有回應：請看剛剛跳出的 cmd 視窗裡的錯誤訊息。"
-            : "ML UI 在 60 秒內沒有回應：請看 results/logs/ml-ui.log。";
+            ? l.T("ml.err.timeout_win")
+            : l.T("ml.err.timeout_log");
     }
 
     /// <summary>
@@ -91,7 +90,7 @@ public static class MlUiLauncher
     /// (PR_PYTHON first, then python and py on Windows, python3 and python elsewhere). Otherwise the message of
     /// ml/check_env.py for the first Python found: it names that interpreter and the exact pip command for it.
     /// </summary>
-    private static async Task<string?> CheckPythonAsync(bool windows, CancellationToken cancel)
+    private static async Task<string?> CheckPythonAsync(Loc l, bool windows, CancellationToken cancel)
     {
         string root = AppState.RepoRoot();
         string check = Path.Combine(root, "ml", "check_env.py");
@@ -105,7 +104,9 @@ public static class MlUiLauncher
         {
             var psi = new ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, WorkingDirectory = root };
             psi.ArgumentList.Add(check);
-            psi.Environment["PYTHONIOENCODING"] = "utf-8"; // the report contains Chinese text
+            psi.ArgumentList.Add("--lang");
+            psi.ArgumentList.Add(l.Lang);
+            psi.Environment["PYTHONIOENCODING"] = "utf-8"; // the report may contain Chinese text
             try
             {
                 using var p = Process.Start(psi);
@@ -123,13 +124,13 @@ public static class MlUiLauncher
             }
             catch (OperationCanceledException)
             {
-                return "檢查 Python 套件逾時（30 秒）。";
+                return l.T("ml.err.check_timeout");
             }
         }
         if (firstReport == null)
-            return "找不到 Python：請先安裝 Python 3（安裝時勾選 Add to PATH），然後在專案根目錄執行：python -m pip install -r ml/requirements.txt";
-        if (string.IsNullOrEmpty(firstReport)) return "缺少 ML UI 需要的 Python 套件。" + InstallHint;
+            return l.T("ml.err.no_python");
+        if (string.IsNullOrEmpty(firstReport)) return l.T("ml.err.missing") + l.T("ml.install_hint");
         // the project path is shown relative to the root (Dashboard rule); the Python path stays: it is the point of the message
-        return AppState.Scrub(firstReport) + "\n（在專案根目錄執行；裝好後再按一次「ML UI」）";
+        return AppState.Scrub(firstReport) + l.T("ml.err.rerun");
     }
 }

@@ -286,3 +286,39 @@ def test_every_training_parameter_has_a_label_and_a_guide_row():
         table = i18n.table(lang)
         for name in list(train_lgbm.DEFAULTS) + list(train_mlp.DEFAULTS):
             assert f"param.{name}" in table, (lang, name)
+
+
+DASH_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "Dashboard")
+
+
+def _dash_table(lang):
+    import json
+    with open(os.path.join(i18n.DIR, f"dash.{lang}.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def test_dashboard_files_have_the_same_keys_and_placeholders_and_english_has_no_chinese():
+    en = _dash_table("en")
+    for lang in i18n.LANGS:
+        other = _dash_table(lang)
+        assert set(other) == set(en), (lang, sorted(set(en) ^ set(other))[:5])
+        for key in en:  # positional placeholders {0}, {1}
+            assert sorted(re.findall(r"\{(\d+)\}", other[key])) == sorted(re.findall(r"\{(\d+)\}", en[key])), (lang, key)
+    bad = {k: v for k, v in en.items() if CJK.search(v) and k != "lang.switch"}
+    assert not bad, bad
+
+
+def test_dashboard_code_only_uses_keys_that_exist():
+    """Every literal key in Dashboard/*.razor and *.cs (L.T("…"), l.T("…"), Text.T("…")) is in both files."""
+    keys = set()
+    for root, dirs, files in os.walk(DASH_DIR):
+        dirs[:] = [d for d in dirs if d not in ("bin", "obj")]
+        for name in files:
+            if name.endswith((".razor", ".cs")):
+                with open(os.path.join(root, name), encoding="utf-8") as f:
+                    keys.update(re.findall(r'\b(?:L|l|Text)\.(?:T|Has)\("([A-Za-z0-9_.\-]+)"', f.read()))
+    assert keys, "no keys found: the pattern no longer matches how the Dashboard calls the translator"
+    for lang in i18n.LANGS:
+        table = _dash_table(lang)  # a key ending in "." is a prefix the code completes ("good." + index): some key must start with it
+        missing = sorted(k for k in keys if not (any(x.startswith(k) for x in table) if k.endswith(".") else k in table))
+        assert not missing, (lang, missing)
