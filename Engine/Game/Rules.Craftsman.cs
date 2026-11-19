@@ -20,21 +20,31 @@ public static partial class Rules
             for (int g = 0; g < G; g++)
                 s.Production[p * G + g] = ProductionOf(s, p, g);
 
-        bool any = false;
-        for (int g = 0; g < G; g++) if (s.Production[s.CurrentOwner * G + g] > 0) any = true;
-        if (!any)
-        {
-            ResolveCraftsman(s, -1);
-            return;
-        }
         s.Phase = Phase.CraftsmanBonus;
         s.Actor = s.CurrentOwner;
+        var options = new List<GameAction>(G + 1);
+        FillCraftsman(s, options);
+        if (options.Count == 0)
+        {
+            ResolveCraftsman(s, -1); // nothing to choose: no good the Craftsman produces has a barrel left over for the privilege
+            return;
+        }
     }
 
+    /// <summary>
+    /// rules.md section 4 (Craftsman): the privilege is optional ("may take"): 1 extra barrel of a good the Craftsman produces,
+    /// only when the supply still holds a barrel after his normal production (he collects first). Pass = decline.
+    /// No such good: the phase is skipped.
+    /// </summary>
     private static void FillCraftsman(GameState s, List<GameAction> a)
     {
+        int owner = s.CurrentOwner;
         for (int g = 0; g < G; g++)
-            if (s.Production[s.CurrentOwner * G + g] > 0) a.Add(new GameAction(ActionType.CraftsmanBonus, g));
+        {
+            int produced = s.Production[owner * G + g];
+            if (produced > 0 && s.GoodsSupply[g] > produced) a.Add(new GameAction(ActionType.CraftsmanBonus, g));
+        }
+        if (a.Count > 0) a.Add(GameAction.Pass);
     }
 
     /// <summary>

@@ -878,5 +878,8 @@
   "vs.th.this": "這個版本的修改",
   "vs.history": "每個策略的完整歷史",
   "vs.err.not_found": "找不到 {0}",
-  "vs.err.cannot_read": "讀不了 {0}：{1}"
+  "vs.err.cannot_read": "讀不了 {0}：{1}",
+  "act.pass.craftsman": "放棄工匠特權（不額外拿貨）",
+  "act.pass.store_kinds": "不再整種保留（接著決定要不要留 1 桶）",
+  "act.pass.store_barrel": "不保留那 1 桶"
 }

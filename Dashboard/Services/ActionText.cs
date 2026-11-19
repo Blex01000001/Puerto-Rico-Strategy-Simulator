@@ -61,6 +61,8 @@ public static class ActionText
         Phase.Settler => l.T("act.pass.settler"),
         Phase.Builder => l.T("act.pass.builder"),
         Phase.Trader => l.T("act.pass.trader"),
+        Phase.CraftsmanBonus => l.T("act.pass.craftsman"),
+        Phase.CaptainStorage => l.T(s.StoreKeptCount < s.StoreTarget ? "act.pass.store_kinds" : "act.pass.store_barrel"),
         Phase.Captain => l.T("act.pass.captain"),
         _ => l.T("act.pass.other"),
     };

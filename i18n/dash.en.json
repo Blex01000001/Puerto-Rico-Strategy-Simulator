@@ -878,5 +878,8 @@
   "vs.th.this": "Changes in this version",
   "vs.history": "Full history of every strategy",
   "vs.err.not_found": "{0} not found",
-  "vs.err.cannot_read": "Cannot read {0}: {1}"
+  "vs.err.cannot_read": "Cannot read {0}: {1}",
+  "act.pass.craftsman": "Declines the Craftsman privilege (no extra good)",
+  "act.pass.store_kinds": "Stops keeping whole kinds (next: the free barrel)",
+  "act.pass.store_barrel": "Keeps no free barrel"
 }

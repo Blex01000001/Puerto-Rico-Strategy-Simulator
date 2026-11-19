@@ -1,65 +1,65 @@
 {
   "note": "Golden hashes of fixed games (Tests/VersionTests.cs). Regenerate with PR_UPDATE_GOLDEN=1 dotnet test --filter Golden, only after deciding the versions (CLAUDE.md, 版本與 hash).",
   "rules": {
-    "3p": "d21f89d0cd67319c0ee15a610c80a1ad2666da9206b4965c447dd2d43c795e64",
-    "4p": "71bf4d0a50afde4af24b927d43999c3a268c6bd0709d905bfe71aad70e8f93bc"
+    "3p": "fcdbf72899738233d735057649e0ce766370dc6fcb1ddf0d447a47003eb52717",
+    "4p": "ca2351e2eb116fb21ab249496bb614721eb3cccadc8c4db19d23b6a1fae1fe45"
   },
   "rulesRevision": 2,
   "strategies": {
     "build-first": {
       "revision": 1,
-      "h3": "9d2f2b82301a6e11596461ad14c04ffee17acd679c452674b6ab84d9f70583ea",
-      "h4": "8322a9ba1d53dd02a4c318f3dd77152799d6f904643029de0f005170caa42ffb"
+      "h3": "2a963c4dbebf5f68d94d8d0e84ee122e5d5d5d4a9756c59efa982da17093a879",
+      "h4": "a7ed1de7a638c41dd1a7917000c17e90267cc864a78dad47f96d4b60bca7c308"
     },
     "cheap-engine": {
       "revision": 1,
-      "h3": "3ed9f201f56fe86df5dba5b50634020a3628caa773fb4ae2c2ba02726797e749",
-      "h4": "a1e8e50957527ba0f9b6b138d396a35b2fd635509d621bff0d7b043446de703b"
+      "h3": "342d7b8891790985a5a6e94c4f157ead8aeed4d268e81dfc094b0f6f3218c1dd",
+      "h4": "f5e6b4bfce91aeefeb4628f4422463a3463ad0f2880d1e8f2f9eb049c58770cd"
     },
     "corn-monopoly": {
       "revision": 1,
-      "h3": "4513fac4a23cb1dffaf0ae83919ca746824768318bbc5c5585ca87b7e01273a6",
-      "h4": "38676755b6395286dc6e363e9194583565d5355bd2381f3275edfac1f094a8c7"
+      "h3": "32c403745c74294afc95e4ade5ced9aba3b7054c982c15ce326368e88ed95f68",
+      "h4": "3567cc67eedc3e353a0bac6ba17826929c326fe1f983da8b79f9c4e7a48ea8a2"
     },
     "corn-monopoly-hoard": {
       "revision": 1,
-      "h3": "8b1ade2e14f09c271367c4e91b401679e4529056d25f5ded4c46d5168d6e6aa5",
-      "h4": "bafddcabb20599dfe5eaba2ae8a6d6d7a0fbf3257405db3d9dff26ae5959f3b7"
+      "h3": "91375fb551ed373b33cb1570b90b897e6191e31d4a8671e9394be1d46b83b199",
+      "h4": "d51d730f9423ea80f21f5917751a9f70f0eab08ed10b37abbf79eddb6bde3e09"
     },
     "corn-monopoly-tiles": {
       "revision": 1,
-      "h3": "505b9197b7d215365a4325869585bc7d69788df334020bed43fbc3e8c2d7c61c",
-      "h4": "24f9901d60e9bdda296debc0704ed47fd81bc6d093bfa06b6b574fb42c4d84fa"
+      "h3": "31ffab61713d4fe26614a6c6a66f8ab422a0b1a1f0b27d64993379244a625200",
+      "h4": "d25eb2818d12cc86c53214637ee2ef406954944947b582075148be1a051f511f"
     },
     "corn-shipper": {
       "revision": 1,
-      "h3": "9d8d89c9bf064b98439374296fc3a9ca4965e7aff1713137d606a32de4b7c2c1",
-      "h4": "cbcb2cebead099a15f4820d56ffbe127101bb42f3857bcf0acc35bdac62436ee"
+      "h3": "d19957ec9d9b7e844c2f529237b3689341362c83812cf2714786c2393a22544e",
+      "h4": "4c61fb9660a205b42b89175e63ceef86beeffd2bd3e03ed6477b5e51212b162a"
     },
     "corn-to-premium": {
       "revision": 1,
-      "h3": "93c01afaae04c38076d4bfe267dbe0bf7f40f0ec06fdc4cb0920a075edd00096",
-      "h4": "a4cc2ce1aa2bdf113136057fe745095a2d224e88d7f157c69511f69fbc79a57f"
+      "h3": "adb3c819b792305a9f7fec16269ce7ff3966ece528c5421d7279891bbf2316b8",
+      "h4": "36b61d7b36aeed866423862993ce326ebf710dcd69af8b89c202e88e9423d32a"
     },
     "guided-random": {
       "revision": 1,
-      "h3": "a4e67a1744751a837855d67e981db8ab730697b0997006c4c8c4f95969f11808",
-      "h4": "124002a90cd4cb5ad385f87f7b483d7e7cd95dfb06fbf5c72aec9146bac0f4dc"
+      "h3": "fa7e3c68928a464f64d3e1e5f7e8d3c251a781c92c3bb85d7a0d9e2a97f124c6",
+      "h4": "d51cab2e0a8d67e0778410b56fa81b6538f65c2b833d91890723aaefeecf9765"
     },
     "harbor-rush": {
       "revision": 1,
-      "h3": "f0525cb23532789087a14d88b25e21ac29dbd842023d4d35ef92db3a2172f2f8",
-      "h4": "8c2fa6dcdc33e68ae3099ee40d723f986d5a693520330c11e9067ca3eae6cca3"
+      "h3": "981dc3da28e598ecdfed6d8c6bda2358a7aba57c0595414d9d25ba66b64bd0a5",
+      "h4": "421e6a4db5327c9667270b830520f96b69ee4cd5af1f438be139535c47653217"
     },
     "wharf-premium": {
       "revision": 1,
-      "h3": "ca9f5e445da391d3a2b26cd1df467979f7a254425e4c223ccf360e564fdcd254",
-      "h4": "7210311c6e68cf7e9f48d5ad6837b1ac50c0f6bb116ba4753048a418470a2a9e"
+      "h3": "2de368164ee3e0201cbe2d2e32a7eeb6e5d24483d5f2add759ce0b2ffc8df548",
+      "h4": "dd3419d246f141be62b5c93c8f4f1e75b7df111aecc87e70516477365d8a85c6"
     },
     "wharf-rush": {
       "revision": 1,
-      "h3": "93573e35120ad45aabc74e6146c8b2053cac9bb5280c3910a8265715493929f7",
-      "h4": "e878e92fbe87441e138679dc1fc64fb9c1cb5611ad5cffe256d0adf2ab3423f7"
+      "h3": "117fd28c00af01c00d11b3319205c8dc14d37b9e5e68624e30bdb841bac9125e",
+      "h4": "0baace5a1d0b95fda39ad730f6768698347608722ecaa531e85b68fc765e1fbb"
     }
   }
 }
