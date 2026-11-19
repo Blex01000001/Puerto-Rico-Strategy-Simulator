@@ -288,54 +288,16 @@ def best_vs_default(meta):
 
 # ---------------------------------------------------------------- 訓練
 
-PARAM_HELP = {
-    "rounds": ("樹的數量", "400"),
-    "leaves": ("每棵樹的葉子數", "63"),
-    "lr": ("學習率", "0.05"),
-    "min_leaf": ("每片葉子最少列數", "200"),
-    "feature_fraction": ("每棵樹用的特徵比例", "0.8"),
-    "bagging_fraction": ("每棵樹用的資料比例", "0.8"),
-    "early_stopping": ("幾回合沒進步就停", "30"),
-    "threads": ("執行緒數（0＝全部）", "0"),
-    "hidden": ("隱藏層大小（逗號分隔；越大推論越慢）", "256,128"),
-    "epochs": ("最多幾個 epoch", "12"),
-    "batch": ("批次大小", "1024"),
-    "l2": ("L2 正規化", "1e-5"),
-    "patience": ("幾個 epoch 沒進步就停", "3"),
-    "backend": ("訓練引擎（auto＝有 PyTorch 就用）", "auto"),
-    "device": ("PyTorch 裝置（auto／cpu／cuda）", "auto"),
-    "valid": ("驗證集比例（依局切）", "0.1"),
-    "seed": ("亂數種子", "1"),
-}
+PARAM_DEFAULTS = {"rounds": "400", "leaves": "63", "lr": "0.05", "min_leaf": "200", "feature_fraction": "0.8", "bagging_fraction": "0.8", "early_stopping": "30", "threads": "0", "hidden": "256,128", "epochs": "12", "batch": "1024", "l2": "1e-5", "patience": "3", "backend": "auto", "device": "auto", "valid": "0.1", "seed": "1"}  # the default shown in the help text (labels: param.<name>)
+PARAM_DOC_ROWS = {"train_lgbm": 8, "train_mlp": 8, "common": 2}  # rows per section of the parameter guide (texts: pdoc.<section>.<row>.<column>)
 
 
-# (參數, 預設, 作用, 調高, 調低, 建議)
-PARAM_DOC = {
-    "train_lgbm": [
-        ("rounds 樹的數量", "400", "最多建幾棵樹（每棵修正前面的誤差）", "更細、訓練更久、推論變慢；有提早停止，不會無限變好", "學不完整、估值粗糙", "資料 300 萬列以內 400 夠用；資料更多可到 600～800"),
-        ("leaves 每棵樹的葉子數", "63", "每棵樹能切出幾種情況，決定模型複雜度", "能學更細的規律，但容易記住雜訊（過擬合）、推論變慢", "太簡單，學不到組合效果", "31～127；先別動"),
-        ("lr 學習率", "0.05", "每棵樹修正的幅度", "收斂快但較粗糙、容易過擬合", "更細但要更多樹（rounds 要跟著加）", "0.03～0.1；調小就加 rounds"),
-        ("min_leaf 每片葉子最少列數", "200", "一個情況至少要有多少筆資料才能單獨成一片葉子", "更保守、更平滑", "會為少數局面硬切規則（雜訊）", "100～500；資料少時調高"),
-        ("feature_fraction 特徵比例", "0.8", "每棵樹隨機只看這個比例的特徵", "每棵樹看得更全，但樹之間更像、較易過擬合", "多樣性高，但每棵樹資訊少", "0.6～0.9"),
-        ("bagging_fraction 資料比例", "0.8", "每棵樹隨機只用這個比例的資料", "同上（資料面）", "訓練較快、更隨機", "0.6～0.9"),
-        ("early_stopping 幾回合沒進步就停", "30", "驗證 loss 連續這麼多棵樹沒進步就停", "更有耐心，可能多長幾棵沒用的樹", "可能太早停", "20～50"),
-        ("threads 執行緒數", "0", "用幾個 CPU 核心（0＝全部）", "—", "訓練較慢但電腦較不卡", "0；要同時做別的事時設成核心數一半"),
-    ],
-    "train_mlp": [
-        ("hidden 隱藏層大小", "256,128", "神經網路每層的神經元數（逗號分隔，層數＝個數）", "能表達更複雜的估值，但推論變慢：MCTS 每個葉節點都要算一次，同時間內搜尋變少", "表達力不足", "128,64～256,128；不建議再加大"),
-        ("epochs 最多幾個 epoch", "12", "整份資料最多看幾遍", "訓練更久（提早停止會擋下過擬合）", "可能還沒學完", "8～20；通常第 2～4 個 epoch 就最好"),
-        ("batch 批次大小", "1024", "每次更新用幾筆資料", "每次更新較穩、GPU 上較快，但可能收斂較差", "雜訊大、CPU 上較慢", "512～4096（GPU 用大的）"),
-        ("lr 學習率", "0.001", "Adam 每步的更新幅度（每 4 個 epoch 自動減半）", "收斂快但可能震盪或發散", "收斂很慢", "0.0005～0.003"),
-        ("l2 L2 正規化", "1e-5", "懲罰太大的權重，防止過擬合", "更平滑、可能學不夠", "較易過擬合", "1e-6～1e-4"),
-        ("patience 幾個 epoch 沒進步就停", "3", "驗證 loss 連續幾個 epoch 沒進步就停並保留最好的一輪", "更有耐心", "可能太早停", "2～5"),
-        ("backend 訓練引擎", "auto", "auto＝有 PyTorch 就用，沒有就用 NumPy", "—", "—", "auto；兩者輸出同一種模型檔"),
-        ("device 裝置", "auto", "PyTorch 用 CPU 或 GPU（auto＝有 GPU 就用）", "—", "—", "auto；只有 PyTorch 才有作用"),
-    ],
-    "common": [
-        ("valid 驗證集比例", "0.1", "依「局」切出這個比例當驗證集（同一局不會同時在訓練與驗證）", "驗證更準，但訓練資料變少", "驗證數字較不可靠", "0.1"),
-        ("seed 亂數種子", "1", "切驗證集、抽樣、初始化的亂數", "—", "—", "換種子可以確認結果不是運氣；LightGBM 同種子同資料會得到一樣的模型"),
-    ],
-}
+def param_doc(kind):
+    """The parameter guide rows of a model kind plus the shared ones, in the active language."""
+    rows = []
+    for section in (kind, "common"):
+        rows += [tuple(t(f"pdoc.{section}.{i}.{j}") for j in range(6)) for i in range(PARAM_DOC_ROWS[section])]
+    return rows
 
 
 def param_inputs(defaults, key):
@@ -345,9 +307,9 @@ def param_inputs(defaults, key):
     with st.container(key="params"):
         cols = st.columns(3)
         for i, (name, default) in enumerate(defaults.items()):
-            label, _ = PARAM_HELP.get(name, (name, ""))
-            title = f"{label}（{name}）"
-            tip = f"命令列參數 --{name.replace('_', '-')}，預設 {default}；詳細說明見頁面最下方的參數表"
+            label = t(f"param.{name}") if name in PARAM_DEFAULTS else name
+            title = f"{label}（{name}）" if lang() == "zh-TW" else f"{label} ({name})"
+            tip = t("param.cli_tip", option=name.replace("_", "-"), default=default)
             with cols[i % 3]:
                 k = f"{key}-{name}"
                 if isinstance(default, int) and not isinstance(default, bool):
@@ -423,40 +385,40 @@ def training_tab():
     bad = [d for d in dumps if "error" in d]
     writing = [d for d in dumps if d.get("writing")]
     good = [d for d in dumps if "error" not in d and not d.get("writing")]
-    with card("train-data", "1. 選訓練資料"):
+    with card("train-data", t("tr.card1")):
         if not good:
             for d in writing:
-                st.info(f"`{d['path']}` 產生中（目前 {d['大小 MB']} MB）。")
-            st.info(f"`results/ml/` 裡還沒有訓練資料。先到「{TAB_DATA}」頁產生。")
+                st.info(t("tr.writing", path=d["path"], mb=d["大小 MB"]))
+            st.info(t("tr.no_data", page=TAB_DATA))
             return
         players = sorted({d["人數"] for d in good})
-        p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
+        p = st.radio(t("tr.players"), players, index=len(players) - 1, horizontal=True, format_func=lambda n: t("match.players_n", n=n))
         rows = [d for d in good if d["人數"] == p]
         df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
         picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
-                              column_config={"列數": st.column_config.NumberColumn(format="localized"),
-                                             "局數": st.column_config.NumberColumn(format="localized")})
+                              column_config={t("dump.col.rows"): st.column_config.NumberColumn(format="localized"),
+                                             t("dump.col.games"): st.column_config.NumberColumn(format="localized")})
         chosen = [rows[i] for i in picked.selection.rows]
         folder_line(os.path.dirname(rows[0]["path"]) + "/", "train-data")
         for d in writing:
-            st.info(f"`{d['path']}` 產生中（目前 {d['大小 MB']} MB），完成後才會出現在表格裡。")
+            st.info(t("tr.writing_wait", path=d["path"], mb=d["大小 MB"]))
         for d in bad:
-            st.warning(f"讀不了 `{d['path']}`：{d['error']}")
+            st.warning(t("tr.cannot_read", path=d["path"], error=d["error"]))
         versions = {d["特徵版本"] for d in chosen}
         total = sum(d["列數"] for d in chosen)
         if chosen:
             f = max(d.get("_features") or 430 for d in chosen)  # the feature count of the chosen version (430 for version 1, 512 for version 2)
-            st.caption(f"已選 {len(chosen)} 份、{total:,} 列（每列 {f} 個特徵）。LightGBM 約需 {total * f * 4 * 2.2 / 1e9:.1f} GB 記憶體，MLP 約 {total * f * 2 * 1.5 / 1e9:.1f} GB。")
+            st.caption(t("tr.chosen", n=len(chosen), rows=f"{total:,}", f=f, lgbm=f"{total * f * 4 * 2.2 / 1e9:.1f}", mlp=f"{total * f * 2 * 1.5 / 1e9:.1f}"))
         else:
-            st.caption(f"在表格左側勾選要用的資料（可多選）。要刪除資料，到「{TAB_DATA}」頁。")
+            st.caption(t("tr.pick_hint", page=TAB_DATA))
 
-    with card("train-model", "2. 模型與參數"):
-        kind = st.radio("模型", ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True)
+    with card("train-model", t("tr.card2")):
+        kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True)
         defaults = dict(train_lgbm.DEFAULTS if kind == "train_lgbm" else train_mlp.DEFAULTS)
         options = param_inputs(defaults, kind)
         ext = ".txt" if kind == "train_lgbm" else ".json"
         stamp = datetime.datetime.now().strftime("%m%d-%H%M")
-        name = st.text_input("模型名稱（存到本機工作區 ml/local/models/，副檔名自動加；之後可在「模型詳細資料」設為正式模型）",
+        name = st.text_input(t("tr.name"),
                              value=f"{p}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}")
         name = name.strip()
         if name.endswith(ext):
@@ -477,46 +439,45 @@ def training_tab():
                 by_fp.setdefault(d["_fp"], []).append(d["來源"])
             for names_ in by_fp.values():
                 if len(names_) > 1:
-                    st.warning("勾選的 " + "、".join(f"`{n}`" for n in names_) + " 參數完全相同（同一份資料），重複放進去只會讓模型多看一次同樣的局面。")
+                    st.warning(t("tr.dup", names=t("common.list").join(f"`{n}`" for n in names_)))
             rules = {d["_rules"] for d in chosen}
             if len(rules) > 1:
-                st.warning(f"勾選的資料規則版本不一致（{'、'.join(fingerprint.rules_name(r, rs) for rs, r in sorted(rules))}），不建議一起訓練。")
+                st.warning(t("tr.rules_mixed", names=t("common.list").join(fingerprint.rules_name(r, rs) for rs, r in sorted(rules))))
             stale = [(d["來源"], d["_stale"]) for d in chosen if d["_stale"]]
             if stale:
-                st.warning("勾選的資料有些是用舊版規則或舊版策略產生的，同樣的設定現在會得到不同的資料，建議重新產生：\n\n"
-                           + "\n".join(f"- `{n}`：{'；'.join(notes)}" for n, notes in stale))
+                st.warning(t("tr.stale", items="\n".join(f"- `{n}`: {t('common.sep').join(notes)}" if lang() != "zh-TW" else f"- `{n}`：{'；'.join(notes)}" for n, notes in stale)))
             fp_names = {d["_fp"]: d["來源"] for d in chosen}
             old_meta = model_meta(out) if exists else None
             old_recipe = (old_meta or {}).get("recipe")
-            same_name_notice("模型", exists, old_recipe, new_recipe, names=fp_names)
+            same_name_notice(t("noun.model"), exists, old_recipe, new_recipe, names=fp_names)
             twins = [os.path.basename(mp) for mp in model_files() if (model_meta(mp) or {}).get("fingerprint") == fingerprint.fingerprint(new_recipe)
                      and mp != out]
             if twins:
-                st.info("已經有相同配方（同樣的資料與參數）的模型：" + "、".join(f"`{t}`" for t in twins) + "。")
-        overwrite = st.checkbox(f"覆寫已存在的 `{name + ext}`", value=False) if exists else True
+                st.info(t("tr.twins", list=t("common.list").join(f"`{name_}`" for name_ in twins)))
+        overwrite = st.checkbox(t("tr.overwrite", name=name + ext), value=False) if exists else True
 
         problems = []
         if not chosen:
-            problems.append("還沒選資料")
+            problems.append(t("tr.p.no_data"))
         if len(versions) > 1:
-            problems.append("選到的資料特徵版本不同，不能一起訓練")
+            problems.append(t("tr.p.versions"))
         if not name or any(c in name for c in '/\\:*?"<>|'):
-            problems.append("模型名稱不能空白或含路徑符號")
+            problems.append(t("tr.p.name"))
         if exists and not overwrite:
-            problems.append("模型已存在（要覆寫請勾選）")
+            problems.append(t("tr.p.exists"))
         if official_taken:
-            problems.append(f"正式模型裡已經有 {name + ext}，換一個名稱")
+            problems.append(t("tr.p.official", name=name + ext))
         if pending_output(rel(out)):
-            problems.append(f"排隊中或執行中的工作已經會寫 {name + ext}，換一個名稱")
+            problems.append(t("tr.p.pending", name=name + ext))
         if exists and reader_problem(rel(out)):
             problems.append(reader_problem(rel(out)))
-        if action_row("開始訓練", "start-train", problems):
+        if action_row(t("tr.start"), "start-train", problems):
             spec = {"data": [d["path"] for d in chosen], "out": rel(out), "options": options}
             start_job(kind, f"{KIND_TEXT[kind]} → {name + ext}", spec)
 
-    with card("train-doc", "參數說明", "每個參數的作用、預設值，以及調高、調低會怎樣。不確定就用預設值；判斷好壞只看「對戰驗證」的勝率。"):
-        doc = PARAM_DOC[kind] + PARAM_DOC["common"]
-        st.table(pd.DataFrame(doc, columns=["參數", "預設", "作用", "調高會…", "調低會…", "建議"]).set_index("參數"))
+    with card("train-doc", t("tr.card_doc"), t("tr.doc_sub")):
+        cols = [t(f"pdoc.col.{j}") for j in range(6)]
+        st.table(pd.DataFrame(param_doc(kind), columns=cols).set_index(cols[0]))
 
 
 # ---------------------------------------------------------------- jobs (shared by every tab)
@@ -1805,87 +1766,63 @@ def models_list():
 # ---------------------------------------------------------------- hash 說明、版本控管
 
 def _option_names(keys):
-    return "、".join(f"{PARAM_HELP[k][0].split('（')[0]}（`{k}`）" if k in PARAM_HELP else f"`{k}`" for k in keys)
+    def one(k):
+        if k not in PARAM_DEFAULTS:
+            return f"`{k}`"
+        label = re.split(r" \(|（", t(f"param.{k}"))[0]  # the label without its parenthesised note
+        return f"{label} (`{k}`)" if lang() != "zh-TW" else f"{label}（`{k}`）"
+    return t("common.list").join(one(k) for k in keys)
+
+
+HASH_ROWS = {"data_in": 9, "data_out": 4, "model_in": 6, "model_out": 3}  # rows of each table on the hash page (texts: hp.<table>.<row>.<0|1>)
+
+
+def hash_rows(table, **values):
+    """The (parameter, description) rows of one table of the hash page; "@lgbm" / "@mlp" in a text stands for the option names."""
+    names = {"@lgbm": _option_names(fingerprint.LGBM_OPTIONS), "@mlp": _option_names(fingerprint.MLP_OPTIONS) + t("hp.mlp_extra")}
+    out = []
+    for i in range(HASH_ROWS[table]):
+        first, second = t(f"hp.{table}.{i}.0", **values), t(f"hp.{table}.{i}.1", **values)
+        out.append((first, names.get(second, second)))
+    return out
 
 
 def hash_page():
     rev, now = fingerprint.current_rules_revision(), fingerprint.rules_name(fingerprint.current_rules_revision())
-    with card("hash-what", "hash 是什麼"):
-        st.markdown(
-            "每份**資料**、每個**模型**、每場**對戰**都有一個 **hash**（SHA-256，畫面顯示前 8 碼）：把「決定結果的參數」整理成固定格式再算出來。"
-            "引擎對設定與種子是確定的，所以**參數全部一樣，hash 才會一樣，重跑也只會得到同一份內容**；任何一個參數不同，hash 就不同。\n\n"
-            "hash 只回答「是不是全部一樣」；「哪裡不一樣」由記下來的參數比出來（例如「局數：20,000 → 200,000」）。")
-        st.caption("整理格式：參數名稱排序、`100` 和 `100.0` 視為相同、座位順序不分大小寫。計算在 `ml/fingerprint.py`。")
-    with card("hash-data", "資料（.bin）的 hash"):
-        st.markdown("**計入**")
-        st.table(pd.DataFrame([
-            ("人數、局數", "局數是實際打完的局數（中途取消的資料較少）"),
-            ("種子、抽樣率、座位順序", "座位順序 random／balanced，不分大小寫"),
-            ("每個座位的策略、**策略版本**與**完整參數**", "**依座位順序**：座位換位置，hash 就不同。參數是引擎實際使用的值：設定檔沒寫的參數，用該人數的預設值補上，所以改了預設值 hash 也會不同"),
-            ("估值模型（自我對戰用）", "用**模型檔案的內容**（SHA-256），不是檔名：同名檔案被重訓覆寫後 hash 就變了"),
-            ("最大回合數、每局最大決策數、自動跳過唯一合法動作", "設定檔的 limits、options；沒寫就用引擎預設值"),
-            ("規則集與規則版本", f"目前 {now}（規則集 base、修訂 {rev}）；見「版本控管」頁"),
-            ("變體與變體選項", "預留給以後的自訂規則（例如起始金錢兩倍），目前一律是「無」"),
-            ("hash 格式版本", f"目前 {fingerprint.HASH_FORMAT}；配方的結構改了才會變（所有 hash 會一起變）"),
-            ("特徵版本、資料格式版本", "特徵清單或 .bin 排列改了，資料就不一樣"),
-        ], columns=["參數", "說明"]).set_index("參數"))
-        st.markdown("**不計入**")
-        st.table(pd.DataFrame([
-            ("檔名、輸出名稱、設定檔名稱", "改名字不會讓資料變成另一份"),
-            ("座位 id", "只是標籤，座位的策略與參數才算"),
-            ("執行緒數", "引擎保證結果與執行緒數無關"),
-            ("引擎版本、git commit、產生時間", "只用來追溯（記在 .bin.json），不進 hash"),
-        ], columns=["參數", "原因"]).set_index("參數"))
-    with card("hash-model", "模型的 hash"):
-        st.markdown("**計入**")
-        st.table(pd.DataFrame([
-            ("種類", "LightGBM 或 MLP"),
-            ("hash 格式版本", ""),
-            ("特徵版本", ""),
-            ("每份訓練資料的 hash（排序後）", "用資料的 hash，不是檔名：資料被覆寫或換了，模型的 hash 就不同；勾選順序不影響"),
-            ("LightGBM 訓練參數", _option_names(fingerprint.LGBM_OPTIONS)),
-            ("MLP 訓練參數", _option_names(fingerprint.MLP_OPTIONS) + "；訓練引擎與裝置用**實際解析後**的值（auto 會換成 torch／numpy、cuda／cpu）"),
-        ], columns=["參數", "說明"]).set_index("參數"))
-        st.markdown("**不計入**")
-        st.table(pd.DataFrame([
-            ("模型名稱", "改名字不會讓模型變成另一個"),
-            ("執行緒數（`threads`）", "LightGBM 樹的結果與執行緒數無關（有測試驗證）"),
-            ("套件版本（lightgbm、torch、numpy）、Python 版本、訓練時間", "記錄並顯示，但不進 hash"),
-        ], columns=["參數", "原因"]).set_index("參數"))
-        st.caption("新增訓練參數時必須同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`（測試會檢查）。早期補寫的模型沒有 hash，標「舊紀錄」。")
-    with card("hash-match", "對戰結果的 hash"):
-        st.markdown("與資料相同（人數、局數、種子、座位順序、每個座位的策略、策略版本與完整參數、估值模型的檔案內容、limits、options、規則集與規則版本、變體），"
-                    "但**沒有**抽樣率與特徵版本。不計入：結果檔名、設定檔名稱、座位 id、執行緒數、引擎版本與 git commit。"
-                    "每場對戰另外記下當時模型檔案的 hash：模型之後被覆寫，舊結果會標「模型檔已更新」。")
-    with card("hash-versions", "規則版本、策略版本與預設值"):
-        st.markdown(
-            f"- **規則版本**（目前 {now}）：遊戲規則與亂數／種子衍生改了才加 1，所有資料都受影響。\n"
-            "- **策略版本**（例如 `harbor-rush-v1`）：每個策略自己的決策邏輯改了才加 1，**只有用到這個策略的資料**受影響；"
-            "MCTS 的版本也包含它的 rollout 策略與估值模型推論程式。\n"
-            "- **預設值**：改策略的預設參數**不需要**加版本。引擎會把每個座位實際使用的完整參數（預設值填好）記進資料與結果檔，"
-            "hash 用的就是它，所以預設值一改，hash 自然不同。\n"
-            "- **舊檔案**：引擎開始記錄完整參數以前的資料與結果檔，用凍結的預設值表（`ml/strategy-params.legacy.json`，"
-            "策略 v1、規則 base-v1 當時的預設值）補算；之後的預設值改動不會影響它們。新的執行則用目前的預設值表"
-            "（`ml/strategy-params.json`，由引擎產生、測試檢查與程式一致）預測 hash。")
-    with card("hash-use", "hash 在 ML UI 裡怎麼用"):
-        st.markdown(
-            "- **同名檔案**：hash 相同→「完全相同，不需要覆寫」；不同→列出差異；資料被模型用過會列出是哪些模型。\n"
-            "- **不同名但 hash 相同**：提示重複（避免同一份資料被勾兩次訓練，讓模型多看一次同樣的局面）。\n"
-            f"- **舊版**：規則版本低於目前（{now}），或座位上的策略版本低於目前的資料與模型，「版本狀態」會寫「舊：…」，建議重新產生。\n"
-            "- **排隊保護**：排隊中或執行中的工作要讀的檔案（訓練資料、對戰用的模型）不能被覆寫。")
-    with card("hash-look", "查看某份資料或模型的配方"):
+    values = {"now": now, "rev": rev, "fmt": fingerprint.HASH_FORMAT}
+    with card("hash-what", t("hp.what.card")):
+        st.markdown(t("hp.what.body"))
+        st.caption(t("hp.what.note"))
+    with card("hash-data", t("hp.data.card")):
+        st.markdown(t("hp.in"))
+        st.table(pd.DataFrame(hash_rows("data_in", **values), columns=[t("hp.col.param"), t("hp.col.desc")]).set_index(t("hp.col.param")))
+        st.markdown(t("hp.out"))
+        st.table(pd.DataFrame(hash_rows("data_out"), columns=[t("hp.col.param"), t("hp.col.reason")]).set_index(t("hp.col.param")))
+    with card("hash-model", t("hp.model.card")):
+        st.markdown(t("hp.in"))
+        st.table(pd.DataFrame(hash_rows("model_in"), columns=[t("hp.col.param"), t("hp.col.desc")]).set_index(t("hp.col.param")))
+        st.markdown(t("hp.out"))
+        st.table(pd.DataFrame(hash_rows("model_out"), columns=[t("hp.col.param"), t("hp.col.reason")]).set_index(t("hp.col.param")))
+        st.caption(t("hp.model.note"))
+    with card("hash-match", t("hp.match.card")):
+        st.markdown(t("hp.match.body"))
+    with card("hash-versions", t("hp.versions.card")):
+        st.markdown(t("hp.versions.body", now=now))
+    with card("hash-use", t("hp.use.card")):
+        st.markdown(t("hp.use.body", now=now))
+    with card("hash-look", t("hp.look.card")):
         dumps = [d for d in list_dumps() if "_fp" in d]
-        choices = {f"資料　{d['來源']}": (d["_recipe"], d["_fp"]) for d in dumps}
+        choices = {t("hp.look.data", name=d["來源"]): (d["_recipe"], d["_fp"]) for d in dumps}
         for mp in model_files():
             meta = model_meta(mp)
             if meta and meta.get("recipe"):
-                choices[f"模型　{os.path.basename(mp)}"] = (meta["recipe"], meta["fingerprint"])
+                choices[t("hp.look.model", name=os.path.basename(mp))] = (meta["recipe"], meta["fingerprint"])
         if not choices:
-            st.caption("還沒有資料或模型。")
+            st.caption(t("hp.look.none"))
             return
-        pick = st.selectbox("選一份", list(choices), key="hash-look-pick")
+        pick = st.selectbox(t("hp.look.pick"), list(choices), key="hash-look-pick")
         recipe, full = choices[pick]
-        st.markdown(f"hash：`{full}`")
+        st.markdown(t("hp.look.hash", hash=full))
         st.json(recipe, expanded=2)
 
 

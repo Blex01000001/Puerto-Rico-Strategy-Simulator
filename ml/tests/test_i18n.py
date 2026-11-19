@@ -226,3 +226,63 @@ def test_job_titles_follow_the_language(monkeypatch, tmp_path):
     at.button(key="lang-toggle").click().run()
     side = " ".join(m.value for m in at.sidebar.markdown)
     assert "資料（自訂：cheap-engine）→ x.bin" in side
+
+
+def _table_cells(at):
+    out = []
+    for d in list(at.dataframe) + list(at.table):
+        v = d.value
+        out += [str(c) for c in v.columns] + [str(i) for i in v.index.names if i] + [str(x) for x in v.index] + [str(x) for x in v.to_numpy().ravel()]
+    return out
+
+
+def test_training_page_is_english(monkeypatch, tmp_path):
+    from conftest import write_dump
+    os.makedirs(tmp_path / "ml")
+    write_dump(str(tmp_path / "ml" / "4p-test.bin"), games=10)
+    at = _english_app(monkeypatch, tmp_path, "train")
+    assert "Start training" in [b.label for b in at.main.button]
+    for kind in ("train_lgbm", "train_mlp"):
+        next(r for r in at.main.radio if r.label == "Model").set_value(kind).run()
+        assert not at.exception, at.exception
+        _no_chinese(at, kind)
+        bad = [x for x in _table_cells(at) if CJK.search(x)]
+        assert not bad, (kind, bad[:4])
+    labels = [n.label for n in at.main.number_input] + [x.label for x in at.main.text_input]
+    assert any(x.startswith("Maximum epochs (epochs)") for x in labels), labels
+
+
+def test_hash_page_is_english(monkeypatch, tmp_path):
+    at = _english_app(monkeypatch, tmp_path, "hash")
+    texts = _page_text(at) + [m.value for m in at.main.markdown if not m.value.lstrip().startswith("<style>")]
+    assert any("What a hash is" in x for x in texts)
+    bad = [x for x in texts + _table_cells(at) if CJK.search(x)]
+    assert not bad, bad[:4]
+    assert any("LightGBM training parameters" in x for x in _table_cells(at))
+
+
+def test_every_page_is_english_and_switches_back(monkeypatch, tmp_path):
+    """The whole UI, page by page, in English then Chinese: no Chinese in English (the data of docs/versions.json aside) and no
+    English chrome left in Chinese on the navigation."""
+    monkeypatch.delenv("PR_LANG", raising=False)
+    monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
+    at = AppTest.from_file(UI, default_timeout=60).run()
+    for page in ("data", "train", "match", "modellist", "models", "queue", "hash", "versions"):
+        if not any(b.key == f"navon-{page}" for b in at.button):
+            at.button(key=f"nav-{page}").click().run()
+        assert not at.exception, (page, at.exception)
+        texts = [x for x in _page_text(at) + [m.value for m in at.sidebar.markdown] if not x.lstrip().startswith("<style>")]
+        if page != "versions":  # the version list is project data in Chinese
+            bad = [x for x in texts if CJK.search(x) and x != "中文"]
+            assert not bad, (page, bad[:3])
+    at.button(key="lang-toggle").click().run()
+    assert at.title[0].value == "版本控管"
+
+
+def test_every_training_parameter_has_a_label_and_a_guide_row():
+    import train_lgbm
+    import train_mlp
+    for lang in i18n.LANGS:
+        table = i18n.table(lang)
+        for name in list(train_lgbm.DEFAULTS) + list(train_mlp.DEFAULTS):
+            assert f"param.{name}" in table, (lang, name)
