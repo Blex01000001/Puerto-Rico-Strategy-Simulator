@@ -65,10 +65,9 @@ LOCAL_MATCHES = os.path.join(LOCAL_DIR, "matches")
 DASHBOARD_URL = "http://localhost:5080"
 
 STATE_TEXT = {"waiting": "Queued", "queued": "Starting", "running": "Running", "done": "Done", "failed": "Failed", "cancelled": "Cancelled",
-              "interrupted": "Interrupted（程序已不在）", "lost": "Lost（程序還在，但沒有回報）"}
-LOST_TEXT = ("失聯：程序還在執行，但超過 30 秒沒有回報進度。排隊的工作會先暫停，等它結束或回報恢復；"
-             "確定它卡住了再按「強制結束」（會直接結束它與它啟動的 Runner）。")
-KIND_TEXT = {"train_lgbm": "LightGBM", "train_mlp": "MLP", "lightgbm": "LightGBM", "mlp": "MLP", "dump": "產生資料", "match": "對戰驗證"}
+              "interrupted": t("job.state.interrupted"), "lost": t("job.state.lost")}
+LOST_TEXT = t("job.lost_help")
+KIND_TEXT = {"train_lgbm": "LightGBM", "train_mlp": "MLP", "lightgbm": "LightGBM", "mlp": "MLP", "dump": t("job.kind.dump"), "match": t("job.kind.match")}
 
 
 def rel(path):
@@ -746,16 +745,15 @@ def progress_of(job, evs):
     steps = [e for e in evs if e["stage"] in ("iteration", "epoch", "games")]
     if not steps:
         if any(e["stage"] == "publish" for e in evs):
-            return None, "發佈 Runner 中（C# 原始碼比發佈版新）…"
-        return None, "讀取資料中…" if job["kind"].startswith("train") else "啟動中…"
+            return None, t("progress.publish")
+        return None, t("progress.reading") if job["kind"].startswith("train") else t("progress.starting")
     last = steps[-1]
     if last["stage"] == "games":
         n, total = last["done"], last["total"]
-        return n / max(1, total), f"{n:,}/{total:,} 局"
+        return n / max(1, total), t("progress.games", n=f"{n:,}", total=f"{total:,}")
     n = last.get("iteration") or last.get("epoch")
     total = last.get("total") or n
-    unit = "棵樹" if last["stage"] == "iteration" else "epoch"
-    return min(1.0, n / max(1, total)), f"{n}/{total} {unit}（提早停止可能更早結束）"
+    return min(1.0, n / max(1, total)), t("progress.trees" if last["stage"] == "iteration" else "progress.epochs", n=n, total=total)
 
 
 def watch_states(all_jobs):
@@ -823,7 +821,7 @@ def _duration(seconds):
 def elapsed_text(job):
     started, finished = _epoch(job.get("started")), _epoch(job.get("finished"))
     if job["state"] == "waiting":
-        return "已等 " + _duration(time.time() - job.get("createdEpoch", time.time()))
+        return t("elapsed.waited", time=_duration(time.time() - job.get("createdEpoch", time.time())))
     if started is None:
         return "—"
     return _duration((finished or time.time()) - started)
@@ -833,42 +831,42 @@ def remark(job, col):
     """備註 column: errors collapsed, otherwise a one-line result."""
     state, result = job["state"], job.get("result") or {}
     if state == "failed":
-        with col.expander("錯誤訊息", expanded=False):
+        with col.expander(t("remark.error"), expanded=False):
             st.markdown(f'<span class="act-err" style="overflow-wrap:anywhere">{plain(scrub(job.get("error", "")))[:600]}</span>', unsafe_allow_html=True)
-            st.caption("完整紀錄：下方「工作詳細」選這個工作。")
+            st.caption(t("remark.full_log"))
     elif state == "interrupted":
-        col.caption("程序已不在（電腦睡眠、關機或被終止）")
+        col.caption(t("remark.interrupted"))
     elif state == "lost":
-        col.markdown('<span class="act-note" style="color:#e8672f">程序還在但沒有回報，排隊暫停中</span>',
+        col.markdown(f'<span class="act-note" style="color:#e8672f">{t("remark.lost")}</span>',
                      unsafe_allow_html=True)
     elif state == "cancelled" and result.get("summary"):
         col.caption(scrub(result["summary"])[:120])
     elif state == "done" and job["kind"] == "match" and result.get("match"):
         m = result["match"]
-        col.caption(f"勝率 {m['winShare']:.1%} ± {m['winShareCi95']:.1%}（{m['games']} 局），已記到模型")
+        col.caption(t("remark.match", win=f"{m['winShare']:.1%}", ci=f"{m['winShareCi95']:.1%}", games=m["games"]))
     elif state == "done" and job["kind"].startswith("train") and result.get("validation"):
         col.caption(f"R² {result['validation']['r2']:.3f} → {rel(result['model'])}")
     elif state == "done" and job["kind"] == "dump" and result.get("rows"):
-        col.caption(f"{result['games']:,} 局、{result['rows']:,} 列")
+        col.caption(t("remark.dump", games=f"{result['games']:,}", rows=f"{result['rows']:,}"))
     elif state == "waiting":
-        col.caption(f"排第 {jobs.queue_position(job['id'])} 個")
+        col.caption(t("remark.pos", n=jobs.queue_position(job["id"])))
 
 
 @st.fragment(run_every=2)
 def queue_page():
     all_jobs = jobs.list_jobs()
     if not all_jobs:
-        st.caption("還沒有工作。")
+        st.caption(t("queue.empty"))
         return
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
     done = [j for j in all_jobs if j["state"] not in ("waiting",) + jobs.BUSY][:40]
     ordered = ([active] if active else []) + waiting + done
-    with card("queue", "工作列表", "一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。"):
+    with card("queue", t("queue.card"), t("queue.card_sub")):
         widths = [3.4, 1.35, 1.25, 1.9, 2.25, 1.9]
         with st.container(key="qhead"):
             head = st.columns(widths)
-            for c, t in zip(head, ["名稱", "狀態", "經過時間", "進度", "備註", "操作"]):
-                c.markdown(f"<div style='text-align:center'><b>{t}</b></div>" if t == "狀態" else f"**{t}**", unsafe_allow_html=True)
+            for i, (c, name) in enumerate(zip(head, [t(f"queue.col.{k}") for k in ("name", "state", "elapsed", "progress", "remark", "action")])):
+                c.markdown(f"<div style='text-align:center'><b>{name}</b></div>" if i == 1 else f"**{name}**", unsafe_allow_html=True)
         for job in ordered:
             # one framed row per job; the key carries the state for the coloured left edge (CSS st-key-qrow-<state>)
             cols = st.container(key=f"qrow-{job['state']}-{job['id']}").columns(widths, vertical_alignment="center")
@@ -885,25 +883,26 @@ def queue_page():
             else:
                 cols[3].markdown("—")
             if job["state"] in jobs.BUSY:
-                if cols[5].button("強制結束" if job["state"] == "lost" else "取消", key=f"stop-q-{job['id']}", width="stretch"):
+                if cols[5].button(t("queue.force_end") if job["state"] == "lost" else t("queue.cancel"), key=f"stop-q-{job['id']}", width="stretch"):
                     jobs.cancel(job["id"])
             elif job["state"] == "waiting":
-                if cols[5].button("取消佇列", key=f"stop-dq-{job['id']}", width="stretch"):  # stop-: red (CSS)
+                if cols[5].button(t("queue.dequeue"), key=f"stop-dq-{job['id']}", width="stretch"):  # stop-: red (CSS)
                     jobs.cancel(job["id"])
                     st.rerun(scope="app")
             remark(job, cols[4])
-    with st.expander("工作詳細（紀錄、驗證 loss 曲線、結果）", expanded=False):
+    with st.expander(t("queue.details"), expanded=False):
         # the label carries no state: the dropdown does not refresh the text of an option that is already shown
         labels = {j["id"]: f"{j['title']}（{j.get('created', '').replace('T', ' ').rstrip('Z')} UTC）" for j in ordered}
         if st.session_state.get("job-select") not in labels:
             st.session_state.pop("job-select", None)
-        job_id = st.selectbox("工作", list(labels), format_func=labels.get, key="job-select")
+        job_id = st.selectbox(t("queue.job"), list(labels), format_func=labels.get, key="job-select")
         job_detail(job_id)
 
 
-def copy_button(text, label="複製摘要給 AI"):
+def copy_button(text, label=None):
     """A button that puts `text` on the clipboard without showing it (runs in a small iframe via st.iframe, or components.html on an
     older Streamlit; falls back to execCommand when the browser blocks navigator.clipboard there)."""
+    label = label or t("copy.label")
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
 <style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 3px; }}</style>
@@ -916,7 +915,7 @@ function fallback() {{ const t = document.createElement('textarea'); t.value = t
 b.onclick = async () => {{
   let ok = false;
   try {{ await navigator.clipboard.writeText(text); ok = true; }} catch (e) {{ ok = fallback(); }}
-  b.textContent = ok ? '已複製' : '複製失敗（瀏覽器擋住了剪貼簿）';
+  b.textContent = ok ? {json.dumps(t('copy.done'), ensure_ascii=False)} : {json.dumps(t('copy.fail'), ensure_ascii=False)};
   setTimeout(() => b.textContent = label, 2000);
 }};
 </script>"""
@@ -946,13 +945,13 @@ def job_summary_text(job):
 def job_detail(job_id):
     job = jobs.read_job(job_id)
     if job is None:  # its folder was removed meanwhile
-        st.caption("這個工作的紀錄已經不在了。")
+        st.caption(t("detail.gone"))
         return
     state = job["state"]
     evs = jobs.events(job_id)
     frac, text = progress_of(job, evs)
     if state == "waiting":
-        frac, text = None, f"排隊中（第 {jobs.queue_position(job_id)} 個），前面的工作結束後自動開始"
+        frac, text = None, t("detail.waiting", n=jobs.queue_position(job_id))
     left, right = st.columns([2, 1])
     with left:
         if state == "waiting":
@@ -965,54 +964,56 @@ def job_detail(job_id):
         if steps:
             st.altair_chart(loss_chart([e["validLoss"] for e in steps], [e.get("iteration") or e.get("epoch") for e in steps], height=220), width="stretch")
     with right:
-        st.markdown(f"**種類**：{KIND_TEXT.get(job['kind'], job['kind'])}")
-        st.markdown(f"**狀態**：{STATE_TEXT.get(state, state)}")
+        st.markdown(f"**{t('detail.kind')}**: {KIND_TEXT.get(job['kind'], job['kind'])}")
+        st.markdown(f"**{t('detail.state')}**: {STATE_TEXT.get(state, state)}")
         loaded = next((e for e in evs if e["stage"] == "loaded"), None)
         if loaded:
-            st.markdown(f"**資料**：{loaded['rows']:,} 列（驗證 {loaded['validRows']:,}）")
+            st.markdown(f"**{t('detail.data')}**: " + t("detail.data_val", rows=f"{loaded['rows']:,}", valid=f"{loaded['validRows']:,}"))
         if job.get("started"):
-            st.markdown(f"**開始**：{job['started']}")
+            st.markdown(f"**{t('detail.start')}**: {job['started']}")
         if job.get("finished"):
-            st.markdown(f"**結束**：{job['finished']}")
+            st.markdown(f"**{t('detail.end')}**: {job['finished']}")
         if state == "lost":
             st.warning(LOST_TEXT)
         if state in jobs.BUSY:
-            if st.button("強制結束這個工作" if state == "lost" else "取消這個工作", key=f"stop-detail-{job_id}"):
+            if st.button(t("detail.force_end_job") if state == "lost" else t("detail.cancel_job"), key=f"stop-detail-{job_id}"):
                 jobs.cancel(job_id)
-            st.caption("產生資料取消時，已完成的局數會保留（Windows 除外）；訓練取消不會留下模型；對戰取消不會記到模型。排隊中的下一個工作會接著開始。")
+            st.caption(t("detail.cancel_note"))
         if state == "waiting":
-            if st.button("取消佇列", key=f"stop-dequeue-{job_id}"):
+            if st.button(t("queue.dequeue"), key=f"stop-dequeue-{job_id}"):
                 jobs.cancel(job_id)
         if state == "failed":
             st.error(scrub(job.get("error", "")))
         if state == "interrupted":
-            st.warning("程序已不在（電腦睡眠、關機或被終止）。")
+            st.warning(t("detail.interrupted"))
     result = job.get("result") or {}
     if state == "done" and job["kind"].startswith("train"):
         v = result["validation"]
         c1, c2, c3 = st.columns(3)
-        c1.metric("驗證交叉熵", f"{v['crossEntropy']:.4f}")
-        c2.metric("驗證 MSE", f"{v['mse']:.4f}", help=f"常數基準 {v['constantMse']:.4f}")
+        c1.metric(t("detail.val_ce"), f"{v['crossEntropy']:.4f}")
+        c2.metric(t("detail.val_mse"), f"{v['mse']:.4f}", help=t("detail.const_mse", x=f"{v['constantMse']:.4f}"))
         c3.metric("R²", f"{v['r2']:.3f}")
-        st.success(f"模型已存到 `{rel(result['model'])}`。下一步到「{TAB_MATCH}」和原版 MCTS 對打：真正的判準是勝率。")
+        st.success(t("detail.model_saved", path=rel(result["model"]), match=TAB_MATCH))
     if job["kind"] == "dump" and state in ("done", "cancelled") and result.get("rows"):
-        st.success(f"{'已取消，保留' if state == 'cancelled' else '完成'}：{result['games']:,} 局、{result['rows']:,} 列 → `{rel(result['output'])}`。可以到「{TAB_TRAIN}」頁勾選。")
+        st.success(t("detail.dump_result", status=t("detail.dump_cancelled" if state == "cancelled" else "detail.dump_done"), games=f"{result['games']:,}",
+                     rows=f"{result['rows']:,}", path=rel(result["output"]), train=TAB_TRAIN))
     if job["kind"] == "match" and state == "done" and result.get("match"):
         m = result["match"]
-        st.success(f"勝率 {m['winShare']:.1%} ± {m['winShareCi95']:.1%}（{m['games']} 局），已記到模型的 `.meta.json`。結果檔 `{rel(result['output'])}` 也可以在 Dashboard 打開。")
-        grid(pd.DataFrame([{"座位": "估值模型 MCTS", "勝率": m["winShare"], "平均分": m["avgScore"]}] +
-                                  [{"座位": o["seatId"] if o["strategy"] != "mcts" else ("原版 MCTS" if not o.get("valueModel") else "MCTS＋模型"),
-                                    "勝率": o["winShare"], "平均分": o["avgScore"]} for o in m["others"]]),
-                     hide_index=True, column_config={"勝率": st.column_config.NumberColumn(format="percent"),
-                                                     "平均分": st.column_config.NumberColumn(format="%.1f")})
+        st.success(t("detail.match_done", win=f"{m['winShare']:.1%}", ci=f"{m['winShareCi95']:.1%}", games=m["games"], path=rel(result["output"])))
+        seat, win, score = t("detail.col.seat"), t("detail.col.win"), t("detail.col.score")
+        grid(pd.DataFrame([{seat: t("detail.seat.model"), win: m["winShare"], score: m["avgScore"]}] +
+                          [{seat: o["seatId"] if o["strategy"] != "mcts" else (t("detail.seat.plain") if not o.get("valueModel") else t("detail.seat.withmodel")),
+                            win: o["winShare"], score: o["avgScore"]} for o in m["others"]]),
+             hide_index=True, column_config={win: st.column_config.NumberColumn(format="percent"),
+                                             score: st.column_config.NumberColumn(format="%.1f")})
     summary = job_summary_text(job)
     if summary:
         c1, c2 = st.columns([1, 3], vertical_alignment="center")
         with c1:
             copy_button(scrub(summary))
-        c2.caption("把這個工作的設定、數字、耗時與版本複製起來，貼進和 AI 的對話。沒有逐局資料，路徑是相對專案根目錄的。")
-    with st.expander("紀錄（最後 40 行）", expanded=state == "failed"):
-        st.code(scrub(jobs.log_tail(job_id)) or "（空的）", language=None)
+        c2.caption(t("detail.copy_note"))
+    with st.expander(t("detail.log"), expanded=state == "failed"):
+        st.code(scrub(jobs.log_tail(job_id)) or t("detail.empty"), language=None)
 
 
 # ---------------------------------------------------------------- 資料
@@ -1945,48 +1946,47 @@ def versions_page():
     if error:
         st.error(error)
         return
-    with card("ver-now", "這份程式現在的版本"):
-        st.markdown(version_tiles([("規則版本", fingerprint.rules_name(fingerprint.current_rules_revision())),
-                                   ("引擎版本", fingerprint.current_engine_version()),
-                                   ("特徵版本", fingerprint.current_feature_version()),
-                                   ("資料格式版本", fingerprint.current_format_version())]), unsafe_allow_html=True)
+    with card("ver-now", t("ver.now")):
+        st.markdown(version_tiles([(t("ver.rules"), fingerprint.rules_name(fingerprint.current_rules_revision())),
+                                   (t("ver.engine"), fingerprint.current_engine_version()),
+                                   (t("ver.features"), fingerprint.current_feature_version()),
+                                   (t("ver.format"), fingerprint.current_format_version())]), unsafe_allow_html=True)
         now = {"rules": str(fingerprint.current_rules_revision()), "engine": fingerprint.current_engine_version(),
                "features": str(fingerprint.current_feature_version()), "format": str(fingerprint.current_format_version())}
-        stale = [t["title"] for t in tracks.values() if t["id"] in now and (t["entries"] or [{}])[0].get("version") != now[t["id"]]]
+        stale = [k["title"] for k in tracks.values() if k["id"] in now and (k["entries"] or [{}])[0].get("version") != now[k["id"]]]
         if stale:
-            st.warning("版本清單（docs/versions.json）和程式裡的版本號不一致：" + "、".join(stale) + "。請補上這個版本做了哪些修改。")
-        st.caption("同一份清單 Dashboard 的「版本控管」頁也有。規則版本只管遊戲規則與亂數；每個策略另有自己的策略版本（本頁最下方）；"
-                   "引擎版本給人看；hash 用規則版本、策略版本、特徵版本、資料格式版本判斷資料與模型是不是舊的。")
-    for t in tracks.values():
-        entries = t.get("entries", [])
+            st.warning(t("ver.stale", names=", ".join(stale)))
+        st.caption(t("ver.caption"))
+    for track in tracks.values():
+        entries = track.get("entries", [])
         cur = entries[0]["version"] if entries else "?"
-        show = lambda v, t=t: t["display"].replace("{version}", str(v))  # noqa: E731
-        with card(f"ver-{t['id']}", t["title"]):
-            st.markdown(f"<div class='vnote'><b>目前：{_esc(show(cur))}</b>・來源：<code>{_esc(t['source'])}</code></div>"
-                        f"<div class='vnote'>{_esc(t['meaning'])}</div><div class='vnote'><b>什麼時候加：</b>{_esc(t['bump'])}</div>"
-                        + version_table(["版本", "日期", "commit", "修改內容"],
+        show = lambda v, track=track: track["display"].replace("{version}", str(v))  # noqa: E731
+        with card(f"ver-{track['id']}", track["title"]):
+            st.markdown(f"<div class='vnote'><b>{t('ver.current', v=_esc(show(cur)))}</b> · {t('ver.source')}: <code>{_esc(track['source'])}</code></div>"
+                        f"<div class='vnote'>{_esc(track['meaning'])}</div><div class='vnote'><b>{t('ver.bump')}: </b>{_esc(track['bump'])}</div>"
+                        + version_table([t("ver.col.version"), t("ver.col.date"), "commit", t("ver.col.changes")],
                                         [[(show(e["version"]), "c"), (e["date"], "c"), ((e.get("commit") or "")[:8] or "—", "code"),
                                           (e["changes"], "list")] for e in entries]), unsafe_allow_html=True)
     (info, strategies), _ = fingerprint.load_versions(strategies=True)
-    with card("ver-strategies", info.get("title", "策略版本")):
+    with card("ver-strategies", info.get("title", t("ver.strategies"))):
         rows, mismatch = [], []
-        for t in strategies:
-            e = (t.get("entries") or [{}])[0]
-            code = fingerprint.current_strategy_revision(t["id"])
+        for strat in strategies:
+            e = (strat.get("entries") or [{}])[0]
+            code = fingerprint.current_strategy_revision(strat["id"])
             if code is not None and str(code) != str(e.get("version")):
-                mismatch.append(t["id"])
-            rows.append([(t["id"], "l nw"), (fingerprint.strategy_name(t["id"], e.get("version", "?")), "c"),
+                mismatch.append(strat["id"])
+            rows.append([(strat["id"], "l nw"), (fingerprint.strategy_name(strat["id"], e.get("version", "?")), "c"),
                          (f"v{code}" if code is not None else "—", "c"), (e.get("date", ""), "c"),
                          ((e.get("commit") or "")[:8] or "—", "code"), (e.get("changes", []), "list")])
         if mismatch:
-            st.warning("版本清單和程式裡的策略版本不一致：" + "、".join(mismatch) + "。")
-        st.markdown(f"<div class='vnote'>{_esc(info.get('meaning', ''))}</div><div class='vnote'><b>什麼時候加：</b>{_esc(info.get('bump', ''))}</div>"
-                    + version_table(["策略", "目前版本", "程式裡", "日期", "commit", "這個版本的修改"], rows), unsafe_allow_html=True)
-        with st.expander("每個策略的完整歷史"):
-            st.markdown(version_table(["版本", "日期", "commit", "修改內容"],
-                                      [[(fingerprint.strategy_name(t["id"], e["version"]), "c"), (e["date"], "c"),
+            st.warning(t("ver.strategy_mismatch", names=", ".join(mismatch)))
+        st.markdown(f"<div class='vnote'>{_esc(info.get('meaning', ''))}</div><div class='vnote'><b>{t('ver.bump')}: </b>{_esc(info.get('bump', ''))}</div>"
+                    + version_table([t("ver.col.strategy"), t("ver.col.current"), t("ver.col.code"), t("ver.col.date"), "commit", t("ver.col.this")], rows), unsafe_allow_html=True)
+        with st.expander(t("ver.history")):
+            st.markdown(version_table([t("ver.col.version"), t("ver.col.date"), "commit", t("ver.col.changes")],
+                                      [[(fingerprint.strategy_name(strat["id"], e["version"]), "c"), (e["date"], "c"),
                                         ((e.get("commit") or "")[:8] or "—", "code"), (e["changes"], "list")]
-                                       for t in strategies for e in t.get("entries", [])]), unsafe_allow_html=True)
+                                       for strat in strategies for e in strat.get("entries", [])]), unsafe_allow_html=True)
 
 
 # left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)
