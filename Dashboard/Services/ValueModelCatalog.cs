@@ -15,15 +15,13 @@ public static class ValueModelCatalog
     /// <param name="Local">True for the local workspace (ml/local/models, not in git), false for official models (ml/models).</param>
     public sealed record Entry(string Path, string Name, string Kind, int? Players, double? BestWinVsDefault, bool Local = false)
     {
-        public string Label
+        /// <summary>Dropdown text: name and (official / local, kind, player count, best win share against the original MCTS).</summary>
+        public string Label(Loc l)
         {
-            get
-            {
-                var parts = new List<string> { Local ? "本機" : "正式", Kind };
-                if (Players is { } p) parts.Add($"{p} 人局");
-                if (BestWinVsDefault is { } w) parts.Add($"對原版 MCTS {(w * 100).ToString("0.0", CultureInfo.InvariantCulture)}%");
-                return $"{Name}（{string.Join("，", parts)}）";
-            }
+            var parts = new List<string> { l.T(Local ? "model.label.local" : "model.label.official"), Kind };
+            if (Players is { } p) parts.Add(l.T("model.label.players", p));
+            if (BestWinVsDefault is { } w) parts.Add(l.T("model.label.best", (w * 100).ToString("0.0", CultureInfo.InvariantCulture)));
+            return $"{Name} ({string.Join(l.T("model.label.sep"), parts)})";
         }
     }
 

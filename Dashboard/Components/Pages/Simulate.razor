@@ -8,59 +8,59 @@
 @inject IConfiguration AppConfig
 @inject PageMemory Memory
 
-<PageTitle>策略模擬 · 波多黎各策略模擬器</PageTitle>
-<h1>策略模擬</h1>
-<p class="note">選玩家數與每個座位的策略，按「開始模擬」。結果存進結果資料夾，跑完自動載入並可到「結果總覽」頁檢視。</p>
+<PageTitle>@L.T("sim.page_title")</PageTitle>
+<h1>@L.T("sim.title")</h1>
+<p class="note">@L.T("sim.intro")</p>
 
 <div class="panel">
     <div class="row">
-        <label>用結果檔的設定當範本
+        <label>@L.T("sim.template_label")
             <select @bind="templateFile" disabled="@Sim.Running">
-                <option value="">（選擇結果檔）</option>
+                <option value="">@L.T("sim.template_choose")</option>
                 @foreach (var f in templateFiles) { <option value="@f">@Path.GetFileName(f)</option> }
             </select>
         </label>
-        <button class="secondary" @onclick="ApplyTemplateFile" disabled="@(Sim.Running || string.IsNullOrEmpty(templateFile))">套用</button>
-        <button class="secondary" @onclick="RefreshTemplates" disabled="@Sim.Running">重新整理</button>
-        <span class="muted">只讀設定，不載入整份結果，大檔也很快。也可以在「結果總覽」頁按「用這份設定再模擬」。</span>
+        <button class="secondary" @onclick="ApplyTemplateFile" disabled="@(Sim.Running || string.IsNullOrEmpty(templateFile))">@L.T("sim.apply")</button>
+        <button class="secondary" @onclick="RefreshTemplates" disabled="@Sim.Running">@L.T("sim.refresh")</button>
+        <span class="muted">@L.T("sim.template_note")</span>
     </div>
     @if (templateNote != null) { <div class="ok" style="margin-top:.5rem">@templateNote</div> }
     @if (templateError != null) { <div class="error" style="margin-top:.5rem">@templateError</div> }
 </div>
 
-<div class="tabs" role="tablist" aria-label="模擬種類">
-    <button role="tab" aria-selected="@(!sweep)" class="tab @(!sweep ? "active" : "")" @onclick="@(() => sweep = false)" disabled="@Sim.Running">一般對戰</button>
-    <button role="tab" aria-selected="@sweep" class="tab @(sweep ? "active" : "")" @onclick="@(() => sweep = true)" disabled="@Sim.Running">參數掃描</button>
+<div class="tabs" role="tablist" aria-label="@L.T("sim.kind_aria")">
+    <button role="tab" aria-selected="@(!sweep)" class="tab @(!sweep ? "active" : "")" @onclick="@(() => sweep = false)" disabled="@Sim.Running">@L.T("sim.tab_normal")</button>
+    <button role="tab" aria-selected="@sweep" class="tab @(sweep ? "active" : "")" @onclick="@(() => sweep = true)" disabled="@Sim.Running">@L.T("nav.sweep")</button>
 </div>
 
 <div class="panel">
     <div class="row">
-        <label>玩家數
+        <label>@L.T("sim.players")
             <select value="@players" @onchange="OnPlayers" disabled="@Sim.Running">
-                <option value="3">3 人</option>
-                <option value="4">4 人</option>
+                <option value="3">@L.T("sim.p3")</option>
+                <option value="4">@L.T("sim.p4")</option>
             </select>
         </label>
-        <label>@(sweep ? "每格點局數" : "局數") <input type="text" inputmode="numeric" style="width:8rem" @bind="gamesText" @bind:event="onchange" disabled="@Sim.Running" /></label>
-        <label>座位順序
+        <label>@(sweep ? L.T("sim.games_per_point") : L.T("sim.games")) <input type="text" inputmode="numeric" style="width:8rem" @bind="gamesText" @bind:event="onchange" disabled="@Sim.Running" /></label>
+        <label>@L.T("sim.seat_order")
             <select @bind="seatOrder" disabled="@Sim.Running">
-                <option value="random">隨機（random，預設）</option>
-                <option value="balanced">完全平衡（balanced）</option>
-                <option value="rotate">輪換（rotate，不建議）</option>
-                <option value="fixed">固定（fixed，不建議）</option>
+                <option value="random">@L.T("sim.so.random")</option>
+                <option value="balanced">@L.T("sim.so.balanced")</option>
+                <option value="rotate">@L.T("sim.so.rotate")</option>
+                <option value="fixed">@L.T("sim.so.fixed")</option>
             </select>
         </label>
-        <label>主種子 <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
+        <label>@L.T("sim.seed") <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
     </div>
     <div class="row filerow">
-        <label>結果檔名 <input type="text" placeholder="@DefaultFileName(DateTime.Now)" @bind="fileNameText" disabled="@Sim.Running" /></label>
+        <label>@L.T("sim.filename") <input type="text" placeholder="@DefaultFileName(DateTime.Now)" @bind="fileNameText" disabled="@Sim.Running" /></label>
     </div>
 </div>
 
 @if (seatOrder == "balanced" && BalancedStep > 0 && games % BalancedStep != 0)
 {
-    <div class="error">完全平衡需要局數是 @BalancedStep 的倍數（@(players == 3 ? "3 人局" : "4 人局")共有 @BalancedStep 種座位排列，每種要排一樣多次），目前 @games.ToString("N0") 局，最後 @(games % BalancedStep) 局會讓排列略不平衡。
-        <button class="secondary" @onclick="@(() => games = (games / BalancedStep + 1) * BalancedStep)">調成 @(((games / BalancedStep) + 1) * BalancedStep) 局</button></div>
+    <div class="error">@L.T("sim.balanced_error", BalancedStep, L.T(players == 3 ? "sim.pg.3" : "sim.pg.4"), games.ToString("N0"), games % BalancedStep)
+        <button class="secondary" @onclick="@(() => games = (games / BalancedStep + 1) * BalancedStep)">@L.T("sim.balanced_fix", ((games / BalancedStep) + 1) * BalancedStep)</button></div>
 }
 
 @if (MctsWarning() is { } warn)
@@ -72,36 +72,36 @@
     <div class="seatgrid @(sweep ? "withtarget" : "")">
         @* every seat is its own framed row (CSS subgrid keeps the columns aligned with the heading) *@
         <div class="seatrow head">
-            <div class="seathead">座位</div>
-            @if (sweep) { <div class="seathead">掃描目標</div> }
-            <div class="seathead">策略</div>
-            <div class="seathead">參數（選填）</div>
+            <div class="seathead">@L.T("sim.col.seat")</div>
+            @if (sweep) { <div class="seathead">@L.T("sim.col.target")</div> }
+            <div class="seathead">@L.T("sim.col.strategy")</div>
+            <div class="seathead">@L.T("sim.col.params")</div>
         </div>
         @for (int i = 0; i < players; i++)
         {
             int seat = i;
             <div class="seatrow">
-            <strong>座位 @(seat + 1)</strong>
+            <strong>@L.T("sim.seat_n", seat + 1)</strong>
             @if (sweep)
             {
-                <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> 目標</label>
+                <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> @L.T("sim.target")</label>
             }
             <select @bind="strategies[seat]" disabled="@Sim.Running">
                 @foreach (var n in Choices) { <option value="@n">@Palette.DisplayName(n)</option> }
             </select>
             <div class="paramcell">
-                <input type="text" placeholder="例如 buildThreshold=3, quarryTarget=2"
+                <input type="text" placeholder="@L.T("sim.params_ph")"
                        @bind="paramText[seat]" disabled="@Sim.Running" />
                 @if (strategies[seat] == "mcts")
                 {
                     var models = ValueModelCatalog.List(players);
                     string current = CurrentValueModel(seat);
-                    <label class="modelpick" title="學習得到的局面估值模型（ML UI 訓練，放在 ml/models/）：葉節點改用模型估值，不再 rollout。會寫進左邊的參數欄（valueModel=…）。">
-                        估值模型
+                    <label class="modelpick" title="@L.T("sim.model_title")">
+                        @L.T("sim.value_model")
                         <select value="@current" @onchange="e => SetValueModel(seat, e.Value?.ToString() ?? string.Empty)" disabled="@Sim.Running">
-                            <option value="">不用（隨機 rollout）</option>
-                            @foreach (var m in models) { <option value="@m.Path">@m.Label</option> }
-                            @if (current != "" && models.All(m => m.Path != current)) { <option value="@current">@current（找不到或人數不符）</option> }
+                            <option value="">@L.T("sim.no_model")</option>
+                            @foreach (var m in models) { <option value="@m.Path">@m.Label(L)</option> }
+                            @if (current != "" && models.All(m => m.Path != current)) { <option value="@current">@L.T("sim.model_missing", current)</option> }
                         </select>
                     </label>
                 }
@@ -109,22 +109,22 @@
             </div>
         }
     </div>
-    <p class="note">每個策略的行為規則與可調參數見頁面下方「流派介紹」。參數欄位格式：<code>名稱=值</code>（數字，或像 <code>rolloutStrategy=random</code> 這樣的文字），多個用逗號分隔，例如 <code>buildThreshold=3.5, quarryTarget=2</code>。</p>
+    <p class="note">@((MarkupString)L.T("sim.note_params"))</p>
 </div>
 
 @if (sweep)
 {
     <div class="panel">
-        <label>掃描參數（目標座位）：每行一個參數，<code>名稱=值,值,…</code>；格點為所有參數的組合
+        <label>@((MarkupString)L.T("sim.sweep_label"))
             <textarea rows="3" style="width:100%" spellcheck="false" @bind="sweepText" @bind:event="oninput" disabled="@Sim.Running"></textarea>
         </label>
-        <p class="note">每個格點用同一個主種子、同樣的對手，只改目標座位的參數，格點之間可直接比較；座位的固定參數會被掃描值覆蓋。可掃的參數：<code>buildThreshold</code>（所有手寫策略）、<code>quarryTarget</code>（build-first、harbor-rush）、<code>switchRound</code>／<code>cornTarget</code>（corn-to-premium）。</p>
+        <p class="note">@((MarkupString)L.T("sim.sweep_note"))</p>
     </div>
 }
 
 <div class="row">
-    <button @onclick="Start" disabled="@Sim.Running">@(sweep ? "開始掃描" : "開始模擬")</button>
-    <button class="secondary" @onclick="Sim.Cancel" disabled="@(!Sim.Running)">取消（保留已跑完的局）</button>
+    <button @onclick="Start" disabled="@Sim.Running">@(sweep ? L.T("sim.start_sweep") : L.T("sim.start"))</button>
+    <button class="secondary" @onclick="Sim.Cancel" disabled="@(!Sim.Running)">@L.T("sim.cancel")</button>
 </div>
 
 @if (Sim.Running)
@@ -134,13 +134,13 @@
         @if (Sim.IsSweep)
         {
             <progress max="@Math.Max(1, Sim.SweepTotal)" value="@Sim.SweepDone" style="width:100%"></progress>
-            <div class="muted">格點 @Sim.SweepDone / @Sim.SweepTotal @(Sim.SweepLog == null ? "" : "　·　" + Sim.SweepLog)</div>
+            <div class="muted">@L.T("sim.grid_progress", Sim.SweepDone, Sim.SweepTotal) @(Sim.SweepLog == null ? "" : "　·　" + Sim.SweepLog)</div>
         }
-        else if (p == null) { <span>啟動中…</span> }
+        else if (p == null) { <span>@L.T("sim.starting")</span> }
         else
         {
             <progress max="@p.Total" value="@p.Completed" style="width:100%"></progress>
-            <div class="muted">@p.Completed.ToString("N0") / @p.Total.ToString("N0") 局　·　@p.GamesPerSecond.ToString("N0") 局／秒　·　已用 @p.Elapsed.ToString(@"mm\:ss")</div>
+            <div class="muted">@L.T("sim.progress", p.Completed.ToString("N0"), p.Total.ToString("N0"), p.GamesPerSecond.ToString("N0"), p.Elapsed.ToString(@"mm\:ss"))</div>
         }
     </div>
 }
@@ -148,46 +148,46 @@
 @if (error != null) { <div class="error">@error</div> }
 @if (!Sim.Running && Sim.LastOutput != null && !Sim.IsSweep && State.Result != null)
 {
-    <div class="ok">完成，已存到 @AppState.DisplayPath(Sim.LastOutput)（@State.Result.Status，@State.Analysis?.GamesCompleted.ToString("N0") 局）。
-        <a href="results" @onclick="GoResults" @onclick:preventDefault>前往「結果總覽」頁</a></div>
+    <div class="ok">@L.T("sim.done", AppState.DisplayPath(Sim.LastOutput), State.Result.Status, State.Analysis?.GamesCompleted.ToString("N0"))
+        <a href="results" @onclick="GoResults" @onclick:preventDefault>@L.T("sim.go_results")</a></div>
 }
 @if (!Sim.Running && Sim.LastOutput != null && Sim.IsSweep && State.Sweep != null)
 {
-    <div class="ok">掃描完成，已存到 @AppState.DisplayPath(Sim.LastOutput)（@State.Sweep.Status，@State.Sweep.Points.Count 個格點）。
-        <a href="sweep" @onclick="GoSweep" @onclick:preventDefault>前往「參數掃描」頁</a></div>
+    <div class="ok">@L.T("sim.sweep_done", AppState.DisplayPath(Sim.LastOutput), State.Sweep.Status, State.Sweep.Points.Count)
+        <a href="sweep" @onclick="GoSweep" @onclick:preventDefault>@L.T("sim.go_sweep")</a></div>
 }
 
-<h2 id="strategies">流派介紹</h2>
-<p class="note">預設值寫成「4 人／3 人」的，表示策略會依玩家數自動採用不同預設；你在座位的參數欄位明確填的值永遠優先。「建議範圍」來自參數掃描實驗（見 <code>docs/strategy-analysis.md</code>）。</p>
+<h2 id="strategies">@L.T("sim.guide")</h2>
+<p class="note">@((MarkupString)L.T("sim.guide_note"))</p>
 <div class="tabs" role="tablist">
-    @foreach (var g in StrategyInfo.Groups)
+    @foreach (var g in StrategyInfo.Groups(L))
     {
         string key = g.Key;
         <button role="tab" aria-selected="@(docTab == key)" class="tab @(docTab == key ? "active" : "")" @onclick="@(() => docTab = key)">@g.Title <span class="count">@g.Ids.Length</span></button>
     }
-    <button role="tab" aria-selected="@(docTab == "all")" class="tab @(docTab == "all" ? "active" : "")" @onclick="@(() => docTab = "all")">全部 <span class="count">@StrategyInfo.All.Count</span></button>
+    <button role="tab" aria-selected="@(docTab == "all")" class="tab @(docTab == "all" ? "active" : "")" @onclick="@(() => docTab = "all")">@L.T("sim.all") <span class="count">@StrategyInfo.All(L).Count</span></button>
 </div>
-@if (StrategyInfo.Groups.FirstOrDefault(g => g.Key == docTab) is { } group) { <p class="note">@group.Hint</p> }
-<p class="note">所有手寫策略另有實驗參數 <code>randomTies</code>（預設 0）：分數完全相同時，0 = 選引擎順序最前面的動作，1 = 開拓者與工匠額外貨物同分時隨機，2 = 市長以外所有階段同分時隨機（3 = 只有開拓者、4 = 只有工匠額外貨物）。會改變勝率，見 <code>docs/strategy-analysis.md</code> 8.1。<br />同分時的固定順序（預設都沒有設定，維持引擎順序）：<code>tieTile</code>（拿種植園：corn indigo sugar tobacco coffee quarry hacienda）、<code>tieGood</code>（工匠額外貨物、賣貨、出貨、保留：五種貨物）、<code>tieRole</code>（選職業）、<code>tieBuild</code>（建築，含 pass），寫成文字參數如 <code>tieTile=sugar>indigo>coffee</code>，最優先的在前，沒列出的排最後；只在分數完全相同時才有作用，不會蓋過真正的分數差距。預留：<code>tieOpponent</code>（權重，預設 0），同分時偏好（正）或避開（負）對手目前生產最多桶的貨物。詳見 8.2。</p>
-@foreach (var doc in StrategyInfo.InGroup(docTab))
+@if (StrategyInfo.Groups(L).FirstOrDefault(g => g.Key == docTab) is { } group) { <p class="note">@group.Hint</p> }
+<p class="note">@((MarkupString)L.T("sim.ties"))</p>
+@foreach (var doc in StrategyInfo.InGroup(L, docTab))
 {
     <section class="stratdoc">
         <h3 class="stratname"><span class="sicon">@Palette.Icon(doc.Id)</span>@Palette.DisplayName(doc.Id) <span class="muted">@doc.Title</span></h3>
         <p class="stratsummary">@doc.Summary</p>
-        <strong>行為規則</strong>
+        <strong>@L.T("sim.rules")</strong>
         <ul>
             @foreach (var rule in doc.Rules) { <li>@rule</li> }
         </ul>
         @if (doc.Params.Length == 0)
         {
-            <p class="muted">沒有可調整的參數。</p>
+            <p class="muted">@L.T("sim.no_params")</p>
         }
         else
         {
-            <strong>可調整參數</strong>
+            <strong>@L.T("sim.params_title")</strong>
             <div class="tablewrap">
                 <table class="data">
-                    <thead><tr><th>參數</th><th>預設值</th><th>說明</th><th>建議範圍</th></tr></thead>
+                    <thead><tr><th>@L.T("sim.th.param")</th><th>@L.T("sim.th.default")</th><th>@L.T("sim.th.meaning")</th><th>@L.T("sim.th.range")</th></tr></thead>
                     <tbody>
                     @foreach (var prm in doc.Params)
                     {
@@ -202,7 +202,7 @@
 
 @code {
     private static readonly string[] Choices = StrategyRegistry.Names.Where(n => n != "rule-based").OrderBy(n => n == "random" ? 1 : 0).ThenBy(n => n).ToArray();
-    private string docTab = StrategyInfo.Groups[0].Key;
+    private string docTab = StrategyInfo.FirstGroupKey;
     private int players = 4;
     private int games = 10000;
     /// <summary>Games as text with thousands separators; typed commas are ignored, invalid or non-positive input keeps the old value.</summary>
@@ -263,7 +263,7 @@
         try { ApplyConfig(await AppState.ReadConfigAsync(templateFile), Path.GetFileName(templateFile)); }
         catch (Exception e) when (e is System.Text.Json.JsonException or InvalidDataException or IOException)
         {
-            templateError = $"無法讀取設定：{AppState.Scrub(e.Message)}";
+            templateError = L.T("sim.err.read_config", AppState.Scrub(e.Message));
         }
     }
 
@@ -286,7 +286,7 @@
                 name = prm.TryGetValue("profile", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString()! : "corn-shipper";
                 prm.Remove("profile");
             }
-            if (!Choices.Contains(name, StringComparer.OrdinalIgnoreCase)) { notes.Add($"座位 {i + 1} 的策略「{name}」不在清單內，改為 {Choices[0]}"); name = Choices[0]; }
+            if (!Choices.Contains(name, StringComparer.OrdinalIgnoreCase)) { notes.Add(L.T("sim.err.seat_missing", i + 1, name, Choices[0])); name = Choices[0]; }
             strategies[i] = Choices.First(x => x.Equals(name, StringComparison.OrdinalIgnoreCase));
             paramText[i] = FormatParams(prm);
         }
@@ -298,7 +298,7 @@
             sweepText = string.Join("\n", c.Sweep.Parameters.Select(kv => kv.Key + "=" + string.Join(",", kv.Value.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)))));
         }
         else sweep = false;
-        templateNote = $"已套用「{source}」的設定：{c.Players} 人局、{games:N0} 局、主種子 {c.Seed}、座位順序 {Palette.SeatOrderLabel(c.SeatOrder)}" + (c.Sweep != null ? "、參數掃描" : "") + "。可以修改後再按開始。" + (notes.Count > 0 ? " " + string.Join("；", notes) : "");
+        templateNote = L.T("sim.applied", source, c.Players, games.ToString("N0"), c.Seed, Palette.SeatOrderLabel(c.SeatOrder, L)) + (c.Sweep != null ? L.T("sim.applied_sweep") : "") + L.T("sim.applied_end") + (notes.Count > 0 ? " " + string.Join(L.T("common.sep"), notes) : "");
     }
 
     private static string FormatParams(Dictionary<string, JsonElement> prm) =>
@@ -327,8 +327,8 @@
         long totalGames = sweep ? (long)games * GridSize() : games;
         if (totalGames < MctsWarnGames) return null;
         double seconds = totalGames * MctsSecondsPerGame * (totalSims / 300.0) / Math.Max(1, Environment.ProcessorCount);
-        string eta = seconds < 90 ? $"{seconds:0} 秒" : seconds < 5400 ? $"{seconds / 60:0} 分鐘" : $"{seconds / 3600:0.#} 小時";
-        return $"有 {mctsSeats} 個座位使用 MCTS，共 {totalGames:N0} 局，會跑很久（粗估約 {eta}，以本機 {Environment.ProcessorCount} 核心推算）。MCTS 比手寫策略慢數百倍，建議先用數百局以內、或降低 simulations 參數。";
+        string eta = seconds < 90 ? L.T("sim.eta.s", $"{seconds:0}") : seconds < 5400 ? L.T("sim.eta.m", $"{seconds / 60:0}") : L.T("sim.eta.h", $"{seconds / 3600:0.#}");
+        return L.T("sim.mcts_warn", mctsSeats, totalGames.ToString("N0"), eta, Environment.ProcessorCount);
     }
 
     /// <summary>Number of grid points of the sweep text (1 if it cannot be parsed yet).</summary>
@@ -356,7 +356,7 @@
         name = new string(name.Where(c => Array.IndexOf(Path.GetInvalidFileNameChars(), c) < 0).ToArray()).Trim();
         if (name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) name = name[..^5];
         name = name.Trim('.', ' ');
-        if (name.Length == 0) { problem = "結果檔名無效，請改用英數字、中文、- 或 _。"; return DefaultFileName(now); }
+        if (name.Length == 0) { problem = L.T("sim.err.filename"); return DefaultFileName(now); }
         return name + ".json";
     }
 
@@ -382,7 +382,7 @@
             string name = strategies[i];
             var seat = new SeatConfig { Strategy = name };
             try { seat.Params = ParseParams(paramText[i]); }
-            catch (FormatException e) { error = $"座位 {i + 1} 的參數：{e.Message}"; return; }
+            catch (FormatException e) { error = L.T("sim.err.seat_params", i + 1, e.Message); return; }
             // the seat id is the name shown in the results: an MCTS seat with a value model carries the model's name,
             // so two MCTS seats with different models can be told apart (mcts(4p-v2) vs mcts(4p-v3))
             string label = name;
@@ -413,37 +413,37 @@
             cfg.Name = "dashboard-sweep";
             cfg.Output.PerGameRecords = false;
             string sweepFile = ResultFileName(DateTime.Now, out var sweepProblem);
-            if (sweepProblem != null || FileExists(sweepFile)) { error = sweepProblem ?? $"結果資料夾已有「{sweepFile}」，請換一個檔名（不會覆蓋既有檔案）。"; return; }
+            if (sweepProblem != null || FileExists(sweepFile)) { error = sweepProblem ?? L.T("sim.err.exists", sweepFile); return; }
             await Sim.StartSweepAsync(cfg, sweepFile);
             return;
         }
         string file = ResultFileName(DateTime.Now, out var problem);
-        if (problem != null || FileExists(file)) { error = problem ?? $"結果資料夾已有「{file}」，請換一個檔名（不會覆蓋既有檔案）。"; return; }
+        if (problem != null || FileExists(file)) { error = problem ?? L.T("sim.err.exists", file); return; }
         await Sim.StartAsync(cfg, file);
     }
 
     private bool FileExists(string name) => File.Exists(Path.Combine(AppState.ResultsDirectory(AppConfig), name));
 
-    private static Dictionary<string, List<double>> ParseSweep(string text)
+    private Dictionary<string, List<double>> ParseSweep(string text)
     {
         var result = new Dictionary<string, List<double>>();
         foreach (var line in (text ?? "").Split(new[] { '\n', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var kv = line.Split('=', 2, StringSplitOptions.TrimEntries);
-            if (kv.Length != 2 || kv[0].Length == 0) throw new FormatException($"掃描參數「{line}」格式應為 名稱=值,值");
+            if (kv.Length != 2 || kv[0].Length == 0) throw new FormatException(L.T("sim.err.sweep_format", line));
             var values = new List<double>();
             foreach (var v in kv[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 if (!double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d))
-                    throw new FormatException($"掃描參數「{kv[0]}」的值「{v}」不是數字");
+                    throw new FormatException(L.T("sim.err.sweep_nan", kv[0], v));
                 values.Add(d);
             }
-            if (values.Count == 0) throw new FormatException($"掃描參數「{kv[0]}」沒有值");
+            if (values.Count == 0) throw new FormatException(L.T("sim.err.sweep_empty", kv[0]));
             result[kv[0]] = values;
         }
-        if (result.Count == 0) throw new FormatException("請至少填一個掃描參數");
+        if (result.Count == 0) throw new FormatException(L.T("sim.err.sweep_none"));
         const int maxPoints = 500;
-        if (result.Values.Aggregate(1L, (acc, v) => acc * v.Count) > maxPoints) throw new FormatException($"格點超過 {maxPoints} 個，請縮小範圍");
+        if (result.Values.Aggregate(1L, (acc, v) => acc * v.Count) > maxPoints) throw new FormatException(L.T("sim.err.grid", maxPoints));
         return result;
     }
 
@@ -464,14 +464,14 @@
         paramText[seat] = string.Join(", ", parts);
     }
 
-    private static Dictionary<string, JsonElement> ParseParams(string text)
+    private Dictionary<string, JsonElement> ParseParams(string text)
     {
         var result = new Dictionary<string, JsonElement>();
         foreach (var part in (text ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var kv = part.Split('=', 2, StringSplitOptions.TrimEntries);
             if (kv.Length != 2 || kv[0].Length == 0 || kv[1].Length == 0)
-                throw new FormatException($"「{part}」格式應為 名稱=值（數字或文字）");
+                throw new FormatException(L.T("sim.err.param_format", part));
             // numbers become numeric parameters, anything else a text parameter (e.g. rolloutStrategy=random)
             result[kv[0]] = double.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
                 ? JsonSerializer.SerializeToElement(v)

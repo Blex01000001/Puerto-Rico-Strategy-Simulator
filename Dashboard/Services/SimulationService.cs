@@ -9,7 +9,8 @@ public sealed class SimulationService : IDisposable
     private readonly IConfiguration _config;
     private CancellationTokenSource? _cts;
 
-    public SimulationService(AppState state, IConfiguration config) { _state = state; _config = config; }
+    public SimulationService(AppState state, IConfiguration config, Loc loc) { _state = state; _config = config; _loc = loc; }
+    private readonly Loc _loc;
 
     public bool Running { get; private set; }
     public SimProgress? Progress { get; private set; }
@@ -45,7 +46,7 @@ public sealed class SimulationService : IDisposable
         }
         catch (Exception e)
         {
-            Error = $"模擬失敗：{AppState.Scrub(e.Message)}";
+            Error = _loc.T("sim.err.failed", AppState.Scrub(e.Message));
         }
         finally
         {
@@ -79,7 +80,7 @@ public sealed class SimulationService : IDisposable
         }
         catch (Exception e)
         {
-            Error = $"掃描失敗：{AppState.Scrub(e.Message)}";
+            Error = _loc.T("sim.err.sweep_failed", AppState.Scrub(e.Message));
         }
         finally
         {

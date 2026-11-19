@@ -39,13 +39,13 @@
     <a class="card" href="config"><span class="cicon">📝</span><strong>@L.T("nav.config")</strong>@L.T("home.c.config")</a>
 </div>
 
-<h2 class="promo">@L.T("home.roster", StrategyInfo.All.Count)</h2>
+<h2 class="promo">@L.T("home.roster", StrategyInfo.All(L).Count)</h2>
 <p class="promosub">@L.T("home.roster_sub")</p>
-@foreach (var g in StrategyInfo.Groups)
+@foreach (var g in StrategyInfo.Groups(L))
 {
     <h3 class="rostergroup">@g.Title</h3>
     <div class="roster">
-        @foreach (var s in StrategyInfo.InGroup(g.Key))
+        @foreach (var s in StrategyInfo.InGroup(L, g.Key))
         {
             var pitch = (L.Has("home.badge." + s.Id) ? L.T("home.badge." + s.Id) : "", L.Has("home.pitch." + s.Id) ? L.T("home.pitch." + s.Id) : s.Summary);
             <a class="fighter" href="simulate#strategies" style="--c:@Palette.Color(s.Id, 0)" title="@s.Summary">
