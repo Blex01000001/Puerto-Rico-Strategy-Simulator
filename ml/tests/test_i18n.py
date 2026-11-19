@@ -101,7 +101,8 @@ def _english_app(monkeypatch, tmp_path, page):
     monkeypatch.delenv("PR_LANG", raising=False)
     monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
     at = AppTest.from_file(UI, default_timeout=60).run()
-    at.button(key=f"nav-{page}").click().run()
+    if not any(b.key == f"navon-{page}" for b in at.button):  # the first page is already the current one
+        at.button(key=f"nav-{page}").click().run()
     assert not at.exception, at.exception
     return at
 
@@ -181,3 +182,47 @@ def test_fingerprint_texts_follow_the_language():
     assert len(zh) == len(en)
     notes = fingerprint.stale_notes({"rulesRevision": 1, "ruleset": "base", "seats": []}, "en")
     assert all(n.startswith("Rules ") for n in notes)
+
+
+def _no_chinese(at, where):
+    texts = _page_text(at) + [x for s in at.main.selectbox for x in s.options] + [x.placeholder for x in at.main.text_input]
+    texts += [e.label for e in at.main.expander]
+    bad = [x for x in texts if isinstance(x, str) and CJK.search(x)]
+    assert not bad, (where, bad[:4])
+
+
+def test_data_page_is_english_in_every_mode(monkeypatch, tmp_path):
+    from conftest import write_dump
+    os.makedirs(tmp_path / "ml")
+    write_dump(str(tmp_path / "ml" / "4p-test.bin"), games=10)  # the "existing data" table
+    at = _english_app(monkeypatch, tmp_path, "data")
+    assert at.title[0].value == "Data Sampling"
+    assert "Start generating data" in [b.label for b in at.main.button]
+    for mode in ("config", "custom", "selfplay"):
+        radio = next(r for r in at.main.radio if r.label == "Sampling source")
+        radio.set_value(mode).run()
+        assert not at.exception, (mode, at.exception)
+        _no_chinese(at, mode)
+    cells = [str(v) for d in at.dataframe for v in list(d.value.columns) + list(d.value.index.names or []) + list(d.value.to_numpy().ravel())]
+    assert "Sampling rate" in cells and "File" in cells
+    assert not [x for x in cells if CJK.search(x)], [x for x in cells if CJK.search(x)][:4]
+
+
+def test_job_titles_follow_the_language(monkeypatch, tmp_path):
+    import jobs
+    rows = [{"id": "a", "title": "資料（自訂：cheap-engine）→ x.bin", "titleKey": "job.title.dump_custom", "titleArgs": {"strategies": "cheap-engine", "name": "x"},
+             "kind": "dump", "state": "running", "spec": {}, "created": "2026-01-01T00:00:00Z"},
+            {"id": "b", "title": "舊的工作標題", "kind": "match", "state": "waiting", "spec": {}, "created": "2026-01-01T00:00:00Z"}]  # no key: keeps its text
+    monkeypatch.delenv("PR_LANG", raising=False)
+    monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setattr(jobs, "list_jobs", lambda: rows)
+    monkeypatch.setattr(jobs, "active_job", lambda: rows[0])
+    monkeypatch.setattr(jobs, "waiting_jobs", lambda: rows[1:])
+    monkeypatch.setattr(jobs, "events", lambda job_id: [])
+    monkeypatch.setattr(jobs, "queue_position", lambda job_id: 1)
+    at = AppTest.from_file(UI, default_timeout=60).run()
+    side = " ".join(m.value for m in at.sidebar.markdown)
+    assert "Data (custom: cheap-engine) → x.bin" in side
+    at.button(key="lang-toggle").click().run()
+    side = " ".join(m.value for m in at.sidebar.markdown)
+    assert "資料（自訂：cheap-engine）→ x.bin" in side

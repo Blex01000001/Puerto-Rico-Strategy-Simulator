@@ -228,8 +228,11 @@ class _DispatchLock:
             pass
 
 
-def start(kind, title, spec):
-    """Adds a job and returns its id: it starts at once when nothing is running, otherwise it waits in the queue."""
+def start(kind, title, spec, title_key=None, title_args=None):
+    """Adds a job and returns its id: it starts at once when nothing is running, otherwise it waits in the queue.
+
+    `title` is the text shown when nothing better is known; `title_key` + `title_args` (an i18n key and its values) let the UI show
+    the title in the language it is in now (jobs written without them keep their text)."""
     if kind not in KINDS:
         raise ValueError(f"unknown job kind {kind!r}")
     job_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
@@ -237,6 +240,8 @@ def start(kind, title, spec):
     os.makedirs(job_dir)
     job = {"id": job_id, "kind": kind, "title": title, "spec": spec, "status": "waiting",
            "created": now(), "createdEpoch": time.time()}
+    if title_key:
+        job["titleKey"], job["titleArgs"] = title_key, title_args or {}
     _write_json(os.path.join(job_dir, "job.json"), job)
     start_next()
     return job_id

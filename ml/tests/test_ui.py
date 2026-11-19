@@ -132,12 +132,12 @@ def test_start_buttons_while_jobs_are_queued(results, monkeypatch):
 def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypatch):
     import jobs
     started = {}
-    monkeypatch.setattr(jobs, "start", lambda kind, title, spec: started.update(kind=kind, title=title, spec=spec) or "job-1")
+    monkeypatch.setattr(jobs, "start", lambda kind, title, spec, *key: started.update(kind=kind, title=title, spec=spec, key=key) or "job-1")
     written = {}
     at = AppTest.from_file(UI, default_timeout=60)
     at.run()
     mode = next(r for r in at.radio if r.label == "採樣來源模型")
-    mode.set_value("自訂組合（自己選每個座位的策略）").run()
+    mode.set_value("custom").run()
     assert not at.exception, at.exception
     seat_boxes = [s for s in at.selectbox if s.label.startswith("座位 ")]
     assert len(seat_boxes) == 4
@@ -178,7 +178,7 @@ def test_parse_params():
     src = open(UI, encoding="utf-8").read()
     tree = ast.parse(src)
     fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "parse_params")
-    ns = {"re": importlib.import_module("re")}
+    ns = {"re": importlib.import_module("re"), "t": lambda key, **kw: key}  # the function only needs the translator to word its error
     exec(compile(ast.Module(body=[fn], type_ignores=[]), UI, "exec"), ns)
     assert ns["parse_params"]("a=3, b=2.5; c=text") == {"a": 3, "b": 2.5, "c": "text"}
     assert ns["parse_params"]("") == {}
@@ -192,7 +192,7 @@ def test_save_config_only_writes_the_config(results, monkeypatch):
     import jobs
     monkeypatch.setattr(jobs, "start", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no job may start")))
     at = run_app()
-    next(r for r in at.radio if r.label == "採樣來源模型").set_value("自訂組合（自己選每個座位的策略）").run()
+    next(r for r in at.radio if r.label == "採樣來源模型").set_value("custom").run()
     next(t for t in at.text_input if t.label.startswith("輸出名稱")).set_value("pytest-saved-only").run()
     cfg_path = os.path.join(os.path.dirname(UI), "local", "data-configs", "pytest-saved-only.json")
     try:

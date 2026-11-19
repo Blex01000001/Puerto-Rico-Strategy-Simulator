@@ -164,11 +164,17 @@ def model_stale(meta):
     return notes
 
 
+# internal (Chinese) keys of the dump rows -> i18n keys of the displayed column names
+DUMP_COLUMNS = {"來源": "source", "人數": "players", "局數": "games", "列數": "rows", "狀態": "status", "抽樣率": "rate", "特徵版本": "feature",
+                "大小 MB": "size", "策略": "strategies", "自我對戰模型": "selfplay", "規則版本": "rules", "版本狀態": "versions", "引擎 commit": "commit"}
+
+
 def table_view(rows, path_as=None):
     """Dump rows for display: no internal columns (those starting with _); the path column is dropped or renamed."""
     df = pd.DataFrame(rows)
     df = df.drop(columns=[c for c in df.columns if c.startswith("_")])
-    return df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
+    df = df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
+    return df.rename(columns={zh: t(f"dump.col.{key}") for zh, key in DUMP_COLUMNS.items()})
 
 
 def models_using(dump_rel):
@@ -200,7 +206,7 @@ def job_reads(job):
 def pending_readers(out_rel):
     """Titles of the waiting / starting / running jobs that will read this file (overwriting it would change their input)."""
     want = out_rel.replace("\\", "/")
-    return [j["title"] for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY and want in job_reads(j)]
+    return [job_title(j) for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY and want in job_reads(j)]
 
 
 def reader_problem(out_rel):
@@ -387,22 +393,22 @@ def delete_button(key, label, paths, extra_suffixes=(), busy=()):
             confirm_delete(key, list(paths), tuple(extra_suffixes), tuple(busy))
 
 
-@st.dialog("刪除檔案")
+@st.dialog(t("del.dlg"))
 def confirm_delete(key, paths, extra_suffixes, busy):
     blocked = [p for p in paths if rel(p) in busy]
     if blocked:
-        st.markdown('<span class="act-err">排隊中或執行中的工作會用到：' + "、".join(plain(rel(p)) for p in blocked) + "，不能刪除</span>",
+        st.markdown(f'<span class="act-err">{t("del.blocked", files=t("common.list").join(plain(rel(p)) for p in blocked))}</span>',
                     unsafe_allow_html=True)
-        if st.button("關閉", key=f"keep-{key}-close"):
+        if st.button(t("del.close"), key=f"keep-{key}-close"):
             st.rerun()
         return
-    st.markdown("確定刪除這些檔案？刪除後無法復原。")
+    st.markdown(t("del.ask"))
     for p in paths:
         st.markdown(f"- `{rel(p)}`")
     c1, c2 = st.columns(2)
-    if c1.button("取消", key=f"keep-{key}-cancel", width="stretch"):
+    if c1.button(t("queue.cancel"), key=f"keep-{key}-cancel", width="stretch"):
         st.rerun()
-    if c2.button("確定刪除", key=f"{key}-confirm", width="stretch"):
+    if c2.button(t("del.ok"), key=f"{key}-confirm", width="stretch"):
         for p in paths:
             for f in [p] + [p + suf for suf in extra_suffixes]:
                 if os.path.exists(f):
@@ -426,7 +432,7 @@ def training_tab():
         players = sorted({d["人數"] for d in good})
         p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
         rows = [d for d in good if d["人數"] == p]
-        df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name="檔案"))
+        df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
         picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
                               column_config={"列數": st.column_config.NumberColumn(format="localized"),
                                              "局數": st.column_config.NumberColumn(format="localized")})
@@ -716,12 +722,22 @@ def card(key, title=None, sub=None):
     return c
 
 
-def start_job(kind, title, spec):
+def job_title(job):
+    """A job's title in the active language (jobs made with a title key), else the text stored with it."""
+    if job.get("titleKey"):
+        try:
+            return t(job["titleKey"], **(job.get("titleArgs") or {}))
+        except (KeyError, IndexError, ValueError):
+            pass
+    return job["title"]
+
+
+def start_job(kind, title, spec, title_key=None, **title_args):
     try:
-        job_id = jobs.start(kind, title, spec)
+        job_id = jobs.start(kind, title, spec, title_key, title_args)
         st.session_state["job-select"] = job_id  # the 工作 tab follows the new job
         pos = jobs.queue_position(job_id)
-        st.session_state["job-started"] = f"已加入排隊（第 {pos} 個），會在前面的工作結束後自動開始。" if pos else f"工作已開始：進度在左側導覽最下方與「{TAB_QUEUE}」頁。"
+        st.session_state["job-started"] = t("job.started_queued", pos=pos) if pos else t("job.started_now", page=TAB_QUEUE)
         st.rerun()
     except (RuntimeError, ValueError, TimeoutError) as e:
         st.error(str(e))
@@ -780,7 +796,7 @@ def sidebar_status():
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
     st.markdown(f'<div class="navsec">{t("side.current")}</div>', unsafe_allow_html=True)
     if active:
-        st.markdown(f'<div class="side-title" title="{html.escape(active["title"])}">{html.escape(active["title"])}</div>',
+        st.markdown(f'<div class="side-title" title="{html.escape(job_title(active))}">{html.escape(job_title(active))}</div>',
                     unsafe_allow_html=True)
         frac, text = progress_of(active, jobs.events(active["id"]))
         lost = active["state"] == "lost"
@@ -869,7 +885,7 @@ def queue_page():
         for job in ordered:
             # one framed row per job; the key carries the state for the coloured left edge (CSS st-key-qrow-<state>)
             cols = st.container(key=f"qrow-{job['state']}-{job['id']}").columns(widths, vertical_alignment="center")
-            cols[0].markdown(f"{plain(job['title'])}  \n<span class='act-note'>{KIND_TEXT.get(job['kind'], job['kind'])}・{(job.get('created') or '').replace('T', ' ').rstrip('Z')} UTC</span>",
+            cols[0].markdown(f"{plain(job_title(job))}  \n<span class='act-note'>{KIND_TEXT.get(job['kind'], job['kind'])}・{(job.get('created') or '').replace('T', ' ').rstrip('Z')} UTC</span>",
                              unsafe_allow_html=True)
             text, color = QUEUE_STATE.get(job["state"], (job["state"], "#8892a2"))
             cols[1].markdown(f"<div style='text-align:center;color:{color};font-weight:600'>{text}</div>", unsafe_allow_html=True)
@@ -891,7 +907,7 @@ def queue_page():
             remark(job, cols[4])
     with st.expander(t("queue.details"), expanded=False):
         # the label carries no state: the dropdown does not refresh the text of an option that is already shown
-        labels = {j["id"]: f"{j['title']}（{j.get('created', '').replace('T', ' ').rstrip('Z')} UTC）" for j in ordered}
+        labels = {j["id"]: f"{job_title(j)}（{j.get('created', '').replace('T', ' ').rstrip('Z')} UTC）" for j in ordered}
         if st.session_state.get("job-select") not in labels:
             st.session_state.pop("job-select", None)
         job_id = st.selectbox(t("queue.job"), list(labels), format_func=labels.get, key="job-select")
@@ -930,7 +946,7 @@ def job_summary_text(job):
     result, state, kind = job.get("result") or {}, job["state"], job["kind"]
     try:
         if kind == "dump" and state in ("done", "cancelled") and result.get("rows"):
-            return modelmeta.dump_summary(positions.read_meta(absolute(result["output"])), rel(result["output"]), plain(job["title"]),
+            return modelmeta.dump_summary(positions.read_meta(absolute(result["output"])), rel(result["output"]), plain(job_title(job)),
                                           modelmeta.job_seconds(job))
         if kind.startswith("train") and state == "done" and result.get("model"):
             return modelmeta.train_summary(modelmeta.read(absolute(result["model"]), include_local=False), os.path.basename(result["model"]))
@@ -1048,12 +1064,8 @@ def write_config(path, cfg):
 
 # rule-based needs params.profile and is the same as the named strategies: not offered
 _HIDDEN_STRATEGIES = {"rule-based"}
-STRATEGY_TEXT = {
-    "random": "完全隨機", "guided-random": "依動作種類加權的隨機", "mcts": "MCTS 樹搜尋（慢）",
-    "corn-shipper": "玉米出貨", "corn-to-premium": "玉米轉菸草／咖啡", "harbor-rush": "港口流", "build-first": "建築流",
-    "cheap-engine": "便宜引擎流", "wharf-rush": "私船流", "wharf-premium": "私船＋高價貨", "corn-monopoly": "玉米壟斷（搗亂）",
-    "corn-monopoly-tiles": "只搶玉米種植園", "corn-monopoly-hoard": "只囤玉米",
-}
+STRATEGY_TEXT = {n: t(f"strategy.{n}") for n in ("random", "guided-random", "mcts", "corn-shipper", "corn-to-premium", "harbor-rush", "build-first", "cheap-engine",
+                                                      "wharf-rush", "wharf-premium", "corn-monopoly", "corn-monopoly-tiles", "corn-monopoly-hoard")}
 
 
 @st.cache_data(show_spinner=False)
@@ -1082,10 +1094,10 @@ def parse_params(text):
         if not part:
             continue
         if "=" not in part:
-            raise ValueError(f"「{part}」格式應為 名稱=值")
+            raise ValueError(t("parse.format", part=part))
         k, v = (x.strip() for x in part.split("=", 1))
         if not k or not v:
-            raise ValueError(f"「{part}」格式應為 名稱=值")
+            raise ValueError(t("parse.format", part=part))
         try:
             num = float(v)
             out[k] = int(num) if num.is_integer() and "." not in v else num
@@ -1101,17 +1113,17 @@ def custom_seats(players):
     """One row per seat: strategy + its parameters. Returns (seats for the config, problems)."""
     names = all_strategies()
     seats, problems = [], []
-    model_names = ["（不用，隨機 rollout）"] + [os.path.basename(p) for p in models_for(players)]
+    model_names = [t("custom.model_none")] + [os.path.basename(p) for p in models_for(players)]
     for i in range(players):
         default = DEFAULT_CUSTOM[players][i] if DEFAULT_CUSTOM[players][i] in names else names[0]
         c1, c2 = st.columns([2, 5])
-        strat = c1.selectbox(f"座位 {i + 1}", names, index=names.index(default), key=f"cu-s{i}",
-                             format_func=lambda n: f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
+        strat = c1.selectbox(t("custom.seat", n=i + 1), names, index=names.index(default), key=f"cu-s{i}",
+                             format_func=lambda n: f"{n} ({STRATEGY_TEXT[n]})" if n in STRATEGY_TEXT and lang() != "zh-TW" else f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
         with c2:
             if strat == "mcts":
                 m1, m2, m3 = st.columns(3)
-                sims = m1.number_input("模擬次數", value=100, min_value=1, step=50, key=f"cu-sims{i}")
-                model = m2.selectbox("估值模型", model_names, key=f"cu-model{i}")
+                sims = m1.number_input(t("custom.sims"), value=100, min_value=1, step=50, key=f"cu-sims{i}")
+                model = m2.selectbox(t("custom.model"), model_names, key=f"cu-model{i}")
                 leaf = m3.number_input("leafRollout", value=20 if model != model_names[0] else 0, min_value=0, step=5, key=f"cu-leaf{i}")
                 params = {"simulations": int(sims)}
                 if model != model_names[0]:
@@ -1119,11 +1131,11 @@ def custom_seats(players):
                     if leaf:
                         params["leafRollout"] = int(leaf)
             else:
-                text = st.text_input("參數（選填，名稱=值，逗號分隔）", key=f"cu-p{i}", placeholder="例如 buildThreshold=3.5")
+                text = st.text_input(t("custom.params"), key=f"cu-p{i}", placeholder=t("custom.example"))
                 try:
                     params = parse_params(text)
                 except ValueError as e:
-                    problems.append(f"座位 {i + 1} 的參數：{e}")
+                    problems.append(t("custom.seat_param_error", n=i + 1, error=e))
                     params = {}
         seats.append({"id": f"{strat}-{i}", "strategy": strat, "params": params})
     return seats, problems
@@ -1146,105 +1158,106 @@ def config_rows():
     for c in files:
         cfg = read_config(c)
         if cfg:
-            rows.append({"設定檔": rel(c), "位置": "本機" if os.path.dirname(os.path.abspath(c)) == os.path.abspath(LOCAL_CONFIGS) else "內建",
+            rows.append({"設定檔": rel(c), "位置": "local" if os.path.dirname(os.path.abspath(c)) == os.path.abspath(LOCAL_CONFIGS) else "builtin",
                          "人數": cfg.get("players"), "局數": cfg.get("games"), "種子": cfg.get("seed"),
-                         "座位": "、".join(s.get("strategy", "") for s in cfg.get("seats", []))})
+                         "座位": t("common.list").join(s.get("strategy", "") for s in cfg.get("seats", []))})
     return rows
 
 
 def config_table(rows):
     """All data configs with checkboxes for deleting (inside the 管理設定檔 expander)."""
     shown = pd.DataFrame(rows)
-    shown["設定檔"] = shown["設定檔"].map(os.path.basename)  # the folder is in the 位置 column and the line below
-    picked = grid(shown.set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
+    shown["設定檔"] = shown["設定檔"].map(os.path.basename)  # the folder is in the location column and the line below
+    shown["位置"] = shown["位置"].map({"local": t("cfg.local"), "builtin": t("cfg.builtin")})
+    shown = shown.rename(columns={"設定檔": t("cfg.col.config"), "位置": t("cfg.col.place"), "人數": t("cfg.col.players"), "局數": t("cfg.col.games"),
+                                  "種子": t("cfg.col.seed"), "座位": t("cfg.col.seats")})
+    picked = grid(shown.set_index(t("cfg.col.config")), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
     for i, folder in enumerate(dict.fromkeys(os.path.dirname(r["設定檔"]) for r in rows)):
         folder_line(folder + "/", f"configs-{i}")
     c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
-    c1.caption("勾選左側方格可以刪除設定檔。" + (f"其中 {len(tracked)} 個是 repo 內建的（git 追蹤中）：刪掉後可以用 git 還原。" if tracked else ""))
+    c1.caption(t("cfg.hint") + (("" if lang() == "zh-TW" else " ") + t("cfg.tracked", n=len(tracked)) if tracked else ""))
     with c2:
-        delete_button("del-configs", f"🗑 刪除勾選（{len(chosen)}）", [absolute(c) for c in chosen], busy=busy_files("config"))
+        delete_button("del-configs", t("del.button", n=len(chosen)), [absolute(c) for c in chosen], busy=busy_files("config"))
 
 
 def data_tab():
-    st.caption("用 Runner 打完整局並抽樣局面，寫到 `results/ml/`。第一次（或 C# 程式改過後）會先自動發佈 Runner（需要 .NET 8 SDK）。")
+    st.caption(t("dt.intro"))
     stamp = datetime.datetime.now().strftime("%m%d-%H%M")
     custom_problems = []
-    with card("data-source", "1. 採樣來源模型"):
-        mode = st.radio("採樣來源模型", ["設定檔（手寫策略、隨機）", "自訂組合（自己選每個座位的策略）", "模型自我對戰（MCTS＋估值模型）"],
+    with card("data-source", t("dt.card1")):
+        mode = st.radio(t("dt.mode_label"), ["config", "custom", "selfplay"], format_func=lambda m: t(f"dt.mode.{m}"),
                         horizontal=True, label_visibility="collapsed")
-        if mode.startswith("設定檔"):
+        if mode == "config":
             rows = config_rows()
             if not rows:
-                st.info("沒有設定檔。用「自訂組合」新增一個。")
+                st.info(t("dt.no_configs"))
                 return
             by_name = {r["設定檔"]: r for r in rows}
-            config = st.selectbox("用哪個設定檔", list(by_name),
-                                  format_func=lambda c: f"{os.path.basename(c)}（{by_name[c]['人數']} 人局：{by_name[c]['座位']}）")
+            config = st.selectbox(t("dt.which_config"), list(by_name),
+                                  format_func=lambda c: t("dt.config_item", file=os.path.basename(c), players=by_name[c]["人數"], seats=by_name[c]["座位"]))
             folder_line(config, "config")
-            with st.expander(f"管理設定檔（全部 {len(rows)} 個；勾選後可以刪除）"):
+            with st.expander(t("dt.manage", n=len(rows))):
                 config_table(rows)
             cfg = read_config(absolute(config))
             default_games, default_seed = int(cfg.get("games", 20000)), int(cfg.get("seed", 1))
             # the config's own output.dumpRate wins; without one, MCTS tables (self-play) default to 5%, the rest to 1%
             default_rate = float((cfg.get("output") or {}).get("dumpRate") or (0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01))
             default_name = os.path.basename(config)[:-5]
-            title_kind = "設定檔"
-        elif mode.startswith("自訂"):
-            st.caption("每局就是你選的這幾個策略互打；座位順序每局隨機重排，所以每個策略都會坐到每個位置。"
-                       "「新增設定」只把組合存成 `ml/local/data-configs/<名稱>.json`（本機，不進 git；之後在「設定檔」選它）；「開始產生資料」會存設定並開始。")
-            players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="cu-players")
+            title_key, title_args = "job.title.dump_config", {}
+        elif mode == "custom":
+            st.caption(t("dt.custom_hint"))
+            players = st.radio(t("dt.players"), [4, 3], horizontal=True, format_func=lambda n: t("match.players_n", n=n), key="cu-players")
             seats, custom_problems = custom_seats(players)
             has_mcts = any(s_["strategy"] == "mcts" for s_ in seats)
             default_games, default_seed = (2000 if has_mcts else 20000), int(datetime.datetime.now().strftime("%m%d%H"))
             default_rate = 0.05 if has_mcts else 0.01
             if has_mcts:
-                st.caption("有 MCTS 座位會慢很多（4 核心、100 次模擬大約每局 1～2 秒）；手寫策略與隨機玩家每秒可打上千局。")
+                st.caption(t("dt.mcts_slow"))
             default_name = f"{players}p-custom-{stamp}"
-            title_kind = "自訂：" + "、".join(s_["strategy"] for s_ in seats)
+            title_key, title_args = "job.title.dump_custom", {"strategies": t("common.list").join(s_["strategy"] for s_ in seats)}
         else:
-            players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="sp-players")
+            players = st.radio(t("dt.players"), [4, 3], horizontal=True, format_func=lambda n: t("match.players_n", n=n), key="sp-players")
             cands = models_for(players)
             if not cands:
-                st.info(f"還沒有 {players} 人局的模型（要有 `.meta.json`）。先用設定檔的資料訓練一個。")
+                st.info(t("dt.no_model", n=players))
                 return
-            model = st.selectbox("用哪個模型", [os.path.basename(p_) for p_ in cands], index=len(cands) - 1)
+            model = st.selectbox(t("dt.which_model"), [os.path.basename(p_) for p_ in cands], index=len(cands) - 1)
             c1, c2 = st.columns(2)
-            sims = c1.number_input("每步模擬次數", value=100, min_value=1, step=50, help="自我對戰用較少的次數換局數（v2 用 100）")
-            leaf = c2.number_input("leafRollout（估值前先打幾步）", value=20, min_value=0, step=5)
+            sims = c1.number_input(t("dt.sp_sims"), value=100, min_value=1, step=50, help=t("dt.sp_sims_help"))
+            leaf = c2.number_input(t("dt.sp_leaf"), value=20, min_value=0, step=5)
             default_games, default_seed, default_rate = 4000, int(datetime.datetime.now().strftime("%m%d%H")), 0.05
             default_name = f"{players}p-selfplay-{model.rsplit('.', 1)[0].replace(f'{players}p-', '')}-{stamp}"
-            title_kind = f"自我對戰 {model}"
+            title_key, title_args = "job.title.dump_selfplay", {"model": model}
 
-    with card("data-run", "2. 局數設定"):
+    with card("data-run", t("dt.card2")):
         c1, c2, c3, c4, c5 = st.columns(5)
         # the defaults come from the chosen config: its name is part of the keys, so picking another config reloads them
-        kk = mode[:2] + (config if mode.startswith("設定檔") else "")
-        games = c1.number_input("局數", value=default_games, min_value=1, step=1000, key=f"games-{kk}")
-        seed = c2.number_input("種子", value=default_seed, step=1, key=f"seed-{kk}")
-        rate = c3.number_input("抽樣率（每個決策被抽到的機率）", value=default_rate, min_value=0.0001, max_value=1.0, format="%g", key=f"rate-{kk}")
-        threads = c4.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key=f"threads-{mode[:2]}")
+        kk = mode + (config if mode == "config" else "")
+        games = c1.number_input(t("dt.games"), value=default_games, min_value=1, step=1000, key=f"games-{kk}")
+        seed = c2.number_input(t("dt.seed"), value=default_seed, step=1, key=f"seed-{kk}")
+        rate = c3.number_input(t("dt.rate"), value=default_rate, min_value=0.0001, max_value=1.0, format="%g", key=f"rate-{kk}")
+        threads = c4.number_input(t("dt.threads"), value=0, min_value=0, step=1, key=f"threads-{mode}")
         feature_versions = fingerprint.feature_versions()
-        feature = c5.selectbox("特徵版本", feature_versions, index=len(feature_versions) - 1, key="feature-version",
-                               help="資料裡每個局面用哪一版特徵描述。預設最新版；版本 1 是舊模型（v1～v3）用的 430 個特徵。"
-                                    "訓練時只能選同一版的資料，訓練出來的模型也屬於這一版。")
-        if mode.startswith("模型"):
-            st.caption(f"參考：4 核心、100 次模擬、leafRollout 20 約 1 局／秒（{games:,} 局約 {games / 3600:.1f} 小時）。")
-        name = st.text_input("輸出名稱（results/ml/<名稱>.bin）", value=default_name).strip()
+        feature = c5.selectbox(t("dt.feature"), feature_versions, index=len(feature_versions) - 1, key="feature-version",
+                               help=t("dt.feature_help"))
+        if mode == "selfplay":
+            st.caption(t("dt.sp_ref", games=f"{games:,}", hours=f"{games / 3600:.1f}"))
+        name = st.text_input(t("dt.name"), value=default_name).strip()
         out = os.path.join(jobs.results_dir(), "ml", name + ".bin")
         exists = os.path.exists(out)
-        overwrite = st.checkbox(f"覆寫已存在的 `{name}.bin`") if exists else True
-        writes_config = not mode.startswith("設定檔")
+        overwrite = st.checkbox(t("dt.overwrite", name=name)) if exists else True
+        writes_config = mode != "config"
         config_taken = writes_config and safe_name(name) and any(os.path.exists(os.path.join(d, name + ".json"))
                                                                   for d in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS))
-        name_problems = [p_ for p_ in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
-                                       f"已經有同名的設定檔 {name}.json，換一個名稱（不覆蓋既有設定）" if config_taken else None] if p_]
-        problems = name_problems + [p_ for p_ in [None if overwrite else "資料已存在（要覆寫請勾選）",
-                                                  "排隊中或執行中的工作已經會寫這個檔名，換一個名稱" if pending_output(rel(out)) else None] if p_] + custom_problems
+        name_problems = [p_ for p_ in [None if safe_name(name) else t("dt.p.name"),
+                                       t("dt.p.config_taken", name=name) if config_taken else None] if p_]
+        problems = name_problems + [p_ for p_ in [None if overwrite else t("dt.p.exists"),
+                                                  t("dt.p.pending") if pending_output(rel(out)) else None] if p_] + custom_problems
 
         def new_config():
-            if mode.startswith("自訂"):
+            if mode == "custom":
                 return {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed),
                         "seatOrder": "random", "seats": seats, "output": {"perGameRecords": False}}
             return {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed), "seatOrder": "random",
@@ -1254,56 +1267,55 @@ def data_tab():
                     "output": {"perGameRecords": False}}
 
         # what this run would produce, by recipe: compared with what already exists under this name and under other names
-        eff = {**cfg, "games": int(games), "seed": int(seed)} if mode.startswith("設定檔") else new_config()
+        eff = {**cfg, "games": int(games), "seed": int(seed)} if mode == "config" else new_config()
         new_recipe = fingerprint.planned_dump_recipe(eff, float(rate), int(feature))
         new_fp = fingerprint.fingerprint(new_recipe)
         known = [d for d in list_dumps() if "_fp" in d]
         old_recipe = next((d["_recipe"] for d in known if d["path"] == rel(out)), None)
-        same_name_notice("資料", exists, old_recipe, new_recipe, users=models_using(rel(out)) if exists else ())
+        same_name_notice(t("noun.data"), exists, old_recipe, new_recipe, users=models_using(rel(out)) if exists else ())
         twins = [d["來源"] for d in known if d["_fp"] == new_fp and d["path"] != rel(out)]
         if twins:
-            st.info("已經有相同配方（同樣的設定、種子、局數與抽樣率）的資料：" + "、".join(f"`{t}`" for t in twins)
-                    + "。重跑只會得到同一份內容，通常不需要再產生。")
+            st.info(t("dt.twins", list=t("common.list").join(f"`{name_}`" for name_ in twins)))
         if exists and reader_problem(rel(out)):
             problems.append(reader_problem(rel(out)))
 
-        if mode.startswith("自訂"):
+        if mode == "custom":
             save_problems = name_problems + custom_problems
             b1, b2 = st.columns([2.2, 5], vertical_alignment="center")
             with b1:
-                save = st.button("新增設定", key="save-config", disabled=bool(save_problems), width="stretch")
+                save = st.button(t("dt.save"), key="save-config", disabled=bool(save_problems), width="stretch")
             with b2:
-                st.markdown('<span class="act-err">無法儲存：' + "；".join(plain(x) for x in save_problems) + "</span>" if save_problems
-                            else f'<span class="act-note">只儲存成 ml/local/data-configs/{plain(name)}.json，不產生資料</span>', unsafe_allow_html=True)
+                st.markdown(f'<span class="act-err">{t("dt.save_cannot", reasons=t("common.sep").join(plain(x) for x in save_problems))}</span>' if save_problems
+                            else f'<span class="act-note">{t("dt.save_note", name=plain(name))}</span>', unsafe_allow_html=True)
             if save:
                 write_config(os.path.join(LOCAL_CONFIGS, name + ".json"), new_config())
-                st.session_state["job-started"] = f"已儲存 ml/local/data-configs/{name}.json：之後可以在「設定檔」選它。"
+                st.session_state["job-started"] = t("dt.saved", name=name)
                 st.rerun()
 
-        if action_row("開始產生資料", "start-dump", problems):
-            if mode.startswith("設定檔"):
+        if action_row(t("dt.start"), "start-dump", problems):
+            if mode == "config":
                 spec_config = config
             else:
                 spec_config = rel(os.path.join(LOCAL_CONFIGS, name + ".json"))
                 write_config(absolute(spec_config), new_config())  # kept with the other data configs: reusable and reproducible
-            start_job("dump", f"資料（{title_kind}）→ {name}.bin", {"config": spec_config, "out": rel(out), "rate": float(rate),
-                                                                  "games": int(games), "seed": int(seed), "threads": int(threads),
-                                                                  "featureVersion": int(feature)})
+            start_job("dump", t(title_key, name=name, **title_args),
+                      {"config": spec_config, "out": rel(out), "rate": float(rate), "games": int(games), "seed": int(seed),
+                       "threads": int(threads), "featureVersion": int(feature)}, title_key, name=name, **title_args)
 
-    with card("data-list", "已有的資料"):
+    with card("data-list", t("dt.card3")):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
-            df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name="檔案"))
+            df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name=t("dump.col.file")))
             picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-manage-{delete_gen()}")
             chosen = [dumps[i] for i in picked.selection.rows]
             folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
             c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
-            c1.caption(f"勾選左側方格可以刪除資料（連同它的 .json）；訓練要用哪些資料，到「{TAB_TRAIN}」頁選。")
+            c1.caption(t("dt.delete_hint", page=TAB_TRAIN))
             with c2:
-                delete_button("del-dumps", f"🗑 刪除勾選（{len(chosen)}）", [absolute(d["path"]) for d in chosen],
+                delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen],
                               extra_suffixes=(".json",), busy=busy_files("data"))
         else:
-            st.caption("還沒有資料。")
+            st.caption(t("dt.none"))
 
 
 # ---------------------------------------------------------------- 對戰驗證
@@ -1399,9 +1411,9 @@ def _match_body():
             cfg["parallelism"] = {"maxDegree": int(threads)}
         config = rel(os.path.join(LOCAL_MATCHES, name + ".json"))
         write_config(absolute(config), cfg)
-        versus_text = t("match.vs_orig") if table == "default" else t("match.vs_model", rival=rival) if table == "model" else t("match.vs_hand")
-        start_job("match", t("match.job_title", model=model, sims=int(sims), versus=versus_text, name=name),
-                  {"config": config, "out": rel(out), "model": rel(model_path(model))})
+        title_key = f"job.title.match_{table}"
+        start_job("match", t(title_key, model=model, sims=int(sims), rival=rival, name=name),
+                  {"config": config, "out": rel(out), "model": rel(model_path(model))}, title_key, model=model, sims=int(sims), rival=rival, name=name)
     meta = model_meta(model_path(model))
     if meta and meta.get("matches"):
         st.markdown(t("match.existing", model=model))
@@ -1568,8 +1580,8 @@ def rename_dialog(path):
         problems.append(t("md.rn.p.same"))
     elif model_name_taken(new + ext):
         problems.append(t("md.rn.p.taken", name=new + ext))
-    busy = pending_readers(rel(path)) + ([t["title"] for t in jobs.list_jobs() if t["state"] in ("waiting",) + jobs.BUSY
-                                          and str(t.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
+    busy = pending_readers(rel(path)) + ([job_title(j) for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY
+                                          and str(j.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
     if busy:
         problems.append(t("md.rn.p.busy", title=busy[0]))
     st.caption(t("md.rn.caption", name=name))
