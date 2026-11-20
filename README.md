@@ -55,7 +55,17 @@ All numbers are for the **4-player game**. Every model is evaluated with exactly
 | `4p-v4-hq` | `v3` data + **high-quality self-play** (`v2` against itself, 300 simulations, 20,000 games, 2% sampling) | 69.4% ± 5.8% | 90.7% ± 2.8% | Head to head against `v3` (1,440 games): 51.0% vs 47.7%, not significant; local experiment model (not in Git) |
 | `4p-mlp-v2` (MLP) | Same as `v2` | 66.5% ± 6.0% | — | Neural-network baseline: as strong as LightGBM in matches, but about 1.5 to 3 times slower per CPU inference |
 
-> Note: all numbers above were measured under rules revision 1 (see section 10 of [`docs/strategy-analysis.md`](docs/strategy-analysis.md)).
+> Note: the numbers above were measured under rules revision 1 (see section 10 of [`docs/strategy-analysis.md`](docs/strategy-analysis.md)). The models were not retrained; re-running the same matches with the same seeds under rules revision 2 gives the following. All differences are within the confidence intervals, so the conclusions do not change:
+
+| Model | vs plain MCTS (rules rev 1 → 2) | vs hand-written (rules rev 1 → 2) |
+| :--- | :--- | :--- |
+| `4p-v1` | 52.3% → 56.2% | — |
+| `4p-v2` | 68.1% → 65.4% | 94.6% → 92.0% |
+| `4p-v3` | 66.9% → 71.7% | 91.2% → 90.7% |
+| `4p-mlp-v2` | 66.5% → 68.3% | — |
+| Plain MCTS (300 sims) | — | 84.9% → 80.9% |
+| `4p-v3` vs `4p-v2` head to head | 49.0% vs 49.4% → 52.3% vs 46.0% | — |
+
 
 ### Key findings and next steps
 
