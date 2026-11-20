@@ -150,11 +150,36 @@ public class CraftsmanTests
         Start(s, 0, Role.Craftsman);
         Assert.Equal(Phase.CraftsmanBonus, s.Phase);
         var legal = Legal(s);
-        Assert.Single(legal);
-        Assert.Equal(A(ActionType.CraftsmanBonus, (int)Good.Corn), legal[0]);
+        // rules.md section 4 (Craftsman, confirmed 2026-11-19): the privilege is optional: the produced good or Pass
+        Assert.Equal(new[] { A(ActionType.CraftsmanBonus, (int)Good.Corn), GameAction.Pass }, legal);
         Do(s, legal[0]);
         Assert.Equal(3, s.Goods[0 * G + (int)Good.Corn]);
         Assert.Equal(7, s.GoodsSupply[(int)Good.Corn]);
+    }
+
+    [Fact]
+    public void Privilege_Can_Be_Declined()
+    {
+        var s = New();
+        SetTiles(s, 0, (int)Good.Corn, 2, occupied: 2);
+        Start(s, 0, Role.Craftsman);
+        Do(s, GameAction.Pass);
+        Assert.Equal(2, s.Goods[0 * G + (int)Good.Corn]); // only the normal production
+        Assert.Equal(8, s.GoodsSupply[(int)Good.Corn]);
+        Assert.Equal(Phase.ChooseRole, s.Phase);
+    }
+
+    [Fact]
+    public void Privilege_Only_Offers_Goods_With_A_Barrel_Left_After_Normal_Production()
+    {
+        // rules.md section 4 (Craftsman): not the good whose supply the normal production empties, nor one the Craftsman does not produce
+        var s = New();
+        SetTiles(s, 0, (int)Good.Corn, 2, occupied: 2);
+        SetTiles(s, 0, (int)Good.Indigo, 1, occupied: 1);
+        Own(s, 0, BuildingId.SmallIndigoPlant, 1);
+        s.GoodsSupply[(int)Good.Indigo] = 1; // the one barrel he produces empties it
+        Start(s, 0, Role.Craftsman);
+        Assert.Equal(new[] { A(ActionType.CraftsmanBonus, (int)Good.Corn), GameAction.Pass }, Legal(s));
     }
 
     [Fact]
@@ -183,13 +208,13 @@ public class CraftsmanTests
     }
 
     [Fact]
-    public void Privilege_Cannot_Create_Goods_Beyond_The_Supply()
+    public void Privilege_Is_Not_Offered_When_The_Supply_Has_No_Barrel_Left_Over()
     {
         var s = New();
         SetTiles(s, 0, (int)Good.Corn, 1, occupied: 1);
         s.GoodsSupply[(int)Good.Corn] = 1;
-        Start(s, 0, Role.Craftsman);
-        Do(s, A(ActionType.CraftsmanBonus, (int)Good.Corn)); // wants 2, only 1 exists
+        Start(s, 0, Role.Craftsman); // wants 2, only 1 exists: no privilege decision, the phase just pays out
+        Assert.Equal(Phase.ChooseRole, s.Phase);
         Assert.Equal(1, s.Goods[0]);
         Assert.Equal(0, s.GoodsSupply[(int)Good.Corn]);
     }
@@ -205,7 +230,7 @@ public class CraftsmanTests
         int coins0 = s.Coins[0], coins1 = s.Coins[1];
         int vp0 = s.VpChips[0], vp1 = s.VpChips[1], vpSupply = s.VpSupply;
         Start(s, 0, Role.Craftsman);
-        Do(s, A(ActionType.CraftsmanBonus, (int)Good.Corn));
+        Assert.Equal(Phase.ChooseRole, s.Phase); // the privilege is not offered on an empty supply
         Assert.Equal(0, s.Goods[0 * G + (int)Good.Corn]);
         Assert.Equal(0, s.Goods[1 * G + (int)Good.Corn]);
         Assert.Equal(0, s.GoodsSupply[(int)Good.Corn]);
@@ -230,5 +255,24 @@ public class CraftsmanTests
         Start(s, 0, Role.Craftsman);
         Do(s, Legal(s)[0]);
         Assert.Equal(coins + 2, s.Coins[0]); // 3 kinds -> 2 coins
+    }
+
+    [Fact]
+    public void Factory_Counts_Only_Kinds_Really_Received_From_The_Supply()
+    {
+        // rules.md section 3 (Factory), confirmed 2026-11-19: "produce" means receiving barrels from the supply.
+        var s = New();
+        Own(s, 0, BuildingId.Factory, 1);
+        SetTiles(s, 0, (int)Good.Corn, 1, occupied: 1);
+        SetTiles(s, 0, (int)Good.Indigo, 1, occupied: 1);
+        Own(s, 0, BuildingId.SmallIndigoPlant, 1);
+        SetTiles(s, 0, (int)Good.Sugar, 1, occupied: 1);
+        Own(s, 0, BuildingId.SmallSugarMill, 1);
+        s.GoodsSupply[(int)Good.Indigo] = 0; // the indigo supply is empty when the seat's turn to collect comes
+        int coins = s.Coins[0];
+        Start(s, 0, Role.Craftsman);
+        Do(s, Legal(s)[0]);
+        Assert.Equal(0, s.Goods[0 * 5 + (int)Good.Indigo]);
+        Assert.Equal(coins + 1, s.Coins[0]); // only corn and sugar were received: 2 kinds -> 1 coin
     }
 }

@@ -86,7 +86,7 @@ public static partial class Rules
             case Phase.Settler: ApplySettler(s, a); break;
             case Phase.Mayor: ApplyMayor(s, a); break;
             case Phase.Builder: ApplyBuilder(s, a); break;
-            case Phase.CraftsmanBonus: ResolveCraftsman(s, a.A); break;
+            case Phase.CraftsmanBonus: ResolveCraftsman(s, a.Type == ActionType.Pass ? -1 : a.A); break;
             case Phase.Trader: ApplyTrader(s, a); break;
             case Phase.Captain: ApplyCaptain(s, a); break;
             case Phase.CaptainStorage: ApplyStorage(s, a); break;

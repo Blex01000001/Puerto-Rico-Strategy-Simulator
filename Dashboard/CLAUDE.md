@@ -15,9 +15,10 @@
 - `FilePicker.razor`、`Charts/`（純 SVG：BarChart／StackedBars／LineChart）、`App.razor`（含一小段 JS：回放頁 ←／→ 會點 `#replay-prev`／`#replay-next`；`prMlTab` 給 ML UI 按鈕預先開分頁）、`Layout/`。
 
 **`Services/`**
-- `AppState.cs`：載入結果／掃描檔；`ReadConfigAsync` 只讀 config（跳過逐局記錄，大檔很快）；`SetTemplate`（用這份設定再模擬）；畫面上的路徑一律用 `DisplayPath`／`Scrub` 顯示成相對專案根目錄。
+- `Loc.cs`（UI 文字查表，注入成 `@inject Loc L`，`_Imports.razor` 已加）：`L.T("鍵", 參數…)`，文字在根目錄 `i18n/dash.en.json`／`dash.zh-TW.json`（占位符 `{0}`、`{1}`；預設英文，缺字退回英文，再缺顯示鍵）。語言由 cookie `pr-lang` 決定（`App.razor` 在靜態頁讀它，經 `Routes` 的 `Lang` 參數交給 `Loc.Use`；沒有 cookie 時看環境變數 `PR_LANG`）；側欄的 🌐 按鈕全頁導向 `/lang/{code}`（`Program.cs`）設 cookie 後回到原頁。翻譯進度：Dashboard 全部頁面與元件都已查表（Playwright 逐頁驗證過：英文模式下除了語言鈕的「中文」和 `docs/versions.json` 的內容，沒有中文；`MctsSearch` 表格下方的說明清單是使用者寫的，英文稿已經使用者確認）。靜態方法的錯誤丟 `LocException(鍵, 參數)`，顯示時用 `L.Describe(e)`（catch 要寫 `… or LocException or …`）；`ActionText.Describe(L, state, action)`、`Palette.SeatOrderLabel(…, L)`、`StrategyInfo.All(L)`、`VersionLog.Load(L)` 都要傳 `L`；「複製摘要給 AI」由 `ResultSummary.ToMarkdown(r, a, english)` 依語言產生（引擎端兩種語言各一套字串）；引擎的錯誤訊息不在翻譯範圍；`ml/tests/test_i18n.py` 檢查兩個檔鍵與占位符一致、英文沒有中文、程式裡用到的鍵都存在（寫死的鍵要寫成 `L.T("…")` 這種字面形式才會被掃到）。`MlUiLauncher.StartAsync(Loc, …)` 用它翻訊息，也把語言傳給 `ml/check_env.py --lang`。
+- `AppState.cs`：載入結果／掃描檔；`ReadConfigAsync` 只讀檔案開頭的 config（先讀 64 KB，不夠就加倍；以路徑＋大小＋修改時間快取），所以「結果總覽」列出整個 `results/` 約 1 秒、不佔記憶體；選好檔案後才整份載入；`SetTemplate`（用這份設定再模擬）；畫面上的路徑一律用 `DisplayPath`／`Scrub` 顯示成相對專案根目錄。
 - `SimulationService.cs`（背景執行、進度、取消）、`SnapshotEventSink.cs`（回放：每個決策前的狀態、動作、搜尋摘要）。
-- `ActionText.cs`（動作的中文說明）、`StrategyInfo.cs`（流派介紹與參數文字；`Groups` 決定頁籤分組）、`Palette.cs`（策略顏色與名稱）、`OverviewPresets.cs`。
+- `ActionText.cs`（動作的中文說明）、`StrategyInfo.cs`（流派介紹：文字全在 `i18n/dash.*.json` 的 `strat.<id>.title／summary／rule.N／p.N.name／default／meaning／range`、`strat.group.<組>.title／hint`，程式只有排序與分組：`All(L)`、`Doc(L, id)`、`Groups(L)`、`InGroup(L, key)`）、`Palette.cs`（策略顏色與名稱）、`OverviewPresets.cs`。
 - `ValueModelCatalog.cs`：列出正式 `ml/models/` 與本機 `ml/local/models/` 的估值模型（標「正式／本機」；讀 `.meta.json` 的人數、種類、對原版 MCTS 最佳勝率，正式模型另讀 `ml/local/match-records/`；不依賴 Python）；「策略模擬」頁 MCTS 座位參數欄下的「估值模型」下拉選單用它，選擇結果寫回參數文字（`valueModel=ml/models/…`），參數文字仍是唯一的來源。
 - `PageMemory.cs`：每個瀏覽器分頁一份的頁面記憶（Results／Sweep 的資料在 `AppState`，本來就保留）。
 
@@ -27,7 +28,7 @@
 - **複製摘要給 AI**：結果頁的 `div.ai-summary`（只有按鈕，不顯示文字），文字由 `Engine/Simulation/ResultSummary.ToMarkdown` 產生（有單元測試），複製鈕呼叫 `App.razor` 的 `window.prCopy`（`navigator.clipboard`，localhost 可用）。
 - **圖表**：統計放 `Engine/Simulation/ResultAnalysis.cs`（加單元測試），畫圖用 `Components/Charts/`（不引入 JS 套件）；顏色用 CSS 變數（`--series-N`，策略顏色走 `Palette.Color`，顏色跟策略不跟排名）；每張圖附表格檢視；Razor 的 `@for` 裡寫 SVG `<text>` 要包在 `<g>` 裡（`<text>` 是 Razor 保留標籤）。
 - **頁面狀態要在切頁後保留**：在該頁的 `Snap` 記錄加欄位（`@implements IDisposable`、`Dispose` 存、`OnInitialized` 還原；範本 `Pages/Overview.razor`）；載入到一半離開不要存半成品（`Memory.Forget`）。
-- **策略有增改**：同步 `Services/StrategyInfo.cs`。
+- **策略有增改**：同步 `Services/StrategyInfo.cs` 的 `Ids`／`GroupIds` 與兩個語言檔的 `strat.<id>.*` 鍵（規則與參數照 `.rule.0`、`.p.0.*` 依序編號，缺一條就不會顯示）。
 - **驗證**：沒有自動化測試；用 Playwright 截圖（切換頁面再回來檢查狀態還在）。
 
 ## 注意

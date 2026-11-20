@@ -6,6 +6,9 @@ namespace Dashboard.Services;
 /// <summary>Per-browser-session state: the result (or sweep) currently shown.</summary>
 public sealed class AppState
 {
+    private readonly Loc _loc;
+    public AppState(Loc loc) { _loc = loc; }
+
     public SimulationResult? Result { get; private set; }
     public ResultAnalysis? Analysis { get; private set; }
     public SweepResult? Sweep { get; private set; }
@@ -33,18 +36,46 @@ public sealed class AppState
         return t;
     }
 
-    /// <summary>Reads only the <c>config</c> section of a result or sweep file (skips the per-game records, so big files are fast).</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, long Length, long Ticks), SimulationConfig> ConfigCache = new();
+
+    /// <summary>
+    /// Reads only the <c>config</c> section of a result or sweep file. The config is among the first properties of the file, so only the
+    /// beginning is read (64 KB, doubled until the config is complete): a folder of big result files lists in moments and nothing is
+    /// held in memory. The answer is cached per file (path, size, modification time).
+    /// </summary>
     public static async Task<SimulationConfig> ReadConfigAsync(string path)
     {
-        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{DisplayPath(path)}");
-        byte[] bytes = await File.ReadAllBytesAsync(path);
-        return ExtractConfig(bytes, Path.GetFileName(path));
+        if (!File.Exists(path)) throw new LocException("err.not_found", DisplayPath(path));
+        var info = new FileInfo(path);
+        var key = (path, info.Length, info.LastWriteTimeUtc.Ticks);
+        if (ConfigCache.TryGetValue(key, out var cached)) return SimulationConfig.Clone(cached);
+        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, useAsync: true);
+        long size = Math.Min(64 * 1024, fs.Length);
+        while (true)
+        {
+            var bytes = new byte[size];
+            fs.Position = 0;
+            int read = 0;
+            while (read < size) { int n = await fs.ReadAsync(bytes.AsMemory(read, (int)size - read)); if (n == 0) break; read += n; }
+            bool whole = read >= fs.Length;
+            try
+            {
+                var cfg = ExtractConfig(read == bytes.Length ? bytes : bytes[..read], Path.GetFileName(path));
+                if (ConfigCache.Count > 2000) ConfigCache.Clear();
+                ConfigCache[key] = SimulationConfig.Clone(cfg);
+                return cfg;
+            }
+            catch (Exception e) when (!whole && (e is JsonException || e is LocException))
+            {
+                size = Math.Min(size * 4, fs.Length); // the config did not fit in what was read: read more
+            }
+        }
     }
 
     private static SimulationConfig ExtractConfig(byte[] bytes, string fileName)
     {
         var reader = new Utf8JsonReader(bytes, new JsonReaderOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
-        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) throw new InvalidDataException("不是 JSON 物件");
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) throw new LocException("err.not_object");
         while (reader.Read())
         {
             if (reader.TokenType != JsonTokenType.PropertyName) continue;
@@ -53,13 +84,13 @@ public sealed class AppState
             if (isConfig)
             {
                 var cfg = JsonSerializer.Deserialize<SimulationConfig>(ref reader, SimulationConfig.JsonOptions)
-                          ?? throw new InvalidDataException("空的設定");
-                if (cfg.Seats.Count == 0) throw new InvalidDataException("設定沒有座位");
+                          ?? throw new LocException("err.empty_config");
+                if (cfg.Seats.Count == 0) throw new LocException("err.no_seats");
                 return cfg;
             }
             reader.Skip();
         }
-        throw new InvalidDataException($"{fileName} 裡沒有 config 區塊");
+        throw new LocException("err.no_config", fileName);
     }
 
     /// <summary>Folder that holds PuertoRico.sln (found upwards from the app), or the current directory.</summary>
@@ -96,7 +127,7 @@ public sealed class AppState
 
     public async Task LoadPathAsync(string path)
     {
-        if (!File.Exists(path)) { Fail($"找不到檔案：{DisplayPath(path)}"); return; }
+        if (!File.Exists(path)) { Fail(_loc.T("err.not_found", DisplayPath(path))); return; }
         await using var fs = File.OpenRead(path);
         await LoadStreamAsync(fs, Path.GetFileName(path));
     }
@@ -117,22 +148,22 @@ public sealed class AppState
             if (isSweep)
             {
                 Sweep = await JsonSerializer.DeserializeAsync<SweepResult>(ms, SimulationConfig.JsonOptions)
-                        ?? throw new InvalidDataException("空的掃描結果檔");
+                        ?? throw new LocException("err.empty_sweep");
                 Result = null; Analysis = null;
             }
             else
             {
                 var result = await JsonSerializer.DeserializeAsync<SimulationResult>(ms, SimulationConfig.JsonOptions)
-                             ?? throw new InvalidDataException("空的結果檔");
-                if (result.Config.Seats.Count == 0) throw new InvalidDataException("這不是模擬結果檔（沒有 config.seats）");
+                             ?? throw new LocException("err.empty_result");
+                if (result.Config.Seats.Count == 0) throw new LocException("err.not_result");
                 Analysis = await Task.Run(() => ResultAnalysis.From(result));
                 Result = result; Sweep = null;
             }
             Source = name;
         }
-        catch (Exception e) when (e is JsonException or InvalidDataException or IOException)
+        catch (Exception e) when (e is JsonException or InvalidDataException or LocException or IOException)
         {
-            Fail($"無法讀取 {name}：{Scrub(e.Message)}");
+            Fail(_loc.T("err.cannot_read", name, Scrub(_loc.Describe(e))));
             return;
         }
         Loading = false;
@@ -142,23 +173,23 @@ public sealed class AppState
     /// <summary>Read and analyse a result file without touching the shown result (used by the compare page).</summary>
     public static async Task<(SimulationResult Result, ResultAnalysis Analysis)> ReadResultAsync(string path)
     {
-        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{DisplayPath(path)}");
+        if (!File.Exists(path)) throw new LocException("err.not_found", DisplayPath(path));
         await using var fs = File.OpenRead(path);
         var result = await JsonSerializer.DeserializeAsync<SimulationResult>(fs, SimulationConfig.JsonOptions)
-                     ?? throw new InvalidDataException("空的結果檔");
-        if (result.Config.Seats.Count == 0) throw new InvalidDataException($"{Path.GetFileName(path)} 不是一般模擬結果檔（掃描檔請到「參數掃描」頁）");
+                     ?? throw new LocException("err.empty_result");
+        if (result.Config.Seats.Count == 0) throw new LocException("err.not_normal_sweep", Path.GetFileName(path));
         return (result, await Task.Run(() => ResultAnalysis.From(result)));
     }
 
     /// <summary>Read a result file and keep only its summary (for the overview page; the per-game records are dropped).</summary>
     public static async Task<OverviewTable> ReadOverviewAsync(string path)
     {
-        if (!File.Exists(path)) throw new InvalidDataException($"找不到檔案：{DisplayPath(path)}");
+        if (!File.Exists(path)) throw new LocException("err.not_found", DisplayPath(path));
         await using var fs = File.OpenRead(path);
         var result = await JsonSerializer.DeserializeAsync<SimulationResult>(fs, SimulationConfig.JsonOptions)
-                     ?? throw new InvalidDataException("空的結果檔");
+                     ?? throw new LocException("err.empty_result");
         if (result.Config.Seats.Count == 0 || result.Summary.Count == 0)
-            throw new InvalidDataException($"{Path.GetFileName(path)} 不是一般模擬結果檔");
+            throw new LocException("err.not_normal", Path.GetFileName(path));
         var analysis = result.Games.Count > 0 ? await Task.Run(() => ResultAnalysis.From(result)) : null;
         return TournamentOverview.FromResult(Path.GetFileNameWithoutExtension(path), result, analysis);
     }

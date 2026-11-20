@@ -1,36 +1,39 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
 
 <div class="shell @(collapsed ? "collapsed" : "")">
-    <nav class="sidebar" aria-label="主選單">
+    <nav class="sidebar" aria-label="@L.T("nav.aria")">
         <div class="navtop">
-            <a class="brandlink" href="" title="回到 HOME">
+            <a class="brandlink" href="" title="@L.T("nav.home_title")">
                 <img class="brandicon" src="favicon.svg" alt="" />
-                <span class="brand">波多黎各<br />策略模擬器</span>
+                <span class="brand">@((MarkupString)L.T("app.brand"))</span>
             </a>
-            <button class="navtoggle" @onclick="() => collapsed = !collapsed" title="@(collapsed ? "展開選單" : "收折選單")" aria-label="@(collapsed ? "展開選單" : "收折選單")" aria-expanded="@(!collapsed)">
+            <button class="navtoggle" @onclick="() => collapsed = !collapsed" title="@(collapsed ? L.T("nav.expand") : L.T("nav.collapse"))" aria-label="@(collapsed ? L.T("nav.expand") : L.T("nav.collapse"))" aria-expanded="@(!collapsed)">
                 <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6" /><line x1="7.5" y1="3.5" x2="7.5" y2="16.5" stroke="currentColor" stroke-width="1.6" /><path d="@(collapsed ? "M11 7.5l2.5 2.5-2.5 2.5" : "M13.5 7.5L11 10l2.5 2.5")" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
         </div>
 
         <NavLink href="" Match="NavLinkMatch.All" ActiveClass="active" title="HOME"><span class="ni">🏠</span><span class="nl">HOME</span></NavLink>
 
-        <div class="navsec">執行</div>
-        <NavLink href="simulate" ActiveClass="active" title="策略模擬"><span class="ni">🎲</span><span class="nl">策略模擬</span></NavLink>
+        <div class="navsec">@L.T("nav.sec.run")</div>
+        <NavLink href="simulate" ActiveClass="active" title="@L.T("nav.simulate")"><span class="ni">🎲</span><span class="nl">@L.T("nav.simulate")</span></NavLink>
 
-        <div class="navsec">分析</div>
-        <NavLink href="results" ActiveClass="active" title="結果總覽"><span class="ni">📊</span><span class="nl">結果總覽</span></NavLink>
-        <NavLink href="overview" ActiveClass="active" title="對戰總覽"><span class="ni">🏆</span><span class="nl">對戰總覽</span></NavLink>
-        <NavLink href="compare" ActiveClass="active" title="結果並排比較"><span class="ni">⚖️</span><span class="nl">結果並排比較</span></NavLink>
-        <NavLink href="replay" ActiveClass="active" title="模擬重播"><span class="ni">🎬</span><span class="nl">模擬重播</span></NavLink>
+        <div class="navsec">@L.T("nav.sec.analyse")</div>
+        <NavLink href="results" ActiveClass="active" title="@L.T("nav.results")"><span class="ni">📊</span><span class="nl">@L.T("nav.results")</span></NavLink>
+        <NavLink href="overview" ActiveClass="active" title="@L.T("nav.overview")"><span class="ni">🏆</span><span class="nl">@L.T("nav.overview")</span></NavLink>
+        <NavLink href="compare" ActiveClass="active" title="@L.T("nav.compare")"><span class="ni">⚖️</span><span class="nl">@L.T("nav.compare")</span></NavLink>
+        <NavLink href="replay" ActiveClass="active" title="@L.T("nav.replay")"><span class="ni">🎬</span><span class="nl">@L.T("nav.replay")</span></NavLink>
 
-        <div class="navsec">進階</div>
-        <NavLink href="sweep" ActiveClass="active" title="參數掃描"><span class="ni">🎛️</span><span class="nl">參數掃描</span></NavLink>
-        <NavLink href="config" ActiveClass="active" title="設定檔"><span class="ni">📝</span><span class="nl">設定檔</span></NavLink>
-        <NavLink href="versions" ActiveClass="active" title="版本控管"><span class="ni">🏷️</span><span class="nl">版本控管</span></NavLink>
+        <div class="navsec">@L.T("nav.sec.advanced")</div>
+        <NavLink href="sweep" ActiveClass="active" title="@L.T("nav.sweep")"><span class="ni">🎛️</span><span class="nl">@L.T("nav.sweep")</span></NavLink>
+        <NavLink href="config" ActiveClass="active" title="@L.T("nav.config")"><span class="ni">📝</span><span class="nl">@L.T("nav.config")</span></NavLink>
+        <NavLink href="versions" ActiveClass="active" title="@L.T("nav.versions")"><span class="ni">🏷️</span><span class="nl">@L.T("nav.versions")</span></NavLink>
 
-        <div class="navsec">機器學習</div>
+        <div class="navsec">@L.T("nav.sec.ml")</div>
         @* Separate Python app (ml/ui.py on localhost:8501): status, link, and a button that runs ml/start-ui when it is down *@
         <MlUiNav />
+
+        <button type="button" class="navbtn langbtn" @onclick="SwitchLanguage" title="@L.T("lang.switch")"><span class="ni">🌐</span><span class="nl">@L.T("lang.switch")</span></button>
     </nav>
     <main>
         @Body
@@ -38,11 +41,15 @@
 </div>
 
 <div id="blazor-error-ui">
-    發生未處理的錯誤。
-    <a href="" class="reload">重新載入</a>
+    @L.T("nav.error")
+    <a href="" class="reload">@L.T("nav.reload")</a>
     <a class="dismiss">🗙</a>
 </div>
 
 @code {
     private bool collapsed;
+
+    /// <summary>A full page load through /lang/{code}: the server sets the cookie and sends the browser back to this page.</summary>
+    private void SwitchLanguage() =>
+        Nav.NavigateTo($"lang/{L.Other}?returnUrl={Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri))}", forceLoad: true);
 }

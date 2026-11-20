@@ -18,15 +18,31 @@ import time
 import streamlit as st
 
 import check_env
+import i18n
+
+LANG_ENV = "PR_LANG"  # default language when neither the session nor ?lang= chose one (tests set zh-TW)
+
+
+def lang():
+    """Active language: the sidebar toggle (session), then ?lang= in the URL, then PR_LANG, then English."""
+    for choice in (st.session_state.get("lang"), st.query_params.get("lang"), os.environ.get(LANG_ENV)):
+        if choice in i18n.LANGS:
+            return choice
+    return i18n.DEFAULT
+
+
+def t(key, **values):
+    return i18n.translate(lang(), key, **values)
+
 
 if check_env.missing_modules():
     # started with a Python that lacks the packages (e.g. pip installed them into another Python): say so plainly
     st.set_page_config(page_title="Puerto Rico Machine Learning", page_icon="🌱")
-    st.error(f"這個 Python 缺少 ML UI 需要的套件：{', '.join(check_env.missing_modules())}")
-    st.markdown(f"ML UI 現在用的 Python：`{check_env.sys.executable}`")
-    st.markdown("在終端機執行下面這一行（指定同一個 Python，套件才會裝到對的地方），然後關掉 ML UI 再啟動一次：")
+    st.error(t("missing.error", names=", ".join(check_env.missing_modules())))
+    st.markdown(t("missing.python", python=check_env.sys.executable))
+    st.markdown(t("missing.fix"))
     st.code(check_env.fix_command(), language=None)
-    st.caption("電腦上有好幾個 Python（例如 Anaconda 和 python.org）時，直接打 `pip install` 可能裝到另一個 Python。")
+    st.caption(t("missing.note"))
     st.stop()
 
 import altair as alt  # noqa: E402
@@ -49,10 +65,9 @@ LOCAL_MATCHES = os.path.join(LOCAL_DIR, "matches")
 DASHBOARD_URL = "http://localhost:5080"
 
 STATE_TEXT = {"waiting": "Queued", "queued": "Starting", "running": "Running", "done": "Done", "failed": "Failed", "cancelled": "Cancelled",
-              "interrupted": "Interrupted（程序已不在）", "lost": "Lost（程序還在，但沒有回報）"}
-LOST_TEXT = ("失聯：程序還在執行，但超過 30 秒沒有回報進度。排隊的工作會先暫停，等它結束或回報恢復；"
-             "確定它卡住了再按「強制結束」（會直接結束它與它啟動的 Runner）。")
-KIND_TEXT = {"train_lgbm": "LightGBM", "train_mlp": "MLP", "lightgbm": "LightGBM", "mlp": "MLP", "dump": "產生資料", "match": "對戰驗證"}
+              "interrupted": t("job.state.interrupted"), "lost": t("job.state.lost")}
+LOST_TEXT = t("job.lost_help")
+KIND_TEXT = {"train_lgbm": "LightGBM", "train_mlp": "MLP", "lightgbm": "LightGBM", "mlp": "MLP", "dump": t("job.kind.dump"), "match": t("job.kind.match")}
 
 
 def rel(path):
@@ -73,10 +88,10 @@ def folder_line(path, key):
     with st.container(key=f"folderline-{key}"):
         c1, c2 = st.columns(2, vertical_alignment="center")
         c1.markdown(f"<span class='folder-path'>{plain(path)}</span>", unsafe_allow_html=True)
-        if c2.button("開啟資料夾", key=f"openfolder-{key}"):
+        if c2.button(t("common.open_folder"), key=f"openfolder-{key}"):
             ok, why = folders.open_folder(absolute(path), ROOT)
             if ok:
-                st.toast("已開啟資料夾")
+                st.toast(t("common.folder_opened"))
             else:
                 st.toast(why, icon="⚠️")
 
@@ -96,7 +111,7 @@ def _dump_info(path, mtime):
     return {"path": rel(path), "來源": m.get("name") or os.path.basename(path), "人數": m["players"],
             "局數": m["games"], "列數": m["rows"], "狀態": m["status"], "抽樣率": m["rate"],
             "特徵版本": m["featureVersion"], "大小 MB": round(os.path.getsize(path) / 1e6, 1),
-            "策略": "、".join(dict.fromkeys(strategies)), "自我對戰模型": "、".join(models), "_meta": meta}
+            "策略": "、".join(dict.fromkeys(strategies)), "自我對戰模型": "、".join(models), "_features": m.get("featureCount"), "_meta": meta}
 
 
 def scrub(message):
@@ -117,7 +132,7 @@ def list_dumps():
             info["_recipe"] = fingerprint.dump_recipe(info["_meta"])
             info["_fp"] = fingerprint.fingerprint(info["_recipe"])
             info["_rules"] = (info["_recipe"]["ruleset"], info["_recipe"]["rulesRevision"])
-            info["_stale"] = fingerprint.stale_notes(info["_recipe"])
+            info["_stale"] = fingerprint.stale_notes(info["_recipe"], lang())
             info["hash"] = fingerprint.short(info["_fp"])
             info["規則版本"] = fingerprint.rules_name(info["_recipe"]["rulesRevision"], info["_recipe"]["ruleset"])
             info["版本狀態"] = version_text(info["_stale"])
@@ -128,7 +143,7 @@ def list_dumps():
 
 def version_text(notes):
     """'最新', or what is older than this checkout's engine ('舊：規則 base-v1 → base-v2；harbor-rush-v1 → v2')."""
-    return "最新" if not notes else "舊：" + "；".join(notes)
+    return t("ver.latest") if not notes else t("ver.old") + t("common.sep").join(notes)
 
 
 def entry_stale(rules_revision, ruleset, revisions, strategies=()):
@@ -136,7 +151,7 @@ def entry_stale(rules_revision, ruleset, revisions, strategies=()):
     revisions were recorded count as revision 1 of the strategies they name."""
     if not revisions:
         revisions = {str(n).lower(): 1 for n in strategies if n}
-    return fingerprint.stale_notes({"rulesRevision": rules_revision or 1, "ruleset": ruleset, "seats": [{"revisions": revisions}]})
+    return fingerprint.stale_notes({"rulesRevision": rules_revision or 1, "ruleset": ruleset, "seats": [{"revisions": revisions}]}, lang())
 
 
 def model_stale(meta):
@@ -149,11 +164,17 @@ def model_stale(meta):
     return notes
 
 
+# internal (Chinese) keys of the dump rows -> i18n keys of the displayed column names
+DUMP_COLUMNS = {"來源": "source", "人數": "players", "局數": "games", "列數": "rows", "狀態": "status", "抽樣率": "rate", "特徵版本": "feature",
+                "大小 MB": "size", "策略": "strategies", "自我對戰模型": "selfplay", "規則版本": "rules", "版本狀態": "versions", "引擎 commit": "commit"}
+
+
 def table_view(rows, path_as=None):
     """Dump rows for display: no internal columns (those starting with _); the path column is dropped or renamed."""
     df = pd.DataFrame(rows)
     df = df.drop(columns=[c for c in df.columns if c.startswith("_")])
-    return df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
+    df = df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
+    return df.rename(columns={zh: t(f"dump.col.{key}") for zh, key in DUMP_COLUMNS.items()})
 
 
 def models_using(dump_rel):
@@ -185,12 +206,12 @@ def job_reads(job):
 def pending_readers(out_rel):
     """Titles of the waiting / starting / running jobs that will read this file (overwriting it would change their input)."""
     want = out_rel.replace("\\", "/")
-    return [j["title"] for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY and want in job_reads(j)]
+    return [job_title(j) for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY and want in job_reads(j)]
 
 
 def reader_problem(out_rel):
     titles = pending_readers(out_rel)
-    return f"排隊中或執行中的工作「{titles[0]}」要讀這個檔案，不能覆寫，換一個名稱" if titles else None
+    return t("problem.reader", title=titles[0]) if titles else None
 
 
 def same_name_notice(noun, exists, old, new, users=(), names=None):
@@ -198,13 +219,13 @@ def same_name_notice(noun, exists, old, new, users=(), names=None):
     if not exists:
         return
     if old is None:
-        st.warning(f"同名{noun}已存在，但讀不出它的參數，無法比較。")
+        st.warning(t("same.cannot_read", noun=noun))
     elif fingerprint.fingerprint(old) == fingerprint.fingerprint(new):
-        st.info(f"同名{noun}的參數**完全相同**（hash {fingerprint.short(fingerprint.fingerprint(new))}）：重跑只會得到同一份結果，不需要覆寫。")
+        st.info(t("same.identical", noun=noun, hash=fingerprint.short(fingerprint.fingerprint(new))))
     else:
-        st.warning(f"同名{noun}的參數**不同**，覆寫會換掉它：\n\n" + "\n".join(f"- {d}" for d in fingerprint.describe(old, new, names)))
+        st.warning(t("same.differs", noun=noun, diff="\n".join(f"- {d}" for d in fingerprint.describe(old, new, names, lang()))))
     if users:
-        st.warning("用過它的模型：" + "、".join(f"`{u}`" for u in users) + "。覆寫後這些模型的紀錄會對不上資料，建議換一個名稱。")
+        st.warning(t("same.users", names=t("common.list").join(f"`{u}`" for u in users)))
 
 
 def model_files():
@@ -219,7 +240,7 @@ def model_files():
 
 
 def place_of(path):
-    return "正式" if os.path.dirname(os.path.abspath(path)) == os.path.abspath(MODELS_DIR) else "本機"
+    return "official" if os.path.dirname(os.path.abspath(path)) == os.path.abspath(MODELS_DIR) else "local"
 
 
 def model_path(name):
@@ -247,16 +268,16 @@ def model_meta(path):
 
 
 def describe_match(m):
-    """Short label: '300 次 vs 原版 MCTS 300＋cheap-engine＋build-first'."""
+    """Short label: '300 sims vs Original MCTS 300 + cheap-engine + build-first'."""
     parts = []
     for o in m["others"]:
         if o["strategy"] == "mcts":
-            parts.append(f"原版 MCTS {o.get('simulations') or ''}".strip() if not o.get("valueModel")
-                         else f"MCTS＋{os.path.basename(o['valueModel'])}")
+            parts.append(f"{t('match.orig_mcts')} {o.get('simulations') or ''}".strip() if not o.get("valueModel")
+                         else t("match.mcts_with", model=os.path.basename(o["valueModel"])))
         else:
             parts.append(o["strategy"])
-    leaf = f"，leafRollout {m['leafRollout']}" if m.get("leafRollout") else ""
-    return f"{m.get('simulations')} 次{leaf} vs " + "＋".join(parts)
+    leaf = t("match.leaf", n=m["leafRollout"]) if m.get("leafRollout") else ""
+    return t("match.desc", sims=m.get("simulations"), leaf=leaf, opps="＋".join(parts) if lang() == "zh-TW" else " + ".join(parts))
 
 
 def best_vs_default(meta):
@@ -267,54 +288,16 @@ def best_vs_default(meta):
 
 # ---------------------------------------------------------------- 訓練
 
-PARAM_HELP = {
-    "rounds": ("樹的數量", "400"),
-    "leaves": ("每棵樹的葉子數", "63"),
-    "lr": ("學習率", "0.05"),
-    "min_leaf": ("每片葉子最少列數", "200"),
-    "feature_fraction": ("每棵樹用的特徵比例", "0.8"),
-    "bagging_fraction": ("每棵樹用的資料比例", "0.8"),
-    "early_stopping": ("幾回合沒進步就停", "30"),
-    "threads": ("執行緒數（0＝全部）", "0"),
-    "hidden": ("隱藏層大小（逗號分隔；越大推論越慢）", "256,128"),
-    "epochs": ("最多幾個 epoch", "12"),
-    "batch": ("批次大小", "1024"),
-    "l2": ("L2 正規化", "1e-5"),
-    "patience": ("幾個 epoch 沒進步就停", "3"),
-    "backend": ("訓練引擎（auto＝有 PyTorch 就用）", "auto"),
-    "device": ("PyTorch 裝置（auto／cpu／cuda）", "auto"),
-    "valid": ("驗證集比例（依局切）", "0.1"),
-    "seed": ("亂數種子", "1"),
-}
+PARAM_DEFAULTS = {"rounds": "400", "leaves": "63", "lr": "0.05", "min_leaf": "200", "feature_fraction": "0.8", "bagging_fraction": "0.8", "early_stopping": "30", "threads": "0", "hidden": "256,128", "epochs": "12", "batch": "1024", "l2": "1e-5", "patience": "3", "backend": "auto", "device": "auto", "valid": "0.1", "seed": "1"}  # the default shown in the help text (labels: param.<name>)
+PARAM_DOC_ROWS = {"train_lgbm": 8, "train_mlp": 8, "common": 2}  # rows per section of the parameter guide (texts: pdoc.<section>.<row>.<column>)
 
 
-# (參數, 預設, 作用, 調高, 調低, 建議)
-PARAM_DOC = {
-    "train_lgbm": [
-        ("rounds 樹的數量", "400", "最多建幾棵樹（每棵修正前面的誤差）", "更細、訓練更久、推論變慢；有提早停止，不會無限變好", "學不完整、估值粗糙", "資料 300 萬列以內 400 夠用；資料更多可到 600～800"),
-        ("leaves 每棵樹的葉子數", "63", "每棵樹能切出幾種情況，決定模型複雜度", "能學更細的規律，但容易記住雜訊（過擬合）、推論變慢", "太簡單，學不到組合效果", "31～127；先別動"),
-        ("lr 學習率", "0.05", "每棵樹修正的幅度", "收斂快但較粗糙、容易過擬合", "更細但要更多樹（rounds 要跟著加）", "0.03～0.1；調小就加 rounds"),
-        ("min_leaf 每片葉子最少列數", "200", "一個情況至少要有多少筆資料才能單獨成一片葉子", "更保守、更平滑", "會為少數局面硬切規則（雜訊）", "100～500；資料少時調高"),
-        ("feature_fraction 特徵比例", "0.8", "每棵樹隨機只看這個比例的特徵", "每棵樹看得更全，但樹之間更像、較易過擬合", "多樣性高，但每棵樹資訊少", "0.6～0.9"),
-        ("bagging_fraction 資料比例", "0.8", "每棵樹隨機只用這個比例的資料", "同上（資料面）", "訓練較快、更隨機", "0.6～0.9"),
-        ("early_stopping 幾回合沒進步就停", "30", "驗證 loss 連續這麼多棵樹沒進步就停", "更有耐心，可能多長幾棵沒用的樹", "可能太早停", "20～50"),
-        ("threads 執行緒數", "0", "用幾個 CPU 核心（0＝全部）", "—", "訓練較慢但電腦較不卡", "0；要同時做別的事時設成核心數一半"),
-    ],
-    "train_mlp": [
-        ("hidden 隱藏層大小", "256,128", "神經網路每層的神經元數（逗號分隔，層數＝個數）", "能表達更複雜的估值，但推論變慢：MCTS 每個葉節點都要算一次，同時間內搜尋變少", "表達力不足", "128,64～256,128；不建議再加大"),
-        ("epochs 最多幾個 epoch", "12", "整份資料最多看幾遍", "訓練更久（提早停止會擋下過擬合）", "可能還沒學完", "8～20；通常第 2～4 個 epoch 就最好"),
-        ("batch 批次大小", "1024", "每次更新用幾筆資料", "每次更新較穩、GPU 上較快，但可能收斂較差", "雜訊大、CPU 上較慢", "512～4096（GPU 用大的）"),
-        ("lr 學習率", "0.001", "Adam 每步的更新幅度（每 4 個 epoch 自動減半）", "收斂快但可能震盪或發散", "收斂很慢", "0.0005～0.003"),
-        ("l2 L2 正規化", "1e-5", "懲罰太大的權重，防止過擬合", "更平滑、可能學不夠", "較易過擬合", "1e-6～1e-4"),
-        ("patience 幾個 epoch 沒進步就停", "3", "驗證 loss 連續幾個 epoch 沒進步就停並保留最好的一輪", "更有耐心", "可能太早停", "2～5"),
-        ("backend 訓練引擎", "auto", "auto＝有 PyTorch 就用，沒有就用 NumPy", "—", "—", "auto；兩者輸出同一種模型檔"),
-        ("device 裝置", "auto", "PyTorch 用 CPU 或 GPU（auto＝有 GPU 就用）", "—", "—", "auto；只有 PyTorch 才有作用"),
-    ],
-    "common": [
-        ("valid 驗證集比例", "0.1", "依「局」切出這個比例當驗證集（同一局不會同時在訓練與驗證）", "驗證更準，但訓練資料變少", "驗證數字較不可靠", "0.1"),
-        ("seed 亂數種子", "1", "切驗證集、抽樣、初始化的亂數", "—", "—", "換種子可以確認結果不是運氣；LightGBM 同種子同資料會得到一樣的模型"),
-    ],
-}
+def param_doc(kind):
+    """The parameter guide rows of a model kind plus the shared ones, in the active language."""
+    rows = []
+    for section in (kind, "common"):
+        rows += [tuple(t(f"pdoc.{section}.{i}.{j}") for j in range(6)) for i in range(PARAM_DOC_ROWS[section])]
+    return rows
 
 
 def param_inputs(defaults, key):
@@ -324,9 +307,9 @@ def param_inputs(defaults, key):
     with st.container(key="params"):
         cols = st.columns(3)
         for i, (name, default) in enumerate(defaults.items()):
-            label, _ = PARAM_HELP.get(name, (name, ""))
-            title = f"{label}（{name}）"
-            tip = f"命令列參數 --{name.replace('_', '-')}，預設 {default}；詳細說明見頁面最下方的參數表"
+            label = t(f"param.{name}") if name in PARAM_DEFAULTS else name
+            title = f"{label}（{name}）" if lang() == "zh-TW" else f"{label} ({name})"
+            tip = t("param.cli_tip", option=name.replace("_", "-"), default=default)
             with cols[i % 3]:
                 k = f"{key}-{name}"
                 if isinstance(default, int) and not isinstance(default, bool):
@@ -372,22 +355,22 @@ def delete_button(key, label, paths, extra_suffixes=(), busy=()):
             confirm_delete(key, list(paths), tuple(extra_suffixes), tuple(busy))
 
 
-@st.dialog("刪除檔案")
+@st.dialog(t("del.dlg"))
 def confirm_delete(key, paths, extra_suffixes, busy):
     blocked = [p for p in paths if rel(p) in busy]
     if blocked:
-        st.markdown('<span class="act-err">排隊中或執行中的工作會用到：' + "、".join(plain(rel(p)) for p in blocked) + "，不能刪除</span>",
+        st.markdown(f'<span class="act-err">{t("del.blocked", files=t("common.list").join(plain(rel(p)) for p in blocked))}</span>',
                     unsafe_allow_html=True)
-        if st.button("關閉", key=f"keep-{key}-close"):
+        if st.button(t("del.close"), key=f"keep-{key}-close"):
             st.rerun()
         return
-    st.markdown("確定刪除這些檔案？刪除後無法復原。")
+    st.markdown(t("del.ask"))
     for p in paths:
         st.markdown(f"- `{rel(p)}`")
     c1, c2 = st.columns(2)
-    if c1.button("取消", key=f"keep-{key}-cancel", width="stretch"):
+    if c1.button(t("queue.cancel"), key=f"keep-{key}-cancel", width="stretch"):
         st.rerun()
-    if c2.button("確定刪除", key=f"{key}-confirm", width="stretch"):
+    if c2.button(t("del.ok"), key=f"{key}-confirm", width="stretch"):
         for p in paths:
             for f in [p] + [p + suf for suf in extra_suffixes]:
                 if os.path.exists(f):
@@ -402,39 +385,40 @@ def training_tab():
     bad = [d for d in dumps if "error" in d]
     writing = [d for d in dumps if d.get("writing")]
     good = [d for d in dumps if "error" not in d and not d.get("writing")]
-    with card("train-data", "1. 選訓練資料"):
+    with card("train-data", t("tr.card1")):
         if not good:
             for d in writing:
-                st.info(f"`{d['path']}` 產生中（目前 {d['大小 MB']} MB）。")
-            st.info(f"`results/ml/` 裡還沒有訓練資料。先到「{TAB_DATA}」頁產生。")
+                st.info(t("tr.writing", path=d["path"], mb=d["大小 MB"]))
+            st.info(t("tr.no_data", page=TAB_DATA))
             return
         players = sorted({d["人數"] for d in good})
-        p = st.radio("人數（模型依人數分開）", players, index=len(players) - 1, horizontal=True, format_func=lambda n: f"{n} 人局")
+        p = st.radio(t("tr.players"), players, index=len(players) - 1, horizontal=True, format_func=lambda n: t("match.players_n", n=n))
         rows = [d for d in good if d["人數"] == p]
-        df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name="檔案"))
+        df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
         picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
-                              column_config={"列數": st.column_config.NumberColumn(format="localized"),
-                                             "局數": st.column_config.NumberColumn(format="localized")})
+                              column_config={t("dump.col.rows"): st.column_config.NumberColumn(format="localized"),
+                                             t("dump.col.games"): st.column_config.NumberColumn(format="localized")})
         chosen = [rows[i] for i in picked.selection.rows]
         folder_line(os.path.dirname(rows[0]["path"]) + "/", "train-data")
         for d in writing:
-            st.info(f"`{d['path']}` 產生中（目前 {d['大小 MB']} MB），完成後才會出現在表格裡。")
+            st.info(t("tr.writing_wait", path=d["path"], mb=d["大小 MB"]))
         for d in bad:
-            st.warning(f"讀不了 `{d['path']}`：{d['error']}")
+            st.warning(t("tr.cannot_read", path=d["path"], error=d["error"]))
         versions = {d["特徵版本"] for d in chosen}
         total = sum(d["列數"] for d in chosen)
         if chosen:
-            st.caption(f"已選 {len(chosen)} 份、{total:,} 列。LightGBM 約需 {total * 430 * 4 * 2.2 / 1e9:.1f} GB 記憶體，MLP 約 {total * 430 * 2 * 1.5 / 1e9:.1f} GB。")
+            f = max(d.get("_features") or 430 for d in chosen)  # the feature count of the chosen version (430 for version 1, 512 for version 2)
+            st.caption(t("tr.chosen", n=len(chosen), rows=f"{total:,}", f=f, lgbm=f"{total * f * 4 * 2.2 / 1e9:.1f}", mlp=f"{total * f * 2 * 1.5 / 1e9:.1f}"))
         else:
-            st.caption(f"在表格左側勾選要用的資料（可多選）。要刪除資料，到「{TAB_DATA}」頁。")
+            st.caption(t("tr.pick_hint", page=TAB_DATA))
 
-    with card("train-model", "2. 模型與參數"):
-        kind = st.radio("模型", ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True)
+    with card("train-model", t("tr.card2")):
+        kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True)
         defaults = dict(train_lgbm.DEFAULTS if kind == "train_lgbm" else train_mlp.DEFAULTS)
         options = param_inputs(defaults, kind)
         ext = ".txt" if kind == "train_lgbm" else ".json"
         stamp = datetime.datetime.now().strftime("%m%d-%H%M")
-        name = st.text_input("模型名稱（存到本機工作區 ml/local/models/，副檔名自動加；之後可在「模型詳細資料」設為正式模型）",
+        name = st.text_input(t("tr.name"),
                              value=f"{p}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}")
         name = name.strip()
         if name.endswith(ext):
@@ -455,53 +439,52 @@ def training_tab():
                 by_fp.setdefault(d["_fp"], []).append(d["來源"])
             for names_ in by_fp.values():
                 if len(names_) > 1:
-                    st.warning("勾選的 " + "、".join(f"`{n}`" for n in names_) + " 參數完全相同（同一份資料），重複放進去只會讓模型多看一次同樣的局面。")
+                    st.warning(t("tr.dup", names=t("common.list").join(f"`{n}`" for n in names_)))
             rules = {d["_rules"] for d in chosen}
             if len(rules) > 1:
-                st.warning(f"勾選的資料規則版本不一致（{'、'.join(fingerprint.rules_name(r, rs) for rs, r in sorted(rules))}），不建議一起訓練。")
+                st.warning(t("tr.rules_mixed", names=t("common.list").join(fingerprint.rules_name(r, rs) for rs, r in sorted(rules))))
             stale = [(d["來源"], d["_stale"]) for d in chosen if d["_stale"]]
             if stale:
-                st.warning("勾選的資料有些是用舊版規則或舊版策略產生的，同樣的設定現在會得到不同的資料，建議重新產生：\n\n"
-                           + "\n".join(f"- `{n}`：{'；'.join(notes)}" for n, notes in stale))
+                st.warning(t("tr.stale", items="\n".join(f"- `{n}`: {t('common.sep').join(notes)}" if lang() != "zh-TW" else f"- `{n}`：{'；'.join(notes)}" for n, notes in stale)))
             fp_names = {d["_fp"]: d["來源"] for d in chosen}
             old_meta = model_meta(out) if exists else None
             old_recipe = (old_meta or {}).get("recipe")
-            same_name_notice("模型", exists, old_recipe, new_recipe, names=fp_names)
+            same_name_notice(t("noun.model"), exists, old_recipe, new_recipe, names=fp_names)
             twins = [os.path.basename(mp) for mp in model_files() if (model_meta(mp) or {}).get("fingerprint") == fingerprint.fingerprint(new_recipe)
                      and mp != out]
             if twins:
-                st.info("已經有相同配方（同樣的資料與參數）的模型：" + "、".join(f"`{t}`" for t in twins) + "。")
-        overwrite = st.checkbox(f"覆寫已存在的 `{name + ext}`", value=False) if exists else True
+                st.info(t("tr.twins", list=t("common.list").join(f"`{name_}`" for name_ in twins)))
+        overwrite = st.checkbox(t("tr.overwrite", name=name + ext), value=False) if exists else True
 
         problems = []
         if not chosen:
-            problems.append("還沒選資料")
+            problems.append(t("tr.p.no_data"))
         if len(versions) > 1:
-            problems.append("選到的資料特徵版本不同，不能一起訓練")
+            problems.append(t("tr.p.versions"))
         if not name or any(c in name for c in '/\\:*?"<>|'):
-            problems.append("模型名稱不能空白或含路徑符號")
+            problems.append(t("tr.p.name"))
         if exists and not overwrite:
-            problems.append("模型已存在（要覆寫請勾選）")
+            problems.append(t("tr.p.exists"))
         if official_taken:
-            problems.append(f"正式模型裡已經有 {name + ext}，換一個名稱")
+            problems.append(t("tr.p.official", name=name + ext))
         if pending_output(rel(out)):
-            problems.append(f"排隊中或執行中的工作已經會寫 {name + ext}，換一個名稱")
+            problems.append(t("tr.p.pending", name=name + ext))
         if exists and reader_problem(rel(out)):
             problems.append(reader_problem(rel(out)))
-        if action_row("開始訓練", "start-train", problems):
+        if action_row(t("tr.start"), "start-train", problems):
             spec = {"data": [d["path"] for d in chosen], "out": rel(out), "options": options}
             start_job(kind, f"{KIND_TEXT[kind]} → {name + ext}", spec)
 
-    with card("train-doc", "參數說明", "每個參數的作用、預設值，以及調高、調低會怎樣。不確定就用預設值；判斷好壞只看「對戰驗證」的勝率。"):
-        doc = PARAM_DOC[kind] + PARAM_DOC["common"]
-        st.table(pd.DataFrame(doc, columns=["參數", "預設", "作用", "調高會…", "調低會…", "建議"]).set_index("參數"))
+    with card("train-doc", t("tr.card_doc"), t("tr.doc_sub")):
+        cols = [t(f"pdoc.col.{j}") for j in range(6)]
+        st.table(pd.DataFrame(param_doc(kind), columns=cols).set_index(cols[0]))
 
 
 # ---------------------------------------------------------------- jobs (shared by every tab)
 
 TITLE = "Puerto Rico Machine Learning"
-TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE = "模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型詳細資料", "排程佇列"
-TAB_MODELLIST = "模型清單"
+TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE, TAB_MODELLIST = (
+    t(f"page.{p}") for p in ("data", "train", "match", "models", "queue", "modellist"))
 
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
@@ -678,13 +661,12 @@ def action_row(label, key, problems, extra=None):
         clicked = st.button(start_label(label), type="primary", disabled=bool(problems), key=key, width="stretch")
     with c2:
         if problems:
-            st.markdown(f'<span class="act-err">無法開始：{"；".join(plain(p) for p in problems)}</span>', unsafe_allow_html=True)
+            st.markdown(f'<span class="act-err">{t("act.cannot", reasons=t("common.sep").join(plain(p) for p in problems))}</span>', unsafe_allow_html=True)
         else:
             notes = [extra] if extra else []
             active, waiting = jobs.active_job(), jobs.waiting_jobs()
             if active or waiting:
-                notes.append(f"目前有工作在跑：這個會排第 {len(waiting) + 1} 個，前面還有 {(1 if active else 0) + len(waiting)} 個；"
-                             "關掉 ML UI 也會照順序繼續（前一個失敗或取消也一樣）")
+                notes.append(t("act.queue_note", pos=len(waiting) + 1, ahead=(1 if active else 0) + len(waiting)))
             if notes:
                 st.markdown(f'<span class="act-note">{"。".join(plain(n) for n in notes)}</span>', unsafe_allow_html=True)
     return clicked
@@ -701,12 +683,22 @@ def card(key, title=None, sub=None):
     return c
 
 
-def start_job(kind, title, spec):
+def job_title(job):
+    """A job's title in the active language (jobs made with a title key), else the text stored with it."""
+    if job.get("titleKey"):
+        try:
+            return t(job["titleKey"], **(job.get("titleArgs") or {}))
+        except (KeyError, IndexError, ValueError):
+            pass
+    return job["title"]
+
+
+def start_job(kind, title, spec, title_key=None, **title_args):
     try:
-        job_id = jobs.start(kind, title, spec)
+        job_id = jobs.start(kind, title, spec, title_key, title_args)
         st.session_state["job-select"] = job_id  # the 工作 tab follows the new job
         pos = jobs.queue_position(job_id)
-        st.session_state["job-started"] = f"已加入排隊（第 {pos} 個），會在前面的工作結束後自動開始。" if pos else f"工作已開始：進度在左側導覽最下方與「{TAB_QUEUE}」頁。"
+        st.session_state["job-started"] = t("job.started_queued", pos=pos) if pos else t("job.started_now", page=TAB_QUEUE)
         st.rerun()
     except (RuntimeError, ValueError, TimeoutError) as e:
         st.error(str(e))
@@ -714,7 +706,7 @@ def start_job(kind, title, spec):
 
 def start_label(text):
     """The start buttons say 加入排隊 while another job runs: the new one waits for its turn."""
-    return "加入排隊" if jobs.active_job() or jobs.waiting_jobs() else text
+    return t("btn.queue") if jobs.active_job() or jobs.waiting_jobs() else text
 
 
 def pending_output(out_rel):
@@ -729,16 +721,15 @@ def progress_of(job, evs):
     steps = [e for e in evs if e["stage"] in ("iteration", "epoch", "games")]
     if not steps:
         if any(e["stage"] == "publish" for e in evs):
-            return None, "發佈 Runner 中（C# 原始碼比發佈版新）…"
-        return None, "讀取資料中…" if job["kind"].startswith("train") else "啟動中…"
+            return None, t("progress.publish")
+        return None, t("progress.reading") if job["kind"].startswith("train") else t("progress.starting")
     last = steps[-1]
     if last["stage"] == "games":
         n, total = last["done"], last["total"]
-        return n / max(1, total), f"{n:,}/{total:,} 局"
+        return n / max(1, total), t("progress.games", n=f"{n:,}", total=f"{total:,}")
     n = last.get("iteration") or last.get("epoch")
     total = last.get("total") or n
-    unit = "棵樹" if last["stage"] == "iteration" else "epoch"
-    return min(1.0, n / max(1, total)), f"{n}/{total} {unit}（提早停止可能更早結束）"
+    return min(1.0, n / max(1, total)), t("progress.trees" if last["stage"] == "iteration" else "progress.epochs", n=n, total=total)
 
 
 def watch_states(all_jobs):
@@ -764,24 +755,24 @@ def sidebar_status():
     all_jobs = jobs.list_jobs()
     watch_states(all_jobs)
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
-    st.markdown('<div class="navsec">目前工作</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="navsec">{t("side.current")}</div>', unsafe_allow_html=True)
     if active:
-        st.markdown(f'<div class="side-title" title="{html.escape(active["title"])}">{html.escape(active["title"])}</div>',
+        st.markdown(f'<div class="side-title" title="{html.escape(job_title(active))}">{html.escape(job_title(active))}</div>',
                     unsafe_allow_html=True)
         frac, text = progress_of(active, jobs.events(active["id"]))
         lost = active["state"] == "lost"
         c1, c2 = st.columns([3, 1.3], vertical_alignment="bottom")
         if lost:
-            c1.markdown('<div class="side-state lost">失聯：程序還在，但沒有回報；排隊暫停</div>', unsafe_allow_html=True)
+            c1.markdown(f'<div class="side-state lost">{t("side.lost")}</div>', unsafe_allow_html=True)
         else:
             c1.progress(frac or 0.0, text=text)
-        if c2.button("結束" if lost else "取消", key=f"stop-side-{active['id']}", width="stretch",  # stop-: red (CSS)
+        if c2.button(t("side.end") if lost else t("side.cancel"), key=f"stop-side-{active['id']}", width="stretch",  # stop-: red (CSS)
                      help=LOST_TEXT if lost else None):
             jobs.cancel(active["id"])
     else:
-        st.markdown('<div class="side-note">沒有正在執行的工作</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="side-note">{t("side.idle")}</div>', unsafe_allow_html=True)
     if waiting:
-        st.markdown(f'<div class="side-note">還有 {len(waiting)} 項排隊中</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="side-note">{t("side.queued", n=len(waiting))}</div>', unsafe_allow_html=True)
 
 
 QUEUE_STATE = {"running": ("Running", "#4aa8ff"), "queued": ("Starting", "#4aa8ff"), "waiting": ("Queued", "#e0a410"),
@@ -806,7 +797,7 @@ def _duration(seconds):
 def elapsed_text(job):
     started, finished = _epoch(job.get("started")), _epoch(job.get("finished"))
     if job["state"] == "waiting":
-        return "已等 " + _duration(time.time() - job.get("createdEpoch", time.time()))
+        return t("elapsed.waited", time=_duration(time.time() - job.get("createdEpoch", time.time())))
     if started is None:
         return "—"
     return _duration((finished or time.time()) - started)
@@ -816,46 +807,46 @@ def remark(job, col):
     """備註 column: errors collapsed, otherwise a one-line result."""
     state, result = job["state"], job.get("result") or {}
     if state == "failed":
-        with col.expander("錯誤訊息", expanded=False):
+        with col.expander(t("remark.error"), expanded=False):
             st.markdown(f'<span class="act-err" style="overflow-wrap:anywhere">{plain(scrub(job.get("error", "")))[:600]}</span>', unsafe_allow_html=True)
-            st.caption("完整紀錄：下方「工作詳細」選這個工作。")
+            st.caption(t("remark.full_log"))
     elif state == "interrupted":
-        col.caption("程序已不在（電腦睡眠、關機或被終止）")
+        col.caption(t("remark.interrupted"))
     elif state == "lost":
-        col.markdown('<span class="act-note" style="color:#e8672f">程序還在但沒有回報，排隊暫停中</span>',
+        col.markdown(f'<span class="act-note" style="color:#e8672f">{t("remark.lost")}</span>',
                      unsafe_allow_html=True)
     elif state == "cancelled" and result.get("summary"):
         col.caption(scrub(result["summary"])[:120])
     elif state == "done" and job["kind"] == "match" and result.get("match"):
         m = result["match"]
-        col.caption(f"勝率 {m['winShare']:.1%} ± {m['winShareCi95']:.1%}（{m['games']} 局），已記到模型")
+        col.caption(t("remark.match", win=f"{m['winShare']:.1%}", ci=f"{m['winShareCi95']:.1%}", games=m["games"]))
     elif state == "done" and job["kind"].startswith("train") and result.get("validation"):
         col.caption(f"R² {result['validation']['r2']:.3f} → {rel(result['model'])}")
     elif state == "done" and job["kind"] == "dump" and result.get("rows"):
-        col.caption(f"{result['games']:,} 局、{result['rows']:,} 列")
+        col.caption(t("remark.dump", games=f"{result['games']:,}", rows=f"{result['rows']:,}"))
     elif state == "waiting":
-        col.caption(f"排第 {jobs.queue_position(job['id'])} 個")
+        col.caption(t("remark.pos", n=jobs.queue_position(job["id"])))
 
 
 @st.fragment(run_every=2)
 def queue_page():
     all_jobs = jobs.list_jobs()
     if not all_jobs:
-        st.caption("還沒有工作。")
+        st.caption(t("queue.empty"))
         return
     active, waiting = jobs.active_job(), jobs.waiting_jobs()
     done = [j for j in all_jobs if j["state"] not in ("waiting",) + jobs.BUSY][:40]
     ordered = ([active] if active else []) + waiting + done
-    with card("queue", "工作列表", "一次跑一個，依加入的順序；關掉 ML UI 也會繼續，前一個失敗或取消也會接著跑。最多列出最近 40 個已結束的工作。"):
+    with card("queue", t("queue.card"), t("queue.card_sub")):
         widths = [3.4, 1.35, 1.25, 1.9, 2.25, 1.9]
         with st.container(key="qhead"):
             head = st.columns(widths)
-            for c, t in zip(head, ["名稱", "狀態", "經過時間", "進度", "備註", "操作"]):
-                c.markdown(f"<div style='text-align:center'><b>{t}</b></div>" if t == "狀態" else f"**{t}**", unsafe_allow_html=True)
+            for i, (c, name) in enumerate(zip(head, [t(f"queue.col.{k}") for k in ("name", "state", "elapsed", "progress", "remark", "action")])):
+                c.markdown(f"<div style='text-align:center'><b>{name}</b></div>" if i == 1 else f"**{name}**", unsafe_allow_html=True)
         for job in ordered:
             # one framed row per job; the key carries the state for the coloured left edge (CSS st-key-qrow-<state>)
             cols = st.container(key=f"qrow-{job['state']}-{job['id']}").columns(widths, vertical_alignment="center")
-            cols[0].markdown(f"{plain(job['title'])}  \n<span class='act-note'>{KIND_TEXT.get(job['kind'], job['kind'])}・{(job.get('created') or '').replace('T', ' ').rstrip('Z')} UTC</span>",
+            cols[0].markdown(f"{plain(job_title(job))}  \n<span class='act-note'>{KIND_TEXT.get(job['kind'], job['kind'])}・{(job.get('created') or '').replace('T', ' ').rstrip('Z')} UTC</span>",
                              unsafe_allow_html=True)
             text, color = QUEUE_STATE.get(job["state"], (job["state"], "#8892a2"))
             cols[1].markdown(f"<div style='text-align:center;color:{color};font-weight:600'>{text}</div>", unsafe_allow_html=True)
@@ -868,25 +859,26 @@ def queue_page():
             else:
                 cols[3].markdown("—")
             if job["state"] in jobs.BUSY:
-                if cols[5].button("強制結束" if job["state"] == "lost" else "取消", key=f"stop-q-{job['id']}", width="stretch"):
+                if cols[5].button(t("queue.force_end") if job["state"] == "lost" else t("queue.cancel"), key=f"stop-q-{job['id']}", width="stretch"):
                     jobs.cancel(job["id"])
             elif job["state"] == "waiting":
-                if cols[5].button("取消佇列", key=f"stop-dq-{job['id']}", width="stretch"):  # stop-: red (CSS)
+                if cols[5].button(t("queue.dequeue"), key=f"stop-dq-{job['id']}", width="stretch"):  # stop-: red (CSS)
                     jobs.cancel(job["id"])
                     st.rerun(scope="app")
             remark(job, cols[4])
-    with st.expander("工作詳細（紀錄、驗證 loss 曲線、結果）", expanded=False):
+    with st.expander(t("queue.details"), expanded=False):
         # the label carries no state: the dropdown does not refresh the text of an option that is already shown
-        labels = {j["id"]: f"{j['title']}（{j.get('created', '').replace('T', ' ').rstrip('Z')} UTC）" for j in ordered}
+        labels = {j["id"]: f"{job_title(j)}（{j.get('created', '').replace('T', ' ').rstrip('Z')} UTC）" for j in ordered}
         if st.session_state.get("job-select") not in labels:
             st.session_state.pop("job-select", None)
-        job_id = st.selectbox("工作", list(labels), format_func=labels.get, key="job-select")
+        job_id = st.selectbox(t("queue.job"), list(labels), format_func=labels.get, key="job-select")
         job_detail(job_id)
 
 
-def copy_button(text, label="複製摘要給 AI"):
+def copy_button(text, label=None):
     """A button that puts `text` on the clipboard without showing it (runs in a small iframe via st.iframe, or components.html on an
     older Streamlit; falls back to execCommand when the browser blocks navigator.clipboard there)."""
+    label = label or t("copy.label")
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
 <style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 3px; }}</style>
@@ -899,7 +891,7 @@ function fallback() {{ const t = document.createElement('textarea'); t.value = t
 b.onclick = async () => {{
   let ok = false;
   try {{ await navigator.clipboard.writeText(text); ok = true; }} catch (e) {{ ok = fallback(); }}
-  b.textContent = ok ? '已複製' : '複製失敗（瀏覽器擋住了剪貼簿）';
+  b.textContent = ok ? {json.dumps(t('copy.done'), ensure_ascii=False)} : {json.dumps(t('copy.fail'), ensure_ascii=False)};
   setTimeout(() => b.textContent = label, 2000);
 }};
 </script>"""
@@ -915,7 +907,7 @@ def job_summary_text(job):
     result, state, kind = job.get("result") or {}, job["state"], job["kind"]
     try:
         if kind == "dump" and state in ("done", "cancelled") and result.get("rows"):
-            return modelmeta.dump_summary(positions.read_meta(absolute(result["output"])), rel(result["output"]), plain(job["title"]),
+            return modelmeta.dump_summary(positions.read_meta(absolute(result["output"])), rel(result["output"]), plain(job_title(job)),
                                           modelmeta.job_seconds(job))
         if kind.startswith("train") and state == "done" and result.get("model"):
             return modelmeta.train_summary(modelmeta.read(absolute(result["model"]), include_local=False), os.path.basename(result["model"]))
@@ -929,13 +921,13 @@ def job_summary_text(job):
 def job_detail(job_id):
     job = jobs.read_job(job_id)
     if job is None:  # its folder was removed meanwhile
-        st.caption("這個工作的紀錄已經不在了。")
+        st.caption(t("detail.gone"))
         return
     state = job["state"]
     evs = jobs.events(job_id)
     frac, text = progress_of(job, evs)
     if state == "waiting":
-        frac, text = None, f"排隊中（第 {jobs.queue_position(job_id)} 個），前面的工作結束後自動開始"
+        frac, text = None, t("detail.waiting", n=jobs.queue_position(job_id))
     left, right = st.columns([2, 1])
     with left:
         if state == "waiting":
@@ -948,54 +940,56 @@ def job_detail(job_id):
         if steps:
             st.altair_chart(loss_chart([e["validLoss"] for e in steps], [e.get("iteration") or e.get("epoch") for e in steps], height=220), width="stretch")
     with right:
-        st.markdown(f"**種類**：{KIND_TEXT.get(job['kind'], job['kind'])}")
-        st.markdown(f"**狀態**：{STATE_TEXT.get(state, state)}")
+        st.markdown(f"**{t('detail.kind')}**: {KIND_TEXT.get(job['kind'], job['kind'])}")
+        st.markdown(f"**{t('detail.state')}**: {STATE_TEXT.get(state, state)}")
         loaded = next((e for e in evs if e["stage"] == "loaded"), None)
         if loaded:
-            st.markdown(f"**資料**：{loaded['rows']:,} 列（驗證 {loaded['validRows']:,}）")
+            st.markdown(f"**{t('detail.data')}**: " + t("detail.data_val", rows=f"{loaded['rows']:,}", valid=f"{loaded['validRows']:,}"))
         if job.get("started"):
-            st.markdown(f"**開始**：{job['started']}")
+            st.markdown(f"**{t('detail.start')}**: {job['started']}")
         if job.get("finished"):
-            st.markdown(f"**結束**：{job['finished']}")
+            st.markdown(f"**{t('detail.end')}**: {job['finished']}")
         if state == "lost":
             st.warning(LOST_TEXT)
         if state in jobs.BUSY:
-            if st.button("強制結束這個工作" if state == "lost" else "取消這個工作", key=f"stop-detail-{job_id}"):
+            if st.button(t("detail.force_end_job") if state == "lost" else t("detail.cancel_job"), key=f"stop-detail-{job_id}"):
                 jobs.cancel(job_id)
-            st.caption("產生資料取消時，已完成的局數會保留（Windows 除外）；訓練取消不會留下模型；對戰取消不會記到模型。排隊中的下一個工作會接著開始。")
+            st.caption(t("detail.cancel_note"))
         if state == "waiting":
-            if st.button("取消佇列", key=f"stop-dequeue-{job_id}"):
+            if st.button(t("queue.dequeue"), key=f"stop-dequeue-{job_id}"):
                 jobs.cancel(job_id)
         if state == "failed":
             st.error(scrub(job.get("error", "")))
         if state == "interrupted":
-            st.warning("程序已不在（電腦睡眠、關機或被終止）。")
+            st.warning(t("detail.interrupted"))
     result = job.get("result") or {}
     if state == "done" and job["kind"].startswith("train"):
         v = result["validation"]
         c1, c2, c3 = st.columns(3)
-        c1.metric("驗證交叉熵", f"{v['crossEntropy']:.4f}")
-        c2.metric("驗證 MSE", f"{v['mse']:.4f}", help=f"常數基準 {v['constantMse']:.4f}")
+        c1.metric(t("detail.val_ce"), f"{v['crossEntropy']:.4f}")
+        c2.metric(t("detail.val_mse"), f"{v['mse']:.4f}", help=t("detail.const_mse", x=f"{v['constantMse']:.4f}"))
         c3.metric("R²", f"{v['r2']:.3f}")
-        st.success(f"模型已存到 `{rel(result['model'])}`。下一步到「{TAB_MATCH}」和原版 MCTS 對打：真正的判準是勝率。")
+        st.success(t("detail.model_saved", path=rel(result["model"]), match=TAB_MATCH))
     if job["kind"] == "dump" and state in ("done", "cancelled") and result.get("rows"):
-        st.success(f"{'已取消，保留' if state == 'cancelled' else '完成'}：{result['games']:,} 局、{result['rows']:,} 列 → `{rel(result['output'])}`。可以到「{TAB_TRAIN}」頁勾選。")
+        st.success(t("detail.dump_result", status=t("detail.dump_cancelled" if state == "cancelled" else "detail.dump_done"), games=f"{result['games']:,}",
+                     rows=f"{result['rows']:,}", path=rel(result["output"]), train=TAB_TRAIN))
     if job["kind"] == "match" and state == "done" and result.get("match"):
         m = result["match"]
-        st.success(f"勝率 {m['winShare']:.1%} ± {m['winShareCi95']:.1%}（{m['games']} 局），已記到模型的 `.meta.json`。結果檔 `{rel(result['output'])}` 也可以在 Dashboard 打開。")
-        grid(pd.DataFrame([{"座位": "估值模型 MCTS", "勝率": m["winShare"], "平均分": m["avgScore"]}] +
-                                  [{"座位": o["seatId"] if o["strategy"] != "mcts" else ("原版 MCTS" if not o.get("valueModel") else "MCTS＋模型"),
-                                    "勝率": o["winShare"], "平均分": o["avgScore"]} for o in m["others"]]),
-                     hide_index=True, column_config={"勝率": st.column_config.NumberColumn(format="percent"),
-                                                     "平均分": st.column_config.NumberColumn(format="%.1f")})
+        st.success(t("detail.match_done", win=f"{m['winShare']:.1%}", ci=f"{m['winShareCi95']:.1%}", games=m["games"], path=rel(result["output"])))
+        seat, win, score = t("detail.col.seat"), t("detail.col.win"), t("detail.col.score")
+        grid(pd.DataFrame([{seat: t("detail.seat.model"), win: m["winShare"], score: m["avgScore"]}] +
+                          [{seat: o["seatId"] if o["strategy"] != "mcts" else (t("detail.seat.plain") if not o.get("valueModel") else t("detail.seat.withmodel")),
+                            win: o["winShare"], score: o["avgScore"]} for o in m["others"]]),
+             hide_index=True, column_config={win: st.column_config.NumberColumn(format="percent"),
+                                             score: st.column_config.NumberColumn(format="%.1f")})
     summary = job_summary_text(job)
     if summary:
         c1, c2 = st.columns([1, 3], vertical_alignment="center")
         with c1:
             copy_button(scrub(summary))
-        c2.caption("把這個工作的設定、數字、耗時與版本複製起來，貼進和 AI 的對話。沒有逐局資料，路徑是相對專案根目錄的。")
-    with st.expander("紀錄（最後 40 行）", expanded=state == "failed"):
-        st.code(scrub(jobs.log_tail(job_id)) or "（空的）", language=None)
+        c2.caption(t("detail.copy_note"))
+    with st.expander(t("detail.log"), expanded=state == "failed"):
+        st.code(scrub(jobs.log_tail(job_id)) or t("detail.empty"), language=None)
 
 
 # ---------------------------------------------------------------- 資料
@@ -1031,12 +1025,8 @@ def write_config(path, cfg):
 
 # rule-based needs params.profile and is the same as the named strategies: not offered
 _HIDDEN_STRATEGIES = {"rule-based"}
-STRATEGY_TEXT = {
-    "random": "完全隨機", "guided-random": "依動作種類加權的隨機", "mcts": "MCTS 樹搜尋（慢）",
-    "corn-shipper": "玉米出貨", "corn-to-premium": "玉米轉菸草／咖啡", "harbor-rush": "港口流", "build-first": "建築流",
-    "cheap-engine": "便宜引擎流", "wharf-rush": "私船流", "wharf-premium": "私船＋高價貨", "corn-monopoly": "玉米壟斷（搗亂）",
-    "corn-monopoly-tiles": "只搶玉米種植園", "corn-monopoly-hoard": "只囤玉米",
-}
+STRATEGY_TEXT = {n: t(f"strategy.{n}") for n in ("random", "guided-random", "mcts", "corn-shipper", "corn-to-premium", "harbor-rush", "build-first", "cheap-engine",
+                                                      "wharf-rush", "wharf-premium", "corn-monopoly", "corn-monopoly-tiles", "corn-monopoly-hoard")}
 
 
 @st.cache_data(show_spinner=False)
@@ -1065,10 +1055,10 @@ def parse_params(text):
         if not part:
             continue
         if "=" not in part:
-            raise ValueError(f"「{part}」格式應為 名稱=值")
+            raise ValueError(t("parse.format", part=part))
         k, v = (x.strip() for x in part.split("=", 1))
         if not k or not v:
-            raise ValueError(f"「{part}」格式應為 名稱=值")
+            raise ValueError(t("parse.format", part=part))
         try:
             num = float(v)
             out[k] = int(num) if num.is_integer() and "." not in v else num
@@ -1084,17 +1074,17 @@ def custom_seats(players):
     """One row per seat: strategy + its parameters. Returns (seats for the config, problems)."""
     names = all_strategies()
     seats, problems = [], []
-    model_names = ["（不用，隨機 rollout）"] + [os.path.basename(p) for p in models_for(players)]
+    model_names = [t("custom.model_none")] + [os.path.basename(p) for p in models_for(players)]
     for i in range(players):
         default = DEFAULT_CUSTOM[players][i] if DEFAULT_CUSTOM[players][i] in names else names[0]
         c1, c2 = st.columns([2, 5])
-        strat = c1.selectbox(f"座位 {i + 1}", names, index=names.index(default), key=f"cu-s{i}",
-                             format_func=lambda n: f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
+        strat = c1.selectbox(t("custom.seat", n=i + 1), names, index=names.index(default), key=f"cu-s{i}",
+                             format_func=lambda n: f"{n} ({STRATEGY_TEXT[n]})" if n in STRATEGY_TEXT and lang() != "zh-TW" else f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
         with c2:
             if strat == "mcts":
                 m1, m2, m3 = st.columns(3)
-                sims = m1.number_input("模擬次數", value=100, min_value=1, step=50, key=f"cu-sims{i}")
-                model = m2.selectbox("估值模型", model_names, key=f"cu-model{i}")
+                sims = m1.number_input(t("custom.sims"), value=100, min_value=1, step=50, key=f"cu-sims{i}")
+                model = m2.selectbox(t("custom.model"), model_names, key=f"cu-model{i}")
                 leaf = m3.number_input("leafRollout", value=20 if model != model_names[0] else 0, min_value=0, step=5, key=f"cu-leaf{i}")
                 params = {"simulations": int(sims)}
                 if model != model_names[0]:
@@ -1102,11 +1092,11 @@ def custom_seats(players):
                     if leaf:
                         params["leafRollout"] = int(leaf)
             else:
-                text = st.text_input("參數（選填，名稱=值，逗號分隔）", key=f"cu-p{i}", placeholder="例如 buildThreshold=3.5")
+                text = st.text_input(t("custom.params"), key=f"cu-p{i}", placeholder=t("custom.example"))
                 try:
                     params = parse_params(text)
                 except ValueError as e:
-                    problems.append(f"座位 {i + 1} 的參數：{e}")
+                    problems.append(t("custom.seat_param_error", n=i + 1, error=e))
                     params = {}
         seats.append({"id": f"{strat}-{i}", "strategy": strat, "params": params})
     return seats, problems
@@ -1129,105 +1119,106 @@ def config_rows():
     for c in files:
         cfg = read_config(c)
         if cfg:
-            rows.append({"設定檔": rel(c), "位置": "本機" if os.path.dirname(os.path.abspath(c)) == os.path.abspath(LOCAL_CONFIGS) else "內建",
+            rows.append({"設定檔": rel(c), "位置": "local" if os.path.dirname(os.path.abspath(c)) == os.path.abspath(LOCAL_CONFIGS) else "builtin",
                          "人數": cfg.get("players"), "局數": cfg.get("games"), "種子": cfg.get("seed"),
-                         "座位": "、".join(s.get("strategy", "") for s in cfg.get("seats", []))})
+                         "座位": t("common.list").join(s.get("strategy", "") for s in cfg.get("seats", []))})
     return rows
 
 
 def config_table(rows):
     """All data configs with checkboxes for deleting (inside the 管理設定檔 expander)."""
     shown = pd.DataFrame(rows)
-    shown["設定檔"] = shown["設定檔"].map(os.path.basename)  # the folder is in the 位置 column and the line below
-    picked = grid(shown.set_index("設定檔"), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
+    shown["設定檔"] = shown["設定檔"].map(os.path.basename)  # the folder is in the location column and the line below
+    shown["位置"] = shown["位置"].map({"local": t("cfg.local"), "builtin": t("cfg.builtin")})
+    shown = shown.rename(columns={"設定檔": t("cfg.col.config"), "位置": t("cfg.col.place"), "人數": t("cfg.col.players"), "局數": t("cfg.col.games"),
+                                  "種子": t("cfg.col.seed"), "座位": t("cfg.col.seats")})
+    picked = grid(shown.set_index(t("cfg.col.config")), on_select="rerun", selection_mode="multi-row", width="stretch", key=f"cfg-table-{delete_gen()}")
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
     for i, folder in enumerate(dict.fromkeys(os.path.dirname(r["設定檔"]) for r in rows)):
         folder_line(folder + "/", f"configs-{i}")
     c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
-    c1.caption("勾選左側方格可以刪除設定檔。" + (f"其中 {len(tracked)} 個是 repo 內建的（git 追蹤中）：刪掉後可以用 git 還原。" if tracked else ""))
+    c1.caption(t("cfg.hint") + (("" if lang() == "zh-TW" else " ") + t("cfg.tracked", n=len(tracked)) if tracked else ""))
     with c2:
-        delete_button("del-configs", f"🗑 刪除勾選（{len(chosen)}）", [absolute(c) for c in chosen], busy=busy_files("config"))
+        delete_button("del-configs", t("del.button", n=len(chosen)), [absolute(c) for c in chosen], busy=busy_files("config"))
 
 
 def data_tab():
-    st.caption("用 Runner 打完整局並抽樣局面，寫到 `results/ml/`。第一次（或 C# 程式改過後）會先自動發佈 Runner（需要 .NET 8 SDK）。")
+    st.caption(t("dt.intro"))
     stamp = datetime.datetime.now().strftime("%m%d-%H%M")
     custom_problems = []
-    with card("data-source", "1. 採樣來源模型"):
-        mode = st.radio("採樣來源模型", ["設定檔（手寫策略、隨機）", "自訂組合（自己選每個座位的策略）", "模型自我對戰（MCTS＋估值模型）"],
+    with card("data-source", t("dt.card1")):
+        mode = st.radio(t("dt.mode_label"), ["config", "custom", "selfplay"], format_func=lambda m: t(f"dt.mode.{m}"),
                         horizontal=True, label_visibility="collapsed")
-        if mode.startswith("設定檔"):
+        if mode == "config":
             rows = config_rows()
             if not rows:
-                st.info("沒有設定檔。用「自訂組合」新增一個。")
+                st.info(t("dt.no_configs"))
                 return
             by_name = {r["設定檔"]: r for r in rows}
-            config = st.selectbox("用哪個設定檔", list(by_name),
-                                  format_func=lambda c: f"{os.path.basename(c)}（{by_name[c]['人數']} 人局：{by_name[c]['座位']}）")
+            config = st.selectbox(t("dt.which_config"), list(by_name),
+                                  format_func=lambda c: t("dt.config_item", file=os.path.basename(c), players=by_name[c]["人數"], seats=by_name[c]["座位"]))
             folder_line(config, "config")
-            with st.expander(f"管理設定檔（全部 {len(rows)} 個；勾選後可以刪除）"):
+            with st.expander(t("dt.manage", n=len(rows))):
                 config_table(rows)
             cfg = read_config(absolute(config))
             default_games, default_seed = int(cfg.get("games", 20000)), int(cfg.get("seed", 1))
             # the config's own output.dumpRate wins; without one, MCTS tables (self-play) default to 5%, the rest to 1%
             default_rate = float((cfg.get("output") or {}).get("dumpRate") or (0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01))
             default_name = os.path.basename(config)[:-5]
-            title_kind = "設定檔"
-        elif mode.startswith("自訂"):
-            st.caption("每局就是你選的這幾個策略互打；座位順序每局隨機重排，所以每個策略都會坐到每個位置。"
-                       "「新增設定」只把組合存成 `ml/local/data-configs/<名稱>.json`（本機，不進 git；之後在「設定檔」選它）；「開始產生資料」會存設定並開始。")
-            players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="cu-players")
+            title_key, title_args = "job.title.dump_config", {}
+        elif mode == "custom":
+            st.caption(t("dt.custom_hint"))
+            players = st.radio(t("dt.players"), [4, 3], horizontal=True, format_func=lambda n: t("match.players_n", n=n), key="cu-players")
             seats, custom_problems = custom_seats(players)
             has_mcts = any(s_["strategy"] == "mcts" for s_ in seats)
             default_games, default_seed = (2000 if has_mcts else 20000), int(datetime.datetime.now().strftime("%m%d%H"))
             default_rate = 0.05 if has_mcts else 0.01
             if has_mcts:
-                st.caption("有 MCTS 座位會慢很多（4 核心、100 次模擬大約每局 1～2 秒）；手寫策略與隨機玩家每秒可打上千局。")
+                st.caption(t("dt.mcts_slow"))
             default_name = f"{players}p-custom-{stamp}"
-            title_kind = "自訂：" + "、".join(s_["strategy"] for s_ in seats)
+            title_key, title_args = "job.title.dump_custom", {"strategies": t("common.list").join(s_["strategy"] for s_ in seats)}
         else:
-            players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="sp-players")
+            players = st.radio(t("dt.players"), [4, 3], horizontal=True, format_func=lambda n: t("match.players_n", n=n), key="sp-players")
             cands = models_for(players)
             if not cands:
-                st.info(f"還沒有 {players} 人局的模型（要有 `.meta.json`）。先用設定檔的資料訓練一個。")
+                st.info(t("dt.no_model", n=players))
                 return
-            model = st.selectbox("用哪個模型", [os.path.basename(p_) for p_ in cands], index=len(cands) - 1)
+            model = st.selectbox(t("dt.which_model"), [os.path.basename(p_) for p_ in cands], index=len(cands) - 1)
             c1, c2 = st.columns(2)
-            sims = c1.number_input("每步模擬次數", value=100, min_value=1, step=50, help="自我對戰用較少的次數換局數（v2 用 100）")
-            leaf = c2.number_input("leafRollout（估值前先打幾步）", value=20, min_value=0, step=5)
+            sims = c1.number_input(t("dt.sp_sims"), value=100, min_value=1, step=50, help=t("dt.sp_sims_help"))
+            leaf = c2.number_input(t("dt.sp_leaf"), value=20, min_value=0, step=5)
             default_games, default_seed, default_rate = 4000, int(datetime.datetime.now().strftime("%m%d%H")), 0.05
             default_name = f"{players}p-selfplay-{model.rsplit('.', 1)[0].replace(f'{players}p-', '')}-{stamp}"
-            title_kind = f"自我對戰 {model}"
+            title_key, title_args = "job.title.dump_selfplay", {"model": model}
 
-    with card("data-run", "2. 局數設定"):
+    with card("data-run", t("dt.card2")):
         c1, c2, c3, c4, c5 = st.columns(5)
         # the defaults come from the chosen config: its name is part of the keys, so picking another config reloads them
-        kk = mode[:2] + (config if mode.startswith("設定檔") else "")
-        games = c1.number_input("局數", value=default_games, min_value=1, step=1000, key=f"games-{kk}")
-        seed = c2.number_input("種子", value=default_seed, step=1, key=f"seed-{kk}")
-        rate = c3.number_input("抽樣率（每個決策被抽到的機率）", value=default_rate, min_value=0.0001, max_value=1.0, format="%g", key=f"rate-{kk}")
-        threads = c4.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key=f"threads-{mode[:2]}")
+        kk = mode + (config if mode == "config" else "")
+        games = c1.number_input(t("dt.games"), value=default_games, min_value=1, step=1000, key=f"games-{kk}")
+        seed = c2.number_input(t("dt.seed"), value=default_seed, step=1, key=f"seed-{kk}")
+        rate = c3.number_input(t("dt.rate"), value=default_rate, min_value=0.0001, max_value=1.0, format="%g", key=f"rate-{kk}")
+        threads = c4.number_input(t("dt.threads"), value=0, min_value=0, step=1, key=f"threads-{mode}")
         feature_versions = fingerprint.feature_versions()
-        feature = c5.selectbox("特徵版本", feature_versions, index=len(feature_versions) - 1, key="feature-version",
-                               help="資料裡每個局面用哪一版特徵描述。預設最新版；版本 1 是舊模型（v1～v3）用的 430 個特徵。"
-                                    "訓練時只能選同一版的資料，訓練出來的模型也屬於這一版。")
-        if mode.startswith("模型"):
-            st.caption(f"參考：4 核心、100 次模擬、leafRollout 20 約 1 局／秒（{games:,} 局約 {games / 3600:.1f} 小時）。")
-        name = st.text_input("輸出名稱（results/ml/<名稱>.bin）", value=default_name).strip()
+        feature = c5.selectbox(t("dt.feature"), feature_versions, index=len(feature_versions) - 1, key="feature-version",
+                               help=t("dt.feature_help"))
+        if mode == "selfplay":
+            st.caption(t("dt.sp_ref", games=f"{games:,}", hours=f"{games / 3600:.1f}"))
+        name = st.text_input(t("dt.name"), value=default_name).strip()
         out = os.path.join(jobs.results_dir(), "ml", name + ".bin")
         exists = os.path.exists(out)
-        overwrite = st.checkbox(f"覆寫已存在的 `{name}.bin`") if exists else True
-        writes_config = not mode.startswith("設定檔")
+        overwrite = st.checkbox(t("dt.overwrite", name=name)) if exists else True
+        writes_config = mode != "config"
         config_taken = writes_config and safe_name(name) and any(os.path.exists(os.path.join(d, name + ".json"))
                                                                   for d in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS))
-        name_problems = [p_ for p_ in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
-                                       f"已經有同名的設定檔 {name}.json，換一個名稱（不覆蓋既有設定）" if config_taken else None] if p_]
-        problems = name_problems + [p_ for p_ in [None if overwrite else "資料已存在（要覆寫請勾選）",
-                                                  "排隊中或執行中的工作已經會寫這個檔名，換一個名稱" if pending_output(rel(out)) else None] if p_] + custom_problems
+        name_problems = [p_ for p_ in [None if safe_name(name) else t("dt.p.name"),
+                                       t("dt.p.config_taken", name=name) if config_taken else None] if p_]
+        problems = name_problems + [p_ for p_ in [None if overwrite else t("dt.p.exists"),
+                                                  t("dt.p.pending") if pending_output(rel(out)) else None] if p_] + custom_problems
 
         def new_config():
-            if mode.startswith("自訂"):
+            if mode == "custom":
                 return {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed),
                         "seatOrder": "random", "seats": seats, "output": {"perGameRecords": False}}
             return {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed), "seatOrder": "random",
@@ -1237,65 +1228,60 @@ def data_tab():
                     "output": {"perGameRecords": False}}
 
         # what this run would produce, by recipe: compared with what already exists under this name and under other names
-        eff = {**cfg, "games": int(games), "seed": int(seed)} if mode.startswith("設定檔") else new_config()
+        eff = {**cfg, "games": int(games), "seed": int(seed)} if mode == "config" else new_config()
         new_recipe = fingerprint.planned_dump_recipe(eff, float(rate), int(feature))
         new_fp = fingerprint.fingerprint(new_recipe)
         known = [d for d in list_dumps() if "_fp" in d]
         old_recipe = next((d["_recipe"] for d in known if d["path"] == rel(out)), None)
-        same_name_notice("資料", exists, old_recipe, new_recipe, users=models_using(rel(out)) if exists else ())
+        same_name_notice(t("noun.data"), exists, old_recipe, new_recipe, users=models_using(rel(out)) if exists else ())
         twins = [d["來源"] for d in known if d["_fp"] == new_fp and d["path"] != rel(out)]
         if twins:
-            st.info("已經有相同配方（同樣的設定、種子、局數與抽樣率）的資料：" + "、".join(f"`{t}`" for t in twins)
-                    + "。重跑只會得到同一份內容，通常不需要再產生。")
+            st.info(t("dt.twins", list=t("common.list").join(f"`{name_}`" for name_ in twins)))
         if exists and reader_problem(rel(out)):
             problems.append(reader_problem(rel(out)))
 
-        if mode.startswith("自訂"):
+        if mode == "custom":
             save_problems = name_problems + custom_problems
             b1, b2 = st.columns([2.2, 5], vertical_alignment="center")
             with b1:
-                save = st.button("新增設定", key="save-config", disabled=bool(save_problems), width="stretch")
+                save = st.button(t("dt.save"), key="save-config", disabled=bool(save_problems), width="stretch")
             with b2:
-                st.markdown('<span class="act-err">無法儲存：' + "；".join(plain(x) for x in save_problems) + "</span>" if save_problems
-                            else f'<span class="act-note">只儲存成 ml/local/data-configs/{plain(name)}.json，不產生資料</span>', unsafe_allow_html=True)
+                st.markdown(f'<span class="act-err">{t("dt.save_cannot", reasons=t("common.sep").join(plain(x) for x in save_problems))}</span>' if save_problems
+                            else f'<span class="act-note">{t("dt.save_note", name=plain(name))}</span>', unsafe_allow_html=True)
             if save:
                 write_config(os.path.join(LOCAL_CONFIGS, name + ".json"), new_config())
-                st.session_state["job-started"] = f"已儲存 ml/local/data-configs/{name}.json：之後可以在「設定檔」選它。"
+                st.session_state["job-started"] = t("dt.saved", name=name)
                 st.rerun()
 
-        if action_row("開始產生資料", "start-dump", problems):
-            if mode.startswith("設定檔"):
+        if action_row(t("dt.start"), "start-dump", problems):
+            if mode == "config":
                 spec_config = config
             else:
                 spec_config = rel(os.path.join(LOCAL_CONFIGS, name + ".json"))
                 write_config(absolute(spec_config), new_config())  # kept with the other data configs: reusable and reproducible
-            start_job("dump", f"資料（{title_kind}）→ {name}.bin", {"config": spec_config, "out": rel(out), "rate": float(rate),
-                                                                  "games": int(games), "seed": int(seed), "threads": int(threads),
-                                                                  "featureVersion": int(feature)})
+            start_job("dump", t(title_key, name=name, **title_args),
+                      {"config": spec_config, "out": rel(out), "rate": float(rate), "games": int(games), "seed": int(seed),
+                       "threads": int(threads), "featureVersion": int(feature)}, title_key, name=name, **title_args)
 
-    with card("data-list", "已有的資料"):
+    with card("data-list", t("dt.card3")):
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
-            df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name="檔案"))
+            df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name=t("dump.col.file")))
             picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-manage-{delete_gen()}")
             chosen = [dumps[i] for i in picked.selection.rows]
             folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
             c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
-            c1.caption(f"勾選左側方格可以刪除資料（連同它的 .json）；訓練要用哪些資料，到「{TAB_TRAIN}」頁選。")
+            c1.caption(t("dt.delete_hint", page=TAB_TRAIN))
             with c2:
-                delete_button("del-dumps", f"🗑 刪除勾選（{len(chosen)}）", [absolute(d["path"]) for d in chosen],
+                delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen],
                               extra_suffixes=(".json",), busy=busy_files("data"))
         else:
-            st.caption("還沒有資料。")
+            st.caption(t("dt.none"))
 
 
 # ---------------------------------------------------------------- 對戰驗證
 
-MATCH_TABLES = {
-    "default": "對原版 MCTS（同桌另有手寫策略）",
-    "hand": "對手寫策略（分析文件第 5 節那桌）",
-    "model": "對另一個估值模型（同桌另有手寫策略）",
-}
+MATCH_TABLES = {key: t(f"match.table.{key}") for key in ("default", "hand", "model")}
 
 
 def match_seats(table, players, model, sims, leaf, base_sims, rival=None):
@@ -1320,42 +1306,41 @@ def match_seats(table, players, model, sims, leaf, base_sims, rival=None):
 
 
 def _match_body():
-    st.caption("用 balanced 座位打一組對局，比較估值模型版 MCTS 的勝率；結果會記到模型的 `.meta.json`，也能在 Dashboard 打開。"
-               "比較要做兩種：同模擬次數（模型有沒有更準），和約同時間（值不值得）：v2 的推論成本約讓 300 次模擬的時間只夠 180 次。"
-               "兩個模型誰比較強，選「對另一個估值模型」同桌打（兩個 MCTS 同桌）；結果只記在上面選的模型，對手模型的紀錄不變。")
-    players = st.radio("人數", [4, 3], horizontal=True, format_func=lambda n: f"{n} 人局", key="m-players")
+    st.caption(t("match.intro"))
+    players = st.radio(t("match.players"), [4, 3], horizontal=True, format_func=lambda n: t("match.players_n", n=n), key="m-players")
     cands = models_for(players)
     if not cands:
-        st.info(f"還沒有 {players} 人局的模型。")
+        st.info(t("match.no_model", n=players))
         return
     names = [os.path.basename(p) for p in cands]
-    model = st.selectbox("模型", names, index=len(names) - 1, key="m-model")
-    table = st.radio("對手", list(MATCH_TABLES), format_func=MATCH_TABLES.get, horizontal=True)
+    model = st.selectbox(t("match.model"), names, index=len(names) - 1, key="m-model")
+    table = st.radio(t("match.opponent"), list(MATCH_TABLES), format_func=MATCH_TABLES.get, horizontal=True, key="m-table")
     rival = None
     if table == "model":
         others = [n for n in names if n != model]
         if not others:
-            st.info(f"{players} 人局只有這一個模型，沒有可以對打的另一個。")
+            st.info(t("match.only_one", n=players))
             return
         # open on the strongest other model (best win share against the original MCTS)
         best = lambda n: (best_vs_default(model_meta(model_path(n))) or {}).get("winShare", -1) if model_meta(model_path(n)) else -1  # noqa: E731
-        rival = st.selectbox("對手模型", others, index=others.index(max(others, key=best)), key="m-rival")
+        rival = st.selectbox(t("match.rival"), others, index=others.index(max(others, key=best)), key="m-rival")
     c1, c2, c3, c4 = st.columns(4)
-    sims = c1.number_input("模型版模擬次數", value=300, min_value=1, step=10)
-    leaf = c2.number_input("leafRollout（兩個模型相同）" if table == "model" else "leafRollout", value=0, min_value=0, step=5)
-    base_sims = c3.number_input("對手模型模擬次數" if table == "model" else "原版 MCTS 模擬次數", value=300, min_value=1, step=10, disabled=table == "hand")
-    seed = c4.number_input("種子", value=9191, step=1)
+    sims = c1.number_input(t("match.sims"), value=300, min_value=1, step=10)
+    leaf = c2.number_input(t("match.leaf_both") if table == "model" else t("match.leaf"), value=0, min_value=0, step=5)
+    base_sims = c3.number_input(t("match.base_model") if table == "model" else t("match.base_orig"), value=300, min_value=1, step=10, disabled=table == "hand")
+    seed = c4.number_input(t("match.seed"), value=9191, step=1)
     perm = 24 if players == 4 else 6
     c5, c6 = st.columns(2)
-    games = c5.number_input(f"局數（{perm} 的倍數＝每種座位排列一樣多）", value={"default": 240, "model": 480}.get(table, 408), min_value=perm, step=perm)
-    threads = c6.number_input("執行緒（0＝全部）", value=0, min_value=0, step=1, key="m-threads")
+    games = c5.number_input(t("match.games", perm=perm), value={"default": 240, "model": 480}.get(table, 408), min_value=perm, step=perm)
+    threads = c6.number_input(t("match.threads"), value=0, min_value=0, step=1, key="m-threads")
     seats = match_seats(table, players, model, int(sims), int(leaf), int(base_sims), rival)
-    st.caption("同桌：" + "、".join(("估值模型 MCTS" if s["id"] == "value" else f"MCTS＋{rival}（{int(base_sims)} 次）" if s["id"] == "rival" else "原版 MCTS" if s["strategy"] == "mcts" else s["strategy"]) for s in seats)
-               + f"。參考：4 核心約 {int(games) * 0.6 / 60:.0f}～{int(games) * 1.2 / 60:.0f} 分鐘（依模擬次數）。")
+    st.caption(t("match.table_line", seats=t("common.list").join((t("match.seat_model") if s["id"] == "value" else t("match.seat_rival", rival=rival, n=int(base_sims)) if s["id"] == "rival"
+                                                                    else t("match.orig_mcts") if s["strategy"] == "mcts" else s["strategy"]) for s in seats),
+                                   lo=f"{int(games) * 0.6 / 60:.0f}", hi=f"{int(games) * 1.2 / 60:.0f}"))
     stem = model.rsplit(".", 1)[0]
     versus = {"default": "default", "hand": "hand", "model": rival.rsplit(".", 1)[0] if rival else ""}[table]
     default_name = f"{stem}-s{int(sims)}{f'-leaf{int(leaf)}' if leaf else ''}-vs-{versus}{f'{int(base_sims)}' if table == 'default' and base_sims != 300 else ''}{f'-s{int(base_sims)}' if table == 'model' and base_sims != sims else ''}-seed{int(seed)}"
-    name = st.text_input("名稱（設定檔 ml/local/matches/<名稱>.json、結果 results/ml/<名稱>.json）", value=default_name).strip()
+    name = st.text_input(t("match.name"), value=default_name).strip()
     out = os.path.join(jobs.results_dir(), "ml", name + ".json")
     exists = os.path.exists(out)
     # recipe of this match (the value model counts by file content), compared with the result under this name and with
@@ -1370,28 +1355,29 @@ def _match_body():
                 old_recipe = fingerprint.result_recipe(json.load(f))
         except (OSError, ValueError, KeyError, TypeError):
             old_recipe = None
-    same_name_notice("對戰結果", exists, old_recipe, new_recipe)
+    same_name_notice(t("noun.match_result"), exists, old_recipe, new_recipe)
     done_meta = model_meta(model_path(model))
     twins = [m for m in (done_meta or {}).get("matches", []) if m.get("fingerprint") == new_fp and m.get("result") != rel(out)]
     if twins:
-        st.info("這個模型已經有相同配方的對戰：" + "、".join(f"`{m['config']}`（勝率 {m['winShare']:.1%}）" for m in twins) + "。重跑只會得到同樣的結果。")
-    overwrite = st.checkbox(f"覆寫已存在的結果 `{name}.json`") if exists else True
-    problems = [p for p in [None if safe_name(name) else "名稱不能空白或含路徑符號、空白",
-                            None if games % perm == 0 else f"局數要是 {perm} 的倍數",
-                            None if overwrite else "結果已存在",
-                            "排隊中或執行中的工作已經會寫這個結果檔，換一個名稱" if pending_output(rel(out)) else None] if p]
-    if action_row("開始對戰", "start-match", problems):
+        st.info(t("match.twins", list=t("common.list").join(t("match.twin_item", config=m["config"], win=f"{m['winShare']:.1%}") for m in twins)))
+    overwrite = st.checkbox(t("match.overwrite", name=name)) if exists else True
+    problems = [p for p in [None if safe_name(name) else t("match.p.name"),
+                            None if games % perm == 0 else t("match.p.games", perm=perm),
+                            None if overwrite else t("match.p.exists"),
+                            t("match.p.pending") if pending_output(rel(out)) else None] if p]
+    if action_row(t("match.start"), "start-match", problems):
         cfg = {"schemaVersion": 1, "name": name, "players": players, "games": int(games), "seed": int(seed),
                "seatOrder": "balanced", "seats": seats, "output": {"perGameRecords": False}}
         if threads:
             cfg["parallelism"] = {"maxDegree": int(threads)}
         config = rel(os.path.join(LOCAL_MATCHES, name + ".json"))
         write_config(absolute(config), cfg)
-        start_job("match", f"對戰 {model}（{int(sims)} 次）{'vs 原版' if table == 'default' else f'vs {rival}' if table == 'model' else 'vs 手寫'} → {name}",
-                  {"config": config, "out": rel(out), "model": rel(model_path(model))})
+        title_key = f"job.title.match_{table}"
+        start_job("match", t(title_key, model=model, sims=int(sims), rival=rival, name=name),
+                  {"config": config, "out": rel(out), "model": rel(model_path(model))}, title_key, model=model, sims=int(sims), rival=rival, name=name)
     meta = model_meta(model_path(model))
     if meta and meta.get("matches"):
-        st.markdown(f"**{model} 已有的對戰**")
+        st.markdown(t("match.existing", model=model))
         grid(matches_frame(meta, model_path(model)), hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
         match_summary_box(meta, model_path(model), f"match-{model}")
@@ -1400,34 +1386,36 @@ def _match_body():
 # ---------------------------------------------------------------- 模型詳細資料、模型清單
 
 def models_table(paths):
+    col = lambda key: t(f"mlist.col.{key}")  # noqa: E731
+    places = {"official": "git", "local": "local"}
     rows = []
     for p in paths:
         meta = model_meta(p)
         name = os.path.basename(p)
         if not meta:
-            rows.append({"模型": name, "位置": place_of(p), "種類": "LightGBM" if p.endswith(".txt") else "MLP", "備註": "沒有 .meta.json"})
+            rows.append({col("model"): name, col("place"): places[place_of(p)], col("kind"): "LightGBM" if p.endswith(".txt") else "MLP", col("note"): t("mlist.no_meta")})
             continue
         best = best_vs_default(meta)
         v = meta.get("validation") or {}
         rows.append({
-            "模型": name, "位置": place_of(p), "種類": KIND_TEXT.get(meta["kind"], meta["kind"]), "人數": meta["players"],
-            "特徵版本": meta.get("featureVersion"),
-            "建立": (meta.get("created") or "（補寫）")[:16].replace("T", " "),
-            "資料列數": sum(d["rows"] for d in meta["data"]),
-            "自我對戰資料": "、".join(sorted({os.path.basename(m) for d in meta["data"] for m in d.get("valueModels", [])})),
-            "R²": v.get("r2"), "交叉熵": v.get("crossEntropy"),
-            "對戰場數": len(meta.get("matches", [])),
-            "對原版 MCTS 最佳勝率": best["winShare"] if best else None,
-            "hash": fingerprint.short(meta.get("fingerprint")) or "—",
-            "版本狀態": version_text(model_stale(meta)) if meta.get("data") else "—",
-            "備註": "參數為補寫" if "note" in meta.get("params", {}) else ("舊紀錄：沒有配方 hash" if not meta.get("fingerprint") else ""),
+            col("model"): name, col("place"): places[place_of(p)], col("kind"): KIND_TEXT.get(meta["kind"], meta["kind"]), col("players"): meta["players"],
+            col("feature"): meta.get("featureVersion"),
+            col("created"): (meta.get("created") or t("mlist.backfilled"))[:16].replace("T", " "),
+            col("rows"): sum(d["rows"] for d in meta["data"]),
+            col("selfplay"): t("common.list").join(sorted({os.path.basename(m) for d in meta["data"] for m in d.get("valueModels", [])})),
+            col("r2"): v.get("r2"), col("ce"): v.get("crossEntropy"),
+            col("matches"): len(meta.get("matches", [])),
+            col("best"): best["winShare"] if best else None,
+            col("hash"): fingerprint.short(meta.get("fingerprint")) or "—",
+            col("status"): version_text(model_stale(meta)) if meta.get("data") else "—",
+            col("note"): t("mlist.params_backfilled") if "note" in meta.get("params", {}) else (t("mlist.old_record") if not meta.get("fingerprint") else ""),
         })
     df = pd.DataFrame(rows)
     # text columns so that missing values read "—" instead of Streamlit's grey "None"
-    fmt = {"R²": "{:.3f}", "交叉熵": "{:.4f}", "對原版 MCTS 最佳勝率": "{:.1%}", "資料列數": "{:,.0f}", "人數": "{:.0f}", "對戰場數": "{:.0f}", "特徵版本": "{:.0f}"}
-    for col, f in fmt.items():
-        if col in df:
-            df[col] = [f.format(v) if v is not None and v == v else "—" for v in df[col]]
+    fmt = {col("r2"): "{:.3f}", col("ce"): "{:.4f}", col("best"): "{:.1%}", col("rows"): "{:,.0f}", col("players"): "{:.0f}", col("matches"): "{:.0f}", col("feature"): "{:.0f}"}
+    for name, f in fmt.items():
+        if name in df:
+            df[name] = [f.format(v) if v is not None and v == v else "—" for v in df[name]]
     return df.fillna("")
 
 
@@ -1435,39 +1423,39 @@ def match_note(m, current_sha):
     """Why an old result may no longer describe the model / engine of today."""
     notes = []
     if m.get("modelSha256") and current_sha and m["modelSha256"] != current_sha:
-        notes.append("模型檔已更新，這場是舊版模型打的")
+        notes.append(t("match.note.model_changed"))
     stale = entry_stale(m.get("rulesRevision", 1), m.get("ruleset"), m.get("revisions"),
                         [o.get("strategy") for o in m.get("others", [])] + ["mcts"])
     if stale:
-        notes.append("舊版：" + "；".join(stale))
-    return "；".join(notes)
+        notes.append(t("match.note.old") + t("common.sep").join(stale))
+    return t("common.sep").join(notes)
 
 
 # match tables (model page and match page): short columns centred
 MATCH_COLUMNS = {
-    "勝率": st.column_config.NumberColumn(format="percent"),
+    t("mt.win"): st.column_config.NumberColumn(format="percent"),
     "±95%": st.column_config.NumberColumn(format="percent"),
-    "平均分": st.column_config.NumberColumn(format="%.1f", alignment="center"),
+    t("mt.score"): st.column_config.NumberColumn(format="%.1f", alignment="center"),
     "leafRollout": st.column_config.NumberColumn(alignment="center"),
-    "局數": st.column_config.NumberColumn(alignment="center"),
-    "種子": st.column_config.NumberColumn(alignment="center", format="%d"),
-    "紀錄存放": st.column_config.TextColumn(alignment="center"),
+    t("mt.games"): st.column_config.NumberColumn(alignment="center"),
+    t("mt.seed"): st.column_config.NumberColumn(alignment="center", format="%d"),
+    t("mt.store"): st.column_config.TextColumn(alignment="center"),
     "hash": st.column_config.TextColumn(alignment="center"),
 }
 
 
 def matches_frame(meta, model_file=None):
     current_sha = fingerprint.file_sha256(model_file) if model_file and os.path.exists(model_file) else None
-    official = bool(model_file) and place_of(model_file) == "正式"
+    official = bool(model_file) and place_of(model_file) == "official"
     rows = []
     for m in meta.get("matches", []):
-        rows.append({"設定": m.get("config"), "對手": describe_match(m), "leafRollout": m.get("leafRollout", 0) or 0,
-                     "局數": m["games"], "種子": m["seed"],
-                     "勝率": m["winShare"], "±95%": m.get("winShareCi95"), "平均分": m["avgScore"],
-                     "對手勝率": "、".join(f"{o['strategy'] if not o.get('valueModel') else 'MCTS＋模型'} {o['winShare']:.1%}" for o in m["others"]),
+        rows.append({t("mt.config"): m.get("config"), t("mt.opponent"): describe_match(m), "leafRollout": m.get("leafRollout", 0) or 0,
+                     t("mt.games"): m["games"], t("mt.seed"): m["seed"],
+                     t("mt.win"): m["winShare"], "±95%": m.get("winShareCi95"), t("mt.score"): m["avgScore"],
+                     t("mt.oppwin"): t("common.list").join(f"{o['strategy'] if not o.get('valueModel') else t('detail.seat.withmodel')} {o['winShare']:.1%}" for o in m["others"]),
                      # where the record is kept: in the model's tracked .meta.json (git) or only on this machine
-                     "紀錄存放": "git" if official and not m.get("local") else "local",
-                     "結果檔": m["result"], "hash": fingerprint.short(m.get("fingerprint")) or "—", "備註": match_note(m, current_sha)})
+                     t("mt.store"): "git" if official and not m.get("local") else "local",
+                     t("mt.result"): m["result"], "hash": fingerprint.short(m.get("fingerprint")) or "—", t("mt.note"): match_note(m, current_sha)})
     return pd.DataFrame(rows)
 
 
@@ -1477,11 +1465,11 @@ def match_summary_box(meta, model_file, key):
     if not matches:
         return
     current_sha = fingerprint.file_sha256(model_file) if os.path.exists(model_file) else None
-    labels = [f"{m.get('config') or m['result']}（{m['games']} 局）" for m in matches]
+    labels = [t("match.pick_item", name=m.get("config") or m["result"], games=m["games"]) for m in matches]
     c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-    pick = c1.selectbox("複製摘要給 AI：哪一筆對戰", ["全部"] + labels, key=f"summary-pick-{key}",
-                        help="複製設定、勝率、耗時與版本（沒有逐局資料，路徑是相對專案根目錄的），貼進和 AI 的對話。")
-    chosen = matches if pick == "全部" else [matches[labels.index(pick)]]
+    pick = c1.selectbox(t("match.pick"), [t("match.pick_all")] + labels, key=f"summary-pick-{key}",
+                        help=t("match.pick_help"))
+    chosen = matches if pick == t("match.pick_all") else [matches[labels.index(pick)]]
     name = os.path.basename(model_file)
     with c2:
         copy_button("\n\n".join(modelmeta.match_summary(m, name, match_note(m, current_sha)) for m in chosen))
@@ -1492,39 +1480,37 @@ def flat_params(meta):
 
 
 def move_buttons(path):
-    """設為正式模型 (local -> ml/models, then commit it) and 移到本機 (an official-folder model git does not track)."""
+    """Make official (local -> ml/models, then commit it) and move to local (an official-folder model git does not track)."""
     name = os.path.basename(path)
-    if place_of(path) == "本機":
+    if place_of(path) == "local":
         c1, c3, c2 = st.columns([2.2, 2.2, 5], vertical_alignment="center")
         with c3:
-            if st.button("重新命名", key=f"rename-{name}", width="stretch"):
+            if st.button(t("md.rename"), key=f"rename-{name}", width="stretch"):
                 rename_dialog(path)
         with c1:
-            with st.popover("設為正式模型", width="stretch"):
-                st.markdown(f"把 `{name}`（連同 `.meta.json`、`.check.txt`）搬到 `ml/models/`。之後在 Visual Studio commit，才會進 git、別台電腦和 Claude 才看得到。"
-                            "也請在 `docs/models.md` 的模型列表補一列。")
-                if st.button("確定搬過去", type="primary", key=f"promote-{name}"):
+            with st.popover(t("md.promote"), width="stretch"):
+                st.markdown(t("md.promote_text", name=name))
+                if st.button(t("md.promote_ok"), type="primary", key=f"promote-{name}"):
                     try:
                         modelmeta.move_model(path, MODELS_DIR)
-                        st.session_state["job-started"] = f"{name} 已設為正式模型（ml/models/）。"
+                        st.session_state["job-started"] = t("md.promoted", name=name)
                         st.cache_data.clear()
                         st.rerun()
                     except ValueError as e:
                         st.error(str(e))
-        c2.markdown('<span class="act-note">本機模型：只在這台電腦（ml/local/models/），不會進 git。</span>', unsafe_allow_html=True)
+        c2.markdown(f'<span class="act-note">{t("md.local_note")}</span>', unsafe_allow_html=True)
     elif not tracked_by_git([path]):
         c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
         with c1:
-            if st.button("移到本機", key=f"demote-{name}", width="stretch"):
+            if st.button(t("md.demote"), key=f"demote-{name}", width="stretch"):
                 try:
                     modelmeta.move_model(path, LOCAL_MODELS)
-                    st.session_state["job-started"] = f"{name} 已移到本機工作區（ml/local/models/）。"
+                    st.session_state["job-started"] = t("md.demoted", name=name)
                     st.cache_data.clear()
                     st.rerun()
                 except ValueError as e:
                     st.error(str(e))
-        c2.markdown('<span class="act-note">這個模型在正式資料夾 ml/models/，但 git 沒有追蹤它（例如以前在 ML UI 訓練的）：'
-                    "移到本機就不會再出現在 Visual Studio 的 Git 變更裡。</span>", unsafe_allow_html=True)
+        c2.markdown(f'<span class="act-note">{t("md.demote_note")}</span>', unsafe_allow_html=True)
 
 
 def model_name_users(path):
@@ -1541,53 +1527,49 @@ def model_name_users(path):
     return dumps, configs
 
 
-@st.dialog("重新命名模型")
+@st.dialog(t("md.rename_title"))
 def rename_dialog(path):
     name = os.path.basename(path)
     ext = os.path.splitext(name)[1]
-    new = st.text_input(f"新名稱（副檔名 {ext} 自動加）", value=name[:-len(ext)], key=f"rename-new-{name}").strip()
+    new = st.text_input(t("md.rename_new", ext=ext), value=name[:-len(ext)], key=f"rename-new-{name}").strip()
     if new.endswith(ext):
         new = new[:-len(ext)]
     problems = []
     if not new or any(c in new for c in modelmeta.INVALID_NAME_CHARS):
-        problems.append("名稱不能空白，也不能有路徑符號或空白")
+        problems.append(t("md.rn.p.name"))
     elif new + ext == name:
-        problems.append("名稱沒有改變")
+        problems.append(t("md.rn.p.same"))
     elif model_name_taken(new + ext):
-        problems.append(f"已經有叫 {new + ext} 的模型")
-    busy = pending_readers(rel(path)) + ([t["title"] for t in jobs.list_jobs() if t["state"] in ("waiting",) + jobs.BUSY
-                                          and str(t.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
+        problems.append(t("md.rn.p.taken", name=new + ext))
+    busy = pending_readers(rel(path)) + ([job_title(j) for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY
+                                          and str(j.get("spec", {}).get("out", "")).replace("\\", "/") == rel(path)])
     if busy:
-        problems.append(f"排隊中或執行中的工作「{busy[0]}」要用這個模型，等它結束或取消佇列再改")
-    st.caption(f"會一起改 `{name}`、`{name}.meta.json`、`{name}.check.txt`（訓練紀錄、對戰紀錄都跟著走）。hash 不包含名稱，所以不會變。")
+        problems.append(t("md.rn.p.busy", title=busy[0]))
+    st.caption(t("md.rn.caption", name=name))
     refs = modelmeta.model_references(path)
     if refs["meta"]:
-        st.info("其他模型的紀錄（對戰對手、自我對戰資料）也會改成新名字：\n\n"
-                + "\n".join(f"- `{rel(p)}`" for p in refs["meta"]))
+        st.info(t("md.rn.refs", list="\n".join(f"- `{rel(p)}`" for p in refs["meta"])))
     if refs["official"]:
-        st.caption("正式模型（git 追蹤）的紀錄不會改，仍寫舊名字：" + "、".join(f"`{rel(p)}`" for p in refs["official"]))
+        st.caption(t("md.rn.official", list=t("common.list").join(f"`{rel(p)}`" for p in refs["official"])))
     dumps, configs = model_name_users(path)
     local_configs = [c for c in refs["configs"] if rel(c) in configs]
     picked = []
     if local_configs:
-        st.markdown("一起改這些設定檔裡的估值模型路徑（改了以後用它們重跑才找得到模型）：")
+        st.markdown(t("md.rn.cfgs"))
         picked = [c for c in local_configs if st.checkbox(f"`{rel(c)}`", value=True, key=f"rename-cfg-{name}-{rel(c)}")]
     stale = [c for c in configs if c not in {rel(x) for x in picked}]
     if dumps or stale:
-        st.warning("下面這些還用舊名字指向這個模型：改名後**用它們重跑會找不到模型**，"
-                   "用它產生的自我對戰資料 hash 也會因為找不到舊名字的模型而改變。"
-                   "資料檔記的是產生當時的路徑，不會改。\n\n"
-                   + "\n".join(f"- 資料 `{d}`" for d in dumps) + ("\n" if dumps and stale else "")
-                   + "\n".join(f"- 設定檔 `{c}`" for c in stale))
+        st.warning(t("md.rn.stale", items="\n".join(t("md.rn.item_data", d=d) for d in dumps) + ("\n" if dumps and stale else "")
+                                   + "\n".join(t("md.rn.item_cfg", c=c) for c in stale)))
     if problems:
-        st.markdown('<span class="act-err">無法改名：' + "；".join(plain(x) for x in problems) + "</span>", unsafe_allow_html=True)
+        st.markdown(f'<span class="act-err">{t("md.rn.cannot", reasons=t("common.sep").join(plain(x) for x in problems))}</span>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    if c1.button("取消", key=f"rename-cancel-{name}", width="stretch"):
+    if c1.button(t("queue.cancel"), key=f"rename-cancel-{name}", width="stretch"):
         st.rerun()
-    if c2.button("確定改名", type="primary", key=f"rename-ok-{name}", width="stretch", disabled=bool(problems)):
+    if c2.button(t("md.rn.ok"), type="primary", key=f"rename-ok-{name}", width="stretch", disabled=bool(problems)):
         try:
             target = modelmeta.rename_model(path, new, configs=picked)
-            st.session_state["job-started"] = f"{name} 已改名為 {os.path.basename(target)}。"
+            st.session_state["job-started"] = t("md.rn.done", name=name, new=os.path.basename(target))
             st.session_state["model-pick"] = os.path.basename(target)
             st.cache_data.clear()
             st.rerun()
@@ -1600,64 +1582,65 @@ def model_detail(path):
     name = os.path.basename(path)
     move_buttons(path)
     if not meta:
-        st.warning(f"`{name}` 沒有 `.meta.json`（不知道怎麼訓練的）。")
+        st.warning(t("md.no_meta", name=name))
         return
     v = meta.get("validation") or {}
     best = best_vs_default(meta)
-    st.markdown(version_tiles([("種類", KIND_TEXT.get(meta["kind"], meta["kind"])),
-                               ("資料列數", f"{sum(d['rows'] for d in meta['data']):,}"),
+    st.markdown(version_tiles([(t("mlist.col.kind"), KIND_TEXT.get(meta["kind"], meta["kind"])),
+                               (t("mlist.col.rows"), f"{sum(d['rows'] for d in meta['data']):,}"),
                                ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—", METRIC_HELP["R²"]),
-                               ("交叉熵", f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
-                               ("對原版 MCTS 最佳勝率", f"{best['winShare']:.1%}" if best else "—")], centre=True), unsafe_allow_html=True)
-    st.caption(("最佳勝率來自：" + describe_match(best) + "。") if best else "還沒有對原版 MCTS 的對戰。")
+                               (t("mlist.col.ce"), f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
+                               (t("mlist.col.best"), f"{best['winShare']:.1%}" if best else "—")], centre=True), unsafe_allow_html=True)
+    st.caption(t("md.best_from", desc=describe_match(best)) if best else t("md.no_best"))
 
-    st.markdown("**對戰結果**（判斷模型好壞的依據）")
+    st.markdown(t("md.matches_title"))
     mf = matches_frame(meta, path)
     if mf.empty:
-        st.caption("還沒有對戰紀錄。")
+        st.caption(t("md.no_matches"))
     else:
         grid(mf, hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
-        st.caption(f"結果檔可以在 Dashboard（{DASHBOARD_URL}）的「結果」「比較」頁打開。")
+        st.caption(t("md.dash_note", url=DASHBOARD_URL))
         match_summary_box(meta, path, f"detail-{name}")
 
-    st.markdown("**訓練資料**")
-    grid(pd.DataFrame([{"來源": d["source"], "局數": d["games"], "列數": d["rows"], "抽樣率": d["rate"],
-                                "狀態": d["status"], "策略": "、".join(dict.fromkeys(s for s in d["strategies"] if s)),
-                                "自我對戰模型": "、".join(os.path.basename(m) for m in d.get("valueModels", [])),
+    st.markdown(t("md.data_title"))
+    sep = t("common.list")
+    grid(pd.DataFrame([{t("md.dcol.source"): d["source"], t("md.dcol.games"): d["games"], t("md.dcol.rows"): d["rows"], t("md.dcol.rate"): d["rate"],
+                                t("md.dcol.status"): d["status"], t("md.dcol.strategies"): sep.join(dict.fromkeys(s for s in d["strategies"] if s)),
+                                t("md.dcol.selfplay"): sep.join(os.path.basename(m) for m in d.get("valueModels", [])),
                                 "hash": fingerprint.short(d.get("fingerprint")) or "—",
-                                "版本": (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + "、"
-                                         + "、".join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip("、"),
-                                "檔案": os.path.basename(d["path"])} for d in meta["data"]]),
+                                t("md.dcol.version"): (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + sep
+                                         + sep.join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip(sep),
+                                t("md.dcol.file"): os.path.basename(d["path"])} for d in meta["data"]]),
                  hide_index=True, width="stretch")
     if meta.get("data"):
         folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
 
     left, right = st.columns(2)
     with left:
-        st.markdown("**訓練參數**")
-        grid(pd.DataFrame(list(flat_params(meta).items()), columns=["參數", "值"]).astype(str),
+        st.markdown(t("md.params_title"))
+        grid(pd.DataFrame(list(flat_params(meta).items()), columns=[t("md.pcol.param"), t("md.pcol.value")]).astype(str),
                      hide_index=True, width="stretch")
     with right:
-        st.markdown("**驗證（各回合段）**")
+        st.markdown(t("md.valid_title"))
         if v.get("byRound"):
-            grid(pd.DataFrame(v["byRound"]).rename(columns={"rounds": "回合", "rows": "列數", "mse": "MSE"}),
+            grid(pd.DataFrame(v["byRound"]).rename(columns={"rounds": t("md.vcol.rounds"), "rows": t("md.vcol.rows"), "mse": "MSE"}),
                          hide_index=True, width="stretch")
         else:
-            st.caption("沒有紀錄。")
-        st.caption("驗證成績只是檢查訓練有沒有壞掉；資料分布不同時 R² 不能互相比較。")
+            st.caption(t("md.no_record"))
+        st.caption(t("md.valid_note"))
 
     curve = (meta.get("training") or {}).get("validLossCurve")
     feats = meta.get("topFeatures") or []
     left, right = st.columns(2)
     with left:
-        st.markdown("**驗證 loss 曲線**")
+        st.markdown(t("md.curve_title"))
         if curve:
             st.altair_chart(loss_chart(curve, height=240), width="stretch")
         else:
-            st.caption("沒有紀錄（舊模型或補寫的 meta）。")
+            st.caption(t("md.no_curve"))
     with right:
-        st.markdown("**特徵重要度（前 20，gain）**")
+        st.markdown(t("md.feat_title"))
         if feats:
             fd = pd.DataFrame(feats[:20])
             chart = alt.Chart(fd).mark_bar().encode(x=alt.X("gain:Q", title="gain"),
@@ -1665,15 +1648,15 @@ def model_detail(path):
                                                     tooltip=["name", alt.Tooltip("gain:Q", format=",.0f")])
             st.altair_chart(chart.properties(height=420), width="stretch")
         else:
-            st.caption("只有 LightGBM 有（MLP 或補寫的 meta 沒有）。")
+            st.caption(t("md.no_feat"))
     env = meta.get("environment") or {}
-    env_text = "環境未記錄" if "note" in env else "・".join(f"{k} {val}" for k, val in env.items())
-    st.caption(f"特徵版本 {meta['featureVersion']}（{meta['featureCount']} 個）・建立 {meta.get('created') or '（補寫）'}・{env_text}"
-               + (f"・配方 hash {fingerprint.short(meta['fingerprint'])}・規則版本 {fingerprint.rules_name(meta.get('rulesRevision', 1), (meta.get('data') or [{}])[0].get('ruleset'))}" if meta.get("fingerprint") else "・舊紀錄：沒有配方 hash"))
+    env_text = t("md.env_missing") if "note" in env else "・".join(f"{k} {val}" for k, val in env.items())
+    st.caption(t("md.foot", version=meta["featureVersion"], count=meta["featureCount"], created=meta.get("created") or t("mlist.backfilled"), env=env_text)
+               + (t("md.foot_hash", hash=fingerprint.short(meta["fingerprint"]), rules=fingerprint.rules_name(meta.get("rulesRevision", 1), (meta.get("data") or [{}])[0].get("ruleset")))
+                  if meta.get("fingerprint") else t("md.foot_old")))
     stale = model_stale(meta)
     if stale:
-        st.warning("這個模型的資料有些是用舊版規則或舊版策略產生的（" + "；".join(stale) + "）："
-                   "它學到的是舊版下的局面，建議用目前的版本重新產生資料並重訓。")
+        st.warning(t("md.stale_warn", notes=t("common.sep").join(stale)))
 
 
 def compare(paths):
@@ -1693,11 +1676,11 @@ def compare(paths):
         return [(label, "l nw")] + [(fmt(x) if x is not None else "—", k) for x, k in zip(values, kinds)] + [("", "c")]
 
     rows = [
-        metric_row("對原版 MCTS 最佳勝率", lambda m: best_vs_default(m)["winShare"] if best_vs_default(m) else None, lambda x: f"{x:.1%}"),
+        metric_row(t("mlist.col.best"), lambda m: best_vs_default(m)["winShare"] if best_vs_default(m) else None, lambda x: f"{x:.1%}"),
         metric_row("R²", lambda m: (m.get("validation") or {}).get("r2"), lambda x: f"{x:.3f}"),
-        metric_row("交叉熵（越低越好）", lambda m: (m.get("validation") or {}).get("crossEntropy"), lambda x: f"{x:.4f}", higher=False),
-        metric_row("資料列數", lambda m: sum(d["rows"] for d in m["data"]), lambda x: f"{x:,}"),
-        [("資料來源", "l nw")] + [("、".join(d["source"] for d in metas[n]["data"]) if metas[n] else "—", "l") for n in names] + [("", "c")],
+        metric_row(t("md.cmp.ce"), lambda m: (m.get("validation") or {}).get("crossEntropy"), lambda x: f"{x:.4f}", higher=False),
+        metric_row(t("mlist.col.rows"), lambda m: sum(d["rows"] for d in m["data"]), lambda x: f"{x:,}"),
+        [(t("md.cmp.source"), "l nw")] + [(t("common.list").join(d["source"] for d in metas[n]["data"]) if metas[n] else "—", "l") for n in names] + [("", "c")],
     ]
     keys = []
     for m in metas.values():
@@ -1707,18 +1690,18 @@ def compare(paths):
     for k in keys:
         vals = [str(flat_params(metas[n] or {}).get(k, "—")) for n in names]
         rows.append([(k, "l nw")] + [(x, "c") for x in vals] + [("●" if len(set(vals)) > 1 else "", "c")])
-    st.markdown(version_table(["項目"] + names + ["不同"], rows, css="cmp"), unsafe_allow_html=True)
-    st.caption("藍底粗體＝這一列最好的模型（勝率、R²、資料列數取最高，交叉熵取最低）；「不同」標出參數不一樣的列。判斷好壞只看對戰勝率。")
+    st.markdown(version_table([t("md.cmp.item")] + names + [t("md.cmp.diff")], rows, css="cmp"), unsafe_allow_html=True)
+    st.caption(t("md.cmp.note"))
 
 
 def _models_body():
     paths = model_files()
     if not paths:
-        st.info("還沒有模型（正式 ml/models/、本機 ml/local/models/ 都是空的）。")
+        st.info(t("md.none"))
         return
     by_name = {os.path.basename(p): p for p in paths}
-    mode = st.radio("檢視", ["單一模型", "並排比較"], horizontal=True)
-    if mode == "單一模型":
+    mode = st.radio(t("md.view"), ["single", "compare"], horizontal=True, format_func=lambda m: t(f"md.view.{m}"), key="models-view")
+    if mode == "single":
         # open on the strongest model (best win share against the original MCTS)
         scores = [(best_vs_default(model_meta(p))["winShare"] if model_meta(p) and best_vs_default(model_meta(p)) else -1) for p in paths]
         if st.session_state.get("model-pick") not in by_name:
@@ -1726,38 +1709,35 @@ def _models_body():
         # passing index while the key already holds a value makes Streamlit warn: only on the first draw
         start = {} if "model-pick" in st.session_state else {"index": scores.index(max(scores))}
         with st.container(key="modelpick"):  # a bigger label and dropdown (CSS .st-key-modelpick)
-            name = st.selectbox("選擇模型", list(by_name), key="model-pick", **start)
+            name = st.selectbox(t("md.pick"), list(by_name), key="model-pick", **start)
         model_detail(by_name[name])
     else:
-        names = st.multiselect("選兩個以上的模型", list(by_name), max_selections=4)
+        names = st.multiselect(t("md.pick_many"), list(by_name), max_selections=4)
         if len(names) >= 2:
             compare([by_name[n] for n in names])
         else:
-            st.caption("選兩個以上的模型來比較參數、資料與勝率。")
+            st.caption(t("md.pick_hint"))
 
 
 def match_tab():
-    with card("match", "對戰驗證：模型版 MCTS 上桌打一組對局"):
+    with card("match", t("match.card")):
         _match_body()
 
 
 def model_list_page():
-    with card("models-list", "模型清單", "正式 ml/models/ ＋ 本機 ml/local/models/ 的每個模型；看單一模型的細節與管理，到「" + TAB_MODELS + "」頁。"):
+    with card("models-list", t("mlist.card"), t("mlist.card_sub", page=TAB_MODELS)):
         models_list()
 
 
 def models_tab():
-    with card("models", "模型詳細資料（正式 ml/models/ ＋ 本機 ml/local/models/）"):
+    with card("models", t("md.card")):
         _models_body()
-    with card("models-metrics", "R² 與交叉熵是什麼"):
-        st.markdown(version_table(["指標", "意思", "範圍", "怎麼看"], [
-            [("R²", "l nw"), ("模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中", "l"),
-             ("0～1，越高越好", "l nw"), ("目前約 0.47～0.58：只看局面就能解釋一半左右的結果，剩下的是之後的決策與運氣", "l")],
-            [("交叉熵", "l nw"), ("訓練時真正在降低的損失。模型輸出一個 0～1 的值（「這個座位的最終回報」），交叉熵衡量它和實際結果的差距；"
-                                  "把錯的事很有信心地說對，懲罰特別重", "l"),
-             ("越接近 0 越好", "l nw"), ("目前約 0.45～0.48", "l")],
+    with card("models-metrics", t("md.metrics_card")):
+        st.markdown(version_table([t("md.m.col.metric"), t("md.m.col.meaning"), t("md.m.col.range"), t("md.m.col.read")], [
+            [("R²", "l nw"), (t("md.m.r2.meaning"), "l"), (t("md.m.r2.range"), "l nw"), (t("md.m.r2.read"), "l")],
+            [(t("mlist.col.ce"), "l nw"), (t("md.m.ce.meaning"), "l"), (t("md.m.ce.range"), "l nw"), (t("md.m.ce.read"), "l")],
         ], css="doc"), unsafe_allow_html=True)
-        st.caption("這兩個數字只能在同一份驗證資料上比。資料組成一變，數字就不能比。判斷模型好壞一律看對戰勝率。")
+        st.caption(t("md.m.note"))
 
 
 def models_list():
@@ -1766,107 +1746,83 @@ def models_list():
     if not paths:
         return
     table = models_table(paths)
-    table["位置"] = table["位置"].map({"正式": "git", "本機": "local"}).fillna(table["位置"])
+    col = lambda key: t(f"mlist.col.{key}")  # noqa: E731
     with st.container(key="filterbar"):  # one flat bar for all quick filters (CSS .st-key-filterbar)
         c1, c2, c3, _ = st.columns([1, 1, 1, 3])
-        places = c1.pills("位置", ["git", "local"], selection_mode="multi", key="mf-place")
-        kinds = c2.pills("種類", ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
-        players = c3.pills("人數", ["3", "4"], selection_mode="multi", key="mf-players", format_func=lambda n: f"{n} 人局")
-    keep = (table["位置"].isin(places or ["git", "local"]) & table["種類"].isin(kinds or ["LightGBM", "MLP"])
-            & table["人數"].isin(players or ["3", "4"]))
+        places = c1.pills(t("mlist.place"), ["git", "local"], selection_mode="multi", key="mf-place")
+        kinds = c2.pills(t("mlist.kind"), ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
+        players = c3.pills(t("mlist.players"), ["3", "4"], selection_mode="multi", key="mf-players", format_func=lambda n: t("match.players_n", n=n))
+    keep = (table[col("place")].isin(places or ["git", "local"]) & table[col("kind")].isin(kinds or ["LightGBM", "MLP"])
+            & table[col("players")].isin(players or ["3", "4"]))
     shown = table[keep]
     if shown.empty:
-        st.caption("沒有符合篩選的模型。")
+        st.caption(t("mlist.none"))
         return
-    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in ("人數", "特徵版本", "R²", "交叉熵", "對戰場數", "對原版 MCTS 最佳勝率")}
+    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in (col("players"), col("feature"), col("r2"), col("ce"), col("matches"), col("best"))}
     grid(shown, hide_index=True, width="stretch", column_config=centred)
-    st.caption(f"顯示 {len(shown)} / {len(table)} 個模型。快篩不選＝全部。位置：git＝正式模型（ml/models/，進 git），local＝本機模型（ml/local/models/）。")
+    st.caption(t("mlist.footer", shown=len(shown), total=len(table)))
 
 
 # ---------------------------------------------------------------- hash 說明、版本控管
 
 def _option_names(keys):
-    return "、".join(f"{PARAM_HELP[k][0].split('（')[0]}（`{k}`）" if k in PARAM_HELP else f"`{k}`" for k in keys)
+    def one(k):
+        if k not in PARAM_DEFAULTS:
+            return f"`{k}`"
+        label = re.split(r" \(|（", t(f"param.{k}"))[0]  # the label without its parenthesised note
+        return f"{label} (`{k}`)" if lang() != "zh-TW" else f"{label}（`{k}`）"
+    return t("common.list").join(one(k) for k in keys)
+
+
+HASH_ROWS = {"data_in": 9, "data_out": 4, "model_in": 6, "model_out": 3}  # rows of each table on the hash page (texts: hp.<table>.<row>.<0|1>)
+
+
+def hash_rows(table, **values):
+    """The (parameter, description) rows of one table of the hash page; "@lgbm" / "@mlp" in a text stands for the option names."""
+    names = {"@lgbm": _option_names(fingerprint.LGBM_OPTIONS), "@mlp": _option_names(fingerprint.MLP_OPTIONS) + t("hp.mlp_extra")}
+    out = []
+    for i in range(HASH_ROWS[table]):
+        first, second = t(f"hp.{table}.{i}.0", **values), t(f"hp.{table}.{i}.1", **values)
+        out.append((first, names.get(second, second)))
+    return out
 
 
 def hash_page():
     rev, now = fingerprint.current_rules_revision(), fingerprint.rules_name(fingerprint.current_rules_revision())
-    with card("hash-what", "hash 是什麼"):
-        st.markdown(
-            "每份**資料**、每個**模型**、每場**對戰**都有一個 **hash**（SHA-256，畫面顯示前 8 碼）：把「決定結果的參數」整理成固定格式再算出來。"
-            "引擎對設定與種子是確定的，所以**參數全部一樣，hash 才會一樣，重跑也只會得到同一份內容**；任何一個參數不同，hash 就不同。\n\n"
-            "hash 只回答「是不是全部一樣」；「哪裡不一樣」由記下來的參數比出來（例如「局數：20,000 → 200,000」）。")
-        st.caption("整理格式：參數名稱排序、`100` 和 `100.0` 視為相同、座位順序不分大小寫。計算在 `ml/fingerprint.py`。")
-    with card("hash-data", "資料（.bin）的 hash"):
-        st.markdown("**計入**")
-        st.table(pd.DataFrame([
-            ("人數、局數", "局數是實際打完的局數（中途取消的資料較少）"),
-            ("種子、抽樣率、座位順序", "座位順序 random／balanced，不分大小寫"),
-            ("每個座位的策略、**策略版本**與**完整參數**", "**依座位順序**：座位換位置，hash 就不同。參數是引擎實際使用的值：設定檔沒寫的參數，用該人數的預設值補上，所以改了預設值 hash 也會不同"),
-            ("估值模型（自我對戰用）", "用**模型檔案的內容**（SHA-256），不是檔名：同名檔案被重訓覆寫後 hash 就變了"),
-            ("最大回合數、每局最大決策數、自動跳過唯一合法動作", "設定檔的 limits、options；沒寫就用引擎預設值"),
-            ("規則集與規則版本", f"目前 {now}（規則集 base、修訂 {rev}）；見「版本控管」頁"),
-            ("變體與變體選項", "預留給以後的自訂規則（例如起始金錢兩倍），目前一律是「無」"),
-            ("hash 格式版本", f"目前 {fingerprint.HASH_FORMAT}；配方的結構改了才會變（所有 hash 會一起變）"),
-            ("特徵版本、資料格式版本", "特徵清單或 .bin 排列改了，資料就不一樣"),
-        ], columns=["參數", "說明"]).set_index("參數"))
-        st.markdown("**不計入**")
-        st.table(pd.DataFrame([
-            ("檔名、輸出名稱、設定檔名稱", "改名字不會讓資料變成另一份"),
-            ("座位 id", "只是標籤，座位的策略與參數才算"),
-            ("執行緒數", "引擎保證結果與執行緒數無關"),
-            ("引擎版本、git commit、產生時間", "只用來追溯（記在 .bin.json），不進 hash"),
-        ], columns=["參數", "原因"]).set_index("參數"))
-    with card("hash-model", "模型的 hash"):
-        st.markdown("**計入**")
-        st.table(pd.DataFrame([
-            ("種類", "LightGBM 或 MLP"),
-            ("hash 格式版本", ""),
-            ("特徵版本", ""),
-            ("每份訓練資料的 hash（排序後）", "用資料的 hash，不是檔名：資料被覆寫或換了，模型的 hash 就不同；勾選順序不影響"),
-            ("LightGBM 訓練參數", _option_names(fingerprint.LGBM_OPTIONS)),
-            ("MLP 訓練參數", _option_names(fingerprint.MLP_OPTIONS) + "；訓練引擎與裝置用**實際解析後**的值（auto 會換成 torch／numpy、cuda／cpu）"),
-        ], columns=["參數", "說明"]).set_index("參數"))
-        st.markdown("**不計入**")
-        st.table(pd.DataFrame([
-            ("模型名稱", "改名字不會讓模型變成另一個"),
-            ("執行緒數（`threads`）", "LightGBM 樹的結果與執行緒數無關（有測試驗證）"),
-            ("套件版本（lightgbm、torch、numpy）、Python 版本、訓練時間", "記錄並顯示，但不進 hash"),
-        ], columns=["參數", "原因"]).set_index("參數"))
-        st.caption("新增訓練參數時必須同步 `fingerprint.LGBM_OPTIONS`／`MLP_OPTIONS`（測試會檢查）。早期補寫的模型沒有 hash，標「舊紀錄」。")
-    with card("hash-match", "對戰結果的 hash"):
-        st.markdown("與資料相同（人數、局數、種子、座位順序、每個座位的策略、策略版本與完整參數、估值模型的檔案內容、limits、options、規則集與規則版本、變體），"
-                    "但**沒有**抽樣率與特徵版本。不計入：結果檔名、設定檔名稱、座位 id、執行緒數、引擎版本與 git commit。"
-                    "每場對戰另外記下當時模型檔案的 hash：模型之後被覆寫，舊結果會標「模型檔已更新」。")
-    with card("hash-versions", "規則版本、策略版本與預設值"):
-        st.markdown(
-            f"- **規則版本**（目前 {now}）：遊戲規則與亂數／種子衍生改了才加 1，所有資料都受影響。\n"
-            "- **策略版本**（例如 `harbor-rush-v1`）：每個策略自己的決策邏輯改了才加 1，**只有用到這個策略的資料**受影響；"
-            "MCTS 的版本也包含它的 rollout 策略與估值模型推論程式。\n"
-            "- **預設值**：改策略的預設參數**不需要**加版本。引擎會把每個座位實際使用的完整參數（預設值填好）記進資料與結果檔，"
-            "hash 用的就是它，所以預設值一改，hash 自然不同。\n"
-            "- **舊檔案**：引擎開始記錄完整參數以前的資料與結果檔，用凍結的預設值表（`ml/strategy-params.legacy.json`，"
-            "策略 v1、規則 base-v1 當時的預設值）補算；之後的預設值改動不會影響它們。新的執行則用目前的預設值表"
-            "（`ml/strategy-params.json`，由引擎產生、測試檢查與程式一致）預測 hash。")
-    with card("hash-use", "hash 在 ML UI 裡怎麼用"):
-        st.markdown(
-            "- **同名檔案**：hash 相同→「完全相同，不需要覆寫」；不同→列出差異；資料被模型用過會列出是哪些模型。\n"
-            "- **不同名但 hash 相同**：提示重複（避免同一份資料被勾兩次訓練，讓模型多看一次同樣的局面）。\n"
-            f"- **舊版**：規則版本低於目前（{now}），或座位上的策略版本低於目前的資料與模型，「版本狀態」會寫「舊：…」，建議重新產生。\n"
-            "- **排隊保護**：排隊中或執行中的工作要讀的檔案（訓練資料、對戰用的模型）不能被覆寫。")
-    with card("hash-look", "查看某份資料或模型的配方"):
+    values = {"now": now, "rev": rev, "fmt": fingerprint.HASH_FORMAT}
+    with card("hash-what", t("hp.what.card")):
+        st.markdown(t("hp.what.body"))
+        st.caption(t("hp.what.note"))
+    with card("hash-data", t("hp.data.card")):
+        st.markdown(t("hp.in"))
+        st.table(pd.DataFrame(hash_rows("data_in", **values), columns=[t("hp.col.param"), t("hp.col.desc")]).set_index(t("hp.col.param")))
+        st.markdown(t("hp.out"))
+        st.table(pd.DataFrame(hash_rows("data_out"), columns=[t("hp.col.param"), t("hp.col.reason")]).set_index(t("hp.col.param")))
+    with card("hash-model", t("hp.model.card")):
+        st.markdown(t("hp.in"))
+        st.table(pd.DataFrame(hash_rows("model_in"), columns=[t("hp.col.param"), t("hp.col.desc")]).set_index(t("hp.col.param")))
+        st.markdown(t("hp.out"))
+        st.table(pd.DataFrame(hash_rows("model_out"), columns=[t("hp.col.param"), t("hp.col.reason")]).set_index(t("hp.col.param")))
+        st.caption(t("hp.model.note"))
+    with card("hash-match", t("hp.match.card")):
+        st.markdown(t("hp.match.body"))
+    with card("hash-versions", t("hp.versions.card")):
+        st.markdown(t("hp.versions.body", now=now))
+    with card("hash-use", t("hp.use.card")):
+        st.markdown(t("hp.use.body", now=now))
+    with card("hash-look", t("hp.look.card")):
         dumps = [d for d in list_dumps() if "_fp" in d]
-        choices = {f"資料　{d['來源']}": (d["_recipe"], d["_fp"]) for d in dumps}
+        choices = {t("hp.look.data", name=d["來源"]): (d["_recipe"], d["_fp"]) for d in dumps}
         for mp in model_files():
             meta = model_meta(mp)
             if meta and meta.get("recipe"):
-                choices[f"模型　{os.path.basename(mp)}"] = (meta["recipe"], meta["fingerprint"])
+                choices[t("hp.look.model", name=os.path.basename(mp))] = (meta["recipe"], meta["fingerprint"])
         if not choices:
-            st.caption("還沒有資料或模型。")
+            st.caption(t("hp.look.none"))
             return
-        pick = st.selectbox("選一份", list(choices), key="hash-look-pick")
+        pick = st.selectbox(t("hp.look.pick"), list(choices), key="hash-look-pick")
         recipe, full = choices[pick]
-        st.markdown(f"hash：`{full}`")
+        st.markdown(t("hp.look.hash", hash=full))
         st.json(recipe, expanded=2)
 
 
@@ -1879,15 +1835,16 @@ def loss_chart(values, steps=None, height=240):
     """The validation-loss curve as a fixed chart: no zoom or pan, both axes fixed to the data plus a margin on every side (so the line
     never touches the frame), whole steps on the x axis."""
     steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
-    df = pd.DataFrame({"步": steps, "驗證 loss": list(values)})
-    lo, hi = float(df["驗證 loss"].min()), float(df["驗證 loss"].max())
+    step, loss = t("md.step"), t("md.valid_loss")
+    df = pd.DataFrame({step: steps, loss: list(values)})
+    lo, hi = float(df[loss].min()), float(df[loss].max())
     ypad = (hi - lo) * 0.12 or max(abs(hi) * 0.02, 0.001)
     first, last = float(min(steps)), float(max(steps))
     xpad = max(0.5, (last - first) * 0.04)
     chart = alt.Chart(df).mark_line(color="#4aa8ff", strokeWidth=2, point=alt.OverlayMarkDef(color="#4aa8ff", size=18)).encode(
-        x=alt.X("步:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title="步")),
-        y=alt.Y("驗證 loss:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title="驗證 loss", format=".3f")),
-        tooltip=[alt.Tooltip("步:Q", format="d"), alt.Tooltip("驗證 loss:Q", format=".4f")])
+        x=alt.X(f"{step}:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title=step)),
+        y=alt.Y(f"{loss}:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title=loss, format=".3f")),
+        tooltip=[alt.Tooltip(f"{step}:Q", format="d"), alt.Tooltip(f"{loss}:Q", format=".4f")])
     return chart.properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10})
 
 
@@ -1902,12 +1859,7 @@ def version_tiles(items, centre=False):
     return f'<div class="vtiles{" mid" if centre else ""}">' + "".join(tile(i) for i in items) + "</div>"
 
 
-METRIC_HELP = {
-    "R²": "模型解釋了多少「結果的變化」：0 代表和每次都猜平均值一樣差，1 代表完全猜中。越高越好。"
-          "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
-    "交叉熵": "訓練時真正在降低的損失：模型輸出的 0～1 回報和實際結果的差距，很有信心卻猜錯會被重罰。越接近 0 越好。"
-             "只能在同一份驗證資料上比；判斷模型好壞看對戰勝率。",
-}
+METRIC_HELP = {"R²": t("md.help.r2"), "交叉熵": t("md.help.ce")}
 
 
 def version_table(head, rows, css=""):
@@ -1928,64 +1880,58 @@ def versions_page():
     if error:
         st.error(error)
         return
-    with card("ver-now", "這份程式現在的版本"):
-        st.markdown(version_tiles([("規則版本", fingerprint.rules_name(fingerprint.current_rules_revision())),
-                                   ("引擎版本", fingerprint.current_engine_version()),
-                                   ("特徵版本", fingerprint.current_feature_version()),
-                                   ("資料格式版本", fingerprint.current_format_version())]), unsafe_allow_html=True)
+    with card("ver-now", t("ver.now")):
+        st.markdown(version_tiles([(t("ver.rules"), fingerprint.rules_name(fingerprint.current_rules_revision())),
+                                   (t("ver.engine"), fingerprint.current_engine_version()),
+                                   (t("ver.features"), fingerprint.current_feature_version()),
+                                   (t("ver.format"), fingerprint.current_format_version())]), unsafe_allow_html=True)
         now = {"rules": str(fingerprint.current_rules_revision()), "engine": fingerprint.current_engine_version(),
                "features": str(fingerprint.current_feature_version()), "format": str(fingerprint.current_format_version())}
-        stale = [t["title"] for t in tracks.values() if t["id"] in now and (t["entries"] or [{}])[0].get("version") != now[t["id"]]]
+        stale = [k["title"] for k in tracks.values() if k["id"] in now and (k["entries"] or [{}])[0].get("version") != now[k["id"]]]
         if stale:
-            st.warning("版本清單（docs/versions.json）和程式裡的版本號不一致：" + "、".join(stale) + "。請補上這個版本做了哪些修改。")
-        st.caption("同一份清單 Dashboard 的「版本控管」頁也有。規則版本只管遊戲規則與亂數；每個策略另有自己的策略版本（本頁最下方）；"
-                   "引擎版本給人看；hash 用規則版本、策略版本、特徵版本、資料格式版本判斷資料與模型是不是舊的。")
-    for t in tracks.values():
-        entries = t.get("entries", [])
+            st.warning(t("ver.stale", names=", ".join(stale)))
+        st.caption(t("ver.caption"))
+    for track in tracks.values():
+        entries = track.get("entries", [])
         cur = entries[0]["version"] if entries else "?"
-        show = lambda v, t=t: t["display"].replace("{version}", str(v))  # noqa: E731
-        with card(f"ver-{t['id']}", t["title"]):
-            st.markdown(f"<div class='vnote'><b>目前：{_esc(show(cur))}</b>・來源：<code>{_esc(t['source'])}</code></div>"
-                        f"<div class='vnote'>{_esc(t['meaning'])}</div><div class='vnote'><b>什麼時候加：</b>{_esc(t['bump'])}</div>"
-                        + version_table(["版本", "日期", "commit", "修改內容"],
+        show = lambda v, track=track: track["display"].replace("{version}", str(v))  # noqa: E731
+        with card(f"ver-{track['id']}", track["title"]):
+            st.markdown(f"<div class='vnote'><b>{t('ver.current', v=_esc(show(cur)))}</b> · {t('ver.source')}: <code>{_esc(track['source'])}</code></div>"
+                        f"<div class='vnote'>{_esc(track['meaning'])}</div><div class='vnote'><b>{t('ver.bump')}: </b>{_esc(track['bump'])}</div>"
+                        + version_table([t("ver.col.version"), t("ver.col.date"), "commit", t("ver.col.changes")],
                                         [[(show(e["version"]), "c"), (e["date"], "c"), ((e.get("commit") or "")[:8] or "—", "code"),
                                           (e["changes"], "list")] for e in entries]), unsafe_allow_html=True)
     (info, strategies), _ = fingerprint.load_versions(strategies=True)
-    with card("ver-strategies", info.get("title", "策略版本")):
+    with card("ver-strategies", info.get("title", t("ver.strategies"))):
         rows, mismatch = [], []
-        for t in strategies:
-            e = (t.get("entries") or [{}])[0]
-            code = fingerprint.current_strategy_revision(t["id"])
+        for strat in strategies:
+            e = (strat.get("entries") or [{}])[0]
+            code = fingerprint.current_strategy_revision(strat["id"])
             if code is not None and str(code) != str(e.get("version")):
-                mismatch.append(t["id"])
-            rows.append([(t["id"], "l nw"), (fingerprint.strategy_name(t["id"], e.get("version", "?")), "c"),
+                mismatch.append(strat["id"])
+            rows.append([(strat["id"], "l nw"), (fingerprint.strategy_name(strat["id"], e.get("version", "?")), "c"),
                          (f"v{code}" if code is not None else "—", "c"), (e.get("date", ""), "c"),
                          ((e.get("commit") or "")[:8] or "—", "code"), (e.get("changes", []), "list")])
         if mismatch:
-            st.warning("版本清單和程式裡的策略版本不一致：" + "、".join(mismatch) + "。")
-        st.markdown(f"<div class='vnote'>{_esc(info.get('meaning', ''))}</div><div class='vnote'><b>什麼時候加：</b>{_esc(info.get('bump', ''))}</div>"
-                    + version_table(["策略", "目前版本", "程式裡", "日期", "commit", "這個版本的修改"], rows), unsafe_allow_html=True)
-        with st.expander("每個策略的完整歷史"):
-            st.markdown(version_table(["版本", "日期", "commit", "修改內容"],
-                                      [[(fingerprint.strategy_name(t["id"], e["version"]), "c"), (e["date"], "c"),
+            st.warning(t("ver.strategy_mismatch", names=", ".join(mismatch)))
+        st.markdown(f"<div class='vnote'>{_esc(info.get('meaning', ''))}</div><div class='vnote'><b>{t('ver.bump')}: </b>{_esc(info.get('bump', ''))}</div>"
+                    + version_table([t("ver.col.strategy"), t("ver.col.current"), t("ver.col.code"), t("ver.col.date"), "commit", t("ver.col.this")], rows), unsafe_allow_html=True)
+        with st.expander(t("ver.history")):
+            st.markdown(version_table([t("ver.col.version"), t("ver.col.date"), "commit", t("ver.col.changes")],
+                                      [[(fingerprint.strategy_name(strat["id"], e["version"]), "c"), (e["date"], "c"),
                                         ((e.get("commit") or "")[:8] or "—", "code"), (e["changes"], "list")]
-                                       for t in strategies for e in t.get("entries", [])]), unsafe_allow_html=True)
+                                       for strat in strategies for e in strat.get("entries", [])]), unsafe_allow_html=True)
 
 
 # left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)
-PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), "流程"),
+PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), t("section.flow")),
          ("train", TAB_TRAIN, "🧠", lambda: training_tab(), None),
          ("match", TAB_MATCH, "⚔️", lambda: match_tab(), None),
-         ("modellist", TAB_MODELLIST, "📋", lambda: model_list_page(), "管理"),
+         ("modellist", TAB_MODELLIST, "📋", lambda: model_list_page(), t("section.manage")),
          ("models", TAB_MODELS, "📦", lambda: models_tab(), None),
          ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None),
-         ("hash", "hash 說明", "🔑", lambda: hash_page(), "說明"),
-         ("versions", "版本控管", "🏷️", lambda: versions_page(), None)]
-
-
-# the heading at the top of each page (English, like the navigation brand)
-PAGE_TITLES = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "modellist": "Model List", "models": "Model Details",
-               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
+         ("hash", t("page.hash"), "🔑", lambda: hash_page(), t("section.help")),
+         ("versions", t("page.versions"), "🏷️", lambda: versions_page(), None)]
 
 
 def current_page():
@@ -1999,6 +1945,12 @@ def go(page):
     st.query_params["page"] = page  # a reload stays on the same page
 
 
+def switch_language():
+    other = "zh-TW" if lang() == "en" else "en"
+    st.session_state["lang"] = other
+    st.query_params["lang"] = other
+
+
 def sidebar_nav(page):
     st.markdown(f'<div class="nav-brand"><span class="nav-icon">🌱</span><span>Puerto Rico<br>Machine Learning</span></div>',
                 unsafe_allow_html=True)
@@ -2008,6 +1960,7 @@ def sidebar_nav(page):
         # the active entry gets another key prefix (navon-) so the CSS can highlight it
         st.button(f"{icon} {title}", key=f"{'navon' if pid == page else 'nav'}-{pid}", width="stretch",
                   on_click=go, args=(pid,))
+    st.button(t("lang.switch"), key="lang-toggle", on_click=switch_language)
 
 
 def main():
@@ -2018,9 +1971,8 @@ def main():
         sidebar_nav(page)
         with st.container(key="side-status"):  # pinned to the bottom of the navigation (CSS)
             sidebar_status()
-    st.title(PAGE_TITLES[page])
-    st.caption(f"流程：{TAB_DATA} → {TAB_TRAIN} → {TAB_MATCH}。工作都在背景程序依序執行，關掉這個頁面或 UI 都不會中斷。"
-               f"模擬、結果與回放請用 Dashboard（{DASHBOARD_URL}）。")
+    st.title(t(f"page.{page}"))
+    st.caption(t("header.flow", data=TAB_DATA, train=TAB_TRAIN, match=TAB_MATCH, url=DASHBOARD_URL))
     started = st.session_state.pop("job-started", None)
     if started:
         st.toast(started)

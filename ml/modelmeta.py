@@ -481,13 +481,20 @@ def rename_model(model_path, new_name, configs=()):
     return target
 
 
+def _relpath(path, start):
+    try:
+        return os.path.relpath(path, start)
+    except ValueError:  # another drive (Windows)
+        return path
+
+
 def move_model(model_path, target_dir):
     """Moves a model with its .meta.json and .check.txt (promote to ml/models, or move to ml/local/models).
     Refuses when the target already has a model of that name. Returns the new path."""
     name = os.path.basename(model_path)
     target = os.path.join(target_dir, name)
     if os.path.exists(target):
-        raise ValueError(f"{name} already exists in {os.path.relpath(target_dir, os.path.dirname(ML_DIR))}")
+        raise ValueError(f"{name} already exists in {_relpath(target_dir, os.path.dirname(ML_DIR))}")
     os.makedirs(target_dir, exist_ok=True)
     local_matches = _local_records(model_path) if is_official(model_path) else []
     for suffix in MODEL_FILES:

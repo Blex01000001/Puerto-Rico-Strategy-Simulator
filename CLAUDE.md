@@ -17,10 +17,12 @@
 ## 地圖
 | 路徑 | 用途 |
 |---|---|
-| `README.md` | 給第一次看的人：目的、主要結論（數字來自分析文件，分析更新時同步）、快速開始 |
+| `README.md` | 給第一次看的人：目的與可重現性、MCTS＋GBDT／MLP 架構、訓練流程、模型概況（數字來自 `docs/models.md`／分析文件第 10 節，更新時同步；目前是規則版本 1 的數字）、手寫策略、快速開始。`README.md` 是英文版、`README.zh-TW.md` 是中文版，兩份內容要同步改 |
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
 | `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數，10.4 資料局數與模型大小） |
 | `docs/versions.json` | 版本控管清單：規則版本、引擎版本、特徵版本、資料格式版本與每個策略的策略版本，各自的版本號、commit 與每個版本的修改內容（兩個 UI 的「版本控管」頁讀它；規則見下面「版本與 hash」） |
+| `docs/rules-interpretations.md` | 規則詮釋確認清單（TODO 8(a)）：六條引擎自行採用的詮釋，附規則原文、做法與例子，等使用者確認 |
+| `i18n/` | UI 文字表：`ml.<語言>.json`（ML UI，`ml/i18n.py` 讀）、`dash.<語言>.json`（Dashboard，`Dashboard/Services/Loc.cs` 讀）；語言 `en`（預設）、`zh-TW`；`ml/tests/test_i18n.py` 檢查 |
 | `docs/models.md` | 局面估值模型的研發紀錄與目前狀況（每個模型的資料、勝率、狀態；新增正式模型時補一列） |
 | `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
 | `docs/experiments.md` | 實驗設定索引：`tournaments/`、`sweeps/round*`、`mcts/` 各是什麼、怎麼重跑 |
@@ -65,7 +67,7 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 |---|---|---|---|
 | **規則版本** | `EngineInfo.RulesRevision`（規則集 `EngineInfo.RulesVersion` = `base`） | `base-v1`（有變體時 `base-v2-rich-start`） | 遊戲規則（建築、計分、Setup、終局…）或亂數／種子衍生改變，同設定同種子結果不同。所有資料都變舊。 |
 | **策略版本**（每個策略一個） | `StrategyRegistry.Revisions` | `harbor-rush-v1` | 該策略的**決策邏輯**改變（含它共用的程式：`HeuristicStrategy`、`TieBreakRules` 改了＝所有手寫策略各加 1；`mcts` 也包含 rollout 呼叫、估值模型推論與特徵集（`FeatureSets`、`FeaturesV1`／`V2`）程式；只「新增」特徵集、舊版模型的對局逐局不變時不用加）。只有用到它的資料變舊。`rule-based` 跟著它的 profile。 |
-| **引擎版本**（SemVer） | `EngineInfo.Version` | `0.3.0` | 新增功能、策略、輸出欄位加次版本；不影響結果的修正加修訂版本；規則或策略版本加 1 時至少加次版本。不進 hash。 |
+| **引擎版本**（SemVer） | `EngineInfo.Version` | `1.0.0` | 新增功能、策略、輸出欄位加次版本；不影響結果的修正加修訂版本；規則或策略版本加 1 時至少加次版本。**1.0.0 起的相容承諾**（設定／結果 JSON、Runner 命令列、資料與模型格式、同設定同種子結果相同）**被破壞才加主版本**，規則修正走規則版本、不算破壞。不進 hash。 |
 | **特徵版本** | `FeatureSets.LatestVersion` | 整數（最新版；舊版並存） | 要換特徵清單時，**新增一個特徵集**（`FeaturesV{N}.cs`，登錄在 `FeatureSets.All`）並把最新版加 1；**不要改舊版的清單**（模型與資料依它的名稱與順序）。多個版本並存：模型記著訓練時的特徵名稱，引擎依名稱挑對應的特徵集，舊版模型與資料照常可用。 |
 | **資料格式版本** | `PositionDump.FormatVersion` | 整數 | `.bin` 紀錄排列改變（只在 `.bin.json` 新增欄位不用加）。 |
 

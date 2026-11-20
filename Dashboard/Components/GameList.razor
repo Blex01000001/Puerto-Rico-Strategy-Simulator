@@ -6,79 +6,79 @@
 <div class="panel">
     <div class="filters">
         <fieldset>
-            <legend>整局</legend>
-            <label>回合 <input type="number" min="0" @bind="f.RoundsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.RoundsMax" placeholder="最多" /></label>
-            <label>決策數 <input type="number" min="0" @bind="f.DecisionsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.DecisionsMax" placeholder="最多" /></label>
-            <label>終局原因
+            <legend>@L.T("gl.whole")</legend>
+            <label>@L.T("gl.rounds") <input type="number" min="0" @bind="f.RoundsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.RoundsMax" placeholder="@L.T("gl.max")" /></label>
+            <label>@L.T("gl.decisions") <input type="number" min="0" @bind="f.DecisionsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.DecisionsMax" placeholder="@L.T("gl.max")" /></label>
+            <label>@L.T("gl.th.reason")
                 <select @bind="endReason">
-                    <option value="">（不限）</option>
+                    <option value="">@L.T("gl.any")</option>
                     @foreach (var (key, name) in Reasons) { <option value="@key">@name</option> }
                 </select>
             </label>
-            <label>贏家策略
+            <label>@L.T("gl.winner_strategy")
                 <select @bind="winnerStrategy">
-                    <option value="">（不限）</option>
+                    <option value="">@L.T("gl.any")</option>
                     @foreach (var s in Strategies) { <option value="@s">@Palette.DisplayName(s)</option> }
                 </select>
             </label>
-            <label>贏家桌位
+            <label>@L.T("gl.winner_seat")
                 <select @bind="winnerSeat">
-                    <option value="-1">（不限）</option>
-                    @for (int i = 0; i < Result.Config.Players; i++) { <option value="@i">座位 @(i + 1)</option> }
+                    <option value="-1">@L.T("gl.any")</option>
+                    @for (int i = 0; i < Result.Config.Players; i++) { <option value="@i">@L.T("sim.seat_n", i + 1)</option> }
                 </select>
             </label>
-            <label>並列第一
+            <label>@L.T("gl.tie")
                 <select @bind="tie">
-                    <option value="">（不限）</option>
-                    <option value="yes">只看並列</option>
-                    <option value="no">排除並列</option>
+                    <option value="">@L.T("gl.any")</option>
+                    <option value="yes">@L.T("gl.tie_only")</option>
+                    <option value="no">@L.T("gl.tie_exclude")</option>
                 </select>
             </label>
-            <label>第一二名分差 <input type="number" min="0" @bind="f.MarginMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.MarginMax" placeholder="最多" /></label>
+            <label>@L.T("gl.margin_filter") <input type="number" min="0" @bind="f.MarginMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.MarginMax" placeholder="@L.T("gl.max")" /></label>
         </fieldset>
 
         <fieldset>
-            <legend>某位玩家同時符合（同一位玩家要全部成立）</legend>
-            <label>策略
+            <legend>@L.T("gl.player_legend")</legend>
+            <label>@L.T("gl.strategy")
                 <select @bind="playerStrategy">
-                    <option value="">（不限）</option>
+                    <option value="">@L.T("gl.any")</option>
                     @foreach (var s in Strategies) { <option value="@s">@Palette.DisplayName(s)</option> }
                 </select>
             </label>
-            <label>名次
+            <label>@L.T("gl.rank")
                 <select @bind="playerRank">
-                    <option value="0">（不限）</option>
-                    @for (int r = 1; r <= Result.Config.Players; r++) { <option value="@r">第 @r 名</option> }
+                    <option value="0">@L.T("gl.any")</option>
+                    @for (int r = 1; r <= Result.Config.Players; r++) { <option value="@r">@L.T("gl.place", r)</option> }
                 </select>
             </label>
-            <label>總分 <input type="number" min="0" @bind="f.Player.ScoreMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.Player.ScoreMax" placeholder="最多" /></label>
-            <label>出貨次數 <input type="number" min="0" @bind="f.Player.ShipmentsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.Player.ShipmentsMax" placeholder="最多" /></label>
-            <label>終局金幣 <input type="number" min="0" @bind="f.Player.CoinsMin" placeholder="最少" /> ～ <input type="number" min="0" @bind="f.Player.CoinsMax" placeholder="最多" /></label>
-            <label>大型建築加成 ≥ <input type="number" min="0" @bind="f.Player.BonusMin" /></label>
+            <label>@L.T("gl.score") <input type="number" min="0" @bind="f.Player.ScoreMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.Player.ScoreMax" placeholder="@L.T("gl.max")" /></label>
+            <label>@L.T("gl.shipments") <input type="number" min="0" @bind="f.Player.ShipmentsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.Player.ShipmentsMax" placeholder="@L.T("gl.max")" /></label>
+            <label>@L.T("gl.coins") <input type="number" min="0" @bind="f.Player.CoinsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.Player.CoinsMax" placeholder="@L.T("gl.max")" /></label>
+            <label>@L.T("gl.bonus_ge") <input type="number" min="0" @bind="f.Player.BonusMin" /></label>
             @if (Analysis.HasBuildingRecords)
             {
-                <label>擁有建築
+                <label>@L.T("gl.owns")
                     <select @bind="building">
-                        <option value="-1">（不限）</option>
+                        <option value="-1">@L.T("gl.any")</option>
                         @for (int b = 0; b < GameConstants.BuildingCount; b++) { <option value="@b">@Buildings.All[b].Name</option> }
                     </select>
                 </label>
-                <label>購買回合 ≤ <input type="number" min="1" @bind="f.Player.BuiltByRound" disabled="@(building < 0)" /></label>
-                <label>種植園
+                <label>@L.T("gl.built_by") <input type="number" min="1" @bind="f.Player.BuiltByRound" disabled="@(building < 0)" /></label>
+                <label>@L.T("gl.tile")
                     <select @bind="tileType">
-                        <option value="-1">（不限）</option>
-                        @for (int t = 0; t < TileNames.Length; t++) { <option value="@t">@TileNames[t]</option> }
+                        <option value="-1">@L.T("gl.any")</option>
+                        @for (int t = 0; t < 6; t++) { <option value="@t">@L.T("gl.tile." + t)</option> }
                     </select>
                     ≥ <input type="number" min="0" @bind="f.Player.TileMin" disabled="@(tileType < 0)" />
                 </label>
             }
-            else { <span class="muted">這份結果檔沒有建築與期末種植園記錄，無法用建築、種植園篩選。</span> }
+            else { <span class="muted">@L.T("gl.no_building_records")</span> }
         </fieldset>
     </div>
     <div class="row">
-        <button @onclick="Apply">套用篩選</button>
-        <button class="secondary" @onclick="Clear">清除條件</button>
-        <span class="note">符合 <strong>@matched.Count.ToString("N0")</strong> / @Result.Games.Count.ToString("N0") 局（@((matched.Count / (double)Math.Max(1, Result.Games.Count)).ToString("P1"))）</span>
+        <button @onclick="Apply">@L.T("gl.apply")</button>
+        <button class="secondary" @onclick="Clear">@L.T("gl.clear")</button>
+        <span class="note">@((MarkupString)L.T("gl.matched", matched.Count.ToString("N0"), Result.Games.Count.ToString("N0"), (matched.Count / (double)Math.Max(1, Result.Games.Count)).ToString("P1")))</span>
     </div>
 </div>
 
@@ -86,9 +86,9 @@
     <table class="data">
         <thead>
             <tr>
-                @Head("index", "局號") @Head("rounds", "回合") @Head("decisions", "決策數")
-                <th class="left">終局原因</th><th class="left">贏家</th><th class="left">各玩家分數（依名次）</th>
-                @Head("top", "第一名分數") @Head("margin", "分差") <th></th>
+                @Head("index", L.T("gl.th.index")) @Head("rounds", L.T("gl.th.rounds")) @Head("decisions", L.T("gl.th.decisions"))
+                <th class="left">@L.T("gl.th.reason")</th><th class="left">@L.T("gl.th.winner")</th><th class="left">@L.T("gl.th.scores")</th>
+                @Head("top", L.T("gl.th.top")) @Head("margin", L.T("gl.th.margin")) <th></th>
             </tr>
         </thead>
         <tbody>
@@ -96,23 +96,23 @@
         {
             <tr>
                 <td>@g.Index</td><td>@g.Rounds</td><td>@g.Decisions</td>
-                <td class="left">@ReasonName(g.EndReason)</td>
-                <td class="left">@string.Join("、", g.Winners.Select(w => StrategyName(g, w)))@(g.Winners.Count > 1 ? "（並列）" : "")</td>
+                <td class="left">@L.EndReason(g.EndReason)</td>
+                <td class="left">@string.Join(L.T("common.list"), g.Winners.Select(w => StrategyName(g, w)))@(g.Winners.Count > 1 ? L.T("gl.tie_suffix") : "")</td>
                 <td class="left">@string.Join("　", g.Players.OrderBy(p => p.Rank).ThenBy(p => p.Seat).Select(p => $"{Palette.DisplayName(StrategyOf(p))} {p.Vp}"))</td>
                 <td>@g.Players.Max(p => p.Vp)</td><td>@GameFilter.Margin(g)</td>
-                <td><a href="@ReplayHref(g)">重播</a></td>
+                <td><a href="@ReplayHref(g)">@L.T("gl.replay")</a></td>
             </tr>
         }
         </tbody>
     </table>
 </div>
-@if (matched.Count == 0) { <p class="note">沒有符合條件的對局。</p> }
+@if (matched.Count == 0) { <p class="note">@L.T("gl.none")</p> }
 else
 {
     <div class="row pager">
         <button class="secondary" @onclick="@(() => page = 0)" disabled="@(page == 0)">⏮</button>
         <button class="secondary" @onclick="@(() => page--)" disabled="@(page == 0)">◀</button>
-        <span class="note">第 @(page + 1) / @PageCount 頁（每頁 @PageSize 局）</span>
+        <span class="note">@L.T("gl.page", page + 1, PageCount, PageSize)</span>
         <button class="secondary" @onclick="@(() => page++)" disabled="@(page >= PageCount - 1)">▶</button>
         <button class="secondary" @onclick="@(() => page = PageCount - 1)" disabled="@(page >= PageCount - 1)">⏭</button>
     </div>
@@ -126,7 +126,6 @@ else
     [Parameter] public string? Source { get; set; }
 
     private const int PageSize = 50;
-    private static readonly string[] TileNames = { "玉米", "染料", "糖", "菸草", "咖啡", "採石場" };
 
     private GameFilter f = new();
     private string endReason = "", winnerStrategy = "", tie = "", playerStrategy = "";
@@ -139,7 +138,7 @@ else
     private SimulationResult? loaded;
 
     private IEnumerable<string> Strategies => Result.Config.Seats.Select(s => s.Strategy).Distinct();
-    private IEnumerable<(string Key, string Name)> Reasons => Analysis.EndReasons.Keys.SelectMany(k => k.Split('+')).Distinct().OrderBy(k => k).Select(k => (k, ReasonName(k)));
+    private IEnumerable<(string Key, string Name)> Reasons => Analysis.EndReasons.Keys.SelectMany(k => k.Split('+')).Distinct().OrderBy(k => k).Select(k => (k, L.EndReason(k)));
     private int PageCount => Math.Max(1, (matched.Count + PageSize - 1) / PageSize);
     private IEnumerable<GameRecord> PageItems => matched.Skip(page * PageSize).Take(PageSize);
 
@@ -225,18 +224,4 @@ else
         return p == null ? "?" : Palette.DisplayName(StrategyOf(p));
     }
     private string ReplayHref(GameRecord g) => $"replay?file={Uri.EscapeDataString(Source ?? "")}&game={g.Index}";
-
-    private static string ReasonName(string key)
-    {
-        if (string.IsNullOrEmpty(key)) return "（無）";
-        return string.Join(" ＋ ", key.Split('+').Select(k => k switch
-        {
-            "vpExhausted" => "VP 籌碼耗盡",
-            "colonistsShort" => "殖民者不足",
-            "cityFull" => "城市蓋滿",
-            "roundLimit" => "回合上限",
-            "decisionLimit" => "決策上限",
-            _ => k,
-        }));
-    }
 }

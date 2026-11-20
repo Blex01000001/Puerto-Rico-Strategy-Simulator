@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="@(Chinese ? "zh-Hant" : "en")">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <title>波多黎各策略模擬器</title>
+    <title>@Text.T("app.title")</title>
     <base href="/" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="app.css" />
@@ -13,7 +13,7 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="InteractiveServer" Lang="@Lang" />
     <script src="_framework/blazor.web.js"></script>
     <script>
         // Replay page: left / right arrow = previous / next step (not while typing in a field or dragging the slider).
@@ -31,9 +31,9 @@
         window.prCopy = function (text) { return navigator.clipboard.writeText(text); };
         // ML UI button (MlUiNav): a tab opened during the click (later ones are blocked as pop-ups), sent to the ML UI once it answers.
         window.prMlTab = {
-            open: function () {
+            open: function (message) {
                 var w = window.open('', '_blank');
-                if (w) { w.document.title = 'ML UI'; w.document.body.style.cssText = 'font-family:system-ui,sans-serif;background:#111418;color:#eef1f5;padding:2rem'; w.document.body.textContent = 'ML UI 啟動中…（約 5～20 秒）'; }
+                if (w) { w.document.title = 'ML UI'; w.document.body.style.cssText = 'font-family:system-ui,sans-serif;background:#111418;color:#eef1f5;padding:2rem'; w.document.body.textContent = message || 'ML UI…'; }
                 window.prMlTabRef = w;
             },
             go: function (url) { var w = window.prMlTabRef; if (w && !w.closed) w.location = url; else window.open(url, '_blank'); window.prMlTabRef = null; },
@@ -43,3 +43,11 @@
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext? Http { get; set; }
+
+    private string Lang => Loc.Choose(Http?.Request.Cookies[Loc.Cookie]);
+    private bool Chinese => Lang == "zh-TW";
+    private Loc Text { get { var l = new Loc(); l.Use(Lang); return l; } }
+}

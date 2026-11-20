@@ -4,3 +4,10 @@
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    /// <summary>The language chosen by the cookie, read on the static page (App.razor) where the request is available.</summary>
+    [Parameter] public string? Lang { get; set; }
+
+    protected override void OnParametersSet() => L.Use(Lang);
+}

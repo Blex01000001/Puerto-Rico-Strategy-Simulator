@@ -42,13 +42,13 @@ public static class Palette
         _ => "🎯",
     };
 
-    /// <summary>Chinese label of a seat-order mode.</summary>
-    public static string SeatOrderLabel(PuertoRico.Engine.Simulation.SeatOrderMode mode) => mode switch
+    /// <summary>Label of a seat-order mode in the language of <paramref name="l"/>.</summary>
+    public static string SeatOrderLabel(PuertoRico.Engine.Simulation.SeatOrderMode mode, Loc l) => mode switch
     {
-        PuertoRico.Engine.Simulation.SeatOrderMode.Random => "隨機",
-        PuertoRico.Engine.Simulation.SeatOrderMode.Balanced => "完全平衡",
-        PuertoRico.Engine.Simulation.SeatOrderMode.Rotate => "輪換",
-        PuertoRico.Engine.Simulation.SeatOrderMode.Fixed => "固定",
+        PuertoRico.Engine.Simulation.SeatOrderMode.Random => l.T("seat.order.random"),
+        PuertoRico.Engine.Simulation.SeatOrderMode.Balanced => l.T("seat.order.balanced"),
+        PuertoRico.Engine.Simulation.SeatOrderMode.Rotate => l.T("seat.order.rotate"),
+        PuertoRico.Engine.Simulation.SeatOrderMode.Fixed => l.T("seat.order.fixed"),
         _ => mode.ToString(),
     };
 

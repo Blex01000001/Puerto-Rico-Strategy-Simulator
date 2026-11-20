@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import fingerprint  # noqa: E402
 import positions  # noqa: E402
 
 NAMES = ["players", "round", "p0_score", "p1_score", "p2_score", "p3_score"]
@@ -29,6 +30,7 @@ def write_dump(path, games=40, per_game=5, players=4, names=NAMES, seed=0, **met
     data.tofile(path)
     meta = {
         "format": "pr-positions", "formatVersion": 1, "status": "completed", "featureVersion": 1,
+        "rulesRevision": fingerprint.current_rules_revision(),  # test data is made "now": it is not stale
         "recordBytes": dtype.itemsize, "featureCount": len(names), "featureNames": names, "rows": rows,
         "positions": rows // players, "games": games, "rate": 0.05, "name": os.path.basename(path), "players": players,
         "seed": seed, "seatOrder": "Random", "seats": [{"id": "a", "strategy": "mcts", "params": {"valueModel": "ml/models/x.txt"}}],
@@ -42,3 +44,9 @@ def write_dump(path, games=40, per_game=5, players=4, names=NAMES, seed=0, **met
 @pytest.fixture
 def dump(tmp_path):
     return lambda name="a.bin", **kw: write_dump(str(tmp_path / name), **kw)
+
+
+@pytest.fixture(autouse=True)
+def _zh_ui_by_default(monkeypatch):
+    """The existing UI tests look for Chinese labels; English is the product default (tests/test_i18n.py sets it explicitly)."""
+    monkeypatch.setenv("PR_LANG", "zh-TW")

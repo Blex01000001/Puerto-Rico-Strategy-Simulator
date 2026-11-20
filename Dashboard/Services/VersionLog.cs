@@ -21,10 +21,10 @@ public static class VersionLog
     public static string FilePath() => Path.Combine(AppState.RepoRoot(), "docs", "versions.json");
 
     /// <summary>Tracks in file order, then one per strategy (id <c>strategy:&lt;name&gt;</c>); empty with an error text when the file is missing or unreadable.</summary>
-    public static (List<Track> Tracks, string? Error) Load()
+    public static (List<Track> Tracks, string? Error) Load(Loc l)
     {
         string path = FilePath();
-        if (!File.Exists(path)) return (new(), $"找不到 {AppState.DisplayPath(path)}");
+        if (!File.Exists(path)) return (new(), l.T("vs.err.not_found", AppState.DisplayPath(path)));
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
@@ -37,14 +37,14 @@ public static class VersionLog
             foreach (var t in doc.RootElement.TryGetProperty("strategies", out var list) ? list.EnumerateArray() : default(JsonElement.ArrayEnumerator))
             {
                 string id = Str(t, "id");
-                tracks.Add(new Track("strategy:" + id, id, "Engine/Strategies/StrategyRegistry.cs：Revisions", id + "-v{version}",
+                tracks.Add(new Track("strategy:" + id, id, "Engine/Strategies/StrategyRegistry.cs: Revisions", id + "-v{version}",
                     info.ValueKind == JsonValueKind.Object ? Str(info, "meaning") : "", info.ValueKind == JsonValueKind.Object ? Str(info, "bump") : "", Entries(t)));
             }
             return (tracks, null);
         }
         catch (Exception e) when (e is JsonException or IOException or KeyNotFoundException or InvalidOperationException)
         {
-            return (new(), $"讀不了 {AppState.DisplayPath(path)}：{e.Message}");
+            return (new(), l.T("vs.err.cannot_read", AppState.DisplayPath(path), e.Message));
         }
     }
 

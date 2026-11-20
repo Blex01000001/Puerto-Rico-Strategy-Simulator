@@ -165,6 +165,8 @@ public abstract class HeuristicStrategy : IStrategy, IScoreExplainer, IResolvesP
                 {
                     Phase.Builder => BuildThreshold,
                     Phase.Settler => 0.5,
+                    // declining the Craftsman privilege / keeping fewer goods is allowed by the rules but never what a strategy wants
+                    Phase.CraftsmanBonus or Phase.CaptainStorage => -1e9,
                     _ => 1.0,
                 };
             case ActionType.Build: return BuildingWanted(s, me, a.A) - 0.01 * Buildings.Cost[a.A];

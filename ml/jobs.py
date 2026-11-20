@@ -149,15 +149,43 @@ def _alive_windows(pid, started):
         size = wintypes.DWORD(1024)
         if k32.QueryFullProcessImageNameW(handle, 0, name, ctypes.byref(size)) and "python" not in name.value.lower():
             return False  # the pid now belongs to another program
-        if started:
-            times = [wintypes.FILETIME() for _ in range(4)]
-            if k32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
-                ft = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
-                created = ft / 1e7 - 11644473600  # FILETIME (100 ns since 1601) -> Unix time
-                return created <= started + 5
-        return True
+        created = None
+        times = [wintypes.FILETIME() for _ in range(4)]
+        if k32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
+            ft = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+            created = ft / 1e7 - 11644473600  # FILETIME (100 ns since 1601) -> Unix time
+            if started and created > started + 5:
+                return False
+        # any Python started before the job could still be another program (pytest, a notebook): the command line must name job_runner
+        line = _windows_command_line(pid, created)
+        return line is None or "job_runner" in line  # None: it could not be read, trust the checks above
     finally:
         k32.CloseHandle(handle)
+
+
+_CMDLINES = {}
+
+
+def _windows_command_line(pid, created):
+    """Command line of a process (PowerShell/CIM), cached per (pid, start time) since it never changes; None when unreadable."""
+    key = (pid, created)
+    if key not in _CMDLINES:
+        try:
+            out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                  f"(Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}').CommandLine"],
+                                 capture_output=True, text=True, timeout=20)
+            _CMDLINES[key] = out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
+        except (OSError, subprocess.SubprocessError):
+            _CMDLINES[key] = None
+    return _CMDLINES[key]
+
+
+def relpath(path, start=None):
+    """os.path.relpath that does not fail when the two paths are on different drives (Windows): then the path is returned as is."""
+    try:
+        return os.path.relpath(path, start or ROOT)
+    except ValueError:
+        return path
 
 
 def force_stop(job):
@@ -228,8 +256,11 @@ class _DispatchLock:
             pass
 
 
-def start(kind, title, spec):
-    """Adds a job and returns its id: it starts at once when nothing is running, otherwise it waits in the queue."""
+def start(kind, title, spec, title_key=None, title_args=None):
+    """Adds a job and returns its id: it starts at once when nothing is running, otherwise it waits in the queue.
+
+    `title` is the text shown when nothing better is known; `title_key` + `title_args` (an i18n key and its values) let the UI show
+    the title in the language it is in now (jobs written without them keep their text)."""
     if kind not in KINDS:
         raise ValueError(f"unknown job kind {kind!r}")
     job_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
@@ -237,6 +268,8 @@ def start(kind, title, spec):
     os.makedirs(job_dir)
     job = {"id": job_id, "kind": kind, "title": title, "spec": spec, "status": "waiting",
            "created": now(), "createdEpoch": time.time()}
+    if title_key:
+        job["titleKey"], job["titleArgs"] = title_key, title_args or {}
     _write_json(os.path.join(job_dir, "job.json"), job)
     start_next()
     return job_id

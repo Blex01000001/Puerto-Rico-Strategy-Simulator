@@ -11,6 +11,18 @@
       "bump": "執行 Tests 的黃金樣本測試（GoldenTests）：RULES 案例（只有隨機玩家）失敗代表規則、亂數或 random 策略變了，才加 1，並用 PR_UPDATE_GOLDEN=1 dotnet test --filter Golden 更新黃金檔。",
       "entries": [
         {
+          "version": "2",
+          "date": "2026-11-19",
+          "changes": [
+            "Factory（工廠）只數「實際從供應區領到至少 1 桶」的貨種：輪到該座位領貨時某貨種的供應區已空（領到 0 桶），不算進種類數（rules.md 第 3 節）。供應足夠時結果不變，貨物供應短缺時 Factory 的金幣會少。",
+            "Craftsman 特權改成可選：多一個 Pass（放棄特權）；只能選實際有生產、且供應區在他領完正常產量後仍有剩餘的貨種，沒有任何貨種符合時不再有決定，直接結算（rules.md 第 4 節）。",
+            "倉庫保留改成「最多」：整種保留可以任意順序、少留甚至不留（Pass＝不再整種保留）；之後那 1 桶也可以不留（Pass）。以前是強制盡量多留、且整種保留只能依貨物編號由小到大。合法動作清單變多，隨機玩家與 MCTS 的對局因此改變。",
+            "以上三條都是使用者依官方規則書與 FAQ 裁定（TODO 8(a)，詳見 docs/rules-interpretations.md）。",
+            "所有資料與模型（4p-v1～v3、3p-v1～v3、4p-mlp-v2 等）都是在規則版本 1 下產生的，變成「舊版」：要在新規則下比較策略或訓練模型，需要重新產生資料並重訓。手寫策略的決策邏輯沒變（Pass 在這兩個階段給最低分，所以遇到和以前一樣的選擇時結果相同），策略版本不加。"
+          ],
+          "commit": "e09242832efb3f47328090c2bc7f06653de6a9a2"
+        },
+        {
           "version": "1",
           "date": "2026-11-16",
           "changes": [
@@ -32,13 +44,31 @@
       "bump": "新增功能、策略、輸出欄位，或規則版本、策略版本加 1 時更新。",
       "entries": [
         {
+          "version": "1.0.0",
+          "date": "2026-11-20",
+          "changes": [
+            "第一個正式版：設定檔與結果檔 JSON 格式（schemaVersion）、Runner 命令列、資料與模型格式（特徵集並存、舊版模型與資料照常可用）、同設定同種子結果逐局相同，往後在 1.x 內向下相容，破壞其中任何一項才升主版本（見 docs/release-notes-1.0.0.md）。",
+            "與 0.6.0 相比程式沒有功能變動：規則版本 2、雙語介面（ML UI、Dashboard）、Windows 與 Linux 的 CI（黃金樣本逐局一致）、英文 README 都已在 0.6.0 之後完成；4 人局 tournaments 與模型對戰已在規則版本 2 重測（差距在雜訊內，docs/models.md）。"
+          ],
+          "commit": "e964c074c6aaf7c90465ae53474f3b8c7197470d"
+        },
+        {
+          "version": "0.6.0",
+          "date": "2026-11-19",
+          "changes": [
+            "規則版本 2（Factory 只計實際領到貨物的貨種、Craftsman 特權可放棄、倉庫可少留，見規則版本的修改內容）。",
+            "ResultSummary.ToMarkdown 多一個 english 參數（預設 false，仍是中文），Dashboard 的「複製摘要給 AI」跟著介面語言產生英文版。"
+          ],
+          "commit": "e09242832efb3f47328090c2bc7f06653de6a9a2"
+        },
+        {
           "version": "0.5.0",
           "date": "2026-11-18",
           "changes": [
             "特徵集並存：FeatureSet／FeatureSets（FeaturesV1 凍結不動、新增 FeaturesV2）。模型記著訓練時的特徵名稱，引擎依名稱挑對應的特徵集（IValueModel.Features），所以版本 1 的模型與資料在新版加入後照常可用；MCTS 用模型自己的特徵集（版本 1 模型的對局與以前逐局相同，有測試鎖住）。",
             "Runner --dump-positions 新增 --feature-version（預設最新版）；PositionDump.Run 多一個 features 參數，RecordBytes 改成依特徵集計算。"
           ],
-          "commit": ""
+          "commit": "d525740f3a13ba837d150125b063a4cea52f6441"
         },
         {
           "version": "0.4.1",

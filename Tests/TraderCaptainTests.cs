@@ -198,8 +198,8 @@ public class CaptainTests
         Start(s, 0, Role.Captain);
         Assert.Equal(Phase.CaptainStorage, s.Phase);
         var legal = Legal(s);
-        Assert.All(legal, a => Assert.Equal(ActionType.KeepBarrel, a.Type));
-        Assert.Equal(2, legal.Count);
+        // rules.md section 4 (Captain, confirmed 2026-11-19): storing is optional; Pass = keep no barrel
+        Assert.Equal(new[] { A(ActionType.KeepBarrel, (int)Good.Corn), A(ActionType.KeepBarrel, (int)Good.Indigo), GameAction.Pass }, legal);
         Do(s, A(ActionType.KeepBarrel, (int)Good.Indigo));
         Assert.Equal(1, s.Goods[0 * G + (int)Good.Indigo]);
         Assert.Equal(0, s.Goods[0 * G + (int)Good.Corn]);
@@ -215,10 +215,10 @@ public class CaptainTests
         SetGoods(s, 0, (int)Good.Corn, 3); SetGoods(s, 0, (int)Good.Indigo, 2); SetGoods(s, 0, (int)Good.Tobacco, 0);
         s.GoodsSupply[(int)Good.Corn] -= 3; s.GoodsSupply[(int)Good.Indigo] -= 2;
         Start(s, 0, Role.Captain);
-        Assert.All(Legal(s), a => Assert.Equal(ActionType.KeepGoods, a.Type));
+        Assert.Equal(new[] { A(ActionType.KeepGoods, (int)Good.Corn), A(ActionType.KeepGoods, (int)Good.Indigo), GameAction.Pass }, Legal(s));
         Do(s, A(ActionType.KeepGoods, (int)Good.Corn));
-        // the other kind: one barrel (single choice, still asked)
-        Assert.Equal(new[] { A(ActionType.KeepBarrel, (int)Good.Indigo) }, Legal(s));
+        // the other kind: one barrel (or none)
+        Assert.Equal(new[] { A(ActionType.KeepBarrel, (int)Good.Indigo), GameAction.Pass }, Legal(s));
         Do(s, A(ActionType.KeepBarrel, (int)Good.Indigo));
         Assert.Equal(3, s.Goods[0 * G + (int)Good.Corn]);
         Assert.Equal(1, s.Goods[0 * G + (int)Good.Indigo]);
@@ -237,6 +237,40 @@ public class CaptainTests
         Do(s, A(ActionType.KeepGoods, (int)Good.Indigo));
         Do(s, A(ActionType.KeepBarrel, (int)Good.Sugar));
         Assert.Equal(new[] { 3, 2, 1 }, new[] { s.Goods[0 * G], s.Goods[0 * G + 1], s.Goods[0 * G + 2] });
+    }
+
+    [Fact]
+    public void Storage_Can_Keep_Fewer_Kinds_Down_To_None()
+    {
+        // rules.md section 4 (Captain): "may store": up to the warehouse count, the player may keep fewer or nothing
+        var s = AllShipsFull();
+        Own(s, 0, BuildingId.LargeWarehouse, 1);
+        SetGoods(s, 0, (int)Good.Corn, 3); SetGoods(s, 0, (int)Good.Indigo, 2); SetGoods(s, 0, (int)Good.Sugar, 0);
+        s.GoodsSupply[(int)Good.Corn] -= 3; s.GoodsSupply[(int)Good.Indigo] -= 2;
+        Start(s, 0, Role.Captain);
+        Do(s, A(ActionType.KeepGoods, (int)Good.Indigo)); // any order: indigo first
+        Do(s, GameAction.Pass);                           // stop: keep one kind only (corn is not kept whole)
+        Assert.Equal(new[] { A(ActionType.KeepBarrel, (int)Good.Corn), GameAction.Pass }, Legal(s));
+        Do(s, GameAction.Pass);                           // and no free barrel either
+        Assert.Equal(0, s.Goods[0 * G + (int)Good.Corn]);
+        Assert.Equal(2, s.Goods[0 * G + (int)Good.Indigo]);
+        Assert.Equal(10, s.GoodsSupply[(int)Good.Corn]);
+        Assert.Null(Invariants.Check(s));
+    }
+
+    [Fact]
+    public void Storage_Can_Throw_Everything_Back()
+    {
+        var s = AllShipsFull();
+        Own(s, 0, BuildingId.SmallWarehouse, 1);
+        SetGoods(s, 0, (int)Good.Corn, 3);
+        s.GoodsSupply[(int)Good.Corn] -= 3;
+        Start(s, 0, Role.Captain);
+        Do(s, GameAction.Pass); // keep no whole kind
+        Do(s, GameAction.Pass); // keep no barrel
+        Assert.Equal(0, s.Goods[0 * G + (int)Good.Corn]);
+        Assert.Equal(10, s.GoodsSupply[(int)Good.Corn]);
+        Assert.Null(Invariants.Check(s));
     }
 
     [Fact]

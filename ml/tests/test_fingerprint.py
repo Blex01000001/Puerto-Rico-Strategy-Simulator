@@ -136,12 +136,13 @@ def test_old_files_are_hashed_with_the_frozen_defaults():
 
 
 def test_stale_notes_name_what_is_older_than_this_checkout(monkeypatch):
-    recipe = fp.dump_recipe(META)
+    now = fp.current_rules_revision()
+    recipe = fp.dump_recipe({**META, "rulesRevision": now})  # data made with this checkout's rules
     assert fp.stale_notes(recipe) == []
-    monkeypatch.setattr(fp, "current_rules_revision", lambda: 2)
+    monkeypatch.setattr(fp, "current_rules_revision", lambda: now + 1)
     monkeypatch.setattr(fp, "current_strategy_revision", lambda name: 3 if name == "harbor-rush" else 1)
     notes = fp.stale_notes(recipe)
-    assert "規則 base-v1 → base-v2" in notes and "harbor-rush-v1 → v3" in notes
+    assert f"規則 base-v{now} → base-v{now + 1}" in notes and "harbor-rush-v1 → v3" in notes
 
 
 def test_recipe_reserves_ruleset_and_variant():

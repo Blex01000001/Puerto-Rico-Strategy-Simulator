@@ -119,7 +119,7 @@ public class ValueModelTests
     [Fact]
     public void Mcts_with_a_version_1_model_plays_the_same_games_as_before_feature_sets_existed()
     {
-        Assert.Equal("22DDFB30F908B645", V1ModelGamesHash());
+        Assert.Equal("FE6815BC26FB5C8F", V1ModelGamesHash()); // re-recorded for rules revision 2 (games change with the rules; a feature-set change alone must not change it)
     }
 
     [Fact]

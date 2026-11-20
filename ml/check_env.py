@@ -23,14 +23,26 @@ def fix_command():
     return f'"{sys.executable}" -m pip install -r "{req}"'
 
 
-def main():
+TEXT = {
+    "en": ("This Python is missing packages the ML UI needs: {names}", "Python: {python}",
+           "Run this line (it uses the same Python, so nothing is installed into another one):"),
+    "zh-TW": ("這個 Python 缺少 ML UI 需要的套件：{names}", "Python：{python}",
+              "請執行這一行（用的是同一個 Python，不會裝到別的 Python 去）："),
+}
+
+
+def main(argv=None):
+    """Language of the report: --lang en|zh-TW, else the PR_LANG environment variable, else English."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    lang = argv[argv.index("--lang") + 1] if "--lang" in argv and argv.index("--lang") + 1 < len(argv) else os.environ.get("PR_LANG", "en")
+    first, second, third = TEXT.get(lang, TEXT["en"])
     missing = missing_modules()
     if not missing:
         print(f"ML UI packages OK ({sys.executable})")
         return 0
-    print(f"這個 Python 缺少 ML UI 需要的套件：{', '.join(missing)}")
-    print(f"Python：{sys.executable}")
-    print("請執行這一行（用的是同一個 Python，不會裝到別的 Python 去）：")
+    print(first.format(names=", ".join(missing)))
+    print(second.format(python=sys.executable))
+    print(third)
     print(fix_command())
     return 1
 
