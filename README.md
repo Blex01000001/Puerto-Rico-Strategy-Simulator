@@ -1,132 +1,134 @@
 # Puerto Rico Strategy Simulator
 
-透過大規模蒙地卡羅模擬、搜尋演算法與機器學習，探索桌遊《波多黎各》（Puerto Rico，基礎版 4 人局）的最佳致勝策略。系統支援不同策略架構間進行數十萬局自動化對弈與勝率歸因分析，並透過自我對弈（Self-Play）迭代訓練出更高強度的 AI 模型。
+**English** | [繁體中文](README.zh-TW.md)
 
-**確定性與可重現（Deterministic & Reproducible）**：在相同配置、主隨機種子（Master Seed）與規則版本下，多執行緒平行模擬的結果**逐局完全一致**，且不受執行緒數量影響。規則引擎與手寫策略在 Windows 與 Linux 上同樣逐局一致（每次提交都在兩個系統上以黃金樣本驗證）；MCTS＋估值模型含浮點運算，同一平台、同一版本下可完全重現，跨平台則可能在浮點最後一位有差異。
+A research tool that uses large-scale Monte Carlo simulation, tree search and machine learning to look for the strongest strategies in the board game *Puerto Rico* (base game, 4-player focus). It runs hundreds of thousands of automated games between different strategy architectures, attributes wins to strategies, and trains stronger AI models through self-play iteration. It is not a playable game and has no player interface.
 
-本案完整遊戲規則實作依據 [`rules.md`](rules.md)（繁體中文）；規則中有歧義之處，引擎採用的詮釋皆已對照官方規則書確認（[`docs/rules-interpretations.md`](docs/rules-interpretations.md)）。
+**Deterministic & reproducible**: with the same config, master seed and rules revision, multi-threaded simulation produces **exactly the same results game by game**, regardless of the thread count. The rules engine and the hand-written strategies are identical on Windows and Linux (every commit is checked on both with golden-sample tests). MCTS with a value model involves floating-point arithmetic: it reproduces exactly on the same platform and version, but across platforms the last floating-point digit may differ.
+
+The full rules the engine implements are in [`rules.md`](rules.md) (Traditional Chinese only). Every interpretation the engine had to make where the rules are ambiguous has been checked against the official rulebook ([`docs/rules-interpretations.md`](docs/rules-interpretations.md)).
 
 
-## 核心 AI 決策架構
+## Core AI decision architecture
 
-本模擬器實作了兩種不同典範的「搜尋＋學習」混合架構，用以對比表格特徵模型（GBDT）與前饋神經網路（MLP）在多人資源管理博弈中的表現：
+The simulator implements two "search + learning" hybrids, to compare a tabular-feature model (GBDT) with a feed-forward neural network (MLP) in a multi-player resource-management game:
 
-### 1. MCTS ＋ GBDT 局面價值評估（Value-Only Approximation）
+### 1. MCTS + GBDT position evaluation (value-only approximation)
 
-此架構採用**蒙地卡羅樹搜尋（MCTS，搭配 UCT 選擇策略）** 作為前瞻規劃框架，並以**梯度提升決策樹（GBDT）** 作為葉節點（Leaf Node）的靜態盤面價值評估函數（Value Function），取代傳統計算開銷高且變異數較大的隨機模擬（Random Rollout）。當搜尋樹展開至葉節點時，直接由估值模型從各座位視角預測最終局勢優劣（預期勝負與名次）。
+This architecture uses **Monte Carlo Tree Search (MCTS with UCT selection)** as the look-ahead planner and a **gradient-boosted decision tree (GBDT)** as the static value function at leaf nodes, replacing random rollouts, which are expensive and high-variance. When the search reaches a leaf, the value model predicts the outcome (expected win and rank) from each seat's point of view directly.
 
-* **模型訓練**：於 Python 環境中使用微軟開源的 **LightGBM** 框架進行離線訓練。
-* **純 C# 零依賴推論引擎**：不依賴外部原生動態連結庫（Native DLL），直接解析 LightGBM 匯出的模型檔，將所有決策樹節點轉換為連續記憶體的**扁平化純數值陣列（Flat Arrays）**執行無鎖推論。推論結果與 Python 原生預測**數值一致**（單元測試以容許誤差驗證）。
-* **推論效能**：在純 CPU 環境下完成 4 個座位的完整盤面評估（400 棵樹）僅需約 **20 µs**，運算開銷與一次 8 回合的輕量隨機模擬相當。
-* **確定性算力控制**：搜尋預算嚴格以**固定模擬次數（Simulation Count）**而非牆上時間（Wall-clock Time）限制，因此結果不受硬體負載與執行緒數量影響；同一平台與版本下可完全重現（跨平台的浮點差異見上方說明）。
+* **Training**: offline, in Python, with Microsoft's open-source **LightGBM**.
+* **Pure C#, zero-dependency inference**: no native DLLs. The engine parses the exported LightGBM model and turns all tree nodes into **flat numeric arrays** in contiguous memory for lock-free inference. Results match Python's native predictions **numerically** (unit tests check this within a tolerance).
+* **Speed**: evaluating a full position for 4 seats (400 trees) takes about **20 µs** on a CPU, comparable to one lightweight 8-round random rollout.
+* **Deterministic compute budget**: the search budget is a fixed **simulation count**, never wall-clock time, so results do not depend on hardware load or thread count, and reproduce exactly on the same platform and version (see the note above for cross-platform floating-point differences).
 
-### 2. MCTS ＋ MLP 局面價值評估（Value-Only Approximation）
+### 2. MCTS + MLP position evaluation (value-only approximation)
 
-此架構在搜尋框架與職責定位上與上述 GBDT 版本完全對等，同樣採用**蒙地卡羅樹搜尋（MCTS，搭配 UCT 選擇策略，探索常數 $c$ 預設為 `0.7`）** 作為前瞻規劃框架，並以**單頭純價值多層感知器（Single-Head Value MLP）** 作為葉節點（Leaf Node）的靜態盤面價值評估函數（Value Function），取代傳統計算開銷高且變異數較大的隨機模擬（Random Rollout）。本架構不涉及策略頭（Policy Head）與 PUCT 搜尋，亦無需配置固定動作編碼、合法動作遮罩或 Softmax 歸一化，專注於從各座位視角預測最終局勢優劣。
+This architecture is equivalent to the GBDT one in search framework and role. It uses the same **MCTS with UCT selection (exploration constant $c$ defaults to `0.7`)** as the planner, and a **single-head value multi-layer perceptron (MLP)** as the static value function at leaf nodes, again replacing random rollouts. There is no policy head and no PUCT search, so no fixed action encoding, legal-action masking or softmax is needed: the network only predicts the outcome from each seat's point of view.
 
-* **網路結構與訓練**：採用標準前饋多層感知器（Vanilla MLP）作為特徵提取骨幹（預設兩層隱藏層 256-128，搭配 **ReLU** 激活函數），末端僅配置單一價值輸出頭並經過 **Sigmoid** 函數壓縮至 $(0, 1)$ 區間。模型於 Python 環境（支援 PyTorch 與純 NumPy 雙版本實作）以軟標籤（Soft Labels $0 \sim 1$）交叉熵損失函數（Cross-Entropy Loss）進行離線訓練。
-* **純 C# 零依賴推論引擎**：不依賴 ONNX Runtime 或外部原生動態連結庫（Native DLL），直接解析 Python 端匯出的 JSON 權重檔案，於引擎內部以純陣列執行固定順序的矩陣乘加（MAC）推論。推論結果與 Python 原生預測**數值一致**（單元測試以容許誤差驗證）。
-* **輕量推論與確定性算力控制**：全連接前饋網路結構精簡，在純 CPU 環境下具備極低的前向推論開銷（實測約為 GBDT 版本的 1/1.5 ～ 1/3 速度，見下方模型概況）；搜尋預算同樣嚴格以固定模擬次數限制，因此結果不受硬體負載與執行緒數量影響；同一平台與版本下可完全重現。
+* **Network and training**: a plain feed-forward MLP backbone (two hidden layers of 256-128 by default, **ReLU** activations) with a single value output squashed to $(0, 1)$ by a **sigmoid**. It is trained offline in Python (PyTorch or a pure NumPy implementation) with a cross-entropy loss on soft labels in $[0, 1]$.
+* **Pure C#, zero-dependency inference**: no ONNX Runtime and no native DLLs. The engine reads the JSON weight file exported from Python and runs fixed-order matrix multiply-accumulate on plain arrays. Results match Python's native predictions **numerically** (unit tests check this within a tolerance).
+* **Light inference and deterministic budget**: the small fully connected network is cheap on a CPU (measured at roughly 1/1.5 to 1/3 of the GBDT's speed, see the model overview below). The search budget is again a fixed simulation count, so results do not depend on hardware load or thread count, and reproduce exactly on the same platform and version.
 
-## 訓練與自我對弈迭代流程（Training Pipeline）
+## Training pipeline and self-play iteration
 
-系統建立了一套端到端的自動化資料生成、模型訓練與對戰評估閉環，所有步驟皆可透過內建的 **ML UI**（排程佇列與模型管理介面）操作執行，無需手動修改程式碼：
+An end-to-end loop of data generation, training and match evaluation. Every step can be run from the built-in **ML UI** (a job queue and model manager) without editing code:
 
-1. **資料採樣（Data Generation）**：Runner 讓手寫策略（Heuristic）與隨機玩家混桌進行完整對局，在每個決策點以 `1% ~ 5%` 的機率進行隨機抽樣（本機實驗最低 `0.1%`），記錄當下盤面特徵（全域資源狀態、各玩家個人版圖、目前分數與名次）；整局結束後，回填各座位的最終對局結果（勝負與名次）作為訓練標籤（Label）。
-2. **離線訓練（Model Training）**：使用 LightGBM 迴歸器擬合盤面標籤（預設 400 棵樹、每棵 63 片葉子；嚴格依「局（Game ID）」切分 10% 驗證集以防資料洩漏，並啟用 Early Stopping 提早停止）。
-3. **基準對戰驗證（Benchmark Evaluation）**：將訓練完成的估值模型接入 MCTS，與「原版 MCTS」（300 次模擬、隨機模擬截斷 8 回合）及多組手寫策略同桌對弈，並採用**座位平衡（Seat-Balanced）**配置消除先後手偏差。**模型優劣僅以實戰對戰勝率為準**，驗證集誤差（如 $R^2$）僅作為確認訓練過程無異常的監控指標。
-4. **自我對弈迭代（Self-Play Iteration）**：使用當前最強版本的模型驅動 MCTS 進行自我對弈，採集高水準對局中才會出現的關鍵盤面分布，將新資料與歷史資料合併後重新訓練，產出下一代模型並回到第 3 步持續驗證。
-5. **全鏈路雜湊追蹤（Artifact Hashing）**：所有資料集、訓練模型與對戰報表皆具備完整的內容雜湊值（涵蓋規則版本、策略版本、完整超參數與隨機種子），確保實驗版本可精準比對並自動識別過期產物。
+1. **Data generation**: the Runner plays full games with hand-written (heuristic) strategies mixed with random players. At each decision point it samples a position with probability `1% ~ 5%` (as low as `0.1%` in local experiments) and records the board features (global resources, each player's board, current score and rank). When the game ends, each seat's final result (win and rank) is written back as the training label.
+2. **Training**: a LightGBM regressor fits the labels (400 trees with 63 leaves each by default; a 10% validation set split strictly by game ID to prevent leakage; early stopping).
+3. **Benchmark evaluation**: the trained value model is plugged into MCTS and played against the "plain MCTS" (300 simulations, random rollouts cut at 8 rounds) and several hand-written strategies, with a **seat-balanced** layout that removes first-seat bias. **Models are judged only by match win rate**; validation error (e.g. $R^2$) is just a sanity check that training behaved.
+4. **Self-play iteration**: the strongest current model drives MCTS in self-play, collecting the positions that only occur in high-level games. The new data is merged with the old, a new model is trained, and the loop goes back to step 3.
+5. **Artifact hashing**: every dataset, model and match report has a content hash covering the rules version, strategy versions, all hyper-parameters and seeds, so experiment versions can be compared exactly and stale artifacts are recognised automatically.
 
-## 目前機器學習策略的模型概況
-以下實驗數據皆針對 **4 人局**，每個模型均採用完全相同的基準測試配置與座位平衡（Seat-Balanced）進行評估：
+## Current machine-learning models
+All numbers are for the **4-player game**. Every model is evaluated with exactly the same benchmark setup and a seat-balanced layout:
 
-* **對原版 MCTS**：模型版 MCTS（300 次模擬）對戰原版 MCTS（300 次模擬，8 回合截斷隨機模擬），同桌配置手寫策略 `cheap-engine`、`build-first`；共計 **240 局**（4 人局隨機期望基準為 25%）。
-* **對手寫策略**：同桌配置 `corn-shipper`、`corn-to-premium`、`build-first`，共計 **408 局**；作為基準對照，原版 MCTS 在此對局組合下的勝率為 **84.9%**。
-* **統計顯著性**：勝率後方數值為 **95% 信賴區間**，兩者勝率差距落於信賴區間內即視為實力相當。
+* **Against plain MCTS**: model-guided MCTS (300 simulations) against plain MCTS (300 simulations, rollouts cut at 8 rounds), with the hand-written `cheap-engine` and `build-first` at the same table; **240 games** in total (random expectation in a 4-player game is 25%).
+* **Against hand-written strategies**: `corn-shipper`, `corn-to-premium` and `build-first` at the same table, **408 games** in total; for reference, plain MCTS wins **84.9%** in this setup.
+* **Significance**: the number after each win rate is the **95% confidence interval**; two win rates that fall inside each other's interval are treated as equally strong.
 
-| 模型 | 訓練資料（來源與列數） | 對原版 MCTS | 對手寫策略 | 說明 |
+| Model | Training data (source and rows) | vs plain MCTS | vs hand-written | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `4p-v1` | 手寫策略混桌三種＋四個隨機玩家，各 2 萬局（共 8 萬局），1% 抽樣；208 萬列 | 52.3% ± 6.3% | — | 僅使用手寫策略資料：平均得分高，但實戰勝率與原版 MCTS 打平 |
-| `4p-v2` | `v1` 資料＋**自我對戰 1**（四個「MCTS＋v1」，100 次模擬，4,000 局，5% 抽樣；49 萬列）；共 257 萬列 | **68.1% ± 5.9%** | **94.6% ± 2.2%** | 加入一輪自我對戰後勝率大幅躍升；更換隨機種子仍成立（64.8%）；約同時間比較（模型版僅給 180 次模擬）仍達 65.0% |
-| `4p-v3` | `v2` 資料＋**自我對戰 2**（由 `v2` 產生）；共 341 萬列 | 66.9% ± 6.0% | 91.2% ± 2.8% | 與 `v2` 同桌正面對決為 49.0% 對 49.4%，未再產生顯著提升 |
-| `4p-v4-hq` | `v3` 資料＋**高品質自我對戰**（`v2` 對自己，300 次模擬，2 萬局，2% 抽樣） | 69.4% ± 5.8% | 90.7% ± 2.8% | 與 `v3` 同桌對決（1,440 局）為 51.0% 對 47.7%，差距未達統計顯著；本機實驗模型（未納入 Git） |
-| `4p-mlp-v2`（MLP） | 同 `v2` | 66.5% ± 6.0% | — | 前饋神經網路基準：實戰強度與 LightGBM 相當，但單次 CPU 推論耗時慢約 1.5 ～ 3 倍 |
+| `4p-v1` | Three hand-written strategies mixed with four random players, 20,000 games each (80,000 in total), 1% sampling; 2.08 M rows | 52.3% ± 6.3% | — | Hand-written data only: high average score, but in matches it only ties plain MCTS |
+| `4p-v2` | `v1` data + **self-play 1** (four "MCTS + v1" players, 100 simulations, 4,000 games, 5% sampling; 0.49 M rows); 2.57 M rows | **68.1% ± 5.9%** | **94.6% ± 2.2%** | One round of self-play data lifts the win rate sharply; holds with a different seed (64.8%); in a roughly equal-time comparison (the model gets only 180 simulations) it still reaches 65.0% |
+| `4p-v3` | `v2` data + **self-play 2** (generated by `v2`); 3.41 M rows | 66.9% ± 6.0% | 91.2% ± 2.8% | Head to head against `v2`: 49.0% vs 49.4%, no further significant gain |
+| `4p-v4-hq` | `v3` data + **high-quality self-play** (`v2` against itself, 300 simulations, 20,000 games, 2% sampling) | 69.4% ± 5.8% | 90.7% ± 2.8% | Head to head against `v3` (1,440 games): 51.0% vs 47.7%, not significant; local experiment model (not in Git) |
+| `4p-mlp-v2` (MLP) | Same as `v2` | 66.5% ± 6.0% | — | Neural-network baseline: as strong as LightGBM in matches, but about 1.5 to 3 times slower per CPU inference |
 
-> 註：以上數據皆於規則版本 1 下測得（詳見 [`docs/strategy-analysis.md`](docs/strategy-analysis.md) 第 10 節）。
+> Note: all numbers above were measured under rules revision 1 (see section 10 of [`docs/strategy-analysis.md`](docs/strategy-analysis.md)).
 
-### 實驗關鍵發現與後續方向
+### Key findings and next steps
 
-* **資料分布覆蓋率是勝負關鍵**：僅依賴手寫策略對局訓練的 `v1` 只能與原版 MCTS 打平；加入一輪自我對弈資料後的 `v2` 則取得壓倒性領先。但若**僅**使用自我對弈資料（49 萬列）訓練，勝率反而下滑至 `41.0%`——顯示**早期手寫／隨機對局負責提供狀態空間的廣度覆蓋，自我對弈資料則負責精準刻畫高水準對局的狀態分布**，兩者結合效果最佳。
-* **當前特徵與模型容量已達邊際效益上限**：單純將手寫對局資料擴增 10 倍、進行第二輪自我對弈（`v3`）、提高自我對弈模擬深度（`v4-hq`），或擴大樹模型規模（800 棵樹、127 片葉子；約同時間比較與原配置打平），勝率變化皆落在誤差範圍內。這表明在現有特徵維度下 4 人局模型已接近效能天花板；**下一步優化重點將轉向高階特徵工程**（例如引入對手意圖預測：「對手下一動最可能選擇哪個職業」）以及擴大搜尋預算。
-* **3 人局模型狀態**：目前 3 人局模型（`3p-v1` ～ `3p-v3`）表現仍偏弱，現階段研發資源集中於 4 人局，3 人局暫時擱置。
-* **離線指標與實戰勝率的脫鉤**：驗證集的 $R^2$ 誤差指標與實際對局勝率並無單調正相關，因此研發流程嚴格以**平衡座位對戰勝率**作為模型迭代的唯一裁決標準。
+* **Coverage of the data distribution decides the result**: `v1`, trained on hand-written games only, merely ties plain MCTS; after one round of self-play data, `v2` leads by a wide margin. But training on self-play data **alone** (0.49 M rows) drops the win rate to `41.0%`. Early hand-written/random games provide broad coverage of the state space, while self-play data describes the state distribution of high-level play precisely; the combination works best.
+* **Current features and model capacity are at diminishing returns**: 10× more hand-written data, a second self-play round (`v3`), deeper self-play search (`v4-hq`) and a bigger tree model (800 trees, 127 leaves; a tie with the original in a roughly equal-time comparison) all change the win rate only within the error margin. With the current feature set the 4-player model is close to its ceiling; **the next step is richer feature engineering** (for example predicting the opponents' intent: "which role will the next opponent most likely pick") and a larger search budget.
+* **3-player models**: the 3-player models (`3p-v1` to `3p-v3`) are still weak; research effort currently goes to the 4-player game and 3-player work is on hold.
+* **Offline metrics and match strength diverge**: validation $R^2$ does not rise monotonically with match win rate, so model iteration is judged strictly by **seat-balanced match win rate**.
 
-所有模型的完整研發紀錄與參數細節請參閱 [`docs/models.md`](docs/models.md)，詳細實驗分析過程請參閱 [`docs/strategy-analysis.md`](docs/strategy-analysis.md) 第 10 節。
+For the full development log and parameters of every model see [`docs/models.md`](docs/models.md); for the experiment analysis see section 10 of [`docs/strategy-analysis.md`](docs/strategy-analysis.md).
 
-## 已實作的手寫策略
+## Hand-written strategies
 
-| 名稱 | 流派 |
+| Name | Style |
 |---|---|
-| `corn-shipper` | 玉米出貨：多種玉米，每次出貨都出玉米，只買少數有用的建築 |
-| `corn-to-premium` | 前期玉米，中期改種菸草／咖啡，蓋對應的生產建築後賣給交易所換金幣 |
-| `harbor-rush` | 先蓋港口（每次出貨多 1 分），再靠多次、多種貨物出貨得分 |
-| `build-first` | 金幣盡快變成建築，以終局加分的大型建築為目標 |
-| `cheap-engine` | 由 MCTS 打法整理：早買便宜建築，少量種植園，頻繁小量出貨 |
-| `wharf-rush` | 先農再買 Wharf，之後每次把最大一堆貨丟上私船（4 人局約 16～19%，3 人局約 41%；MCTS 陪練顯示 Wharf 沒有太強，見 `docs/strategy-analysis.md` 第 7 節） |
-| `wharf-premium` | Wharf 流變體：先用菸草／咖啡賣錢再買 Wharf（沒有比 wharf-rush 強，分析文件 7.5） |
-| `corn-monopoly` | 搗亂用：霸占玉米、囤著不賣不出貨，只想參加（同桌的 corn-shipper 勝率少約 11～29 個百分點） |
-| `corn-monopoly-tiles`、`corn-monopoly-hoard` | 壟斷派的兩個變體（只搶種植園／只囤貨），用來拆開兩種搗亂手段（分析文件 7.4） |
-| `random`、`guided-random` | 隨機基準／按動作種類加權的隨機 |
+| `corn-shipper` | Corn shipping: plenty of corn, ship corn every time, buy only a few useful buildings |
+| `corn-to-premium` | Corn early, then tobacco/coffee in mid-game, build the matching production buildings and sell to the trading house for coins |
+| `harbor-rush` | Build the Harbor first (+1 VP per shipment), then score through many shipments of several kinds of goods |
+| `build-first` | Turn coins into buildings as fast as possible, aiming at large buildings with end-game bonuses |
+| `cheap-engine` | Distilled from MCTS play: cheap buildings early, few plantations, frequent small shipments |
+| `wharf-rush` | Farm first, then buy the Wharf, and ship the biggest pile on the private ship every time (about 16–19% in 4-player, about 41% in 3-player; MCTS sparring shows the Wharf is not that strong, see section 7 of `docs/strategy-analysis.md`) |
+| `wharf-premium` | Wharf variant: sell tobacco/coffee for money first, then buy the Wharf (no better than wharf-rush, analysis 7.5) |
+| `corn-monopoly` | Spoiler: corners corn, hoards it and never ships, just takes part (a corn-shipper at the same table wins about 11–29 percentage points less) |
+| `corn-monopoly-tiles`, `corn-monopoly-hoard` | Two variants of the monopoly style (only grab plantations / only hoard goods) that separate the two ways of spoiling (analysis 7.4) |
+| `random`, `guided-random` | Random baseline / random weighted by action type |
 
-另外，`mcts` 是 UCT 樹搜尋（只用模擬次數，不用時間），可搭配上面的估值模型使用（`valueModel` 參數）。
+In addition, `mcts` is a UCT tree search (simulation count only, no time limit) that can use the value models above (the `valueModel` parameter).
 
-## 快速開始
+## Quick start
 
-需要 .NET 8 SDK。
+Requires the .NET 8 SDK.
 
 ```bash
 dotnet build -c Release
 dotnet test -c Release
 ```
 
-跑模擬（Runner，可長時間執行、Ctrl+C 會寫出目前結果、`--resume` 續跑）：
+Run a simulation (the Runner can run for a long time; Ctrl+C writes the current result, and `--resume` continues):
 
 ```bash
 dotnet run -c Release --project Runner -- --config config.strategies-compare.json --games 100000 --out result.json
 ```
 
-開啟 Dashboard（深色介面，網址 http://localhost:5080，讀 `results/` 資料夾；預設英文，左側選單最下方的語言鈕可切換繁體中文）：
+Open the Dashboard (dark UI at http://localhost:5080, reads the `results/` folder; English by default, the language button at the bottom of the left menu switches to Traditional Chinese):
 
 ```bash
 dotnet run -c Release --project Dashboard
 ```
 
-> 若 Dashboard 版面看起來沒有套用樣式，請按 Ctrl+F5 強制重新整理。Dashboard 與 ML UI 可讀取伺服器上任意路徑，只在本機使用。
+> If the Dashboard looks unstyled, force-refresh with Ctrl+F5. The Dashboard and the ML UI can read any path on the server, so use them on localhost only.
 
-機器學習（ML UI，訓練 MCTS 的局面估值模型）需要 Python 3。**新裝置第一次使用前，先在專案根目錄執行一次：**
+Machine learning (the ML UI, which trains the position-value models for MCTS) needs Python 3. **On a new machine, run this once from the project root first:**
 
 ```bash
 python -m pip install -r ml/requirements.txt
 ```
 
-（用 `python -m pip` 而不是直接打 `pip`：電腦上有好幾個 Python 時（例如 Anaconda 和 python.org），`pip` 可能裝到另一個 Python。）之後在 Dashboard 左側選單「機器學習」點「ML UI 未啟動 ○」啟動（Windows 會跳出 cmd 視窗；啟動後變成綠色「ML UI 執行中 ●」），或自己執行 `ml/start-ui.cmd`（Windows）／`ml/start-ui.sh`。缺套件時兩者都會顯示是哪個 Python、要執行的那一行指令。ML UI 同樣預設英文、可切換繁體中文。細節見 `ml/README.md`；每個模型的研發紀錄與目前狀況見 `docs/models.md`。
+(Use `python -m pip` rather than plain `pip`: with several Pythons installed, e.g. Anaconda and python.org, `pip` may install into a different one.) Then start the ML UI from the "Machine learning" item in the Dashboard's left menu by clicking "ML UI not running ○" (on Windows a cmd window opens; once started it turns into a green "ML UI running ●"), or run `ml/start-ui.cmd` (Windows) / `ml/start-ui.sh` yourself. When a package is missing, both show which Python is used and the exact command to run. The ML UI is also English by default and can switch to Traditional Chinese. See `ml/README.md` for details and `docs/models.md` for the development log of each model.
 
-### Dashboard 功能
+### Dashboard features
 
-| 頁面 | 用途 |
+| Page | Purpose |
 |---|---|
-| HOME | 介紹與各流派說明 |
-| 策略模擬 | 直接選策略、設定局數與種子，執行一般對戰或參數掃描 |
-| 結果總覽 | 單一結果檔的完整分析：勝率與信賴區間、分數構成、建築與勝率、局長、終局原因；頁尾「對局列表」可逐局瀏覽、篩選（回合、贏家、分差、玩家分數／建築…）並跳到該局重播 |
-| 對戰總覽 | 多個結果檔彙整每個策略的平均勝率與兩兩對戰矩陣 |
-| 結果並排比較 | A／B 兩個結果檔並排，看勝率差是否顯著 |
-| 模擬重播 | 重打某一局，逐步看盤面（玩家卡片依輪轉順序圍繞供應區）與每步動作說明；MCTS 玩家另列每個合法動作的訪問次數與平均報酬 |
-| 參數掃描 | 只改一個策略的參數、對手固定，找較好的參數 |
-| 設定檔 | 編輯並驗證模擬設定（JSON） |
-| 版本控管 | 規則版本、引擎版本、每個策略的版本與每個版本做了什麼修改 |
+| HOME | Introduction and descriptions of each strategy style |
+| Simulate | Pick strategies, number of games and seed; run a normal match or a parameter sweep |
+| Results | Full analysis of one result file: win rates with confidence intervals, score breakdown, buildings vs win rate, governors, end-game reasons; the "game list" at the bottom lets you browse and filter games (round, winner, margin, player score/buildings…) and jump to the replay |
+| Overview | Aggregates several result files into each strategy's average win rate and a pairwise matrix |
+| Compare | Two result files side by side, to see whether a win-rate difference is significant |
+| Replay | Replays one game step by step with the board (player cards arranged around the supply in turn order) and an explanation of every action; for MCTS players it also lists visits and mean reward of every legal action |
+| Parameter sweep | Vary one strategy parameter against fixed opponents to find better values |
+| Config | Edit and validate simulation configs (JSON) |
+| Version control | Rules version, engine version, each strategy's version and what each version changed |
 
-### 設定檔與重現實驗
+### Configs and reproducing experiments
 
-- 設定範例：`config.example.json`（3 人）、`config.4p.example.json`、`config.sweep.example.json`；Runner 與 Dashboard 共用同一份 JSON 格式。
-- 各輪對戰與調參設定：`tournaments/`（`tournaments/run.sh` 重跑）、`sweeps/`、`mcts/`；輸出進 git 忽略的 `results/`。
+- Config examples: `config.example.json` (3 players), `config.4p.example.json`, `config.sweep.example.json`; the Runner and the Dashboard share one JSON format.
+- Configs of each tournament and tuning round: `tournaments/` (re-run with `tournaments/run.sh`), `sweeps/`, `mcts/`; output goes to the git-ignored `results/`.
