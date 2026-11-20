@@ -17,11 +17,11 @@
 ## 地圖
 | 路徑 | 用途 |
 |---|---|
-| `README.md` | 給第一次看的人：目的與可重現性、MCTS＋GBDT／MLP 架構、訓練流程、模型概況（數字來自 `docs/models.md`／分析文件第 10 節，更新時同步；目前是規則版本 1 的數字）、手寫策略、快速開始。`README.md` 是英文版、`README.zh-TW.md` 是中文版，兩份內容要同步改 |
+| `README.md` | 給第一次看的人：目的與可重現性、MCTS＋GBDT／MLP 架構、訓練流程、模型概況（數字來自 `docs/models.md`／分析文件第 10 節，更新時同步；手寫策略的 4 人局數字是規則版本 2，模型是規則版本 1 的資料訓練、在規則版本 2 重測）、手寫策略、快速開始。`README.md` 是英文版、`README.zh-TW.md` 是中文版，兩份內容要同步改 |
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
 | `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數，10.4 資料局數與模型大小） |
 | `docs/versions.json` | 版本控管清單：規則版本、引擎版本、特徵版本、資料格式版本與每個策略的策略版本，各自的版本號、commit 與每個版本的修改內容（兩個 UI 的「版本控管」頁讀它；規則見下面「版本與 hash」） |
-| `docs/rules-interpretations.md` | 規則詮釋確認清單（TODO 8(a)）：六條引擎自行採用的詮釋，附規則原文、做法與例子，等使用者確認 |
+| `docs/rules-interpretations.md` | 規則詮釋確認清單（TODO 8(a)）：六條引擎自行採用的詮釋，附規則原文、做法與例子；2026-11-19 使用者已逐條確認（結果在檔案開頭，三條改成規則版本 2） |
 | `i18n/` | UI 文字表：`ml.<語言>.json`（ML UI，`ml/i18n.py` 讀）、`dash.<語言>.json`（Dashboard，`Dashboard/Services/Loc.cs` 讀）；語言 `en`（預設）、`zh-TW`；`ml/tests/test_i18n.py` 檢查 |
 | `docs/models.md` | 局面估值模型的研發紀錄與目前狀況（每個模型的資料、勝率、狀態；新增正式模型時補一列） |
 | `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
