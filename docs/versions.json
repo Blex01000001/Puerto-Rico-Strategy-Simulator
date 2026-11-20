@@ -50,7 +50,7 @@
             "第一個正式版：設定檔與結果檔 JSON 格式（schemaVersion）、Runner 命令列、資料與模型格式（特徵集並存、舊版模型與資料照常可用）、同設定同種子結果逐局相同，往後在 1.x 內向下相容，破壞其中任何一項才升主版本（見 docs/release-notes-1.0.0.md）。",
             "與 0.6.0 相比程式沒有功能變動：規則版本 2、雙語介面（ML UI、Dashboard）、Windows 與 Linux 的 CI（黃金樣本逐局一致）、英文 README 都已在 0.6.0 之後完成；4 人局 tournaments 與模型對戰已在規則版本 2 重測（差距在雜訊內，docs/models.md）。"
           ],
-          "commit": ""
+          "commit": "e964c074c6aaf7c90465ae53474f3b8c7197470d"
         },
         {
           "version": "0.6.0",
