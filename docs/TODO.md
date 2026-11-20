@@ -31,6 +31,16 @@
    (d) Windows：CI 已在 `windows-latest` 跑 .NET 與 Python 全部測試（全綠，黃金樣本 hash 與 Linux 一致）；真人在 Windows 操作 ML UI 還沒做，寫成已知限制（release notes）。
    進 1.0.0 時在 `CLAUDE.md` 的版本規則補一條：弄壞設定檔、結果檔、命令列或資料格式的改動才升主版本。
 
+### 1.0.0 之後
+10. 【先討論，1.0.0 之後做】MCTS＋策略價值雙頭網路（MLP，Policy-Value Dual-Head）。現況只有單頭價值 MLP（ReLU＋sigmoid，葉節點估值，UCT；`4p-mlp-v2` 與 LightGBM 一樣強、推論慢 1.5～3 倍），沒有策略頭、動作編碼與 PUCT。工作項目：
+    (a) **固定動作空間編碼**：把所有 `ActionType`（建築 23 種、種植園 6 種、職業 7、出貨的貨種×船與 Wharf、市長的 slot、倉庫保留、Pass…）編成固定長度向量，並與 `Rules.GetLegalActions` 對照；決定市長階段（「下一個殖民者放哪」）與出貨（貨種×船）怎麼編。
+    (b) **訓練資料**：自我對戰時除了局面與結果，另記 MCTS 根節點的訪問次數分布當策略標籤；dump 要新增欄位（資料格式版本 +1，同步 `positions.py`）。
+    (c) **模型**：共享隱藏層＋價值頭（沿用 0.6×勝負＋0.4×名次分、sigmoid）＋策略頭（logits）；損失＝價值交叉熵＋策略交叉熵；新的模型 JSON 格式（`ValueModel.cs` 要認得，舊的單頭模型照常可用）；PyTorch 為主、NumPy 後備；`LGBM_OPTIONS`／`MLP_OPTIONS`、hash 配方與「hash 說明」頁同步。
+    (d) **引擎端**：純 C# 推論兩個輸出；展開節點時一次算先驗，softmax 前把非法動作的 logits 設成 −∞；`mcts` 新增 PUCT 選擇（參數，例如 `selection`＝`uct`／`puct`、`cPuct`），預設維持 UCT。
+    (e) **驗證**：與 `4p-v2`（LightGBM）的 MCTS 同桌對打，同模擬次數與約同時間兩種（各 480 局以上），再對原版 MCTS 與手寫桌。
+    (f) **版本**：`mcts` 策略版本 +1、引擎次版本 +1、資料格式版本 +1（若 dump 加欄位）、`docs/versions.json` 補筆數；舊版特徵、資料與模型不變舊。
+    (g) **風險與前置**：先看特徵版本 2（TODO 6）能不能讓價值模型再進步，再決定值不值得做；動作空間大的階段（建築師、市長）才是它的主要動機，要先量測目前 UCT 在這些階段的搜尋深度；MCTS 含浮點運算，跨平台不保證逐局相同（黃金樣本不含 MCTS），README 的可重現性說明要照實寫。
+
 ### 擱置（使用者指示，暫不處理）
 - RunPod 實測：在真正的 pod 上照 `docs/runpod.md` 跑一次（`setup.sh --test`、`start.sh`、SSH 通道、帶回模型）；視需要加 `--summary-only` 之類的輸出選項。
 - 推論成本：更少／更淺的樹、更小的 MLP，比同時間勝率（MLP 256-128 比 LightGBM 慢 1.5～3 倍）；選做：勝負模型（回放顯示真實勝率估計）、`leafRollout` 0 對 20、用 v2 當陪練找手寫策略弱點。
