@@ -77,7 +77,7 @@
 | `cheap-engine` | 由 MCTS 打法整理：早買便宜建築，少量種植園，頻繁小量出貨 |
 | `wharf-rush` | 先農再買 Wharf，之後每次把最大一堆貨丟上私船（4 人局約 16～19%，3 人局約 41%；MCTS 陪練顯示 Wharf 沒有太強，見 `docs/strategy-analysis.md` 第 7 節） |
 | `wharf-premium` | Wharf 流變體：先用菸草／咖啡賣錢再買 Wharf（沒有比 wharf-rush 強，分析文件 7.5） |
-| `corn-monopoly` | 搗亂用：霸占玉米、囤著不賣不出貨，只想參加（同桌的 corn-shipper 勝率少約 11～29 個百分點） |
+| `corn-monopoly` | 搗亂用：霸占玉米、囤著不賣不出貨，只想參加（同桌的 corn-shipper 勝率少約 11～27 個百分點） |
 | `corn-monopoly-tiles`、`corn-monopoly-hoard` | 壟斷派的兩個變體（只搶種植園／只囤貨），用來拆開兩種搗亂手段（分析文件 7.4） |
 | `random`、`guided-random` | 隨機基準／按動作種類加權的隨機 |
 

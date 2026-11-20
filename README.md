@@ -77,7 +77,7 @@ For the full development log and parameters of every model see [`docs/models.md`
 | `cheap-engine` | Distilled from MCTS play: cheap buildings early, few plantations, frequent small shipments |
 | `wharf-rush` | Farm first, then buy the Wharf, and ship the biggest pile on the private ship every time (about 16–19% in 4-player, about 41% in 3-player; MCTS sparring shows the Wharf is not that strong, see section 7 of `docs/strategy-analysis.md`) |
 | `wharf-premium` | Wharf variant: sell tobacco/coffee for money first, then buy the Wharf (no better than wharf-rush, analysis 7.5) |
-| `corn-monopoly` | Spoiler: corners corn, hoards it and never ships, just takes part (a corn-shipper at the same table wins about 11–29 percentage points less) |
+| `corn-monopoly` | Spoiler: corners corn, hoards it and never ships, just takes part (a corn-shipper at the same table wins about 11–27 percentage points less) |
 | `corn-monopoly-tiles`, `corn-monopoly-hoard` | Two variants of the monopoly style (only grab plantations / only hoard goods) that separate the two ways of spoiling (analysis 7.4) |
 | `random`, `guided-random` | Random baseline / random weighted by action type |
 
