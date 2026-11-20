@@ -4,10 +4,10 @@ namespace PuertoRico.Engine.Game;
 public static class EngineInfo
 {
     /// <summary>
-    /// Product version (SemVer, shown to people, not part of any hash): MINOR for new features, PATCH for fixes that do not
+    /// Product version (SemVer, shown to people, not part of any hash): MAJOR for breaking the compatibility promise (docs/release-notes-1.0.0.md), MINOR for new features, PATCH for fixes that do not
     /// change results; every <see cref="RulesRevision"/> bump is at least a MINOR bump. Change log: docs/versions.json.
     /// </summary>
-    public const string Version = "0.6.0";
+    public const string Version = "1.0.0";
     public const string RulesVersion = "base";
 
     /// <summary>

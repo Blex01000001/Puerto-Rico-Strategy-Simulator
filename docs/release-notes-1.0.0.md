@@ -1,4 +1,4 @@
-# Puerto Rico Strategy Simulator 1.0.0 — release notes (draft)
+# Puerto Rico Strategy Simulator 1.0.0 — release notes
 
 Simulates the base game of Puerto Rico (3 and 4 players, no expansions) at scale to find strong strategies: a rules engine, hand-written and search-based strategies (MCTS, optionally guided by a learned value model), a command-line runner, a Blazor dashboard and a Python ML UI. It is a research tool, not a playable game.
 

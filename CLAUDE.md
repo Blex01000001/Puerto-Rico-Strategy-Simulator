@@ -67,7 +67,7 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 |---|---|---|---|
 | **規則版本** | `EngineInfo.RulesRevision`（規則集 `EngineInfo.RulesVersion` = `base`） | `base-v1`（有變體時 `base-v2-rich-start`） | 遊戲規則（建築、計分、Setup、終局…）或亂數／種子衍生改變，同設定同種子結果不同。所有資料都變舊。 |
 | **策略版本**（每個策略一個） | `StrategyRegistry.Revisions` | `harbor-rush-v1` | 該策略的**決策邏輯**改變（含它共用的程式：`HeuristicStrategy`、`TieBreakRules` 改了＝所有手寫策略各加 1；`mcts` 也包含 rollout 呼叫、估值模型推論與特徵集（`FeatureSets`、`FeaturesV1`／`V2`）程式；只「新增」特徵集、舊版模型的對局逐局不變時不用加）。只有用到它的資料變舊。`rule-based` 跟著它的 profile。 |
-| **引擎版本**（SemVer） | `EngineInfo.Version` | `0.3.0` | 新增功能、策略、輸出欄位加次版本；不影響結果的修正加修訂版本；規則或策略版本加 1 時至少加次版本。不進 hash。 |
+| **引擎版本**（SemVer） | `EngineInfo.Version` | `1.0.0` | 新增功能、策略、輸出欄位加次版本；不影響結果的修正加修訂版本；規則或策略版本加 1 時至少加次版本。**1.0.0 起的相容承諾**（設定／結果 JSON、Runner 命令列、資料與模型格式、同設定同種子結果相同）**被破壞才加主版本**，規則修正走規則版本、不算破壞。不進 hash。 |
 | **特徵版本** | `FeatureSets.LatestVersion` | 整數（最新版；舊版並存） | 要換特徵清單時，**新增一個特徵集**（`FeaturesV{N}.cs`，登錄在 `FeatureSets.All`）並把最新版加 1；**不要改舊版的清單**（模型與資料依它的名稱與順序）。多個版本並存：模型記著訓練時的特徵名稱，引擎依名稱挑對應的特徵集，舊版模型與資料照常可用。 |
 | **資料格式版本** | `PositionDump.FormatVersion` | 整數 | `.bin` 紀錄排列改變（只在 `.bin.json` 新增欄位不用加）。 |
 
