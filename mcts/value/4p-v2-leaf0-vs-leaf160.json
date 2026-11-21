@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-v2-leaf0-vs-leaf160",
+  "players": 4,
+  "games": 960,
+  "seed": 9191,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "leaf0",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "valueModel": "ml/models/4p-v2.txt"
+      }
+    },
+    {
+      "id": "leaf160",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 160
+      }
+    },
+    {
+      "id": "cheap-engine",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-v2-leaf40-vs-hand",
+  "players": 4,
+  "games": 408,
+  "seed": 5151,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "leaf40",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 40
+      }
+    },
+    {
+      "id": "corn-shipper",
+      "strategy": "corn-shipper",
+      "params": {}
+    },
+    {
+      "id": "corn-to-premium",
+      "strategy": "corn-to-premium",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}
