@@ -33,7 +33,7 @@
 | `Tests/` | xUnit，只參考 Engine：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消）、`StrategyTests`、`ValueModelTests`（推論與 Python 一致、特徵視角、dump 可重現；固定資料在 `Tests/Data/`）、`VersionTests`（黃金樣本：規則或策略的行為變了卻沒進版就失敗；版本清單、`ml/strategy-params.json` 與程式一致；`StrategyRegistry.Resolve`）；情境用 `Tests/Sc.cs`（`Sc.Start` 指定總督與職業） |
 | `deploy/runpod/` | RunPod（或任何 Linux）：`setup.sh`（.NET 8、Python 套件、建置、發佈 Runner，可重複執行）、`start.sh`（背景啟動／停止 ML UI 與 Dashboard，只綁 localhost）；說明在 `docs/runpod.md` |
 | `ml/` | MCTS 的學習型價值函數（Python 子專案）：ML UI（Streamlit，`ml/start-ui.sh`／`.cmd`，localhost:8501，另外啟動）、訓練（LightGBM、NumPy MLP，背景工作）、產生資料的設定、正式模型 `ml/models/`＋`.meta.json`（使用者的實驗放本機工作區 `ml/local/`，被 git 忽略）、pytest；流程見 `ml/README.md`，細節與契約見 `ml/CLAUDE.md`（資料檔放 `results/ml/`） |
-| `tools/tiestats/`、`tools/sparring/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
+| `tools/tiestats/`、`tools/sparring/`、`tools/mctsdepth/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
 | `config*.json` | 設定檔範例（Runner 與 Dashboard 共用格式） |
 | `PuertoRico.sln`、`Directory.Build.props` | net8.0、Nullable、TreatWarningsAsErrors（csproj 內不要重複設；新程式碼要零警告） |
 | `.streamlit/config.toml` | ML UI（Streamlit）的深色主題，與 Dashboard 同色票（Streamlit 從啟動目錄讀，啟動檔都在根目錄執行） |
