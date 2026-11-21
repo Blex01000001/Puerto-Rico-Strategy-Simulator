@@ -430,9 +430,13 @@ def training_tab():
         defaults = dict(train_lgbm.DEFAULTS if kind == "train_lgbm" else train_mlp.DEFAULTS)
         options = param_inputs(defaults, kind)
         ext = ".txt" if kind == "train_lgbm" else ".json"
-        stamp = datetime.datetime.now().strftime("%m%d-%H%M")
-        name = st.text_input(t("tr.name"),
-                             value=f"{p}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}")
+        # The default name has the time in it: it is made once per (players, kind) and kept in session_state under the widget's key. Passing it as
+        # `value=` made a new widget every minute, which threw away the name the user had typed.
+        if st.session_state.get("tr-name-for") != (p, kind):
+            stamp = datetime.datetime.now().strftime("%m%d-%H%M")
+            st.session_state["tr-name"] = f"{p}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}"
+            st.session_state["tr-name-for"] = (p, kind)
+        name = st.text_input(t("tr.name"), key="tr-name")
         name = name.strip()
         if name.endswith(ext):
             name = name[:-len(ext)]
@@ -486,6 +490,7 @@ def training_tab():
             problems.append(reader_problem(rel(out)))
         if action_row(t("tr.start"), "start-train", problems):
             spec = {"data": [d["path"] for d in chosen], "out": rel(out), "options": options}
+            st.session_state["tr-name-for"] = None  # the next training gets a fresh default name (a new time stamp)
             start_job(kind, f"{KIND_TEXT[kind]} → {name + ext}", spec)
 
     with card("train-doc", t("tr.card_doc"), t("tr.doc_sub")):
