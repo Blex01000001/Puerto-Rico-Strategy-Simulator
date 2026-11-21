@@ -17,7 +17,7 @@
         <label>@L.T("sim.template_label")
             <select @bind="templateFile" disabled="@Sim.Running">
                 <option value="">@L.T("sim.template_choose")</option>
-                @foreach (var f in templateFiles) { <option value="@f">@Path.GetFileName(f)</option> }
+                @foreach (var f in templateFiles) { <option value="@f">@TemplateLabel(f)</option> }
             </select>
         </label>
         <button class="secondary" @onclick="ApplyTemplateFile" disabled="@(Sim.Running || string.IsNullOrEmpty(templateFile))">@L.T("sim.apply")</button>
@@ -249,13 +249,31 @@
         if (State.TakeTemplate() is { } t) ApplyConfig(t.Config, t.Source);
     }
 
+    /// <summary>Folders of the project that hold configuration files (searched below, not the results folder).</summary>
+    private static readonly string[] ConfigFolders = { "mcts", "tournaments", "sweeps", Path.Combine("ml", "data-configs") };
+
     private void RefreshTemplates()
     {
         string dir = AppState.ResultsDirectory(AppConfig);
-        templateFiles = Directory.Exists(dir)
-            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
+        var files = Directory.Exists(dir)
+            ? Directory.GetFiles(dir, "*.json").Where(f => !f.EndsWith(".tmp") && !f.EndsWith(".bin.json")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
             : new List<string>();
+        string root = AppState.RepoRoot();
+        var configs = new List<string>();
+        if (Directory.Exists(root)) configs.AddRange(Directory.GetFiles(root, "config*.json"));
+        foreach (var folder in ConfigFolders)
+        {
+            string path = Path.Combine(root, folder);
+            if (Directory.Exists(path)) configs.AddRange(Directory.GetFiles(path, "*.json", SearchOption.AllDirectories));
+        }
+        templateFiles = files.Concat(configs.Where(f => !f.EndsWith(".bin.json")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase)).ToList();
     }
+
+    /// <summary>Result files show their name; a project configuration file shows its path from the project root.</summary>
+    private string TemplateLabel(string file) =>
+        Path.GetFullPath(file).StartsWith(Path.GetFullPath(AppState.ResultsDirectory(AppConfig)), StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFileName(file)
+            : Path.GetRelativePath(AppState.RepoRoot(), file).Replace('\\', '/');
 
     private async Task ApplyTemplateFile()
     {

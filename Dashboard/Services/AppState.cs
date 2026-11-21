@@ -60,7 +60,15 @@ public sealed class AppState
             bool whole = read >= fs.Length;
             try
             {
-                var cfg = ExtractConfig(read == bytes.Length ? bytes : bytes[..read], Path.GetFileName(path));
+                var data = read == bytes.Length ? bytes : bytes[..read];
+                SimulationConfig cfg;
+                try { cfg = ExtractConfig(data, Path.GetFileName(path)); }
+                catch (LocException e) when (whole && e.Key == "err.no_config")
+                {
+                    // not a result or sweep file: a plain configuration (settings at the top level, e.g. mcts/value/*.json)
+                    cfg = JsonSerializer.Deserialize<SimulationConfig>(data, SimulationConfig.JsonOptions) ?? throw new LocException("err.empty_config");
+                    if (cfg.Seats.Count == 0) throw new LocException("err.no_config", Path.GetFileName(path));
+                }
                 if (ConfigCache.Count > 2000) ConfigCache.Clear();
                 ConfigCache[key] = SimulationConfig.Clone(cfg);
                 return cfg;
