@@ -169,7 +169,7 @@ else if (State.Result != null && State.Analysis != null)
             <div>
                 <h2>@L.T("res.h.reason")</h2>
                 <figure class="chartbox">
-                    <BarChart Title="@L.T("res.h.reason")" Width="440" LabelWidth="150" Format="@(v => v.ToString("P1"))"
+                    <BarChart Title="@L.T("res.h.reason")" Width="@(L.Chinese ? 440 : 620)" LabelWidth="@(L.Chinese ? 150 : 310)" Format="@(v => v.ToString("P1"))"
                               Items="@(a.EndReasons.OrderByDescending(e => e.Value).Select(e => new BarChart.BarItem(L.EndReason(e.Key), e.Value / (double)Math.Max(1, a.GamesCompleted), 0, "var(--accent)",
                                    L.T("res.reason_tip", L.EndReason(e.Key), e.Value.ToString("N0")))).ToList())" />
                 </figure>
