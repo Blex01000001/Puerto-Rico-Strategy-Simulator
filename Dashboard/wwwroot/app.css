@@ -112,6 +112,7 @@ button:disabled { opacity: .5; cursor: default; }
 .ok { color: var(--text); border-left: 4px solid var(--series-6); padding: .35rem .7rem; background: var(--surface-2); margin: .5rem 0; }
 
 .kpis { display: flex; flex-wrap: wrap; gap: .75rem; margin: .75rem 0; }
+.kpis.centre { justify-content: center; }
 .kpi { position: relative; display: flex; align-items: center; justify-content: center; min-width: 8.5rem; min-height: 4.4rem; padding: 1.2rem .8rem .4rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; text-align: center; }
 .kpi .v { font-size: 1.4rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.2; }
 .kpi .l { position: absolute; top: .25rem; left: .5rem; color: var(--text-2); font-size: .75rem; line-height: 1.1; }

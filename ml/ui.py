@@ -394,8 +394,21 @@ def training_tab():
         players = sorted({d["人數"] for d in good})
         p = st.radio(t("tr.players"), players, index=len(players) - 1, horizontal=True, format_func=lambda n: t("match.players_n", n=n))
         rows = [d for d in good if d["人數"] == p]
-        df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
-        picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-{delete_gen()}",
+        with st.container(key="filterbar-train"):  # quick filters (CSS .st-key-filterbar*); empty = all
+            c1, c2, _ = st.columns([1, 1, 3])
+            feature_opts = sorted({d["特徵版本"] for d in rows})
+            rules_opts = sorted({d["規則版本"] for d in rows if "規則版本" in d})
+            fv = c1.pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key=f"tf-feature-{p}")
+            rv = c2.pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key=f"tf-rules-{p}")
+        rows = [d for d in rows if d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)]
+        if not rows:
+            st.caption(t("mlist.none"))
+            return
+        df = table_view(rows).drop(columns=[t("dump.col.versions")], errors="ignore")
+        df = df.set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
+        # the filters are part of the key: a selection is by row number, which a different filter would point at other files
+        picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch",
+                      key=f"dumps-{delete_gen()}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}",
                               column_config={t("dump.col.rows"): st.column_config.NumberColumn(format="localized"),
                                              t("dump.col.games"): st.column_config.NumberColumn(format="localized")})
         chosen = [rows[i] for i in picked.selection.rows]

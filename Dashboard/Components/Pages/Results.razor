@@ -29,7 +29,7 @@ else if (State.Result != null && State.Analysis != null)
     string Color(int i) => Palette.Color(strategies[i].Strategy, i);
     string Name(int i) => Palette.Label(strategies[i].SeatId, strategies[i].Strategy);
 
-    <div class="kpis">
+    <div class="kpis centre">
         <div class="kpi"><div class="v">@a.GamesCompleted.ToString("N0")</div><div class="l">@L.T("res.kpi.games", r.Status)</div></div>
         <div class="kpi"><div class="v">@r.Config.Players</div><div class="l">@L.T("res.kpi.players")</div></div>
         <div class="kpi"><div class="v">@r.Config.Seed</div><div class="l">@L.T("res.kpi.seed")</div></div>
