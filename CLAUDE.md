@@ -17,11 +17,11 @@
 ## 地圖
 | 路徑 | 用途 |
 |---|---|
-| `README.md` | 給第一次看的人：目的與可重現性、MCTS＋GBDT／MLP 架構、訓練流程、模型概況（數字來自 `docs/models.md`／分析文件第 10 節，更新時同步；目前是規則版本 1 的數字）、手寫策略、快速開始。`README.md` 是英文版、`README.zh-TW.md` 是中文版，兩份內容要同步改 |
+| `README.md` | 給第一次看的人：目的與可重現性、MCTS＋GBDT／MLP 架構、訓練流程、模型概況（數字來自 `docs/models.md`／分析文件第 10 節，更新時同步；手寫策略的 4 人局數字是規則版本 2，模型是規則版本 1 的資料訓練、在規則版本 2 重測）、手寫策略、快速開始。`README.md` 是英文版、`README.zh-TW.md` 是中文版，兩份內容要同步改 |
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
 | `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數，10.4 資料局數與模型大小） |
 | `docs/versions.json` | 版本控管清單：規則版本、引擎版本、特徵版本、資料格式版本與每個策略的策略版本，各自的版本號、commit 與每個版本的修改內容（兩個 UI 的「版本控管」頁讀它；規則見下面「版本與 hash」） |
-| `docs/rules-interpretations.md` | 規則詮釋確認清單（TODO 8(a)）：六條引擎自行採用的詮釋，附規則原文、做法與例子，等使用者確認 |
+| `docs/rules-interpretations.md` | 規則詮釋確認清單（TODO 8(a)）：六條引擎自行採用的詮釋，附規則原文、做法與例子；2026-11-19 使用者已逐條確認（結果在檔案開頭，三條改成規則版本 2） |
 | `i18n/` | UI 文字表：`ml.<語言>.json`（ML UI，`ml/i18n.py` 讀）、`dash.<語言>.json`（Dashboard，`Dashboard/Services/Loc.cs` 讀）；語言 `en`（預設）、`zh-TW`；`ml/tests/test_i18n.py` 檢查 |
 | `docs/models.md` | 局面估值模型的研發紀錄與目前狀況（每個模型的資料、勝率、狀態；新增正式模型時補一列） |
 | `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
@@ -33,7 +33,7 @@
 | `Tests/` | xUnit，只參考 Engine：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消）、`StrategyTests`、`ValueModelTests`（推論與 Python 一致、特徵視角、dump 可重現；固定資料在 `Tests/Data/`）、`VersionTests`（黃金樣本：規則或策略的行為變了卻沒進版就失敗；版本清單、`ml/strategy-params.json` 與程式一致；`StrategyRegistry.Resolve`）；情境用 `Tests/Sc.cs`（`Sc.Start` 指定總督與職業） |
 | `deploy/runpod/` | RunPod（或任何 Linux）：`setup.sh`（.NET 8、Python 套件、建置、發佈 Runner，可重複執行）、`start.sh`（背景啟動／停止 ML UI 與 Dashboard，只綁 localhost）；說明在 `docs/runpod.md` |
 | `ml/` | MCTS 的學習型價值函數（Python 子專案）：ML UI（Streamlit，`ml/start-ui.sh`／`.cmd`，localhost:8501，另外啟動）、訓練（LightGBM、NumPy MLP，背景工作）、產生資料的設定、正式模型 `ml/models/`＋`.meta.json`（使用者的實驗放本機工作區 `ml/local/`，被 git 忽略）、pytest；流程見 `ml/README.md`，細節與契約見 `ml/CLAUDE.md`（資料檔放 `results/ml/`） |
-| `tools/tiestats/`、`tools/sparring/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
+| `tools/tiestats/`、`tools/sparring/`、`tools/mctsdepth/`、`tools/valuenoise/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
 | `config*.json` | 設定檔範例（Runner 與 Dashboard 共用格式） |
 | `PuertoRico.sln`、`Directory.Build.props` | net8.0、Nullable、TreatWarningsAsErrors（csproj 內不要重複設；新程式碼要零警告） |
 | `.streamlit/config.toml` | ML UI（Streamlit）的深色主題，與 Dashboard 同色票（Streamlit 從啟動目錄讀，啟動檔都在根目錄執行） |

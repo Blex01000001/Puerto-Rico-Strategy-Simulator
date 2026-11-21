@@ -58,6 +58,25 @@ def test_ui_lists_dumps_and_models(results):
     assert any(s.label == "模型" for s in at.selectbox)
 
 
+def test_typed_model_name_survives_a_rerun_in_a_later_minute(results, monkeypatch):
+    """The default name has the time in it; it used to be the widget's `value`, so a new minute made a new widget and the typed name was lost."""
+    import datetime
+    from conftest import write_dump
+    write_dump(str(results / "ml" / "4p-test.bin"), games=10)
+    at = goto(run_app(), "train")
+    name = lambda: next(t for t in at.text_input if t.label.startswith("模型名稱"))  # noqa: E731
+    first_default = name().value
+    name().set_value("my-own-name").run()
+
+    class Later(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return super().now(tz) + datetime.timedelta(minutes=7)
+    monkeypatch.setattr(datetime, "datetime", Later)
+    at.run()
+    assert name().value == "my-own-name" and first_default != "my-own-name"
+
+
 def test_each_page_has_its_own_english_title(results, monkeypatch):
     monkeypatch.setenv("PR_LANG", "en")
     at = run_app()

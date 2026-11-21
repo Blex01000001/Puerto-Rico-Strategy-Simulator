@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Analysis tool, not part of PuertoRico.sln: how deep and how wide the MCTS search is per game phase. See Program.cs for how to run it. -->
+  <PropertyGroup><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../Engine/Engine.csproj" /></ItemGroup>
+</Project>

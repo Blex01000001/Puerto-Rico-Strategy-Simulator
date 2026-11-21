@@ -29,7 +29,7 @@ else if (State.Result != null && State.Analysis != null)
     string Color(int i) => Palette.Color(strategies[i].Strategy, i);
     string Name(int i) => Palette.Label(strategies[i].SeatId, strategies[i].Strategy);
 
-    <div class="kpis">
+    <div class="kpis centre">
         <div class="kpi"><div class="v">@a.GamesCompleted.ToString("N0")</div><div class="l">@L.T("res.kpi.games", r.Status)</div></div>
         <div class="kpi"><div class="v">@r.Config.Players</div><div class="l">@L.T("res.kpi.players")</div></div>
         <div class="kpi"><div class="v">@r.Config.Seed</div><div class="l">@L.T("res.kpi.seed")</div></div>
@@ -169,7 +169,7 @@ else if (State.Result != null && State.Analysis != null)
             <div>
                 <h2>@L.T("res.h.reason")</h2>
                 <figure class="chartbox">
-                    <BarChart Title="@L.T("res.h.reason")" Width="440" LabelWidth="150" Format="@(v => v.ToString("P1"))"
+                    <BarChart Title="@L.T("res.h.reason")" Width="@(L.Chinese ? 440 : 620)" LabelWidth="@(L.Chinese ? 150 : 310)" Format="@(v => v.ToString("P1"))"
                               Items="@(a.EndReasons.OrderByDescending(e => e.Value).Select(e => new BarChart.BarItem(L.EndReason(e.Key), e.Value / (double)Math.Max(1, a.GamesCompleted), 0, "var(--accent)",
                                    L.T("res.reason_tip", L.EndReason(e.Key), e.Value.ToString("N0")))).ToList())" />
                 </figure>

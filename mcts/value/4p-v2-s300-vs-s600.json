@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-v2-s300-vs-s600",
+  "players": 4,
+  "games": 480,
+  "seed": 9191,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "s300",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "valueModel": "ml/models/4p-v2.txt"
+      }
+    },
+    {
+      "id": "s600",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 600,
+        "valueModel": "ml/models/4p-v2.txt"
+      }
+    },
+    {
+      "id": "cheap-engine",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}
