@@ -536,3 +536,46 @@ def test_pipeline_form_is_kept_when_another_page_is_visited_and_saved_as_a_templ
         assert at.session_state["pl-data"][0]["seed"] == 777
     finally:
         _cleanup([tpl])
+
+
+def test_pipeline_custom_combination_prefills_defaults_keeps_params_collapsed_and_stores_only_changes(results, no_spawn, inline):
+    jobs = no_spawn
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-d").click().run()
+    at.radio(key="pld-mode").set_value("custom").run()
+    assert not at.exception, at.exception
+    assert len(at.session_state["pld-cs0"]) > 0 and at.session_state["pld-cs0"] == "cheap-engine"
+    # every parameter box of the seats holds the engine's default
+    boxes = [w for w in at.text_input if w.key.startswith("pld-cp0-cheap-engine-")]
+    assert boxes and all(w.value != "" or w.key.endswith(("tieBuild", "tieGood", "tieRole", "tieTile")) for w in boxes)
+    # the seats' parameters are advanced options: collapsed expanders
+    assert all(not e.proto.expanded for e in at.expander if "pl.data" not in e.label and "(" in e.label and "cheap-engine" in e.label)
+    key = next(w.key for w in boxes if w.key.endswith("buildThreshold"))
+    default = float(at.text_input(key=key).value)
+    at.text_input(key=key).set_value(str(default + 1)).run()
+    at.text_input(key="pld-name").set_value("custom-test-a").run()
+    assert not at.button(key="pld-ok").disabled, _blocked(at)
+    at.button(key="pld-ok").click().run()
+    item = at.session_state["pl-data"][0]
+    assert item["mode"] == "custom" and len(item["seats"]) == 4
+    assert item["seats"][0]["params"] == {"buildThreshold": default + 1}      # only the changed one
+    assert all(s_["params"] == {} for s_ in item["seats"][1:])
+    at.button(key="pl-btn-start").click().run()
+    assert not at.exception, at.exception
+    job = jobs.list_jobs()[0]
+    cfg_path = os.path.join(jobs.ROOT, job["spec"]["config"])
+    try:
+        cfg = json.load(open(cfg_path, encoding="utf-8"))
+        assert [s_["strategy"] for s_ in cfg["seats"]] == ["cheap-engine", "build-first", "harbor-rush", "corn-to-premium"]
+        assert cfg["seats"][0]["params"] == {"buildThreshold": default + 1} and cfg["players"] == 4
+    finally:
+        _cleanup([cfg_path])
+
+
+def test_pipeline_custom_combination_blocks_a_text_in_a_numeric_parameter(results, inline):
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-d").click().run()
+    at.radio(key="pld-mode").set_value("custom").run()
+    key = next(w.key for w in at.text_input if w.key.startswith("pld-cp0-") and w.key.endswith("buildThreshold"))
+    at.text_input(key=key).set_value("abc").run()
+    assert at.button(key="pld-ok").disabled and any("buildThreshold" in m for m in _blocked(at))
