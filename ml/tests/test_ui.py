@@ -355,18 +355,22 @@ def _cleanup(paths):
             os.remove(p)
 
 
+def _blocked(at):
+    return [m.value for m in at.markdown if "act-err" in m.value]
+
+
 def test_pipeline_page_with_data_training_and_a_match(results, no_spawn):
     jobs = no_spawn
     at = goto(run_app(), "pipeline")
-    assert at.checkbox(key="pl-d-on").value and at.checkbox(key="pl-t-on").value
-    at.button(key="pl-btn-add").click().run()
+    assert at.session_state["pl-d-n"] == 1 and at.session_state["pl-t-n"] == 1 and at.session_state["pl-m-n"] == 0  # one data set and one model to start
+    at.button(key="pl-btn-add-m").click().run()
     at.number_input(key="pl-m0-seed").set_value(424242).run()
     assert not at.exception, at.exception
     created = []
     try:
-        start = at.button(key="pl-btn-start")
-        assert not start.disabled, [m.value for m in at.markdown if "act-err" in m.value]
-        start.click().run()
+        assert at.session_state["pl-m0-model"] == "new:0"   # the match tests the model of this pipeline
+        assert not at.button(key="pl-btn-start").disabled, _blocked(at)
+        at.button(key="pl-btn-start").click().run()
         assert not at.exception, at.exception
         listed = sorted(jobs.list_jobs(), key=lambda j: j["pipeline"]["index"])
         assert [j["kind"] for j in listed] == ["dump", "train_lgbm", "match"]
@@ -383,45 +387,104 @@ def test_pipeline_page_with_data_training_and_a_match(results, no_spawn):
         _cleanup(created)
 
 
-def test_pipeline_of_matches_only_uses_an_existing_model(results, no_spawn):
+def test_pipeline_of_matches_only_uses_existing_models(results, no_spawn):
     jobs = no_spawn
     at = goto(run_app(), "pipeline")
-    at.checkbox(key="pl-d-on").uncheck().run()
-    at.checkbox(key="pl-t-on").uncheck().run()
+    at.button(key="stop-pl-clear-d").click().run()
+    at.button(key="stop-pl-clear-t").click().run()
     at.button(key="pl-btn-standard").click().run()
     assert not at.exception, at.exception
-    for i in range(4):
+    for i in range(at.session_state["pl-m-n"]):
         at.number_input(key=f"pl-m{i}-seed").set_value(424242 + i)
     at.run()
     created = []
     try:
-        assert not at.button(key="pl-btn-start").disabled, [m.value for m in at.markdown if "act-err" in m.value]
+        assert not at.button(key="pl-btn-start").disabled, _blocked(at)
         at.button(key="pl-btn-start").click().run()
         listed = sorted(jobs.list_jobs(), key=lambda j: j["pipeline"]["index"])
         created = [os.path.join(jobs.ROOT, j["spec"]["config"]) for j in listed]
         assert len(listed) >= 2 and all(j["kind"] == "match" for j in listed)
         assert [j["pipeline"]["index"] for j in listed] == list(range(len(listed)))
-        assert listed[0]["pipeline"]["stage"] == "match"
     finally:
         _cleanup(created)
+
+
+def test_pipeline_with_several_data_sets_and_models_runs_each_model_with_its_matches(results, no_spawn):
+    jobs = no_spawn
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-d").click().run()
+    at.button(key="pl-btn-add-t").click().run()
+    at.multiselect(key="pl-t0-data").set_value(["new:0", "new:1"]).run()   # the first model uses both data sets (the second was added with all)
+    assert at.session_state["pl-t1-data"] == ["new:0", "new:1"]
+    at.button(key="pl-btn-add-m").click().run()
+    at.button(key="pl-btn-add-m").click().run()
+    at.selectbox(key="pl-m0-model").set_value("new:1").run()                # the first match tests the second model
+    at.selectbox(key="pl-m1-model").set_value("new:0").run()
+    at.number_input(key="pl-m0-seed").set_value(424242).run()
+    at.number_input(key="pl-m1-seed").set_value(424243).run()
+    assert not at.exception, at.exception
+    created = []
+    try:
+        assert not at.button(key="pl-btn-start").disabled, _blocked(at)
+        at.button(key="pl-btn-start").click().run()
+        listed = sorted(jobs.list_jobs(), key=lambda j: j["pipeline"]["index"])
+        created = [os.path.join(jobs.ROOT, j["spec"]["config"]) for j in listed if j["kind"] == "match"]
+        # all the data first, then each model followed by its own matches
+        assert [j["kind"] for j in listed] == ["dump", "dump", "train_lgbm", "match", "train_lgbm", "match"]
+        d0, d1, t0, m_of_0, t1, m_of_1 = listed
+        assert t0["spec"]["data"] == [d0["spec"]["out"], d1["spec"]["out"]] and t1["spec"]["data"] == [d0["spec"]["out"], d1["spec"]["out"]]
+        assert m_of_0["spec"]["model"] == t0["spec"]["out"] and m_of_1["spec"]["model"] == t1["spec"]["out"]
+        assert t0["spec"]["out"] != t1["spec"]["out"] and d0["spec"]["out"] != d1["spec"]["out"]
+        assert json.load(open(created[0], encoding="utf-8"))["seed"] == 424243   # the match of model 1 was row 2
+    finally:
+        _cleanup(created)
+
+
+def test_removing_a_row_moves_the_rows_after_it_and_the_references_to_them(results):
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-d").click().run()
+    at.text_input(key="pl-d1-name").set_value("second-data").run()
+    at.multiselect(key="pl-t0-data").set_value(["new:1"]).run()             # the model uses the second data set only
+    at.button(key="stop-pl-rm-d0").click().run()                           # the first data set goes away ...
+    assert not at.exception, at.exception
+    assert at.session_state["pl-d-n"] == 1 and at.text_input(key="pl-d0-name").value == "second-data"   # ... the second is the first now
+    assert at.session_state["pl-t0-data"] == ["new:0"]                      # and the model still uses it
+
+
+def test_a_template_of_the_first_pipeline_page_loads_as_one_row_of_each(results):
+    tpl = os.path.join(os.path.dirname(UI), "local", "pipelines", "pytest-old.json")
+    os.makedirs(os.path.dirname(tpl), exist_ok=True)
+    old = {"pl-players": 4, "pl-d-on": True, "pl-d-mode": "config", "pl-d-name": "pytest-old-data", "pl-t-on": True, "pl-t-kind": "train_lgbm",
+           "pl-t-name": "pytest-old-model", "pl-m-n": 1, "pl-m0-seed": 99}
+    json.dump({"schemaVersion": 1, "name": "pytest-old", "settings": old}, open(tpl, "w", encoding="utf-8"))
+    try:
+        at = goto(run_app(), "pipeline")
+        at.selectbox(key="pl-tpl-pick").set_value("pytest-old").run()
+        at.button(key="pl-btn-load").click().run()
+        assert not at.exception, at.exception
+        assert at.session_state["pl-d-n"] == 1 and at.session_state["pl-t-n"] == 1 and at.session_state["pl-m-n"] == 1
+        assert at.text_input(key="pl-d0-name").value == "pytest-old-data" and at.text_input(key="pl-t0-name").value == "pytest-old-model"
+        assert at.session_state["pl-m0-model"] == "new:0" and at.number_input(key="pl-m0-seed").value == 99
+    finally:
+        _cleanup([tpl])
 
 
 def test_pipeline_form_is_kept_when_another_page_is_visited_and_saved_as_a_template(results):
     tpl = os.path.join(os.path.dirname(UI), "local", "pipelines", "pytest-tpl.json")
     try:
         at = goto(run_app(), "pipeline")
-        at.checkbox(key="pl-d-on").uncheck().run()
-        at.checkbox(key="pl-t-on").uncheck().run()
-        at.button(key="pl-btn-add").click().run()
+        at.button(key="stop-pl-clear-d").click().run()
+        at.button(key="stop-pl-clear-t").click().run()
+        at.button(key="pl-btn-add-m").click().run()
         at.number_input(key="pl-m0-seed").set_value(777).run()
         goto(at, "queue")
         goto(at, "pipeline")
-        assert not at.checkbox(key="pl-d-on").value and at.number_input(key="pl-m0-seed").value == 777  # still as it was left
+        assert at.session_state["pl-d-n"] == 0 and at.number_input(key="pl-m0-seed").value == 777  # still as it was left
         at.text_input(key="pl-tpl-name").set_value("pytest-tpl").run()
         at.button(key="pl-btn-save").click().run()
         assert os.path.exists(tpl)
         saved = json.load(open(tpl, encoding="utf-8"))["settings"]
-        assert saved["pl-m0-seed"] == 777 and saved["pl-d-on"] is False
+        assert saved["pl-m0-seed"] == 777 and saved["pl-d-n"] == 0 and saved["pl-t-n"] == 0
         at.number_input(key="pl-m0-seed").set_value(5).run()
         at.selectbox(key="pl-tpl-pick").set_value("pytest-tpl").run()
         at.button(key="pl-btn-load").click().run()
