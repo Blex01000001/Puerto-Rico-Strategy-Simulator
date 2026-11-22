@@ -693,7 +693,7 @@
   "pl.match.model_pick": "被測模型（既有）",
   "pl.match.leaf": "leafRollout（每一場都相同）",
   "pl.match.row": "第 {n} 場",
-  "pl.match.add": "+ 加一場",
+  "pl.match.add": "+ 新增一場",
   "pl.match.standard": "填入標準驗證組",
   "pl.match.clear": "全部移除",
   "pl.match.remove": "移除",
@@ -717,5 +717,7 @@
   "queue.pipeline": "管線 {name}・{i}／{n}",
   "queue.pipeline_line": "管線 **{name}**：已完成 {done}／{total}",
   "queue.cancel_pipeline": "取消整條管線",
-  "remark.pipeline_stopped": "管線已停止：前面有工作失敗或被取消。"
+  "remark.pipeline_stopped": "管線已停止：前面有工作失敗或被取消。",
+  "pl.match.sims": "被測模型的模擬次數",
+  "pl.match.sims_help": "下面每一場裡「被測模型」那個座位的模擬次數（每一場都相同）；對手的模擬次數在每一場的那一列另外設定。"
 }

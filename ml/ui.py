@@ -573,6 +573,9 @@ div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !im
 div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12); }
 div[class*="st-key-stop-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
 div[class*="st-key-stop-"] button:hover:not(:disabled) { filter: brightness(1.12); }
+div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
+.pl-rowtitle { font-size: 1.2rem; font-weight: 700; color: #eef1f5; padding-left: .55rem; border-left: 3px solid #4aa8ff; line-height: 1.3; }
+div[class*="st-key-pl-addbox"] { border: 2px dashed #3a4258; border-radius: 8px; padding: .7rem .8rem; margin-top: .2rem; }
 div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
 /* buttons like the Dashboard: blue when they can start, locked otherwise */
 button[kind="primary"] { background: #4aa8ff !important; border: 0 !important; color: #07131f !important; font-weight: 600 !important; }
@@ -2276,7 +2279,7 @@ def pl_match_card(players, train):
         plan["model"] = model
         c1, c2, c3 = st.columns(3)
         with c1:
-            sims = pl_number(t("match.sims"), "pl-m-sims", 300, "sims", min_value=1, step=10)
+            sims = pl_number(t("pl.match.sims"), "pl-m-sims", 300, "sims", min_value=1, step=10, help=t("pl.match.sims_help"))
         with c2:
             leaf = pl_number(t("pl.match.leaf"), "pl-m-leaf", 40 if players == 4 else 0, f"leaf{players}", min_value=0, step=5)
         with c3:
@@ -2287,9 +2290,12 @@ def pl_match_card(players, train):
         names_used = []
         for i in range(n):
             with st.container(border=True, key=f"pl-mrow-{i}"):
+                h1, h2 = st.columns([8, 1.3], vertical_alignment="center")
+                h1.markdown(f"<div class='pl-rowtitle'>{html.escape(t('pl.match.row', n=i + 1))}</div>", unsafe_allow_html=True)
+                h2.button(t("pl.match.remove"), key=f"stop-pl-rm{i}", on_click=pl_match_remove, args=(i,), width="stretch")  # stop-: red (CSS)
                 r1, r2, r3, r4, r5 = st.columns([2.6, 2.2, 1.2, 1.4, 1.2], vertical_alignment="bottom")
                 with r1:
-                    table = pl_select(t("pl.match.row", n=i + 1), list(MATCH_TABLES), f"pl-m{i}-table", default="default", format_func=MATCH_TABLES.get)
+                    table = pl_select(t("match.opponent"), list(MATCH_TABLES), f"pl-m{i}-table", default="default", format_func=MATCH_TABLES.get)
                 rival = None
                 with r2:
                     if table == "model":
@@ -2305,7 +2311,6 @@ def pl_match_card(players, train):
                     games = pl_number(t("match.games", perm=perm), f"pl-m{i}-games", {"default": 240, "model": 960}.get(table, 408), table, min_value=perm, step=perm)
                 with r5:
                     seed = pl_number(t("match.seed"), f"pl-m{i}-seed", 9191, "seed", step=1)
-                st.button(t("pl.match.remove"), key=f"pl-btn-rm{i}", on_click=pl_match_remove, args=(i,))
                 if table == "model" and not rival:
                     continue
                 name = match_default_name(model, sims, leaf, table, rival, bsims, seed)
@@ -2321,11 +2326,12 @@ def pl_match_card(players, train):
                 names_used.append(name)
                 plan["rows"].append({"table": table, "rival": rival, "bsims": int(bsims), "games": int(games), "seed": int(seed), "name": name, "out": out,
                                      "out_rel": rel(out), "seats": match_seats(table, players, model, int(sims), int(leaf), int(bsims), rival, model_rel=model_rel)})
-        b1, b2, b3 = st.columns([2, 2.4, 2])
-        b1.button(t("pl.match.add"), key="pl-btn-add", on_click=pl_match_add, width="stretch")
         standard = [("model", o, 960) for o in others[:2]] + [("default", None, 240), ("hand", None, 408)]
-        b2.button(t("pl.match.standard"), key="pl-btn-standard", on_click=pl_match_standard, args=(standard,), width="stretch")
-        b3.button(t("pl.match.clear"), key="pl-btn-clear", on_click=pl_match_clear, disabled=not n, width="stretch")
+        with st.container(key="pl-addbox"):  # a dashed card (CSS) around the buttons that add matches
+            b1, b2, b3 = st.columns([2, 2.4, 1.6], vertical_alignment="center")
+            b1.button(t("pl.match.add"), key="pl-btn-add", on_click=pl_match_add, width="stretch")
+            b2.button(t("pl.match.standard"), key="pl-btn-standard", on_click=pl_match_standard, args=(standard,), width="stretch")
+            b3.button(t("pl.match.clear"), key="stop-pl-clear", on_click=pl_match_clear, disabled=not n, width="stretch")  # stop-: red (CSS)
         if not n:
             st.caption(t("pl.match.empty"))
         plan.update(model_rel=model_rel, sims=int(sims), leaf=int(leaf), threads=int(threads))
