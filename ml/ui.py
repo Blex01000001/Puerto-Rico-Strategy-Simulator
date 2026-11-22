@@ -580,6 +580,8 @@ div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; col
 .pl-detail .k { color: #8892a2; font-size: .78rem; line-height: 1.3; }
 .pl-detail .v { color: #eef1f5; font-size: .95rem; overflow-wrap: anywhere; }
 .pl-rowtitle { font-size: 1.2rem; font-weight: 700; color: #eef1f5; padding-left: .55rem; border-left: 3px solid #4aa8ff; line-height: 1.3; }
+div[class*="st-key-pl-seatcard"] { background: #202a3d; border: 1px solid #34425e; border-radius: 6px; }
+.pl-seathead { font-size: .8rem; font-weight: 600; color: #9aa4b8; }
 div[class*="st-key-pl-addbox"] { border: 2px dashed #3a4258; border-radius: 8px; padding: .7rem .8rem; margin-top: .2rem; }
 div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
 /* buttons like the Dashboard: blue when they can start, locked otherwise */
@@ -2375,40 +2377,72 @@ def documented_params(strategy):
     return tuple(v for k, v in texts.items() if re.fullmatch(rf"strat\.{re.escape(strategy)}\.p\.\d+\.name", k))
 
 
+def strategy_display_name(strategy):
+    """The strategy's name as the Dashboard's simulate page shows it (Palette.DisplayName)."""
+    if strategy == "mcts":
+        return "MCTS"
+    if strategy == "random":
+        return "Full-Random"
+    return "-".join(w[:1].upper() + w[1:] for w in strategy.split("-"))
+
+
+def strategy_choices():
+    """Same list and order as the Dashboard's strategy drop-down: alphabetical, random last."""
+    return sorted(all_strategies(), key=lambda n: (n == "random", n))
+
+
+MCTS_FIRST = ["valueModel", "simulations", "leafRollout", "rolloutRounds", "rolloutStrategy"]   # same order as the Dashboard
+
+
 def pl_custom_seats(players):
-    """One card per seat, laid out like the Dashboard's simulate page: seat label and strategy, then the parameters (boxes filled with the
-    defaults, only the strategy's own parameters) in a collapsed expander. Returns the seats (only changed parameters)."""
-    names = all_strategies()
+    """The seat rows of the Dashboard's simulate page (seat | strategy | parameters), one framed card per seat; the parameter boxes are filled
+    with the defaults and only the strategy's own parameters are offered. Returns the seats (only changed parameters)."""
+    names = strategy_choices()
     model_names = [t("custom.model_none")] + [os.path.basename(p_) for p_ in models_for(players)]
+    widths = [1, 3.4, 8]
+    heads = st.columns(widths)
+    for c_, key in zip(heads, ("pl.data.col.seat", "pl.data.col.strategy", "pl.data.col.params")):
+        c_.markdown(f'<span class="pl-seathead">{t(key)}</span>', unsafe_allow_html=True)
     seats = []
     for i in range(players):
         default = DEFAULT_CUSTOM[players][i] if DEFAULT_CUSTOM[players][i] in names else names[0]
         pl_default(f"pld-cs{i}", f"players|{players}", default)
-        model_rel = ""
+        pl_default(f"pld-cm{i}", f"players|{players}", model_names[0])
+        if st.session_state.get(f"pld-cm{i}") not in model_names:
+            st.session_state[f"pld-cm{i}"] = model_names[0]
         with st.container(border=True, key=f"pl-seatcard-{i}"):
-            c1, c2 = st.columns([1, 3], vertical_alignment="center")
+            c1, c2, c3 = st.columns(widths, vertical_alignment="center")
             c1.markdown(f"**{t('custom.seat', n=i + 1)}**")
-            strat = c2.selectbox(t("custom.seat", n=i + 1), names, key=f"pld-cs{i}", label_visibility="collapsed",
-                                 format_func=lambda n: f"{n} ({STRATEGY_TEXT[n]})" if n in STRATEGY_TEXT and lang() != "zh-TW" else f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
-            with st.expander(t("pl.data.seat_params", n=i + 1, strategy=strat)):
-                if strat == "mcts":
-                    pl_default(f"pld-cm{i}", f"players|{players}", model_names[0])
-                    if st.session_state.get(f"pld-cm{i}") not in model_names:
-                        st.session_state[f"pld-cm{i}"] = model_names[0]
-                    model = st.selectbox(t("custom.model"), model_names, key=f"pld-cm{i}")
-                    model_rel = rel(model_path(model)) if model != model_names[0] else ""
-                defaults = pl_custom_defaults(strat, players, model_rel)
-                texts = {}
-                shown = [k for k in defaults if k != "valueModel" and (not documented_params(strat) or k in documented_params(strat))]
-                if not shown and strat != "mcts":
+            strat = c2.selectbox(t("custom.seat", n=i + 1), names, key=f"pld-cs{i}", label_visibility="collapsed", format_func=strategy_display_name)
+            model_choice = st.session_state[f"pld-cm{i}"]
+            model_rel = rel(model_path(model_choice)) if strat == "mcts" and model_choice != model_names[0] else ""
+            defaults = pl_custom_defaults(strat, players, model_rel)
+            documented = documented_params(strat)
+            keys = [k for k in defaults if not documented or k in documented]
+            if strat == "mcts":
+                keys = [k for k in MCTS_FIRST if k in keys] + [k for k in keys if k not in MCTS_FIRST]
+            texts = {}
+            with c3:
+                if not keys:
                     st.caption(t("pl.data.no_params"))
-                cols = st.columns(5)
-                for j, k in enumerate(shown):
-                    with cols[j % 5]:
-                        key = f"pld-cp{i}-{strat}-{k}"
-                        d = defaults[k]
-                        pl_default(key, f"{players}|{strat}|{model_rel}", "" if d is None else f"{d:g}" if isinstance(d, float) else str(d))
-                        texts[k] = st.text_input(k, key=key)
+                for row in range(0, len(keys), 3):
+                    cols = st.columns(3)
+                    for col, k in zip(cols, keys[row:row + 3]):
+                        with col:
+                            if k == "valueModel":
+                                st.selectbox(t("custom.model"), model_names, key=f"pld-cm{i}")
+                                continue
+                            key = f"pld-cp{i}-{strat}-{k}"
+                            d = defaults[k]
+                            pl_default(key, f"{players}|{strat}|{model_rel}", "" if d is None else f"{d:g}" if isinstance(d, float) else str(d))
+                            if k == "rolloutStrategy":
+                                choices = [n for n in names if n != "mcts"]
+                                if st.session_state.get(key) not in choices:
+                                    st.session_state[key] = d if d in choices else choices[0]
+                                st.selectbox(k, choices, key=key, format_func=strategy_display_name)
+                            else:
+                                st.text_input(k, key=key)
+                            texts[k] = st.session_state[key]
         seat = {"strategy": strat}
         try:
             params = pl_custom_params({k: defaults[k] for k in texts}, texts)

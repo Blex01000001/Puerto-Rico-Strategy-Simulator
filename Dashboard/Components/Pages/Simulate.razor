@@ -534,7 +534,10 @@
     private List<string> ShownParams(string strategy, Dictionary<string, JsonElement> defs, Dictionary<string, string> typed)
     {
         var documented = StrategyInfo.Doc(L, strategy).Params.Select(p => p.Name).ToHashSet();
-        return defs.Keys.Where(documented.Contains).Concat(typed.Keys.Where(k => !documented.Contains(k))).ToList();
+        var keys = defs.Keys.Where(documented.Contains).Concat(typed.Keys.Where(k => !documented.Contains(k))).ToList();
+        if (!strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)) return keys;
+        string[] first = ["valueModel", "simulations", "leafRollout", "rolloutRounds", "rolloutStrategy"];   // MCTS: the ones you change most come first
+        return first.Where(keys.Contains).Concat(keys.Where(k => !first.Contains(k))).ToList();
     }
 
     /// <summary>Meaning and range of a parameter from the strategy guide (tooltip of its name); "" when not documented.</summary>

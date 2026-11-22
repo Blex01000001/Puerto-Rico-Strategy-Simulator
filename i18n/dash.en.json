@@ -389,7 +389,7 @@
   "sim.col.seat": "Seat",
   "sim.col.target": "Sweep target",
   "sim.col.strategy": "Strategy",
-  "sim.col.params": "Parameters (empty = default)",
+  "sim.col.params": "Parameters",
   "sim.seat_n": "Seat {0}",
   "sim.target": "Target",
   "sim.model_title": "A learned position-value model (trained in the ML UI, kept in ml/models/): leaf nodes use the model's estimate instead of rolling out. It is written into the parameter box on the left (valueModel=…).",

@@ -550,8 +550,9 @@ def test_pipeline_custom_combination_prefills_defaults_keeps_params_collapsed_an
     assert boxes and all(w.value != "" for w in boxes)                                     # filled with the defaults
     assert not any("tie" in w.key or "randomTies" in w.key for w in at.text_input if w.key.startswith("pld-cp"))   # only the strategy's own parameters
     assert [w.key.rsplit("-", 1)[1] for w in at.text_input if w.key.startswith("pld-cp1-")] == ["buildThreshold", "quarryTarget"]   # build-first
-    # the seats' parameters are advanced options: collapsed expanders
-    assert all(not e.proto.expanded for e in at.expander if "pl.data" not in e.label and "(" in e.label and "cheap-engine" in e.label)
+    # same strategy names as the Dashboard's drop-down
+    assert at.selectbox(key="pld-cs0").options[0] == "Build-First" or "Build-First" in at.selectbox(key="pld-cs0").options
+    assert at.selectbox(key="pld-cs0").options[-1] == "Full-Random"
     key = next(w.key for w in boxes if w.key.endswith("buildThreshold"))
     default = float(at.text_input(key=key).value)
     at.text_input(key=key).set_value(str(default + 1)).run()
@@ -581,3 +582,15 @@ def test_pipeline_custom_combination_blocks_a_text_in_a_numeric_parameter(result
     key = next(w.key for w in at.text_input if w.key.startswith("pld-cp0-") and w.key.endswith("buildThreshold"))
     at.text_input(key=key).set_value("abc").run()
     assert at.button(key="pld-ok").disabled and any("buildThreshold" in m for m in _blocked(at))
+
+
+def test_pipeline_custom_mcts_seat_lists_its_parameters_in_the_dashboard_order(results, inline):
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-d").click().run()
+    at.radio(key="pld-mode").set_value("custom").run()
+    at.selectbox(key="pld-cs0").set_value("mcts").run()
+    assert not at.exception, at.exception
+    keys = [w.key for w in [*at.selectbox, *at.text_input] if w.key and (w.key.startswith("pld-cm0") or w.key.startswith("pld-cp0-mcts-"))]
+    order = {k: i for i, k in enumerate(["pld-cm0", "pld-cp0-mcts-simulations", "pld-cp0-mcts-leafRollout", "pld-cp0-mcts-rolloutRounds", "pld-cp0-mcts-rolloutStrategy"])}
+    assert sorted(keys, key=lambda k: order.get(k, 99))[:5] == list(order)
+    assert not any("tie" in k for k in keys)
