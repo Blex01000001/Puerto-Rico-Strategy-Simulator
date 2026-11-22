@@ -743,6 +743,8 @@
   "pl.train.kind_existing": "已有",
   "pl.train.col.kind": "資料",
   "pl.train.no_data_rows": "還沒有資料：在步驟 ① 新增，或到「模擬對局採樣」頁產生。",
+  "pl.train.chosen": "已選 {n} 份資料（其中 {new} 份是本管線的），共約 {rows} 列。",
+  "pl.train.chosen_none": "還沒有勾選資料：請勾選要訓練的資料列。",
   "pl.train.p.dup": "有兩個模型會寫成同一個檔案（{name}）：請改名稱",
   "pl.match.model": "被測模型",
   "pl.match.opp.default": "原版 MCTS",

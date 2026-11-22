@@ -597,6 +597,7 @@ button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2
 [data-testid="stPopover"] button, button[kind="primary"], button[kind="secondary"] { white-space: nowrap; }
 .act-note { color: #8892a2; font-size: .82rem; line-height: 1.35; }
 .act-err { color: #ec6a6a; font-size: .82rem; line-height: 1.35; }
+.pl-problems { min-height: 2.4rem; font-size: .82rem; line-height: 1.35; margin: -.5rem 0 -.3rem; }
 /* parameter grid: every label gets the height of two lines, so wrapped and unwrapped titles line up */
 [class*="st-key-params"] [data-testid="stWidgetLabel"] { min-height: 2.6rem; display: flex; align-items: flex-end; }
 /* sidebar: long job titles stay on one line and fade out */
@@ -2341,8 +2342,9 @@ def pl_dialog_reset():
 
 def pl_dialog_buttons(kind, item, problems):
     """Problems in red, then Add (locked while there are problems) and Cancel; both close the dialog (a rerun of the page)."""
-    for p_ in problems:
-        st.markdown(f'<span class="act-err">{plain(p_)}</span>', unsafe_allow_html=True)
+    # one block that is always there (an empty one keeps its height): the buttons below must not jump when a problem appears or goes away
+    text = f'<span class="act-err">{t("common.sep").join(plain(p_) for p_ in problems)}</span>' if problems else "&nbsp;"
+    st.markdown(f'<div class="pl-problems">{text}</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     if c1.button(t("pl.dlg.add"), key="pld-ok", type="primary", disabled=item is None or bool(problems), width="stretch"):
         pl_item_add(kind, item)
@@ -2608,6 +2610,11 @@ def pl_train_dialog(players):
             selected = {visible[n] for n in event.selection.rows if n < len(visible)}
             hidden_kept = {x for x in chosen_before if x not in visible}    # chosen earlier, hidden by a filter now: still chosen
             st.session_state["pld-data"] = [x for x in options if x in selected or x in hidden_kept]
+    chosen_now = [x for x in st.session_state.get("pld-data", []) if x in options]
+    rows_now = sum(all_rows[x]["rows"] or 0 for x in chosen_now) if options else 0
+    if options:
+        st.caption(t("pl.train.chosen", n=len(chosen_now), new=sum(1 for x in chosen_now if pipeline_form.token_index(x) is not None), rows=f"{rows_now:,}")
+                   if chosen_now else t("pl.train.chosen_none"))
     picked = [x for x in st.session_state.get("pld-data", []) if x in options]
     pl_default("pld-kind", "open", "train_lgbm")
     kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True, key="pld-kind")
