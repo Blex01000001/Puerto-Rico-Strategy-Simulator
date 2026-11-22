@@ -191,6 +191,10 @@ def current_strategy_revision(name):
     return entry["revision"] if entry else None
 
 
+# C# MctsStrategy.DefaultLeafRollout (a test checks they agree). Files without resolvedSeats (legacy) were made when the default was 0.
+DEFAULT_LEAF_ROLLOUT = 40
+
+
 def resolve_seat(seat, players, legacy=False):
     """What StrategyRegistry.Resolve (C#) gives for a config seat: every parameter with the value used (defaults of this
     player count, config values win, unread config values kept) and the revisions of all strategy code involved."""
@@ -206,6 +210,8 @@ def resolve_seat(seat, players, legacy=False):
         entry = table[name]
         params = {**entry["params"].get(str(players), {}), **given}
         revisions = {name: entry["revision"]}
+        if name == "mcts" and not legacy and players == 4 and params.get("valueModel") and "leafRollout" not in given:
+            params["leafRollout"] = DEFAULT_LEAF_ROLLOUT  # the engine's default with a value model on 4 players (the table above is resolved without a model)
         if name == "mcts":  # the rollout strategy's code is part of the seat (resolved without parameters, as MCTS creates it)
             rollout = str(params.get("rolloutStrategy", "random"))
             revisions.update(resolve_seat({"strategy": rollout}, players, legacy)["revisions"])

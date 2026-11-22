@@ -11,7 +11,8 @@
       "strategy": "mcts",
       "params": {
         "simulations": 300,
-        "valueModel": "ml/models/4p-v3.txt"
+        "valueModel": "ml/models/4p-v3.txt",
+        "leafRollout": 0
       }
     },
     {

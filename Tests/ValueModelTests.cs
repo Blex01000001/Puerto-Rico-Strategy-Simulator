@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using PuertoRico.Engine.Game;
 using PuertoRico.Engine.Simulation;
+using PuertoRico.Engine.Strategies;
 using PuertoRico.Engine.Strategies.Mcts;
 using Xunit;
 
@@ -90,6 +91,24 @@ public class ValueModelTests
         int present3 = Array.IndexOf(FeaturesV1.Names, "p3_present");
         Assert.Equal(0, FeatureSets.V1.Extract(three, 0)[present3]); // 3-player games leave the 4th block empty
         Assert.All(FeatureSets.V1.Extract(three, 1), v => Assert.True(v >= short.MinValue && v <= short.MaxValue && v == Math.Floor(v)));
+    }
+
+    [Fact]
+    public void LeafRolloutDefaultsTo40OnlyWithAModelAndFourPlayers()
+    {
+        double Leaf(int players, bool model, int? given = null)
+        {
+            var seat = new SeatConfig { Strategy = "mcts" };
+            if (model) seat.Params["valueModel"] = JsonSerializer.SerializeToElement(DataPath("tiny-lgbm.txt"));
+            if (given != null) seat.Params["leafRollout"] = JsonSerializer.SerializeToElement(given.Value);
+            return StrategyRegistry.Resolve(seat, players).Params["leafRollout"].GetDouble();
+        }
+        Assert.Equal(MctsStrategy.DefaultLeafRollout, (int)Leaf(4, model: true));
+        Assert.Equal(40, (int)Leaf(4, model: true));
+        Assert.Equal(0, Leaf(4, model: false));   // no model: no leaf rollout
+        Assert.Equal(0, Leaf(3, model: true));    // 3 players: not measured, stays 0
+        Assert.Equal(0, Leaf(4, model: true, given: 0));    // explicit values always win
+        Assert.Equal(20, Leaf(4, model: true, given: 20));
     }
 
     private static SimulationConfig MctsValueConfig(string model, int leafRollout)
