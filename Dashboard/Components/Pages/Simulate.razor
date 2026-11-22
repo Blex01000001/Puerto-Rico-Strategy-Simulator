@@ -92,7 +92,7 @@
             <div class="paramcell">
                 @{
                     var defs = Defaults(strategies[seat], pv[seat].GetValueOrDefault("valueModel", ""));
-                    var keys = defs.Keys.Concat(pv[seat].Keys.Where(k => !defs.ContainsKey(k))).ToList();
+                    var keys = ShownParams(strategies[seat], defs, pv[seat]);
                 }
                 @if (keys.Count == 0)
                 {
@@ -527,6 +527,14 @@
             }
             return DefaultCache[(strategy, players, valueModel)] = d;
         }
+    }
+
+    /// <summary>The boxes of a seat: the parameters the strategy guide documents for it, plus any other parameter that has a typed value (a loaded
+    /// template). The shared tie-break parameters (randomTies, tie*) are not part of a strategy's own parameters and are not offered.</summary>
+    private List<string> ShownParams(string strategy, Dictionary<string, JsonElement> defs, Dictionary<string, string> typed)
+    {
+        var documented = StrategyInfo.Doc(L, strategy).Params.Select(p => p.Name).ToHashSet();
+        return defs.Keys.Where(documented.Contains).Concat(typed.Keys.Where(k => !documented.Contains(k))).ToList();
     }
 
     /// <summary>Meaning and range of a parameter from the strategy guide (tooltip of its name); "" when not documented.</summary>

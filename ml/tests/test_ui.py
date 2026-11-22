@@ -547,7 +547,9 @@ def test_pipeline_custom_combination_prefills_defaults_keeps_params_collapsed_an
     assert len(at.session_state["pld-cs0"]) > 0 and at.session_state["pld-cs0"] == "cheap-engine"
     # every parameter box of the seats holds the engine's default
     boxes = [w for w in at.text_input if w.key.startswith("pld-cp0-cheap-engine-")]
-    assert boxes and all(w.value != "" or w.key.endswith(("tieBuild", "tieGood", "tieRole", "tieTile")) for w in boxes)
+    assert boxes and all(w.value != "" for w in boxes)                                     # filled with the defaults
+    assert not any("tie" in w.key or "randomTies" in w.key for w in at.text_input if w.key.startswith("pld-cp"))   # only the strategy's own parameters
+    assert [w.key.rsplit("-", 1)[1] for w in at.text_input if w.key.startswith("pld-cp1-")] == ["buildThreshold", "quarryTarget"]   # build-first
     # the seats' parameters are advanced options: collapsed expanders
     assert all(not e.proto.expanded for e in at.expander if "pl.data" not in e.label and "(" in e.label and "cheap-engine" in e.label)
     key = next(w.key for w in boxes if w.key.endswith("buildThreshold"))
