@@ -50,7 +50,7 @@
             "帶 valueModel 的 MCTS 座位，在 4 人局沒寫 leafRollout 時預設改成 40（以前 0）；3 人局與沒有模型時仍是 0（分析文件 10.10：同桌對打 +20 個百分點，成本幾乎不變）。同一份沒寫 leafRollout 的設定檔因此對局結果不同；明確寫 leafRollout 的設定不受影響，專案裡既有的 4 人局設定檔已明確寫 0。結果檔的 resolvedSeats 記實際用的值，hash 隨之不同；規則版本與 mcts 策略版本不變（只改預設值）。",
             "ML UI 的對戰驗證與自訂組合一律寫出 leafRollout（包括 0）；Dashboard「策略模擬」頁改成每個參數一個輸入框並顯示引擎的預設值，範本選單可選專案設定檔。"
           ],
-          "commit": ""
+          "commit": "96f7e9e37d12c88c600f305885df6ed36ebba4b3"
         },
         {
           "version": "1.0.0",
