@@ -2363,38 +2363,55 @@ def pl_custom_params(defaults, texts):
     return out
 
 
+@st.cache_data(show_spinner=False)
+def documented_params(strategy):
+    """The parameters the Dashboard's strategy guide lists for a strategy (i18n/dash.en.json, `strat.<id>.p.N.name`): its own parameters; the shared
+    tie-break ones (randomTies, tie*) are not among them. Empty when the guide has nothing (then every parameter is offered)."""
+    try:
+        with open(os.path.join(ROOT, "i18n", "dash.en.json"), encoding="utf-8") as f:
+            texts = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return ()
+    return tuple(v for k, v in texts.items() if re.fullmatch(rf"strat\.{re.escape(strategy)}\.p\.\d+\.name", k))
+
+
 def pl_custom_seats(players):
-    """One row per seat: strategy, then its parameters in a collapsed expander (boxes filled with the defaults). Returns the seats (only changed parameters)."""
+    """One card per seat, laid out like the Dashboard's simulate page: seat label and strategy, then the parameters (boxes filled with the
+    defaults, only the strategy's own parameters) in a collapsed expander. Returns the seats (only changed parameters)."""
     names = all_strategies()
     model_names = [t("custom.model_none")] + [os.path.basename(p_) for p_ in models_for(players)]
     seats = []
     for i in range(players):
         default = DEFAULT_CUSTOM[players][i] if DEFAULT_CUSTOM[players][i] in names else names[0]
         pl_default(f"pld-cs{i}", f"players|{players}", default)
-        strat = st.selectbox(t("custom.seat", n=i + 1), names, key=f"pld-cs{i}",
-                             format_func=lambda n: f"{n} ({STRATEGY_TEXT[n]})" if n in STRATEGY_TEXT and lang() != "zh-TW" else f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
         model_rel = ""
-        with st.expander(t("pl.data.seat_params", n=i + 1, strategy=strat)):
-            if strat == "mcts":
-                pl_default(f"pld-cm{i}", f"players|{players}", model_names[0])
-                if st.session_state.get(f"pld-cm{i}") not in model_names:
-                    st.session_state[f"pld-cm{i}"] = model_names[0]
-                model = st.selectbox(t("custom.model"), model_names, key=f"pld-cm{i}")
-                model_rel = rel(model_path(model)) if model != model_names[0] else ""
-            defaults = pl_custom_defaults(strat, players, model_rel)
-            texts = {}
-            cols = st.columns(3)
-            for j, (k, d) in enumerate(defaults.items()):
-                if k == "valueModel":
-                    texts[k] = d
-                    continue
-                with cols[j % 3]:
-                    key = f"pld-cp{i}-{strat}-{k}"
-                    pl_default(key, f"{players}|{strat}|{model_rel}", "" if d is None else f"{d:g}" if isinstance(d, float) else str(d))
-                    texts[k] = st.text_input(k, key=key)
+        with st.container(border=True, key=f"pl-seatcard-{i}"):
+            c1, c2 = st.columns([1, 3], vertical_alignment="center")
+            c1.markdown(f"**{t('custom.seat', n=i + 1)}**")
+            strat = c2.selectbox(t("custom.seat", n=i + 1), names, key=f"pld-cs{i}", label_visibility="collapsed",
+                                 format_func=lambda n: f"{n} ({STRATEGY_TEXT[n]})" if n in STRATEGY_TEXT and lang() != "zh-TW" else f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
+            with st.expander(t("pl.data.seat_params", n=i + 1, strategy=strat)):
+                if strat == "mcts":
+                    pl_default(f"pld-cm{i}", f"players|{players}", model_names[0])
+                    if st.session_state.get(f"pld-cm{i}") not in model_names:
+                        st.session_state[f"pld-cm{i}"] = model_names[0]
+                    model = st.selectbox(t("custom.model"), model_names, key=f"pld-cm{i}")
+                    model_rel = rel(model_path(model)) if model != model_names[0] else ""
+                defaults = pl_custom_defaults(strat, players, model_rel)
+                texts = {}
+                shown = [k for k in defaults if k != "valueModel" and (not documented_params(strat) or k in documented_params(strat))]
+                if not shown and strat != "mcts":
+                    st.caption(t("pl.data.no_params"))
+                cols = st.columns(5)
+                for j, k in enumerate(shown):
+                    with cols[j % 5]:
+                        key = f"pld-cp{i}-{strat}-{k}"
+                        d = defaults[k]
+                        pl_default(key, f"{players}|{strat}|{model_rel}", "" if d is None else f"{d:g}" if isinstance(d, float) else str(d))
+                        texts[k] = st.text_input(k, key=key)
         seat = {"strategy": strat}
         try:
-            params = pl_custom_params({k: v for k, v in defaults.items() if k != "valueModel"}, {k: v for k, v in texts.items() if k != "valueModel"})
+            params = pl_custom_params({k: defaults[k] for k in texts}, texts)
         except ValueError as e:
             params, seat["error"] = {}, t("custom.seat_param_error", n=i + 1, error=e)
         if model_rel:

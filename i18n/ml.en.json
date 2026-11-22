@@ -677,6 +677,7 @@
   "pl.data.p.seats": "The seats of this custom combination do not match the player count or a strategy is unknown.",
   "pl.det.seats": "Seats",
   "pl.data.seat_params": "Seat {n} parameters ({strategy}), advanced",
+  "pl.data.no_params": "No tunable parameters.",
   "pl.data.no_config": "There is no data config for {n} players.",
   "pl.data.feature_note": "Most existing data for this player count has feature version {v}; training takes one feature version only.",
   "pl.p.exists": "“{name}” already exists: pick another name.",
