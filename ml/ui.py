@@ -580,8 +580,14 @@ div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; col
 .pl-detail .k { color: #8892a2; font-size: .78rem; line-height: 1.3; }
 .pl-detail .v { color: #eef1f5; font-size: .95rem; overflow-wrap: anywhere; }
 .pl-rowtitle { font-size: 1.2rem; font-weight: 700; color: #eef1f5; padding-left: .55rem; border-left: 3px solid #4aa8ff; line-height: 1.3; }
-div[class*="st-key-pl-seatcard"] { background: #202a3d; border: 1px solid #34425e; border-radius: 6px; }
-.pl-seathead { font-size: .8rem; font-weight: 600; color: #9aa4b8; }
+div[class*="st-key-pl-seatcard"] { background: #1d2433; border: 1px solid #2b3447; border-radius: 4px; padding: .55rem .7rem; }
+div[class*="st-key-pl-seatcard"] > div[data-testid="stVerticalBlock"], div[class*="st-key-pl-seatcard"] div[data-testid="stVerticalBlock"] { gap: .3rem; }
+div[class*="st-key-pl-seatcard"] [data-testid="stWidgetLabel"] { min-height: 0; margin-bottom: .1rem; }
+div[class*="st-key-pl-seatcard"] [data-testid="stWidgetLabel"] p { font-size: .8rem; font-weight: 600; color: #aab3c5; line-height: 1.2; }
+div[class*="st-key-pl-seatcard"] [data-testid="stTextInputRootElement"], div[class*="st-key-pl-seatcard"] div[data-baseweb="select"] > div,
+div[class*="st-key-pl-seatcard"] .react-aria-ComboBox { height: 2rem; min-height: 2rem; }
+div[class*="st-key-pl-seatcard"] input { padding: .2rem .5rem; height: 100%; min-height: 0; font-size: .9rem; }
+div[class*="st-key-pl-seatcard"] div[data-baseweb="select"] > div { padding-top: 0; padding-bottom: 0; }
 div[class*="st-key-pl-addbox"] { border: 2px dashed #3a4258; border-radius: 8px; padding: .7rem .8rem; margin-top: .2rem; }
 div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
 /* buttons like the Dashboard: blue when they can start, locked otherwise */
@@ -2125,6 +2131,9 @@ def pl_template_card():
 
 # ---- what an item will do (plans: no widgets, so the page and the dialogs use the same checks)
 
+SEAT_ORDERS = ("random", "balanced", "rotate", "fixed")   # same as the Dashboard
+
+
 def pl_known_dumps(players):
     return {d["path"]: d for d in list_dumps() if "error" not in d and not d.get("writing") and d["人數"] == players}
 
@@ -2137,6 +2146,7 @@ def pl_data_plan(item, players, others):
     name = str(item.get("name", "")).strip()
     games, seed = int(item.get("games") or 0), int(item.get("seed") or 0)
     rate, feature, threads = float(item.get("rate") or 0), int(item.get("feature") or 0), int(item.get("threads") or 0)
+    seat_order = item.get("seat_order") if item.get("seat_order") in SEAT_ORDERS else "random"
     if mode == "config":
         config = item.get("config") or ""
         cfg = read_config(absolute(config)) if config else None
@@ -2158,7 +2168,7 @@ def pl_data_plan(item, players, others):
             if vm and not os.path.exists(absolute(vm)):
                 problems.append(t("pl.data.p.model", name=os.path.basename(vm)))
                 return plan
-        eff = {"schemaVersion": 1, "name": name, "players": players, "games": games, "seed": seed, "seatOrder": "random",
+        eff = {"schemaVersion": 1, "name": name, "players": players, "games": games, "seed": seed, "seatOrder": seat_order,
                "seats": [{"id": f"{s_['strategy']}-{i}", "strategy": s_["strategy"], "params": dict(s_.get("params") or {})} for i, s_ in enumerate(seats)],
                "output": {"perGameRecords": False}}
         strategies = t("common.list").join(s_["strategy"] for s_ in seats)
@@ -2172,7 +2182,7 @@ def pl_data_plan(item, players, others):
             problems.append(t("pl.data.p.model", name=model or "?"))
             return plan
         sims, leaf = int(item.get("sims") or 100), int(item.get("leaf") or 0)
-        eff = selfplay_config(name, players, games, seed, sims, leaf, rel(model_path(model)))
+        eff = {**selfplay_config(name, players, games, seed, sims, leaf, rel(model_path(model))), "seatOrder": seat_order}
         plan.update(model=model, sims=sims, leaf=leaf, title_key="job.title.dump_selfplay", title_args={"model": model})
         source = [(t("pl.det.source"), t("pl.data.mode.selfplay"), 1, 1, 1), (t("pl.det.model"), model, 1, 2, 3),
                   (t("pl.det.sims"), str(sims), 1, 5, 1), (t("pl.det.leaf"), str(leaf), 1, 6, 1)]
@@ -2199,6 +2209,8 @@ def pl_data_plan(item, players, others):
                 rows=pl_rows(games, rate, players), eff=eff, twins=twins)
     plan["details"] = source + [(t("pl.det.games"), f"{games:,}", 2, 1, 1), (t("pl.det.seed"), str(seed), 2, 2, 1), (t("pl.det.rate"), f"{rate:g}", 2, 3, 1),
                                 (t("pl.det.feature"), str(feature), 2, 4, 1), (t("pl.det.output"), name + ".bin", 3, 1, 6)]
+    if mode != "config":
+        plan["details"].append((t("pl.det.seat_order"), seat_order, 2, 5, 1))
     return plan
 
 
@@ -2425,9 +2437,9 @@ def pl_custom_seats(players):
             with c3:
                 if not keys:
                     st.caption(t("pl.data.no_params"))
-                for row in range(0, len(keys), 3):
-                    cols = st.columns(3)
-                    for col, k in zip(cols, keys[row:row + 3]):
+                for row in range(0, len(keys), 5):
+                    cols = st.columns(5)
+                    for col, k in zip(cols, keys[row:row + 5]):
                         with col:
                             if k == "valueModel":
                                 st.selectbox(t("custom.model"), model_names, key=f"pld-cm{i}")
@@ -2458,6 +2470,7 @@ def pl_custom_seats(players):
 
 def pl_data_form(players, count):
     """The settings of a new data set (inside the dialog); returns the item, or None when there is nothing to choose from."""
+    pl_default("pld-mode", "open", "config")   # set (not just popped by the reset) so the radio really goes back to the first choice
     mode = st.radio(t("pl.data.mode"), ["config", "custom", "selfplay"], format_func=lambda m: t(f"pl.data.mode.{m}"), horizontal=True, key="pld-mode")
     item = {"mode": mode}
     stamp = datetime.datetime.now().strftime("%m%d-%H%M")
@@ -2515,7 +2528,14 @@ def pl_data_form(players, count):
         feature = pl_select(t("dt.feature"), versions, "pld-feature", help=t("dt.feature_help"))
     if common is not None and feature != common:
         st.caption(t("pl.data.feature_note", v=common))
-    name = pl_text(t("dt.name"), "pld-name", name_d, token)
+    if mode == "config":
+        name = pl_text(t("dt.name"), "pld-name", name_d, token)
+    else:   # the seat order of a new combination (a config file has its own)
+        n1, n2 = st.columns([3, 2])
+        with n1:
+            name = pl_text(t("dt.name"), "pld-name", name_d, token)
+        with n2:
+            item["seat_order"] = pl_select(t("pl.data.seat_order"), list(SEAT_ORDERS), "pld-seatorder", default="random", format_func=lambda o: t(f"pl.data.so.{o}"))
     item.update(games=int(games), seed=int(seed), rate=float(rate), threads=int(threads), feature=int(feature), name=name)
     return item
 
@@ -2545,6 +2565,7 @@ def pl_train_dialog(players):
         return t("pl.train.data_item", file=os.path.basename(tok), v=by_path[tok]["特徵版本"], rows=f"{by_path[tok]['列數']:,}")
 
     picked = st.multiselect(t("pl.train.data"), options, key="pld-data", format_func=label)
+    pl_default("pld-kind", "open", "train_lgbm")
     kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True, key="pld-kind")
     with st.expander(t("pl.train.advanced")):
         opts = param_inputs(pl_train_defaults(kind), f"pld-opt-{kind}", container_key=f"params-pld-{kind}")

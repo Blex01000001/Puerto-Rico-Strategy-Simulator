@@ -594,3 +594,21 @@ def test_pipeline_custom_mcts_seat_lists_its_parameters_in_the_dashboard_order(r
     order = {k: i for i, k in enumerate(["pld-cm0", "pld-cp0-mcts-simulations", "pld-cp0-mcts-leafRollout", "pld-cp0-mcts-rolloutRounds", "pld-cp0-mcts-rolloutStrategy"])}
     assert sorted(keys, key=lambda k: order.get(k, 99))[:5] == list(order)
     assert not any("tie" in k for k in keys)
+
+
+def test_pipeline_custom_combination_seat_order_goes_into_the_config(results, no_spawn, inline):
+    jobs = no_spawn
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-d").click().run()
+    at.radio(key="pld-mode").set_value("custom").run()
+    assert at.selectbox(key="pld-seatorder").value == "random"
+    at.selectbox(key="pld-seatorder").set_value("balanced").run()
+    at.text_input(key="pld-name").set_value("custom-order-test").run()
+    at.button(key="pld-ok").click().run()
+    assert at.session_state["pl-data"][0]["seat_order"] == "balanced"
+    at.button(key="pl-btn-start").click().run()
+    cfg_path = os.path.join(jobs.ROOT, jobs.list_jobs()[0]["spec"]["config"])
+    try:
+        assert json.load(open(cfg_path, encoding="utf-8"))["seatOrder"] == "balanced"
+    finally:
+        _cleanup([cfg_path])
