@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-selfplay-v2-leaf40",
+  "players": 4,
+  "games": 8000,
+  "seed": 301,
+  "seatOrder": "random",
+  "seats": [
+    {
+      "id": "m0",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 40
+      }
+    },
+    {
+      "id": "m1",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 40
+      }
+    },
+    {
+      "id": "m2",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 40
+      }
+    },
+    {
+      "id": "m3",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 100,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 40
+      }
+    }
+  ],
+  "output": {
+    "perGameRecords": false,
+    "dumpRate": 0.05
+  }
+}
