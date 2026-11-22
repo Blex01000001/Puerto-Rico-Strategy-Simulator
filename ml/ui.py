@@ -575,9 +575,10 @@ div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12)
 div[class*="st-key-stop-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
 div[class*="st-key-stop-"] button:hover:not(:disabled) { filter: brightness(1.12); }
 div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
-.pl-detail { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1.4rem; padding: .35rem 0 .5rem .75rem; font-size: .92rem; }
-.pl-detail .k { color: #8892a2; }
-.pl-detail .v { color: #eef1f5; overflow-wrap: anywhere; }
+.pl-detail { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem 1.1rem; padding: .45rem .3rem .55rem .75rem; }
+.pl-detail .c { display: flex; flex-direction: column; min-width: 0; }
+.pl-detail .k { color: #8892a2; font-size: .78rem; line-height: 1.3; }
+.pl-detail .v { color: #eef1f5; font-size: .95rem; overflow-wrap: anywhere; }
 .pl-rowtitle { font-size: 1.2rem; font-weight: 700; color: #eef1f5; padding-left: .55rem; border-left: 3px solid #4aa8ff; line-height: 1.3; }
 div[class*="st-key-pl-addbox"] { border: 2px dashed #3a4258; border-radius: 8px; padding: .7rem .8rem; margin-top: .2rem; }
 div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
@@ -2142,7 +2143,7 @@ def pl_data_plan(item, players, others):
             return plan
         eff = {**cfg, "games": games, "seed": seed}
         plan.update(config=config, title_key="job.title.dump_config", title_args={})
-        source = [(t("pl.det.source"), t("pl.data.mode.config")), (t("pl.det.config"), os.path.basename(config))]
+        source = [(t("pl.det.source"), t("pl.data.mode.config"), 1, 1, 1), (t("pl.det.config"), os.path.basename(config), 1, 2, 3)]
     else:
         model = item.get("model") or ""
         if not model or not os.path.exists(model_path(model)):
@@ -2151,8 +2152,8 @@ def pl_data_plan(item, players, others):
         sims, leaf = int(item.get("sims") or 100), int(item.get("leaf") or 0)
         eff = selfplay_config(name, players, games, seed, sims, leaf, rel(model_path(model)))
         plan.update(model=model, sims=sims, leaf=leaf, title_key="job.title.dump_selfplay", title_args={"model": model})
-        source = [(t("pl.det.source"), t("pl.data.mode.selfplay")), (t("pl.det.model"), model),
-                  (t("pl.det.sims"), str(sims)), (t("pl.det.leaf"), str(leaf))]
+        source = [(t("pl.det.source"), t("pl.data.mode.selfplay"), 1, 1, 1), (t("pl.det.model"), model, 1, 2, 3),
+                  (t("pl.det.sims"), str(sims), 1, 5, 1), (t("pl.det.leaf"), str(leaf), 1, 6, 1)]
     out = os.path.join(jobs.results_dir(), "ml", name + ".bin")
     out_rel = rel(out)
     if not safe_name(name):
@@ -2174,8 +2175,8 @@ def pl_data_plan(item, players, others):
         pass
     plan.update(name=name, out=out, out_rel=out_rel, games=games, seed=seed, rate=rate, threads=threads, feature=feature,
                 rows=pl_rows(games, rate, players), eff=eff, twins=twins)
-    plan["details"] = source + [(t("pl.det.games"), f"{games:,}"), (t("pl.det.seed"), str(seed)), (t("pl.det.rate"), f"{rate:g}"),
-                                (t("pl.det.feature"), str(feature)), (t("pl.det.output"), name + ".bin")]
+    plan["details"] = source + [(t("pl.det.games"), f"{games:,}", 2, 1, 1), (t("pl.det.seed"), str(seed), 2, 2, 1), (t("pl.det.rate"), f"{rate:g}", 2, 3, 1),
+                                (t("pl.det.feature"), str(feature), 2, 4, 1), (t("pl.det.output"), name + ".bin", 3, 1, 6)]
     return plan
 
 
@@ -2227,9 +2228,10 @@ def pl_train_plan(item, players, datas, by_path, others):
         f = max([by_path[x].get("_features") or 0 for x in item.get("data", []) if x in by_path] + [FEATURE_COUNTS.get(v, 430)])
         memory = (total, f, total * f * 4 * 2.2 / 1e9 if kind == "train_lgbm" else total * f * 2 * 1.5 / 1e9)
     plan.update(out=out, out_rel=rel(out), options=options, paths=paths, rows=total, memory=memory)
-    plan["details"] = ([(t("pl.det.name"), name + ext), (t("pl.det.kind"), KIND_TEXT[kind]), (t("pl.det.data"), "\n".join(labels) if labels else "—"),
-                        (t("pl.det.params"), ", ".join(changed) if changed else t("pl.det.params_default"))]
-                       + ([(t("pl.det.memory"), t("pl.train.est", rows=f"{memory[0]:,}", f=memory[1], gb=f"{memory[2]:.1f}"))] if memory else []))
+    plan["details"] = ([(t("pl.det.name"), name + ext, 1, 1, 3), (t("pl.det.kind"), KIND_TEXT[kind], 1, 4, 1),
+                        (t("pl.det.params"), ", ".join(changed) if changed else t("pl.det.params_default"), 1, 5, 2),
+                        (t("pl.det.data"), "\n".join(labels) if labels else "—", 2, 1, 6)]
+                       + ([(t("pl.det.memory"), t("pl.train.est", rows=f"{memory[0]:,}", f=memory[1], gb=f"{memory[2]:.1f}"), 3, 1, 6)] if memory else []))
     return plan
 
 
@@ -2270,9 +2272,11 @@ def pl_match_plan(item, players, trains, others):
                 model_name=model_name, model_rel=model_rel, train_index=k,
                 seats=match_seats(table, players, model_name, sims, leaf, bsims, rival, model_rel=model_rel))
     opp = rival if table == "model" else t(f"pl.match.opp.{table}")
-    plan["details"] = ([(t("pl.det.model"), model_name), (t("pl.det.opponent"), opp), (t("pl.det.sims"), f"{sims}　leafRollout {leaf}")]
-                       + ([(t("pl.det.opp_sims"), str(bsims))] if table != "hand" else [])
-                       + [(t("pl.det.games"), f"{games:,}"), (t("pl.det.seed"), str(seed)), (t("pl.det.result"), name + ".json")])
+    plan["details"] = ([(t("pl.det.model"), model_name, 1, 1, 2), (t("pl.det.opponent"), opp, 1, 3, 2),
+                        (t("pl.det.sims"), str(sims), 1, 5, 1), (t("pl.det.leaf"), str(leaf), 1, 6, 1),
+                        (t("pl.det.games"), f"{games:,}", 2, 1, 1), (t("pl.det.seed"), str(seed), 2, 2, 1)]
+                       + ([(t("pl.det.opp_sims"), str(bsims), 2, 3, 1)] if table != "hand" else [])
+                       + [(t("pl.det.result"), name + ".json", 3, 1, 6)])
     return plan
 
 
@@ -2487,7 +2491,8 @@ def pl_item_card(kind, i, title, plan):
         h1.markdown(f"<div class='pl-rowtitle'>{html.escape(title)}</div>", unsafe_allow_html=True)
         h2.button(t("pl.row.remove"), key=f"stop-pl-rm-{kind}{i}", on_click=pl_item_remove, args=(kind, i), width="stretch")  # stop-: red (CSS)
         if plan["details"]:
-            cells = "".join(f"<span class='k'>{html.escape(k)}</span><span class='v'>{html.escape(v).replace(chr(10), '<br>')}</span>" for k, v in plan["details"])
+            cells = "".join(f"<div class='c' style='grid-area:{row} / {col} / span 1 / span {span}'><span class='k'>{html.escape(k)}</span>"
+                            f"<span class='v'>{html.escape(v).replace(chr(10), '<br>')}</span></div>" for k, v, row, col, span in plan["details"])
             st.markdown(f"<div class='pl-detail'>{cells}</div>", unsafe_allow_html=True)
         for p_ in plan["problems"]:
             st.markdown(f'<span class="act-err">{plain(p_)}</span>', unsafe_allow_html=True)
