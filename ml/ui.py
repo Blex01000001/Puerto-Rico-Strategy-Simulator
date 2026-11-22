@@ -2144,6 +2144,26 @@ def pl_data_plan(item, players, others):
         eff = {**cfg, "games": games, "seed": seed}
         plan.update(config=config, title_key="job.title.dump_config", title_args={})
         source = [(t("pl.det.source"), t("pl.data.mode.config"), 1, 1, 1), (t("pl.det.config"), os.path.basename(config), 1, 2, 3)]
+    elif mode == "custom":
+        seats = item.get("seats") or []
+        names = all_strategies()
+        problems += [s_["error"] for s_ in seats if s_.get("error")]
+        if len(seats) != players or any(s_.get("strategy") not in names for s_ in seats):
+            problems.append(t("pl.data.p.seats"))
+            return plan
+        for s_ in seats:
+            vm = (s_.get("params") or {}).get("valueModel")
+            if vm and not os.path.exists(absolute(vm)):
+                problems.append(t("pl.data.p.model", name=os.path.basename(vm)))
+                return plan
+        eff = {"schemaVersion": 1, "name": name, "players": players, "games": games, "seed": seed, "seatOrder": "random",
+               "seats": [{"id": f"{s_['strategy']}-{i}", "strategy": s_["strategy"], "params": dict(s_.get("params") or {})} for i, s_ in enumerate(seats)],
+               "output": {"perGameRecords": False}}
+        strategies = t("common.list").join(s_["strategy"] for s_ in seats)
+        plan.update(title_key="job.title.dump_custom", title_args={"strategies": strategies})
+        source = [(t("pl.det.source"), t("pl.data.mode.custom"), 1, 1, 1), (t("pl.det.seats"), "\n".join(
+            f"{i + 1}. {s_['strategy']}" + (f" ({', '.join(f'{k}={v}' for k, v in (s_.get('params') or {}).items())})" if s_.get("params") else "")
+            for i, s_ in enumerate(seats)), 1, 2, 5)]
     else:
         model = item.get("model") or ""
         if not model or not os.path.exists(model_path(model)):
@@ -2164,7 +2184,7 @@ def pl_data_plan(item, players, others):
         problems.append(t("pl.data.p.dup", name=name))
     if safe_name(name) and pending_output(out_rel):
         problems.append(t("dt.p.pending"))
-    if mode == "selfplay" and safe_name(name) and any(os.path.exists(os.path.join(d, name + ".json"))
+    if mode != "config" and safe_name(name) and any(os.path.exists(os.path.join(d, name + ".json"))
                                                       for d in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS)):
         problems.append(t("dt.p.config_taken", name=name))
     twins = []
@@ -2316,9 +2336,78 @@ def pl_dialog_buttons(kind, item, problems):
         st.rerun()
 
 
+def pl_custom_defaults(strategy, players, model_rel):
+    """The parameters (and defaults) the engine would use for this seat; with a value model on 4 players leafRollout defaults to 40."""
+    d = dict(fingerprint.strategy_table().get(strategy, {}).get("params", {}).get(str(players), {}))
+    if strategy == "mcts" and model_rel:
+        d["valueModel"] = model_rel
+        if "leafRollout" in d:
+            d["leafRollout"] = fingerprint.DEFAULT_LEAF_ROLLOUT if players == 4 else 0
+    return d
+
+
+def pl_custom_params(defaults, texts):
+    """Typed texts -> only the values that differ from the defaults (numbers become numbers). Raises ValueError on a non-number for a numeric parameter."""
+    out = {}
+    for k, text in texts.items():
+        text, d = str(text).strip(), defaults.get(k)
+        if isinstance(d, (int, float)) and not isinstance(d, bool):
+            try:
+                v = float(text)
+            except ValueError:
+                raise ValueError(f"{k}={text}") from None
+            if v != d:
+                out[k] = int(v) if v.is_integer() and "." not in text else v
+        elif text != ("" if d is None else str(d)):
+            out[k] = text
+    return out
+
+
+def pl_custom_seats(players):
+    """One row per seat: strategy, then its parameters in a collapsed expander (boxes filled with the defaults). Returns the seats (only changed parameters)."""
+    names = all_strategies()
+    model_names = [t("custom.model_none")] + [os.path.basename(p_) for p_ in models_for(players)]
+    seats = []
+    for i in range(players):
+        default = DEFAULT_CUSTOM[players][i] if DEFAULT_CUSTOM[players][i] in names else names[0]
+        pl_default(f"pld-cs{i}", f"players|{players}", default)
+        strat = st.selectbox(t("custom.seat", n=i + 1), names, key=f"pld-cs{i}",
+                             format_func=lambda n: f"{n} ({STRATEGY_TEXT[n]})" if n in STRATEGY_TEXT and lang() != "zh-TW" else f"{n}（{STRATEGY_TEXT[n]}）" if n in STRATEGY_TEXT else n)
+        model_rel = ""
+        with st.expander(t("pl.data.seat_params", n=i + 1, strategy=strat)):
+            if strat == "mcts":
+                pl_default(f"pld-cm{i}", f"players|{players}", model_names[0])
+                if st.session_state.get(f"pld-cm{i}") not in model_names:
+                    st.session_state[f"pld-cm{i}"] = model_names[0]
+                model = st.selectbox(t("custom.model"), model_names, key=f"pld-cm{i}")
+                model_rel = rel(model_path(model)) if model != model_names[0] else ""
+            defaults = pl_custom_defaults(strat, players, model_rel)
+            texts = {}
+            cols = st.columns(3)
+            for j, (k, d) in enumerate(defaults.items()):
+                if k == "valueModel":
+                    texts[k] = d
+                    continue
+                with cols[j % 3]:
+                    key = f"pld-cp{i}-{strat}-{k}"
+                    pl_default(key, f"{players}|{strat}|{model_rel}", "" if d is None else f"{d:g}" if isinstance(d, float) else str(d))
+                    texts[k] = st.text_input(k, key=key)
+        seat = {"strategy": strat}
+        try:
+            params = pl_custom_params({k: v for k, v in defaults.items() if k != "valueModel"}, {k: v for k, v in texts.items() if k != "valueModel"})
+        except ValueError as e:
+            params, seat["error"] = {}, t("custom.seat_param_error", n=i + 1, error=e)
+        if model_rel:
+            params["valueModel"] = model_rel
+            params["leafRollout"] = int(float(texts.get("leafRollout", defaults.get("leafRollout", 0))) if "error" not in seat else 0)   # also 0: the default is 40 with a model
+        seat["params"] = params
+        seats.append(seat)
+    return seats
+
+
 def pl_data_form(players, count):
     """The settings of a new data set (inside the dialog); returns the item, or None when there is nothing to choose from."""
-    mode = st.radio(t("pl.data.mode"), ["config", "selfplay"], format_func=lambda m: t(f"pl.data.mode.{m}"), horizontal=True, key="pld-mode")
+    mode = st.radio(t("pl.data.mode"), ["config", "custom", "selfplay"], format_func=lambda m: t(f"pl.data.mode.{m}"), horizontal=True, key="pld-mode")
     item = {"mode": mode}
     stamp = datetime.datetime.now().strftime("%m%d-%H%M")
     suffix = f"-{count + 1}" if count else ""   # a second data set from the same config or model must not start with the same name
@@ -2335,6 +2424,14 @@ def pl_data_form(players, count):
         rate_d = float((cfg.get("output") or {}).get("dumpRate") or (0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01))
         name_d, token = os.path.basename(config)[:-5] + suffix, config
         item["config"] = config
+    elif mode == "custom":
+        seats = pl_custom_seats(players)
+        has_mcts = any(s_["strategy"] == "mcts" for s_ in seats)
+        games_d, seed_d, rate_d = (2000 if has_mcts else 20000), int(datetime.datetime.now().strftime("%m%d%H")) + count, (0.05 if has_mcts else 0.01)
+        name_d, token = f"{players}p-custom-{stamp}{suffix}", "|".join(s_["strategy"] for s_ in seats)
+        item["seats"] = seats
+        if has_mcts:
+            st.caption(t("dt.mcts_slow"))
     else:
         cands = [os.path.basename(p_) for p_ in models_for(players)]
         if not cands:
@@ -2561,7 +2658,7 @@ def pl_steps(players, datas, trains, matches):
     matches right after it, then the matches of existing models."""
     steps = []
     for d in datas:
-        spec_config = rel(os.path.join(LOCAL_CONFIGS, d["name"] + ".json")) if d["mode"] == "selfplay" else d["config"]
+        spec_config = rel(os.path.join(LOCAL_CONFIGS, d["name"] + ".json")) if d["mode"] != "config" else d["config"]
         args = {"name": d["name"], **d["title_args"]}
         steps.append({"kind": "dump", "stage": "data", "title": t(d["title_key"], **args), "titleKey": d["title_key"], "titleArgs": args,
                       "spec": {"config": spec_config, "out": d["out_rel"], "rate": d["rate"], "games": d["games"], "seed": d["seed"],
@@ -2585,7 +2682,7 @@ def pl_steps(players, datas, trains, matches):
 def pl_write_configs(players, datas, matches):
     """The config files the jobs read (kept with the others: reusable and reproducible)."""
     for d in datas:
-        if d["mode"] == "selfplay":
+        if d["mode"] != "config":
             write_config(os.path.join(LOCAL_CONFIGS, d["name"] + ".json"), d["eff"])
     for row in matches:
         cfg = {"schemaVersion": 1, "name": row["name"], "players": players, "games": row["games"], "seed": row["seed"],

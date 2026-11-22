@@ -245,7 +245,6 @@ th.sortable:hover { color: var(--text); }
 .pfield { display: flex; flex-direction: column; gap: .1rem; flex: 0 1 9.5rem; min-width: 7.5rem; font-size: .8rem; color: var(--text-2); }
 .pfield .pname { font-weight: 600; }
 .pfield input, .pfield select { width: 100%; box-sizing: border-box; }
-.pfield .pdef { font-size: .72rem; color: var(--text-3); overflow-wrap: anywhere; }
 .pfield.changed input, .pfield.changed select { border-color: var(--accent); }
 .pfield.invalid input { border-color: var(--neg); }
 .seathead { font-size: .8rem; font-weight: 700; color: var(--text-2); padding-bottom: .15rem; border-bottom: 1px solid var(--line); }

@@ -106,7 +106,7 @@
                         string k = key;
                         bool known = defs.TryGetValue(k, out var def);
                         string curv = pv[seat].GetValueOrDefault(k, "");
-                        string defText = k == "valueModel" ? L.T("sim.no_model") : known ? DefaultText(def) : "";
+                        string defRaw = known ? ParamText(def) : "";   // the default as text: it is what a box that was not changed shows
                         bool invalid = known && def.ValueKind == JsonValueKind.Number && curv.Length > 0
                             && !double.TryParse(curv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _);
                         <label class="pfield @(curv.Length > 0 ? "changed" : "") @(invalid ? "invalid" : "")" title="@ParamHelp(strategies[seat], k)">
@@ -122,15 +122,14 @@
                             }
                             else if (k == "rolloutStrategy" && known)
                             {
-                                <select value="@(curv.Length > 0 ? curv : defText)" @onchange="e => SetParam(seat, k, e.Value?.ToString() == defText ? string.Empty : (e.Value?.ToString() ?? string.Empty))" disabled="@Sim.Running">
+                                <select value="@(curv.Length > 0 ? curv : defRaw)" @onchange="e => SetParam(seat, k, e.Value?.ToString() == defRaw ? string.Empty : (e.Value?.ToString() ?? string.Empty))" disabled="@Sim.Running">
                                     @foreach (var n in RolloutChoices) { <option value="@n">@Palette.DisplayName(n)</option> }
                                 </select>
                             }
                             else
                             {
-                                <input type="text" value="@curv" placeholder="@defText" @onchange="e => SetParam(seat, k, e.Value?.ToString() ?? string.Empty)" disabled="@Sim.Running" />
+                                <input type="text" value="@(curv.Length > 0 ? curv : defRaw)" @onchange="e => SetParam(seat, k, e.Value?.ToString() ?? string.Empty, known ? def : null)" disabled="@Sim.Running" />
                             }
-                            <span class="pdef">@L.T("sim.param_default", defText)</span>
                         </label>
                     }
                     </div>
@@ -530,13 +529,6 @@
         }
     }
 
-    private string DefaultText(JsonElement v) => v.ValueKind switch
-    {
-        JsonValueKind.Number => v.GetDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-        JsonValueKind.String => string.IsNullOrEmpty(v.GetString()) ? L.T("sim.param_empty") : v.GetString()!,
-        _ => v.ToString(),
-    };
-
     /// <summary>Meaning and range of a parameter from the strategy guide (tooltip of its name); "" when not documented.</summary>
     private string ParamHelp(string strategy, string key)
     {
@@ -546,10 +538,17 @@
 
     private static readonly string[] RolloutChoices = Choices.Where(n => n != "mcts").ToArray();
 
-    private void SetParam(int seat, string key, string value)
+    /// <summary>Stores what was typed; an empty box or a value equal to the default means "the default" and is not kept (so a default that
+    /// depends on the other settings, like leafRollout with a model, keeps following them).</summary>
+    private void SetParam(int seat, string key, string value, JsonElement? def = null)
     {
         value = (value ?? "").Trim();
-        if (value.Length == 0) pv[seat].Remove(key); else pv[seat][key] = value;
+        bool isDefault = value.Length == 0;
+        if (!isDefault && def is { } d)
+            isDefault = d.ValueKind == JsonValueKind.Number
+                ? double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && v == d.GetDouble()
+                : string.Equals(value, ParamText(d), StringComparison.Ordinal);
+        if (isDefault) pv[seat].Remove(key); else pv[seat][key] = value;
     }
 
     /// <summary>Another strategy for a seat: the typed values of parameters it does not have are dropped.</summary>
