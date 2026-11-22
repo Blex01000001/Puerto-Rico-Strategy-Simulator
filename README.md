@@ -91,7 +91,7 @@ For the full development log and parameters of every model see [`docs/models.md`
 | `corn-monopoly-tiles`, `corn-monopoly-hoard` | Two variants of the monopoly style (only grab plantations / only hoard goods) that separate the two ways of spoiling (analysis 7.4) |
 | `random`, `guided-random` | Random baseline / random weighted by action type |
 
-In addition, `mcts` is a UCT tree search (simulation count only, no time limit) that can use the value models above (the `valueModel` parameter).
+In addition, `mcts` is a UCT tree search (simulation count only, no time limit) that can use the value models above (the `valueModel` parameter). With a model on 4 players the leaf is first played on for `leafRollout` decisions of a random rollout before the model values it; the default is 40 (at about the same cost it beat 0 by 20 points head to head, `docs/strategy-analysis.md` 10.10). The win rates in the model tables are for `leafRollout` 0.
 
 ## Quick start
 

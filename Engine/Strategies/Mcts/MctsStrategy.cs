@@ -15,12 +15,17 @@ namespace PuertoRico.Engine.Strategies.Mcts;
 /// rank the players by their current points: as strong as full rollouts at about half the cost, see docs/strategy-analysis.md).
 /// <c>valueModel</c> (default empty = rollouts as above): path of a learned value function (LightGBM text model or MLP JSON, see
 /// <see cref="IValueModel"/> and ml/README.md). With a model the leaf is not rolled out to the end: after <c>leafRollout</c> decisions
-/// of the rollout policy (default 0) the model estimates every seat's reward; <c>rolloutRounds</c> is then ignored.
+/// of the rollout policy the model estimates every seat's reward; <c>rolloutRounds</c> is then ignored. <c>leafRollout</c> defaults to
+/// <see cref="DefaultLeafRollout"/> with a model and 4 players (4p-v2: +20 points against 0 at about the same cost, docs/strategy-analysis.md 10.10)
+/// and to 0 otherwise (3 players: not measured).
 /// Selection, expansion and back-up are unchanged. Terminal leaves always use the real score.
 /// The tree search sees the full state (opponents' VP chips included) as the architecture notes allow for MCTS.
 /// </summary>
-public sealed class MctsStrategy : IStrategy, IDecisionExplainer
+public sealed class MctsStrategy : IStrategy, IDecisionExplainer, IResolvesParameters
 {
+    /// <summary>leafRollout used when a value model is given and the table has 4 players and the config does not say (otherwise 0).</summary>
+    public const int DefaultLeafRollout = 40;
+
     private const double WinWeight = 0.6;
     private static readonly IReadOnlyDictionary<string, JsonElement> NoParams = new Dictionary<string, JsonElement>();
 
@@ -30,7 +35,8 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
     private readonly int _rolloutMaxDecisions;
     private readonly int _rolloutRounds;
     private readonly IValueModel? _value;
-    private readonly int _leafRollout;
+    private readonly IReadOnlyDictionary<string, JsonElement> _parameters;
+    private int _leafRollout = -1; // read once the player count is known (the default depends on it)
     private readonly string _valueName = "";
     private float[][]? _featRows;
     private float[]? _featScratch;
@@ -63,8 +69,16 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
         string model = StrategyRegistry.GetString(parameters, "valueModel", "");
         _value = model.Length > 0 ? ValueModels.Load(model) : null;
         if (_value != null) _valueName = Path.GetFileName(model);
-        _leafRollout = Math.Max(0, (int)StrategyRegistry.GetDouble(parameters, "leafRollout", 0));
+        _parameters = parameters;
         _rng = seed;
+    }
+
+    /// <summary>Reads <c>leafRollout</c> for the table's player count (once; <see cref="StrategyRegistry.Resolve"/> calls it too, so the resolved parameters show the value used).</summary>
+    public void ResolveParameters(int players)
+    {
+        if (_leafRollout >= 0) return;
+        int fallback = _value != null && players == 4 ? DefaultLeafRollout : 0;
+        _leafRollout = Math.Max(0, (int)StrategyRegistry.GetDouble(_parameters, "leafRollout", fallback));
     }
 
     public SearchSummary? LastSearch { get; private set; }
@@ -75,6 +89,7 @@ public sealed class MctsStrategy : IStrategy, IDecisionExplainer
     public GameAction ChooseAction(GameState state, IReadOnlyList<GameAction> legalActions)
     {
         LastSearch = null;
+        ResolveParameters(state.PlayerCount);
         if (legalActions.Count == 1) return legalActions[0];
         _rollout ??= CreateRollout(state.PlayerCount);
 

@@ -1107,8 +1107,7 @@ def custom_seats(players):
                 params = {"simulations": int(sims)}
                 if model != model_names[0]:
                     params["valueModel"] = rel(model_path(model))
-                    if leaf:
-                        params["leafRollout"] = int(leaf)
+                    params["leafRollout"] = int(leaf)  # also 0: the engine's default is 40 with a model on 4 players
             else:
                 text = st.text_input(t("custom.params"), key=f"cu-p{i}", placeholder=t("custom.example"))
                 try:
@@ -1305,14 +1304,11 @@ MATCH_TABLES = {key: t(f"match.table.{key}") for key in ("default", "hand", "mod
 def match_seats(table, players, model, sims, leaf, base_sims, rival=None):
     """The seats of a match: the model under test first. table "model": a second MCTS seat plays another value model (`rival`, with
     `base_sims` simulations and the same leafRollout), so the two models are compared on the same table."""
-    me = {"id": "value", "strategy": "mcts", "params": {"simulations": sims, "valueModel": rel(model_path(model))}}
-    if leaf:
-        me["params"]["leafRollout"] = leaf
+    # leafRollout is always written, also 0: the engine's default is 40 with a model on 4 players, so leaving it out would not mean 0
+    me = {"id": "value", "strategy": "mcts", "params": {"simulations": sims, "valueModel": rel(model_path(model)), "leafRollout": leaf}}
     hand = lambda name: {"id": name, "strategy": name, "params": {}}  # noqa: E731
     if table == "model":
-        other = {"id": "rival", "strategy": "mcts", "params": {"simulations": base_sims, "valueModel": rel(model_path(rival))}}
-        if leaf:
-            other["params"]["leafRollout"] = leaf
+        other = {"id": "rival", "strategy": "mcts", "params": {"simulations": base_sims, "valueModel": rel(model_path(rival)), "leafRollout": leaf}}
         rest = ["cheap-engine", "build-first"] if players == 4 else ["cheap-engine"]
         return [me, other] + [hand(n) for n in rest]
     if table == "default":
@@ -1344,7 +1340,7 @@ def _match_body():
         rival = st.selectbox(t("match.rival"), others, index=others.index(max(others, key=best)), key="m-rival")
     c1, c2, c3, c4 = st.columns(4)
     sims = c1.number_input(t("match.sims"), value=300, min_value=1, step=10)
-    leaf = c2.number_input(t("match.leaf_both") if table == "model" else t("match.leaf"), value=0, min_value=0, step=5)
+    leaf = c2.number_input(t("match.leaf_both") if table == "model" else t("match.leaf"), value=40 if players == 4 else 0, min_value=0, step=5, key=f"m-leaf-{players}")
     base_sims = c3.number_input(t("match.base_model") if table == "model" else t("match.base_orig"), value=300, min_value=1, step=10, disabled=table == "hand")
     seed = c4.number_input(t("match.seed"), value=9191, step=1)
     perm = 24 if players == 4 else 6

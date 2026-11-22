@@ -91,7 +91,7 @@
             </select>
             <div class="paramcell">
                 @{
-                    var defs = Defaults(strategies[seat]);
+                    var defs = Defaults(strategies[seat], pv[seat].GetValueOrDefault("valueModel", ""));
                     var keys = defs.Keys.Concat(pv[seat].Keys.Where(k => !defs.ContainsKey(k))).ToList();
                 }
                 @if (keys.Count == 0)
@@ -504,17 +504,29 @@
 
     // ---- parameters: one input box per parameter, the placeholder is the default of the engine for this player count
 
-    private static readonly Dictionary<(string, int), Dictionary<string, JsonElement>> DefaultCache = new();
+    private static readonly Dictionary<(string, int, string), Dictionary<string, JsonElement>> DefaultCache = new();
 
-    /// <summary>The strategy's parameters with the values it uses by default for the current player count (what the engine resolves).</summary>
-    private Dictionary<string, JsonElement> Defaults(string strategy)
+    /// <summary>The strategy's parameters with the values it uses by default for the current player count (what the engine resolves).
+    /// For MCTS the chosen value model counts: some defaults (leafRollout) depend on whether there is one.</summary>
+    private Dictionary<string, JsonElement> Defaults(string strategy, string valueModel = "")
     {
+        if (!strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)) valueModel = "";
         lock (DefaultCache)
         {
-            if (DefaultCache.TryGetValue((strategy, players), out var d)) return d;
-            try { d = StrategyRegistry.Resolve(new SeatConfig { Strategy = strategy }, players).Params; }
-            catch (Exception e) when (e is ArgumentException or InvalidOperationException or KeyNotFoundException) { d = new(); }
-            return DefaultCache[(strategy, players)] = d;
+            if (DefaultCache.TryGetValue((strategy, players, valueModel), out var d)) return d;
+            try
+            {
+                var seat = new SeatConfig { Strategy = strategy };
+                if (valueModel.Length > 0) seat.Params["valueModel"] = JsonSerializer.SerializeToElement(valueModel);
+                d = StrategyRegistry.Resolve(seat, players).Params;
+                d.Remove("valueModel"); // it is the choice itself, the default is "no model"
+                d["valueModel"] = JsonSerializer.SerializeToElement("");
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException or KeyNotFoundException or IOException)
+            {
+                d = valueModel.Length > 0 ? Defaults(strategy) : new();
+            }
+            return DefaultCache[(strategy, players, valueModel)] = d;
         }
     }
 

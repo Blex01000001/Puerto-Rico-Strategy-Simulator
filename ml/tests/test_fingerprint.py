@@ -122,6 +122,19 @@ def test_seats_are_resolved_like_the_engine_does():
     assert mcts["revisions"] == {"mcts": 1, "guided-random": 1} and mcts["params"]["simulations"] == 200
 
 
+def test_mcts_leaf_rollout_default_matches_the_engine():
+    import re
+    src = open(os.path.join(os.path.dirname(fp.__file__), "..", "Engine", "Strategies", "Mcts", "MctsStrategy.cs"), encoding="utf-8").read()
+    assert int(re.search(r"DefaultLeafRollout\s*=\s*(\d+)", src).group(1)) == fp.DEFAULT_LEAF_ROLLOUT
+    leaf = lambda seat, players, **kw: fp.resolve_seat(seat, players, **kw)["params"]["leafRollout"]  # noqa: E731
+    model = {"strategy": "mcts", "params": {"valueModel": "ml/models/4p-v2.txt"}}
+    assert leaf(model, 4) == 40                                                  # a value model on 4 players
+    assert leaf({"strategy": "mcts", "params": {}}, 4) == 0                       # no model
+    assert leaf(model, 3) == 0                                                   # 3 players: not measured
+    assert leaf({"strategy": "mcts", "params": {"valueModel": "m.txt", "leafRollout": 0}}, 4) == 0  # explicit wins
+    assert leaf(model, 4, legacy=True) == 0                                      # files from before the engine recorded resolvedSeats
+
+
 def test_old_files_are_hashed_with_the_frozen_defaults():
     # a dump from before the engine recorded resolvedSeats hashes like one that recorded exactly the legacy defaults
     resolved = [fp.resolve_seat(s, META["players"], legacy=True) for s in META["seats"]]
