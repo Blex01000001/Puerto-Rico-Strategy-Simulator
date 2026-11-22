@@ -19,6 +19,7 @@ import streamlit as st
 
 import check_env
 import i18n
+import pipeline_form
 
 LANG_ENV = "PR_LANG"  # default language when neither the session nor ?lang= chose one (tests set zh-TW)
 
@@ -300,11 +301,11 @@ def param_doc(kind):
     return rows
 
 
-def param_inputs(defaults, key):
+def param_inputs(defaults, key, container_key="params"):
     """One input per parameter, typed after the default value. The grid gives every label the same height
     (CSS .st-key-params), so a title that wraps in a narrow window does not shift its row."""
     values = {}
-    with st.container(key="params"):
+    with st.container(key=container_key):  # (several sets on one page need keys of their own; the CSS matches "params" inside a key)
         cols = st.columns(3)
         for i, (name, default) in enumerate(defaults.items()):
             label = t(f"param.{name}") if name in PARAM_DEFAULTS else name
@@ -574,6 +575,7 @@ div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12)
 div[class*="st-key-stop-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
 div[class*="st-key-stop-"] button:hover:not(:disabled) { filter: brightness(1.12); }
 div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
+.pl-rowsum { font-size: .85rem; color: #8892a2; margin-top: .15rem; padding-left: .7rem; }
 .pl-rowtitle { font-size: 1.2rem; font-weight: 700; color: #eef1f5; padding-left: .55rem; border-left: 3px solid #4aa8ff; line-height: 1.3; }
 div[class*="st-key-pl-addbox"] { border: 2px dashed #3a4258; border-radius: 8px; padding: .7rem .8rem; margin-top: .2rem; }
 div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
@@ -585,7 +587,7 @@ button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2
 .act-note { color: #8892a2; font-size: .82rem; line-height: 1.35; }
 .act-err { color: #ec6a6a; font-size: .82rem; line-height: 1.35; }
 /* parameter grid: every label gets the height of two lines, so wrapped and unwrapped titles line up */
-.st-key-params [data-testid="stWidgetLabel"] { min-height: 2.6rem; display: flex; align-items: flex-end; }
+[class*="st-key-params"] [data-testid="stWidgetLabel"] { min-height: 2.6rem; display: flex; align-items: flex-end; }
 /* sidebar: long job titles stay on one line and fade out */
 .side-title { white-space: nowrap; overflow: hidden; color: #b4bcc9; font-size: .85rem;
   -webkit-mask-image: linear-gradient(to right, #000 78%, transparent); mask-image: linear-gradient(to right, #000 78%, transparent); }
@@ -1969,12 +1971,13 @@ def versions_page():
 
 
 # left navigation like the Dashboard: (id, title, icon, page function, section heading shown above it)
-# ---------------------------------------------------------------- 管線（產生資料 → 訓練 → 對戰，整條一起排隊）
+# ---------------------------------------------------------------- 管線（產生資料 → 訓練 → 對戰，每一段可以有多列，整條一起排隊）
 
 PIPELINES_DIR = os.path.join(LOCAL_DIR, "pipelines")
 FEATURE_COUNTS = {1: 430, 2: 512}   # features per feature version (the training page shows the real count of the data it is given)
 ROWS_PER_GAME = {4: 2240, 3: 1600}  # rows a game gives per unit of sampling rate (about: decisions x seats); only for the estimates
 PL_TRANSIENT = ("pl-store", "pl-tpl-pick", "pl-tpl-name", "pl-tpl-error")
+PL_START_ROWS = {"d": 1, "t": 1, "m": 0}  # rows of each list in a new form: data, models to train, matches
 
 
 def pl_savable(key, value):
@@ -1999,6 +2002,9 @@ def pl_default(key, token, value):
     that is passed as `value=` and changes -- a time stamp, the chosen config -- makes a new widget and loses the typed text.)"""
     mark = key + "-for"
     if st.session_state.get(mark) != str(token):
+        if mark not in st.session_state and key in st.session_state:
+            st.session_state[mark] = str(token)   # a value that came with no mark (a template written by hand): it is the user's, keep it
+            return
         st.session_state[key] = value
         st.session_state[mark] = str(token)
 
@@ -2023,14 +2029,11 @@ def pl_select(label, options, key, default=None, **kwargs):
     return st.selectbox(label, options, key=key, **kwargs)
 
 
-def pl_check(label, key, default=True):
-    st.session_state.setdefault(key, default)
-    return st.checkbox(label, key=key)
-
-
 def pl_rows(games, rate, players):
     return int(games * rate * ROWS_PER_GAME.get(players, 2000))
 
+
+# ---- templates
 
 def pl_saved_templates():
     return sorted(os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(PIPELINES_DIR, "*.json")))
@@ -2042,7 +2045,7 @@ def pl_save_template():
         st.session_state["pl-tpl-error"] = t("pl.tpl.bad_name")
         return
     settings = {k: v for k, v in st.session_state.items() if pl_savable(k, v)}
-    write_config(os.path.join(PIPELINES_DIR, name + ".json"), {"schemaVersion": 1, "name": name, "settings": settings})
+    write_config(os.path.join(PIPELINES_DIR, name + ".json"), {"schemaVersion": 2, "name": name, "settings": settings})
     st.session_state["pl-tpl-error"] = None
     st.session_state["job-started"] = t("pl.tpl.saved", name=name)
 
@@ -2052,9 +2055,13 @@ def pl_load_template():
     data = read_config(os.path.join(PIPELINES_DIR, f"{name}.json")) if name else None
     if not data or not isinstance(data.get("settings"), dict):
         return
-    for k, v in data["settings"].items():
+    settings = pipeline_form.migrate_settings(data["settings"])  # a template of the first, single-row page becomes one row of each
+    for k in [k for k, v in st.session_state.items() if pl_savable(k, v)]:
+        st.session_state.pop(k, None)                          # the form is replaced, not mixed with what was there
+    for k, v in settings.items():
         if pl_savable(k, v):
             st.session_state[k] = v   # before the widgets are drawn (this runs first on the next rerun)
+    pl_persist()
     st.session_state["job-started"] = t("pl.tpl.loaded", name=name)
 
 
@@ -2075,6 +2082,96 @@ def pl_template_card():
             st.markdown(f'<span class="act-err">{plain(st.session_state["pl-tpl-error"])}</span>', unsafe_allow_html=True)
 
 
+# ---- lists of rows (data, models to train, matches share this machinery; the keys of row i of list k are pl-<k><i>-<field>)
+
+def pl_count(kind):
+    return st.session_state.setdefault(f"pl-{kind}-n", PL_START_ROWS[kind])
+
+
+def _pl_row_keys(kind, i):
+    prefix = f"pl-{kind}{i}-"
+    return [k for k in st.session_state if isinstance(k, str) and k.startswith(prefix)]
+
+
+def _pl_row_clear(kind, i):
+    for k in _pl_row_keys(kind, i):
+        st.session_state.pop(k, None)
+
+
+def _pl_shift_refs(kind, removed):
+    """Training rows name their data, match rows their model, by row number: follow a removal (removed=None: every row went away)."""
+    s = st.session_state
+    if kind == "d":
+        for j in range(s.get("pl-t-n", 0)):
+            key = f"pl-t{j}-data"
+            if isinstance(s.get(key), list):
+                s[key] = pipeline_form.shift_tokens(s[key], removed)
+    elif kind == "t":
+        for j in range(s.get("pl-m-n", 0)):
+            key = f"pl-m{j}-model"
+            if key in s:
+                new = pipeline_form.shift_token(s[key], removed)
+                if new is None:
+                    s.pop(key, None)
+                else:
+                    s[key] = new
+
+
+def pl_row_add(kind):
+    n = st.session_state.get(f"pl-{kind}-n", PL_START_ROWS[kind])
+    _pl_row_clear(kind, n)  # no value of a row that was removed earlier comes back
+    st.session_state[f"pl-{kind}-n"] = n + 1
+    pl_persist()
+
+
+def pl_row_remove(kind, i):
+    s = st.session_state
+    n = s.get(f"pl-{kind}-n", 0)
+    for j in range(i, n - 1):
+        src, dst = f"pl-{kind}{j + 1}-", f"pl-{kind}{j}-"
+        _pl_row_clear(kind, j)
+        for k in _pl_row_keys(kind, j + 1):
+            s[dst + k[len(src):]] = s[k]
+    _pl_row_clear(kind, n - 1)
+    s[f"pl-{kind}-n"] = max(0, n - 1)
+    _pl_shift_refs(kind, i)
+    pl_persist()
+
+
+def pl_row_clear_all(kind):
+    for i in range(st.session_state.get(f"pl-{kind}-n", 0)):
+        _pl_row_clear(kind, i)
+    st.session_state[f"pl-{kind}-n"] = 0
+    _pl_shift_refs(kind, None)
+    pl_persist()
+
+
+def pl_row_header(kind, i):
+    """The row's big title (filled in by pl_row_title once the row is known) and its red remove button; returns the title's place."""
+    h1, h2 = st.columns([8, 1.3], vertical_alignment="center")
+    h2.button(t("pl.row.remove"), key=f"stop-pl-rm-{kind}{i}", on_click=pl_row_remove, args=(kind, i), width="stretch")  # stop-: red (CSS)
+    return h1.empty()
+
+
+def pl_row_title(place, title, summary=""):
+    place.markdown(f"<div class='pl-rowtitle'>{html.escape(title)}</div>" + (f"<div class='pl-rowsum'>{html.escape(summary)}</div>" if summary else ""),
+                   unsafe_allow_html=True)
+
+
+def pl_add_card(kind, add_label, middle=None):
+    """The dashed card under a list: add a row, optionally one more button (callback + args), remove all rows (red)."""
+    n = pl_count(kind)
+    with st.container(key=f"pl-addbox-{kind}"):
+        cols = st.columns([2, 2.4, 1.6] if middle else [2, 1.6], vertical_alignment="center")
+        cols[0].button(add_label, key=f"pl-btn-add-{kind}", on_click=pl_row_add, args=(kind,), width="stretch")
+        if middle:
+            label, callback, args = middle
+            cols[1].button(label, key="pl-btn-standard", on_click=callback, args=args, width="stretch")
+        cols[-1].button(t("pl.row.clear"), key=f"stop-pl-clear-{kind}", on_click=pl_row_clear_all, args=(kind,), disabled=not n, width="stretch")  # stop-: red
+
+
+# ---- step 1: data
+
 def pl_common_feature(players):
     """The feature version most of the existing data of this player count has (the default of new data: training needs one version)."""
     counts = {}
@@ -2084,172 +2181,209 @@ def pl_common_feature(players):
     return max(counts, key=counts.get) if counts else None
 
 
-def pl_data_card(players):
-    """Step 1: the dump to make. Returns None (step off) or a plan dict."""
-    with card("pl-data", t("pl.data.card"), t("pl.data.sub")):
-        if not pl_check(t("pl.stage_on"), "pl-d-on"):
-            return None
-        mode = st.radio(t("pl.data.mode"), ["config", "selfplay"], format_func=lambda m: t(f"pl.data.mode.{m}"), horizontal=True, key="pl-d-mode")
-        plan = {"mode": mode, "problems": []}
-        stamp = datetime.datetime.now().strftime("%m%d-%H%M")
-        if mode == "config":
-            rows = [r for r in config_rows() if r["人數"] == players]
-            if not rows:
-                st.info(t("pl.data.no_config", n=players))
-                plan["problems"].append(t("pl.data.no_config", n=players))
-                return plan
-            by_name = {r["設定檔"]: r for r in rows}
-            config = pl_select(t("dt.which_config"), list(by_name), "pl-d-config",
-                               format_func=lambda c: t("dt.config_item", file=os.path.basename(c), players=by_name[c]["人數"], seats=by_name[c]["座位"]))
-            cfg = read_config(absolute(config)) or {}
-            games_d, seed_d = int(cfg.get("games", 20000)), int(cfg.get("seed", 1))
-            rate_d = float((cfg.get("output") or {}).get("dumpRate") or (0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01))
-            name_d, token = os.path.basename(config)[:-5], config
-            plan.update(config=config, title_key="job.title.dump_config", title_args={})
-        else:
-            cands = [os.path.basename(p_) for p_ in models_for(players)]
-            if not cands:
-                st.info(t("dt.no_model", n=players))
-                plan["problems"].append(t("dt.no_model", n=players))
-                return plan
-            model = pl_select(t("dt.which_model"), cands, "pl-d-model", default=cands[-1])
-            c1, c2 = st.columns(2)
-            with c1:
-                sims = pl_number(t("dt.sp_sims"), "pl-d-sims", 100, "sims", min_value=1, step=50, help=t("dt.sp_sims_help"))
-            with c2:
-                leaf = pl_number(t("dt.sp_leaf"), "pl-d-leaf", 20, "leaf", min_value=0, step=5)
-            games_d, seed_d, rate_d = 4000, int(datetime.datetime.now().strftime("%m%d%H")), 0.05
-            name_d, token = f"{players}p-selfplay-{model.rsplit('.', 1)[0].replace(f'{players}p-', '')}-{stamp}", model
-            plan.update(model=model, sims=int(sims), leaf=int(leaf), title_key="job.title.dump_selfplay", title_args={"model": model})
-        token = f"{mode}|{players}|{token}"
-        c1, c2, c3, c4, c5 = st.columns(5)
+def _pl_data_body(i, players, plan):
+    """The settings of data row i (inside its expander); fills `plan`."""
+    p = f"pl-d{i}-"
+    mode = st.radio(t("pl.data.mode"), ["config", "selfplay"], format_func=lambda m: t(f"pl.data.mode.{m}"), horizontal=True, key=p + "mode")
+    plan["mode"] = mode
+    stamp = datetime.datetime.now().strftime("%m%d-%H%M")
+    suffix = f"-{i + 1}" if i else ""   # two rows with the same config or model must not start with the same name
+    if mode == "config":
+        rows = [r for r in config_rows() if r["人數"] == players]
+        if not rows:
+            st.info(t("pl.data.no_config", n=players))
+            plan["problems"].append(t("pl.data.no_config", n=players))
+            return
+        by_name = {r["設定檔"]: r for r in rows}
+        config = pl_select(t("dt.which_config"), list(by_name), p + "config",
+                           format_func=lambda c: t("dt.config_item", file=os.path.basename(c), players=by_name[c]["人數"], seats=by_name[c]["座位"]))
+        cfg = read_config(absolute(config)) or {}
+        games_d, seed_d = int(cfg.get("games", 20000)), int(cfg.get("seed", 1))
+        rate_d = float((cfg.get("output") or {}).get("dumpRate") or (0.05 if any(s_.get("strategy") == "mcts" for s_ in cfg.get("seats", [])) else 0.01))
+        name_d, token = os.path.basename(config)[:-5] + suffix, config
+        plan.update(config=config, title_key="job.title.dump_config", title_args={})
+    else:
+        cands = [os.path.basename(p_) for p_ in models_for(players)]
+        if not cands:
+            st.info(t("dt.no_model", n=players))
+            plan["problems"].append(t("dt.no_model", n=players))
+            return
+        model = pl_select(t("dt.which_model"), cands, p + "model", default=cands[-1])
+        c1, c2 = st.columns(2)
         with c1:
-            games = pl_number(t("dt.games"), "pl-d-games", games_d, token, min_value=1, step=1000)
+            sims = pl_number(t("dt.sp_sims"), p + "sims", 100, "sims", min_value=1, step=50, help=t("dt.sp_sims_help"))
         with c2:
-            seed = pl_number(t("dt.seed"), "pl-d-seed", seed_d, token, step=1)
-        with c3:
-            rate = pl_number(t("dt.rate"), "pl-d-rate", rate_d, token, min_value=0.0001, max_value=1.0, format="%g")
-        with c4:
-            threads = pl_number(t("dt.threads"), "pl-d-threads", 0, "threads", min_value=0, step=1)
-        versions = fingerprint.feature_versions()
-        common = pl_common_feature(players)
-        with c5:
-            pl_default("pl-d-feature", f"feature|{players}", common if common in versions else versions[-1])
-            feature = pl_select(t("dt.feature"), versions, "pl-d-feature", help=t("dt.feature_help"))
-        if common is not None and feature != common:
-            st.caption(t("pl.data.feature_note", v=common))
-        name = pl_text(t("dt.name"), "pl-d-name", name_d, token)
-        out = os.path.join(jobs.results_dir(), "ml", name + ".bin")
-        out_rel = rel(out)
-        problems = plan["problems"]
-        if not safe_name(name):
-            problems.append(t("dt.p.name"))
-        elif os.path.exists(out):
-            problems.append(t("pl.p.exists", name=name + ".bin"))
-        if pending_output(out_rel):
-            problems.append(t("dt.p.pending"))
-        if mode == "selfplay" and safe_name(name) and any(os.path.exists(os.path.join(d, name + ".json"))
-                                                          for d in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS)):
-            problems.append(t("dt.p.config_taken", name=name))
-        eff = {**cfg, "games": int(games), "seed": int(seed)} if mode == "config" else selfplay_config(
-            name, players, games, seed, plan["sims"], plan["leaf"], rel(model_path(plan["model"])))
-        new_fp = fingerprint.fingerprint(fingerprint.planned_dump_recipe(eff, float(rate), int(feature)))
-        twins = [d["來源"] for d in list_dumps() if d.get("_fp") == new_fp and d["path"] != out_rel]
-        if twins:
-            st.info(t("dt.twins", list=t("common.list").join(f"`{n_}`" for n_ in twins)))
-        plan.update(name=name, out=out, out_rel=out_rel, games=int(games), seed=int(seed), rate=float(rate), threads=int(threads),
-                    feature=int(feature), rows=pl_rows(games, rate, players), eff=eff)
-        return plan
+            leaf = pl_number(t("dt.sp_leaf"), p + "leaf", 20, "leaf", min_value=0, step=5)
+        games_d, seed_d, rate_d = 4000, int(datetime.datetime.now().strftime("%m%d%H")) + i, 0.05
+        name_d, token = f"{players}p-selfplay-{model.rsplit('.', 1)[0].replace(f'{players}p-', '')}-{stamp}{suffix}", model
+        plan.update(model=model, sims=int(sims), leaf=int(leaf), title_key="job.title.dump_selfplay", title_args={"model": model})
+    token = f"{mode}|{players}|{token}"
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        games = pl_number(t("dt.games"), p + "games", games_d, token, min_value=1, step=1000)
+    with c2:
+        seed = pl_number(t("dt.seed"), p + "seed", seed_d, token, step=1)
+    with c3:
+        rate = pl_number(t("dt.rate"), p + "rate", rate_d, token, min_value=0.0001, max_value=1.0, format="%g")
+    with c4:
+        threads = pl_number(t("dt.threads"), p + "threads", 0, "threads", min_value=0, step=1)
+    versions = fingerprint.feature_versions()
+    common = pl_common_feature(players)
+    with c5:
+        pl_default(p + "feature", f"feature|{players}", common if common in versions else versions[-1])
+        feature = pl_select(t("dt.feature"), versions, p + "feature", help=t("dt.feature_help"))
+    if common is not None and feature != common:
+        st.caption(t("pl.data.feature_note", v=common))
+    name = pl_text(t("dt.name"), p + "name", name_d, token)
+    out = os.path.join(jobs.results_dir(), "ml", name + ".bin")
+    out_rel = rel(out)
+    problems = plan["problems"]
+    if not safe_name(name):
+        problems.append(t("dt.p.name"))
+    elif os.path.exists(out):
+        problems.append(t("pl.p.exists", name=name + ".bin"))
+    if pending_output(out_rel):
+        problems.append(t("dt.p.pending"))
+    if mode == "selfplay" and safe_name(name) and any(os.path.exists(os.path.join(d, name + ".json"))
+                                                      for d in (os.path.join(ROOT, "ml", "data-configs"), LOCAL_CONFIGS)):
+        problems.append(t("dt.p.config_taken", name=name))
+    eff = {**cfg, "games": int(games), "seed": int(seed)} if mode == "config" else selfplay_config(
+        name, players, games, seed, plan["sims"], plan["leaf"], rel(model_path(plan["model"])))
+    new_fp = fingerprint.fingerprint(fingerprint.planned_dump_recipe(eff, float(rate), int(feature)))
+    twins = [d["來源"] for d in list_dumps() if d.get("_fp") == new_fp and d["path"] != out_rel]
+    if twins:
+        st.info(t("dt.twins", list=t("common.list").join(f"`{n_}`" for n_ in twins)))
+    plan.update(name=name, out=out, out_rel=out_rel, games=int(games), seed=int(seed), rate=float(rate), threads=int(threads),
+                feature=int(feature), rows=pl_rows(games, rate, players), eff=eff)
 
 
-def pl_train_card(players, data):
-    """Step 2: the model to train from the new data and any existing data. Returns None (step off) or a plan dict."""
+def pl_data_row(i, players):
+    plan = {"mode": None, "problems": []}
+    with st.container(border=True, key=f"pl-drow-{i}"):
+        place = pl_row_header("d", i)
+        with st.expander(t("pl.row.settings"), expanded=True):
+            _pl_data_body(i, players, plan)
+        summary = t("pl.data.summary", name=plan["name"], src=t(f"pl.data.mode.{plan['mode']}"), games=f"{plan['games']:,}") if "name" in plan else ""
+        pl_row_title(place, t("pl.data.row", n=i + 1), summary)
+    return plan
+
+
+def pl_data_card(players):
+    """Step 1: the data to generate (any number of rows). Returns a plan dict per row."""
+    with card("pl-data", t("pl.data.card"), t("pl.data.sub")):
+        plans = [pl_data_row(i, players) for i in range(pl_count("d"))]
+        seen = set()
+        for plan in plans:
+            if plan.get("name") in seen:
+                plan["problems"].append(t("pl.data.p.dup", name=plan["name"]))
+            seen.add(plan.get("name"))
+        if not plans:
+            st.caption(t("pl.data.empty"))
+        pl_add_card("d", t("pl.data.add"))
+        return plans
+
+
+# ---- step 2: models to train
+
+def _pl_train_body(i, players, datas, by_path, plan):
+    p = f"pl-t{i}-"
+    new_tokens = [pipeline_form.new_token(k) for k in range(len(datas))]
+    options = new_tokens + list(by_path)
+    pl_default(p + "data", "init", list(new_tokens))   # a new model starts with the data of this pipeline
+    if isinstance(st.session_state.get(p + "data"), list):
+        st.session_state[p + "data"] = [x for x in st.session_state[p + "data"] if x in options]
+
+    def label(tok):
+        k = pipeline_form.token_index(tok)
+        if k is not None:
+            return t("pl.train.new_item", n=k + 1, name=datas[k].get("name") or "")
+        return t("pl.train.data_item", file=os.path.basename(tok), v=by_path[tok]["特徵版本"], rows=f"{by_path[tok]['列數']:,}")
+
+    picked = st.multiselect(t("pl.train.data"), options, key=p + "data", format_func=label)
+    kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True, key=p + "kind")
+    defaults = dict(train_lgbm.DEFAULTS if kind == "train_lgbm" else train_mlp.DEFAULTS)
+    with st.popover(t("pl.train.advanced")):
+        opts = param_inputs(defaults, f"{p}opt-{kind}", container_key=f"params-{p}{kind}")
+    ext = ".txt" if kind == "train_lgbm" else ".json"
+    stamp = datetime.datetime.now().strftime("%m%d-%H%M")
+    suffix = f"-{i + 1}" if i else ""
+    name = pl_text(t("pl.train.name"), p + "name", f"{players}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}{suffix}", f"{players}|{kind}")
+    out = os.path.join(LOCAL_MODELS, name + ext)
+    problems = plan["problems"]
+    paths, versions, total = [], set(), 0
+    for tok in picked:
+        k = pipeline_form.token_index(tok)
+        if k is not None:
+            d = datas[k] if k < len(datas) else {}
+            if "out_rel" in d:
+                paths.append(d["out_rel"])
+                versions.add(d["feature"])
+                total += d["rows"]
+        elif tok in by_path:
+            paths.append(tok)
+            versions.add(by_path[tok]["特徵版本"])
+            total += by_path[tok]["列數"]
+    if not paths:
+        problems.append(t("pl.train.p.no_data"))
+    if len(versions) > 1:
+        problems.append(t("pl.train.p.versions", versions=t("common.list").join(str(v) for v in sorted(versions))))
+    if not safe_name(name):
+        problems.append(t("tr.p.name"))
+    elif os.path.exists(out) or model_name_taken(name + ext):
+        problems.append(t("pl.p.exists", name=name + ext))
+    if pending_output(rel(out)):
+        problems.append(t("tr.p.pending", name=name + ext))
+    if total and len(versions) == 1:
+        v = next(iter(versions))
+        f = max([by_path[x].get("_features") or 0 for x in picked if x in by_path] + [FEATURE_COUNTS.get(v, 430)])
+        st.caption(t("pl.train.est", rows=f"{total:,}", f=f, gb=f"{total * f * 4 * 2.2 / 1e9:.1f}" if kind == "train_lgbm" else f"{total * f * 2 * 1.5 / 1e9:.1f}"))
+    plan.update(kind=kind, name=name, ext=ext, out=out, out_rel=rel(out), options=opts, paths=paths, rows=total)
+
+
+def pl_train_row(i, players, datas, by_path):
+    plan = {"problems": []}
+    with st.container(border=True, key=f"pl-trow-{i}"):
+        place = pl_row_header("t", i)
+        with st.expander(t("pl.row.settings"), expanded=True):
+            _pl_train_body(i, players, datas, by_path, plan)
+        pl_row_title(place, t("pl.train.row", n=i + 1),
+                     t("pl.train.summary", name=plan["name"] + plan["ext"], kind=KIND_TEXT[plan["kind"]], n=len(plan["paths"])))
+    return plan
+
+
+def pl_train_card(players, datas):
+    """Step 2: the models to train (any number of rows), each from some of this pipeline's data and/or existing data."""
     with card("pl-train", t("pl.train.card"), t("pl.train.sub")):
-        if not pl_check(t("pl.stage_on"), "pl-t-on"):
-            return None
-        plan = {"problems": []}
-        known = [d for d in list_dumps() if "error" not in d and not d.get("writing") and d["人數"] == players]
-        by_path = {d["path"]: d for d in known}
-        if isinstance(st.session_state.get("pl-t-existing"), list):
-            st.session_state["pl-t-existing"] = [p_ for p_ in st.session_state["pl-t-existing"] if p_ in by_path]
-        if data is not None:
-            st.markdown(t("pl.train.new_data", name=data.get("name", "")))
-        picked = st.multiselect(t("pl.train.existing"), list(by_path), key="pl-t-existing",
-                                format_func=lambda p_: t("pl.train.data_item", file=os.path.basename(p_), v=by_path[p_]["特徵版本"], rows=f"{by_path[p_]['列數']:,}"))
-        kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True, key="pl-t-kind")
-        defaults = dict(train_lgbm.DEFAULTS if kind == "train_lgbm" else train_mlp.DEFAULTS)
-        with st.expander(t("pl.train.advanced")):
-            options = param_inputs(defaults, f"pl-t-opt-{kind}")
-        ext = ".txt" if kind == "train_lgbm" else ".json"
-        stamp = datetime.datetime.now().strftime("%m%d-%H%M")
-        name = pl_text(t("pl.train.name"), "pl-t-name", f"{players}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}", f"{players}|{kind}")
-        out = os.path.join(LOCAL_MODELS, name + ext)
-        problems = plan["problems"]
-        has_new = data is not None and not data["problems"] and "feature" in data
-        versions = {by_path[p_]["特徵版本"] for p_ in picked} | ({data["feature"]} if has_new else set())
-        if not picked and not has_new:
-            problems.append(t("pl.train.p.no_data"))
-        if len(versions) > 1:
-            problems.append(t("pl.train.p.versions", versions=t("common.list").join(str(v) for v in sorted(versions))))
-        if not safe_name(name):
-            problems.append(t("tr.p.name"))
-        elif os.path.exists(out) or model_name_taken(name + ext):
-            problems.append(t("pl.p.exists", name=name + ext))
-        if pending_output(rel(out)):
-            problems.append(t("tr.p.pending", name=name + ext))
-        total = sum(by_path[p_]["列數"] for p_ in picked) + (data["rows"] if has_new else 0)
-        if total and len(versions) == 1:
-            v = next(iter(versions))
-            f = max([by_path[p_].get("_features") or 0 for p_ in picked] + [FEATURE_COUNTS.get(v, 430)])
-            st.caption(t("pl.train.est", rows=f"{total:,}", f=f, gb=f"{total * f * 4 * 2.2 / 1e9:.1f}" if kind == "train_lgbm" else f"{total * f * 2 * 1.5 / 1e9:.1f}"))
-        plan.update(kind=kind, name=name, ext=ext, out=out, out_rel=rel(out), options=options, existing=list(picked))
-        return plan
+        by_path = {d["path"]: d for d in list_dumps() if "error" not in d and not d.get("writing") and d["人數"] == players}
+        plans = [pl_train_row(i, players, datas, by_path) for i in range(pl_count("t"))]
+        seen = set()
+        for plan in plans:
+            if plan["name"] + plan["ext"] in seen:
+                plan["problems"].append(t("pl.train.p.dup", name=plan["name"] + plan["ext"]))
+            seen.add(plan["name"] + plan["ext"])
+        if not plans:
+            st.caption(t("pl.train.empty"))
+        pl_add_card("t", t("pl.train.add"))
+        return plans
 
 
-PL_ROW_FIELDS = ("table", "rival", "bsims", "games", "seed", "games-for", "bsims-for", "seed-for", "rival-for")
+# ---- step 3: matches
+
+PL_MATCH_FIELDS = {"table": "table", "bsims": "bsims", "seed": "seed", "model": "model"}
 
 
-def _pl_clear_row(i):
-    for field in PL_ROW_FIELDS:
-        st.session_state.pop(f"pl-m{i}-{field}", None)
-
-
-def pl_match_remove(i):
-    s = st.session_state
-    n = s.get("pl-m-n", 0)
-    for j in range(i, n - 1):
-        for field in PL_ROW_FIELDS:
-            if f"pl-m{j + 1}-{field}" in s:
-                s[f"pl-m{j}-{field}"] = s[f"pl-m{j + 1}-{field}"]
-            else:
-                s.pop(f"pl-m{j}-{field}", None)
-    _pl_clear_row(n - 1)
-    s["pl-m-n"] = max(0, n - 1)
-
-
-def pl_match_add():
-    n = st.session_state.get("pl-m-n", 0)
-    _pl_clear_row(n)
-    st.session_state["pl-m-n"] = n + 1
-
-
-def pl_match_clear():
-    for i in range(st.session_state.get("pl-m-n", 0)):
-        _pl_clear_row(i)
-    st.session_state["pl-m-n"] = 0
-
-
-def pl_match_standard(rows):
-    """Fills the match list with `rows` (table, rival, games): the standard validation set."""
+def pl_match_fill(rows):
+    """Fills the match list with `rows` (model token, table, rival, games): the standard validation set of every model."""
     s = st.session_state
     for i in range(max(len(rows), s.get("pl-m-n", 0))):
-        _pl_clear_row(i)
-    for i, (table, rival, games) in enumerate(rows):
-        s[f"pl-m{i}-table"], s[f"pl-m{i}-bsims"], s[f"pl-m{i}-seed"] = table, 300, 9191
+        _pl_row_clear("m", i)
+    for i, (model, table, rival, games) in enumerate(rows):
+        s[f"pl-m{i}-model"], s[f"pl-m{i}-table"], s[f"pl-m{i}-bsims"], s[f"pl-m{i}-seed"] = model, table, 300, 9191
         s[f"pl-m{i}-games"], s[f"pl-m{i}-games-for"] = games, table
         if rival:
             s[f"pl-m{i}-rival"], s[f"pl-m{i}-rival-for"] = rival, "standard"
     s["pl-m-n"] = len(rows)
+    pl_persist()
 
 
 def pl_best_models(players, exclude=()):
@@ -2259,24 +2393,66 @@ def pl_best_models(players, exclude=()):
     return sorted((n for n in names if n not in exclude), key=best, reverse=True)
 
 
-def pl_match_card(players, train):
-    """Step 3: the matches of the model under test (the one step 2 trains, or an existing one). Returns a plan dict."""
+def _pl_match_body(i, players, trains, existing, sims, leaf, perm, names_used, plan):
+    p = f"pl-m{i}-"
+    trained = [pipeline_form.new_token(k) for k, tr in enumerate(trains) if tr.get("name")]
+    options = trained + existing
+    if not options:
+        st.info(t("match.no_model", n=players))
+        plan["problems"].append(t("match.no_model", n=players))
+        return None
+
+    def model_label(tok):
+        k = pipeline_form.token_index(tok)
+        return t("pl.match.model_new", n=k + 1, name=trains[k]["name"] + trains[k]["ext"]) if k is not None else tok
+
+    r1, r2, r3 = st.columns([2.6, 2.6, 2])
+    with r1:
+        token = pl_select(t("pl.match.model"), options, p + "model", default=options[0] if trained else options[-1], format_func=model_label)
+    with r2:
+        table = pl_select(t("match.opponent"), list(MATCH_TABLES), p + "table", default="default", format_func=MATCH_TABLES.get)
+    k = pipeline_form.token_index(token)
+    model_name = trains[k]["name"] + trains[k]["ext"] if k is not None else token
+    model_rel = trains[k]["out_rel"] if k is not None else rel(model_path(token))
+    others = pl_best_models(players, exclude=(model_name,))
+    rival = None
+    with r3:
+        if table == "model":
+            if others:
+                rival = pl_select(t("match.rival"), others, p + "rival", default=others[0])
+            else:
+                st.caption(t("match.only_one", n=players))
+                plan["problems"].append(t("match.only_one", n=players))
+    s1, s2, s3 = st.columns([1.4, 1.6, 1.2])
+    with s1:
+        bsims = pl_number(t("match.base_model") if table == "model" else t("match.base_orig"), p + "bsims", 300, "b", min_value=1, step=10, disabled=table == "hand")
+    with s2:
+        games = pl_number(t("match.games", perm=perm), p + "games", {"default": 240, "model": 960}.get(table, 408), table, min_value=perm, step=perm)
+    with s3:
+        seed = pl_number(t("match.seed"), p + "seed", 9191, "seed", step=1)
+    if table == "model" and not rival:
+        return None
+    name = match_default_name(model_name, sims, leaf, table, rival, bsims, seed)
+    out = os.path.join(jobs.results_dir(), "ml", name + ".json")
+    if games % perm:
+        plan["problems"].append(t("match.p.games", perm=perm))
+    if name in names_used:
+        plan["problems"].append(t("pl.match.p.dup", name=name))
+    elif os.path.exists(out):
+        plan["problems"].append(t("pl.p.exists", name=name + ".json"))
+    elif pending_output(rel(out)):
+        plan["problems"].append(t("match.p.pending"))
+    names_used.append(name)
+    return {"table": table, "rival": rival, "bsims": int(bsims), "games": int(games), "seed": int(seed), "name": name, "out": out, "out_rel": rel(out),
+            "model_name": model_name, "model_rel": model_rel, "train_index": k,
+            "seats": match_seats(table, players, model_name, int(sims), int(leaf), int(bsims), rival, model_rel=model_rel)}
+
+
+def pl_match_card(players, trains):
+    """Step 3: the matches (any number of rows); each row names the model it tests: one trained here, or an existing one."""
     with card("pl-match", t("pl.match.card"), t("pl.match.sub")):
         plan = {"problems": [], "rows": []}
-        if train is not None:
-            model, model_rel = train["name"] + train["ext"], train["out_rel"]
-            st.markdown(t("pl.match.model_new", name=model))
-        else:
-            names = [os.path.basename(p_) for p_ in models_for(players)]
-            if not names:
-                st.info(t("match.no_model", n=players))
-                plan["model"] = None
-                if st.session_state.get("pl-m-n", 0):
-                    plan["problems"].append(t("match.no_model", n=players))
-                return plan
-            model = pl_select(t("pl.match.model_pick"), names, "pl-m-model", default=names[-1])
-            model_rel = rel(model_path(model))
-        plan["model"] = model
+        existing = [os.path.basename(p_) for p_ in models_for(players)]
         c1, c2, c3 = st.columns(3)
         with c1:
             sims = pl_number(t("pl.match.sims"), "pl-m-sims", 300, "sims", min_value=1, step=10, help=t("pl.match.sims_help"))
@@ -2285,88 +2461,66 @@ def pl_match_card(players, train):
         with c3:
             threads = pl_number(t("match.threads"), "pl-m-threads", 0, "threads", min_value=0, step=1)
         perm = 24 if players == 4 else 6
-        others = pl_best_models(players, exclude=(model,))
-        n = st.session_state.setdefault("pl-m-n", 0)
         names_used = []
-        for i in range(n):
+        for i in range(pl_count("m")):
+            row_plan = {"problems": plan["problems"]}
             with st.container(border=True, key=f"pl-mrow-{i}"):
-                h1, h2 = st.columns([8, 1.3], vertical_alignment="center")
-                h1.markdown(f"<div class='pl-rowtitle'>{html.escape(t('pl.match.row', n=i + 1))}</div>", unsafe_allow_html=True)
-                h2.button(t("pl.match.remove"), key=f"stop-pl-rm{i}", on_click=pl_match_remove, args=(i,), width="stretch")  # stop-: red (CSS)
-                r1, r2, r3, r4, r5 = st.columns([2.6, 2.2, 1.2, 1.4, 1.2], vertical_alignment="bottom")
-                with r1:
-                    table = pl_select(t("match.opponent"), list(MATCH_TABLES), f"pl-m{i}-table", default="default", format_func=MATCH_TABLES.get)
-                rival = None
-                with r2:
-                    if table == "model":
-                        if others:
-                            rival = pl_select(t("match.rival"), others, f"pl-m{i}-rival", default=others[0])
-                        else:
-                            st.caption(t("match.only_one", n=players))
-                            plan["problems"].append(t("match.only_one", n=players))
-                with r3:
-                    bsims = pl_number(t("match.base_model") if table == "model" else t("match.base_orig"), f"pl-m{i}-bsims", 300, "b",
-                                      min_value=1, step=10, disabled=table == "hand")
-                with r4:
-                    games = pl_number(t("match.games", perm=perm), f"pl-m{i}-games", {"default": 240, "model": 960}.get(table, 408), table, min_value=perm, step=perm)
-                with r5:
-                    seed = pl_number(t("match.seed"), f"pl-m{i}-seed", 9191, "seed", step=1)
-                if table == "model" and not rival:
-                    continue
-                name = match_default_name(model, sims, leaf, table, rival, bsims, seed)
-                out = os.path.join(jobs.results_dir(), "ml", name + ".json")
-                if games % perm:
-                    plan["problems"].append(t("match.p.games", perm=perm))
-                if name in names_used:
-                    plan["problems"].append(t("pl.match.p.dup", name=name))
-                elif os.path.exists(out):
-                    plan["problems"].append(t("pl.p.exists", name=name + ".json"))
-                elif pending_output(rel(out)):
-                    plan["problems"].append(t("match.p.pending"))
-                names_used.append(name)
-                plan["rows"].append({"table": table, "rival": rival, "bsims": int(bsims), "games": int(games), "seed": int(seed), "name": name, "out": out,
-                                     "out_rel": rel(out), "seats": match_seats(table, players, model, int(sims), int(leaf), int(bsims), rival, model_rel=model_rel)})
-        standard = [("model", o, 960) for o in others[:2]] + [("default", None, 240), ("hand", None, 408)]
-        with st.container(key="pl-addbox"):  # a dashed card (CSS) around the buttons that add matches
-            b1, b2, b3 = st.columns([2, 2.4, 1.6], vertical_alignment="center")
-            b1.button(t("pl.match.add"), key="pl-btn-add", on_click=pl_match_add, width="stretch")
-            b2.button(t("pl.match.standard"), key="pl-btn-standard", on_click=pl_match_standard, args=(standard,), width="stretch")
-            b3.button(t("pl.match.clear"), key="stop-pl-clear", on_click=pl_match_clear, disabled=not n, width="stretch")  # stop-: red (CSS)
-        if not n:
+                place = pl_row_header("m", i)
+                with st.expander(t("pl.row.settings"), expanded=True):
+                    row = _pl_match_body(i, players, trains, existing, int(sims), int(leaf), perm, names_used, row_plan)
+                if row:
+                    opp = row["rival"] if row["table"] == "model" else t(f"pl.match.opp.{row['table']}")
+                    pl_row_title(place, t("pl.match.row", n=i + 1), t("pl.match.summary", model=row["model_name"], opp=opp, games=f"{row['games']:,}"))
+                    plan["rows"].append(row)
+                else:
+                    pl_row_title(place, t("pl.match.row", n=i + 1))
+        standard = []
+        models = [(pipeline_form.new_token(k), tr["name"] + tr["ext"]) for k, tr in enumerate(trains) if tr.get("name")]
+        if not models and existing:
+            models = [(existing[-1], existing[-1])]
+        for token, nm in models:
+            others = pl_best_models(players, exclude=(nm,))
+            standard += [(token, "model", o, 960) for o in others[:2]] + [(token, "default", None, 240), (token, "hand", None, 408)]
+        if not pl_count("m"):
             st.caption(t("pl.match.empty"))
-        plan.update(model_rel=model_rel, sims=int(sims), leaf=int(leaf), threads=int(threads))
+        pl_add_card("m", t("pl.match.add"), middle=(t("pl.match.standard"), pl_match_fill, (standard,)))
+        plan.update(sims=int(sims), leaf=int(leaf), threads=int(threads))
         return plan
 
 
-def pl_steps(players, data, train, match):
-    """The jobs of the pipeline in run order, ready for jobs.start_pipeline (writes nothing)."""
+# ---- the jobs
+
+def pl_steps(players, datas, trains, match):
+    """The jobs of the pipeline in run order, ready for jobs.start_pipeline (writes nothing): all the data, then every model with its own
+    matches right after it, then the matches of existing models."""
     steps = []
-    if data is not None:
-        if data["mode"] == "selfplay":
-            spec_config = rel(os.path.join(LOCAL_CONFIGS, data["name"] + ".json"))
-        else:
-            spec_config = data["config"]
-        args = {"name": data["name"], **data["title_args"]}
-        steps.append({"kind": "dump", "stage": "data", "title": t(data["title_key"], **args), "titleKey": data["title_key"], "titleArgs": args,
-                      "spec": {"config": spec_config, "out": data["out_rel"], "rate": data["rate"], "games": data["games"], "seed": data["seed"],
-                               "threads": data["threads"], "featureVersion": data["feature"]}})
-    if train is not None:
-        args = {"kind": KIND_TEXT[train["kind"]], "name": train["name"] + train["ext"]}
-        paths = ([data["out_rel"]] if data is not None else []) + train["existing"]
-        steps.append({"kind": train["kind"], "stage": "train", "title": t("job.title.pipeline_train", **args), "titleKey": "job.title.pipeline_train",
-                      "titleArgs": args, "spec": {"data": paths, "out": train["out_rel"], "options": train["options"]}})
-    for row in match["rows"]:
+    for d in datas:
+        spec_config = rel(os.path.join(LOCAL_CONFIGS, d["name"] + ".json")) if d["mode"] == "selfplay" else d["config"]
+        args = {"name": d["name"], **d["title_args"]}
+        steps.append({"kind": "dump", "stage": "data", "title": t(d["title_key"], **args), "titleKey": d["title_key"], "titleArgs": args,
+                      "spec": {"config": spec_config, "out": d["out_rel"], "rate": d["rate"], "games": d["games"], "seed": d["seed"],
+                               "threads": d["threads"], "featureVersion": d["feature"]}})
+
+    def match_step(row):
         key = f"job.title.match_{row['table']}"
-        args = {"model": match["model"], "sims": match["sims"], "rival": row["rival"], "name": row["name"]}
-        steps.append({"kind": "match", "stage": "match", "title": t(key, **args), "titleKey": key, "titleArgs": args,
-                      "spec": {"config": rel(os.path.join(LOCAL_MATCHES, row["name"] + ".json")), "out": row["out_rel"], "model": match["model_rel"]}})
+        args = {"model": row["model_name"], "sims": match["sims"], "rival": row["rival"], "name": row["name"]}
+        return {"kind": "match", "stage": "match", "title": t(key, **args), "titleKey": key, "titleArgs": args,
+                "spec": {"config": rel(os.path.join(LOCAL_MATCHES, row["name"] + ".json")), "out": row["out_rel"], "model": row["model_rel"]}}
+
+    for k, tr in enumerate(trains):
+        args = {"kind": KIND_TEXT[tr["kind"]], "name": tr["name"] + tr["ext"]}
+        steps.append({"kind": tr["kind"], "stage": "train", "title": t("job.title.pipeline_train", **args), "titleKey": "job.title.pipeline_train",
+                      "titleArgs": args, "spec": {"data": tr["paths"], "out": tr["out_rel"], "options": tr["options"]}})
+        steps += [match_step(row) for row in match["rows"] if row["train_index"] == k]
+    steps += [match_step(row) for row in match["rows"] if row["train_index"] is None]
     return steps
 
 
-def pl_write_configs(players, data, match):
+def pl_write_configs(players, datas, match):
     """The config files the jobs read (kept with the others: reusable and reproducible)."""
-    if data is not None and data["mode"] == "selfplay":
-        write_config(os.path.join(LOCAL_CONFIGS, data["name"] + ".json"), data["eff"])
+    for d in datas:
+        if d["mode"] == "selfplay":
+            write_config(os.path.join(LOCAL_CONFIGS, d["name"] + ".json"), d["eff"])
     for row in match["rows"]:
         cfg = {"schemaVersion": 1, "name": row["name"], "players": players, "games": row["games"], "seed": row["seed"],
                "seatOrder": "balanced", "seats": row["seats"], "output": {"perGameRecords": False}}
@@ -2375,36 +2529,35 @@ def pl_write_configs(players, data, match):
         write_config(os.path.join(LOCAL_MATCHES, row["name"] + ".json"), cfg)
 
 
-def pl_run_card(players, data, train, match):
+def pl_run_card(players, datas, trains, match):
     with card("pl-run", t("pl.run.card")):
-        default_name = (train or {}).get("name") or (data or {}).get("name") or (match.get("model") or "pipeline")
+        default_name = (trains[0]["name"] if trains else "") or (datas[0].get("name") if datas else "") or (match["rows"][0]["model_name"] if match["rows"] else "pipeline")
         pipe_name = pl_text(t("pl.run.name"), "pl-run-name", default_name, default_name)
         problems = []
-        for plan in (data, train, match):
-            for p_ in (plan or {}).get("problems", []):
+        for plan in [*datas, *trains, match]:
+            for p_ in plan.get("problems", []):
                 if p_ not in problems:
                     problems.append(p_)
         if not pipe_name:
             problems.append(t("pl.run.p.name"))
         # the preview is shown whenever the steps are complete, also while a problem (a name that exists) still blocks the start
-        complete = (data is None or "out_rel" in data) and (train is None or "out_rel" in train) and "model_rel" in match
-        steps = pl_steps(players, data, train, match) if complete or (data is None and train is None and not match["rows"]) else []
+        complete = all("out_rel" in d for d in datas) and all("out_rel" in tr for tr in trains)
+        steps = pl_steps(players, datas, trains, match) if complete else []
         if not problems and not steps:
             problems.append(t("pl.run.empty"))
         if steps:
             stage_text = {"data": t("pl.run.stage.data"), "train": t("pl.run.stage.train"), "match": t("pl.run.stage.match")}
-            outputs = [s_["spec"]["out"] for s_ in steps]
             frame = pd.DataFrame({t("pl.run.col.step"): [f"{i + 1}. {stage_text[s_['stage']]}" for i, s_ in enumerate(steps)],
                                   t("pl.run.col.job"): [job_title({"title": s_["title"], "titleKey": s_["titleKey"], "titleArgs": s_["titleArgs"]}) for s_ in steps],
-                                  t("pl.run.col.output"): [os.path.basename(o_) for o_ in outputs]})
+                                  t("pl.run.col.output"): [os.path.basename(s_["spec"]["out"]) for s_ in steps]})
             grid(frame, hide_index=True, width="stretch")
             games = sum(r["games"] for r in match["rows"])
-            hours = f"{data['games'] / 3600:.1f}" if data is not None and data["mode"] == "selfplay" else None
+            hours = sum(d["games"] for d in datas if d["mode"] == "selfplay") / 3600
             st.caption(t("pl.run.summary", n=len(steps), lo=f"{games * 0.6 / 60:.0f}", hi=f"{games * 1.2 / 60:.0f}")
-                       + (t("pl.run.summary_sp", hours=hours) if hours else ""))
+                       + (t("pl.run.summary_sp", hours=f"{hours:.1f}") if hours else ""))
         if action_row(t("pl.run.start"), "pl-btn-start", problems):
             try:
-                pl_write_configs(players, data, match)
+                pl_write_configs(players, datas, match)
                 ids = jobs.start_pipeline(pipe_name, steps)
             except (OSError, ValueError, TimeoutError) as e:
                 st.error(str(e))
@@ -2419,10 +2572,10 @@ def pipeline_page():
     st.caption(t("pl.intro"))
     players = st.radio(t("match.players"), [4, 3], horizontal=True, format_func=lambda n: t("match.players_n", n=n), key="pl-players")
     pl_template_card()
-    data = pl_data_card(players)
-    train = pl_train_card(players, data)
-    match = pl_match_card(players, train)
-    pl_run_card(players, data, train, match)
+    datas = pl_data_card(players)
+    trains = pl_train_card(players, datas)
+    match = pl_match_card(players, trains)
+    pl_run_card(players, datas, trains, match)
     pl_persist()
 
 
