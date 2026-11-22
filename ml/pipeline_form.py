@@ -1,9 +1,12 @@
 """Pure helpers of the ML UI pipeline form (no Streamlit, so they are tested on their own).
 
-The form has three lists of rows: data (pl-d<i>-*), models to train (pl-t<i>-*) and matches (pl-m<i>-*); the row counts are
-pl-d-n, pl-t-n and pl-m-n. A training row names its data and a match row its model with tokens: "new:<k>" is row k of the list
-before it in this pipeline (data row k / training row k), anything else is an existing file (training) or model (match).
+The form keeps three lists of items (dicts, set up in a dialog and shown read-only on the page): data ("pl-data"), models to train
+("pl-train") and matches ("pl-match"). A training item names its data and a match item its model with tokens: "new:<k>" is item k of the
+list before it in this pipeline (data item k / training item k), anything else is an existing file (training) or model (match).
+Templates written by the first two pipeline pages (settings as one widget key per row) are converted by items_from_widget_settings.
 """
+import re
+
 
 NEW = "new:"
 
@@ -70,4 +73,63 @@ def migrate_settings(settings):
     if model:
         for i in range(int(s.get("pl-m-n", 0) or 0)):
             out[f"pl-m{i}-model"] = model
+    return out
+
+
+LISTS = {"d": "pl-data", "t": "pl-train", "m": "pl-match"}
+
+
+def remove_item(data, train, match, kind, index):
+    """The three lists after item `index` of list `kind` ("d" data, "t" training, "m" match) was removed. Removing a model removes its
+    matches; removing data only takes it out of the training items that used it. (Returns new lists.)"""
+    data, train, match = list(data), list(train), list(match)
+    if kind == "d":
+        data.pop(index)
+        train = [{**tr, "data": shift_tokens(tr.get("data", []), index)} for tr in train]
+    elif kind == "t":
+        train.pop(index)
+        match = [{**m, "model": shift_token(m.get("model"), index)} for m in match if shift_token(m.get("model"), index) is not None]
+    else:
+        match.pop(index)
+    return data, train, match
+
+
+def clear_items(data, train, match, kind):
+    """The three lists after every item of list `kind` was removed (with what depends on them)."""
+    if kind == "d":
+        return [], [{**tr, "data": shift_tokens(tr.get("data", []), None)} for tr in train], list(match)
+    if kind == "t":
+        return list(data), [], [m for m in match if token_index(m.get("model")) is None]
+    return list(data), list(train), []
+
+
+DATA_FIELDS = ("mode", "config", "model", "sims", "leaf", "games", "seed", "rate", "threads", "feature", "name")
+MATCH_FIELDS = ("model", "table", "rival", "bsims", "games", "seed")
+_ROW_KEY = re.compile(r"^pl-[dtm]\d+-")
+_DROPPED = ("pl-d-n", "pl-t-n", "pl-m-n", "pl-m-sims", "pl-m-leaf", "pl-m-threads")
+
+
+def items_from_widget_settings(settings):
+    """A template written with one widget key per row (the first two pipeline pages) as the settings of the item lists. Settings that
+    already have the lists are returned as they are."""
+    if "pl-data" in settings or "pl-train" in settings or "pl-match" in settings:
+        return dict(settings)
+    s = migrate_settings(settings)
+    data, train, match = [], [], []
+    for i in range(int(s.get("pl-d-n", 0) or 0)):
+        p = f"pl-d{i}-"
+        data.append({f: s[p + f] for f in DATA_FIELDS if p + f in s})
+    for i in range(int(s.get("pl-t-n", 0) or 0)):
+        p = f"pl-t{i}-"
+        kind = s.get(p + "kind", "train_lgbm")
+        prefix = f"{p}opt-{kind}-"
+        train.append({"data": list(s.get(p + "data", [])), "kind": kind, "name": s.get(p + "name", ""),
+                      "options": {k[len(prefix):]: v for k, v in s.items() if k.startswith(prefix) and not k.endswith("-for")}})
+    for i in range(int(s.get("pl-m-n", 0) or 0)):
+        p = f"pl-m{i}-"
+        item = {f: s[p + f] for f in MATCH_FIELDS if p + f in s}
+        item.update(sims=s.get("pl-m-sims", 300), leaf=s.get("pl-m-leaf", 40), threads=s.get("pl-m-threads", 0))
+        match.append(item)
+    out = {k: v for k, v in s.items() if not _ROW_KEY.match(k) and k not in _DROPPED}
+    out.update({"pl-data": data, "pl-train": train, "pl-match": match})
     return out
