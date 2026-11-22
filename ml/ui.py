@@ -2018,7 +2018,10 @@ def pl_default(key, token, value):
     """Puts `value` in the widget `key` the first time and whenever `token` changes; otherwise the widget keeps what was typed. (A default
     that is passed as `value=` and changes -- a time stamp, the chosen config -- makes a new widget and loses the typed text.)"""
     mark = key + "-for"
-    if st.session_state.get(mark) != str(token):
+    if key not in st.session_state:   # Streamlit drops the state of a widget that was not drawn in a run (another strategy of the seat): the mark outlives it
+        st.session_state[key] = value
+        st.session_state[mark] = str(token)
+    elif st.session_state.get(mark) != str(token):
         if mark not in st.session_state and key in st.session_state:
             st.session_state[mark] = str(token)   # a value that came with no mark: it is the user's, keep it
             return

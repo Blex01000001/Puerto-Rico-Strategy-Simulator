@@ -612,3 +612,18 @@ def test_pipeline_custom_combination_seat_order_goes_into_the_config(results, no
         assert json.load(open(cfg_path, encoding="utf-8"))["seatOrder"] == "balanced"
     finally:
         _cleanup([cfg_path])
+
+
+def test_pipeline_custom_seat_boxes_are_filled_for_every_strategy_also_after_switching_back(results, inline):
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-d").click().run()
+    at.radio(key="pld-mode").set_value("custom").run()
+    names = list(at.selectbox(key="pld-cs1").options)
+    for turn in range(2):                                     # the second pass comes back to strategies whose boxes were dropped meanwhile
+        for n in at.selectbox(key="pld-cs1").options:
+            raw = {"Full-Random": "random", "MCTS": "mcts"}.get(n) or n.lower()
+            at.selectbox(key="pld-cs1").set_value(raw).run()
+            assert not at.exception, at.exception
+            boxes = [w for w in at.text_input if w.key.startswith("pld-cp1-")]
+            assert all(w.value != "" for w in boxes), (raw, [w.key for w in boxes if w.value == ""])
+    assert len(names) > 5
