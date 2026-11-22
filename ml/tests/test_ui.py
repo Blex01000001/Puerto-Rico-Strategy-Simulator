@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -36,7 +37,7 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "模型清單", "模型詳細資料", "排程佇列", "hash 說明", "版本控管"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "管線", "模型清單", "模型詳細資料", "排程佇列", "hash 說明", "版本控管"]
     assert at.button(key="navon-data")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
@@ -80,7 +81,7 @@ def test_typed_model_name_survives_a_rerun_in_a_later_minute(results, monkeypatc
 def test_each_page_has_its_own_english_title(results, monkeypatch):
     monkeypatch.setenv("PR_LANG", "en")
     at = run_app()
-    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "modellist": "Model List", "models": "Model Details",
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "modellist": "Model List", "models": "Model Details",
               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
     for pid, title in titles.items():
         goto(at, pid)
@@ -337,3 +338,93 @@ def test_versions_page_shows_the_list_and_matches_the_code(results):
     # one row per strategy, its current version as in the code
     rev = fingerprint.current_strategy_revision("harbor-rush")
     assert f'<td class="l nw">harbor-rush</td><td class="c">harbor-rush-v{rev}</td><td class="c">v{rev}</td>' in text
+
+# ---------------------------------------------------------------- pipeline page
+
+@pytest.fixture
+def no_spawn(monkeypatch):
+    """Jobs are created and queued but no process starts (the page is what is tested, not the work)."""
+    import jobs
+    monkeypatch.setattr(jobs, "_spawn", lambda job_id: job_id)
+    return jobs
+
+
+def _cleanup(paths):
+    for p in paths:
+        if p and os.path.exists(p):
+            os.remove(p)
+
+
+def test_pipeline_page_with_data_training_and_a_match(results, no_spawn):
+    jobs = no_spawn
+    at = goto(run_app(), "pipeline")
+    assert at.checkbox(key="pl-d-on").value and at.checkbox(key="pl-t-on").value
+    at.button(key="pl-btn-add").click().run()
+    at.number_input(key="pl-m0-seed").set_value(424242).run()
+    assert not at.exception, at.exception
+    created = []
+    try:
+        start = at.button(key="pl-btn-start")
+        assert not start.disabled, [m.value for m in at.markdown if "act-err" in m.value]
+        start.click().run()
+        assert not at.exception, at.exception
+        listed = sorted(jobs.list_jobs(), key=lambda j: j["pipeline"]["index"])
+        assert [j["kind"] for j in listed] == ["dump", "train_lgbm", "match"]
+        assert len({j["pipeline"]["id"] for j in listed}) == 1 and [j["pipeline"]["index"] for j in listed] == [0, 1, 2]
+        dump_job, train_job, match_job = listed
+        created = [os.path.join(jobs.ROOT, j["spec"]["config"]) for j in listed if j["kind"] == "match"]
+        assert train_job["spec"]["data"] == [dump_job["spec"]["out"]]                     # the training reads what step 1 will write
+        assert match_job["spec"]["model"] == train_job["spec"]["out"]                      # the match plays what step 2 will train
+        cfg = json.load(open(created[0], encoding="utf-8"))
+        assert cfg["seats"][0]["params"]["valueModel"] == train_job["spec"]["out"]
+        assert cfg["seats"][0]["params"]["leafRollout"] == 40 and cfg["seed"] == 424242
+        assert jobs.read_job(dump_job["id"])["state"] == "queued" and jobs.read_job(match_job["id"])["state"] == "waiting"
+    finally:
+        _cleanup(created)
+
+
+def test_pipeline_of_matches_only_uses_an_existing_model(results, no_spawn):
+    jobs = no_spawn
+    at = goto(run_app(), "pipeline")
+    at.checkbox(key="pl-d-on").uncheck().run()
+    at.checkbox(key="pl-t-on").uncheck().run()
+    at.button(key="pl-btn-standard").click().run()
+    assert not at.exception, at.exception
+    for i in range(4):
+        at.number_input(key=f"pl-m{i}-seed").set_value(424242 + i)
+    at.run()
+    created = []
+    try:
+        assert not at.button(key="pl-btn-start").disabled, [m.value for m in at.markdown if "act-err" in m.value]
+        at.button(key="pl-btn-start").click().run()
+        listed = sorted(jobs.list_jobs(), key=lambda j: j["pipeline"]["index"])
+        created = [os.path.join(jobs.ROOT, j["spec"]["config"]) for j in listed]
+        assert len(listed) >= 2 and all(j["kind"] == "match" for j in listed)
+        assert [j["pipeline"]["index"] for j in listed] == list(range(len(listed)))
+        assert listed[0]["pipeline"]["stage"] == "match"
+    finally:
+        _cleanup(created)
+
+
+def test_pipeline_form_is_kept_when_another_page_is_visited_and_saved_as_a_template(results):
+    tpl = os.path.join(os.path.dirname(UI), "local", "pipelines", "pytest-tpl.json")
+    try:
+        at = goto(run_app(), "pipeline")
+        at.checkbox(key="pl-d-on").uncheck().run()
+        at.checkbox(key="pl-t-on").uncheck().run()
+        at.button(key="pl-btn-add").click().run()
+        at.number_input(key="pl-m0-seed").set_value(777).run()
+        goto(at, "queue")
+        goto(at, "pipeline")
+        assert not at.checkbox(key="pl-d-on").value and at.number_input(key="pl-m0-seed").value == 777  # still as it was left
+        at.text_input(key="pl-tpl-name").set_value("pytest-tpl").run()
+        at.button(key="pl-btn-save").click().run()
+        assert os.path.exists(tpl)
+        saved = json.load(open(tpl, encoding="utf-8"))["settings"]
+        assert saved["pl-m0-seed"] == 777 and saved["pl-d-on"] is False
+        at.number_input(key="pl-m0-seed").set_value(5).run()
+        at.selectbox(key="pl-tpl-pick").set_value("pytest-tpl").run()
+        at.button(key="pl-btn-load").click().run()
+        assert at.number_input(key="pl-m0-seed").value == 777
+    finally:
+        _cleanup([tpl])

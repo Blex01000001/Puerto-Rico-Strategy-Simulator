@@ -15,6 +15,11 @@ Queue: one job runs at a time; jobs added meanwhile wait ("waiting") and run in 
 ends (done, failed or cancelled) its runner starts the next waiting one (start_next), so the queue keeps going with the
 UI closed; a job that dies without ending cleanly (machine asleep, process killed) is picked up by the UI, which also
 calls start_next. A lock file (results/ml/jobs/.dispatch.lock) makes sure two processes never start jobs at once.
+
+Pipeline: jobs added together with start_pipeline (job.json "pipeline": {id, name, stage, index, total}) run in the order given,
+like any queued jobs. When any job of a pipeline fails, is cancelled or is interrupted, every job of that pipeline that has not
+started is cancelled too ("stoppedBy" = the job that broke it); files already written stay. This is decided here (start_next,
+cancel), not in the UI, so it also holds with the UI closed.
 """
 import datetime
 import json
@@ -256,23 +261,77 @@ class _DispatchLock:
             pass
 
 
-def start(kind, title, spec, title_key=None, title_args=None):
-    """Adds a job and returns its id: it starts at once when nothing is running, otherwise it waits in the queue.
-
-    `title` is the text shown when nothing better is known; `title_key` + `title_args` (an i18n key and its values) let the UI show
-    the title in the language it is in now (jobs written without them keep their text)."""
+def _create(kind, title, spec, title_key=None, title_args=None, pipeline=None, created_epoch=None):
+    """Writes a waiting job (does not start anything) and returns its id."""
     if kind not in KINDS:
         raise ValueError(f"unknown job kind {kind!r}")
     job_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
     job_dir = os.path.join(jobs_dir(), job_id)
     os.makedirs(job_dir)
     job = {"id": job_id, "kind": kind, "title": title, "spec": spec, "status": "waiting",
-           "created": now(), "createdEpoch": time.time()}
+           "created": now(), "createdEpoch": created_epoch or time.time()}
     if title_key:
         job["titleKey"], job["titleArgs"] = title_key, title_args or {}
+    if pipeline:
+        job["pipeline"] = pipeline
     _write_json(os.path.join(job_dir, "job.json"), job)
+    return job_id
+
+
+def start(kind, title, spec, title_key=None, title_args=None):
+    """Adds a job and returns its id: it starts at once when nothing is running, otherwise it waits in the queue.
+
+    `title` is the text shown when nothing better is known; `title_key` + `title_args` (an i18n key and its values) let the UI show
+    the title in the language it is in now (jobs written without them keep their text)."""
+    job_id = _create(kind, title, spec, title_key, title_args)
     start_next()
     return job_id
+
+
+def start_pipeline(name, steps):
+    """Adds several jobs as one pipeline and returns their ids in run order.
+
+    `steps`: dicts with kind, title, spec, stage ("data", "train", "match"…) and optionally titleKey / titleArgs. All jobs are written before
+    anything starts, with strictly increasing creation times, so they run in the given order (the queue is first in, first out)."""
+    if not steps:
+        raise ValueError("a pipeline needs at least one job")
+    pid = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
+    base = time.time()
+    ids = []
+    for i, step in enumerate(steps):
+        ids.append(_create(step["kind"], step["title"], step["spec"], step.get("titleKey"), step.get("titleArgs"),
+                           pipeline={"id": pid, "name": name, "stage": step.get("stage", ""), "index": i, "total": len(steps)},
+                           created_epoch=base + i * 0.001))
+    start_next()
+    return ids
+
+
+def pipeline_jobs(pipeline_id):
+    """The jobs of a pipeline in run order."""
+    return sorted((j for j in list_jobs() if (j.get("pipeline") or {}).get("id") == pipeline_id), key=lambda j: j["pipeline"]["index"])
+
+
+# a job in one of these states breaks its pipeline (a cancelled job as well: the user stopped the pipeline)
+PIPELINE_BREAKING = ("failed", "cancelled", "interrupted")
+
+
+def _stop_broken_pipelines():
+    """Cancels the waiting jobs of every pipeline that has a failed, cancelled or interrupted job. Caller holds the dispatch lock."""
+    every = list_jobs()
+    broken = {}
+    for j in every:
+        p = j.get("pipeline")
+        if p and j["state"] in PIPELINE_BREAKING and p["id"] not in broken:
+            broken[p["id"]] = j
+    for j in every:
+        p = j.get("pipeline")
+        if p and j["state"] == "waiting" and p["id"] in broken:
+            job = read_job(j["id"])
+            job.pop("state", None)
+            job.update(status="cancelled", finished=now(),
+                       result={"summary": "pipeline stopped before this job started", "stoppedBy": broken[p["id"]]["id"],
+                               "stoppedByState": broken[p["id"]]["state"]})
+            _write_json(os.path.join(jobs_dir(), j["id"], "job.json"), job)
 
 
 def start_next():
@@ -281,6 +340,7 @@ def start_next():
     Called after every job (by its runner, whatever the outcome) and by the UI; safe to call from several processes.
     """
     with _DispatchLock():
+        _stop_broken_pipelines()
         if active_job():
             return None
         queue = waiting_jobs()
@@ -330,8 +390,23 @@ def cancel(job_id):
             job.pop("state", None)
             job.update(status="cancelled", finished=now(), result={"summary": "removed from the queue before it started"})
             _write_json(os.path.join(jobs_dir(), job_id, "job.json"), job)
+            _stop_broken_pipelines()  # a pipeline job: the rest of its pipeline goes too
             return
     open(os.path.join(jobs_dir(), job_id, "cancel"), "w").close()
+
+
+def cancel_pipeline(pipeline_id):
+    """Stops a whole pipeline: its waiting jobs leave the queue at once, the running one is asked to stop (a lost one is ended)."""
+    with _DispatchLock():
+        for j in pipeline_jobs(pipeline_id):
+            if j["state"] == "waiting":
+                job = read_job(j["id"])
+                job.pop("state", None)
+                job.update(status="cancelled", finished=now(), result={"summary": "pipeline cancelled by the user"})
+                _write_json(os.path.join(jobs_dir(), j["id"], "job.json"), job)
+    for j in pipeline_jobs(pipeline_id):
+        if j["state"] in BUSY:
+            cancel(j["id"])
 
 
 def events(job_id):

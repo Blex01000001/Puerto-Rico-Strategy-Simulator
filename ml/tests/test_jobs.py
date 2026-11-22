@@ -239,3 +239,87 @@ def test_a_finished_process_is_interrupted(results):
     proc.wait()
     _stale_job("dead", pid=proc.pid, startedEpoch=time.time())
     assert jobs.read_job("dead")["state"] == "interrupted"
+
+
+# ---------------------------------------------------------------- pipelines
+
+def _train_step(results, data, name, stage="train", ok=True):
+    spec = {"data": [data if ok else str(results / "missing.bin")], "out": str(results / f"{name}.txt"),
+            "options": {"rounds": 5, "leaves": 4, "min_leaf": 5, "threads": 1}}
+    return {"kind": "train_lgbm", "title": name, "spec": spec, "stage": stage}
+
+
+def test_pipeline_jobs_run_in_the_given_order(results, dump):
+    small = dump("small.bin", games=40)
+    ids = jobs.start_pipeline("p", [_train_step(results, small, n) for n in ("a", "b", "c")])
+    assert [jobs.read_job(i)["pipeline"]["index"] for i in ids] == [0, 1, 2]
+    assert all(jobs.read_job(i)["pipeline"]["name"] == "p" and jobs.read_job(i)["pipeline"]["total"] == 3 for i in ids)
+    done = [jobs.wait(i, 180) for i in ids]
+    assert [j["state"] for j in done] == ["done"] * 3, jobs.log_tail(ids[0])
+    started = [j["started"] for j in done]
+    assert started == sorted(started)
+    assert [j["id"] for j in jobs.pipeline_jobs(done[0]["pipeline"]["id"])] == ids
+
+
+def test_a_failed_job_stops_the_rest_of_its_pipeline_but_not_other_jobs(results, dump):
+    small = dump("small.bin", games=40)
+    ids = jobs.start_pipeline("p", [_train_step(results, small, "first"), _train_step(results, small, "bad", ok=False),
+                                    _train_step(results, small, "never1"), _train_step(results, small, "never2")])
+    other = jobs.start("train_lgbm", "other", _train_step(results, small, "other")["spec"])  # queued after the pipeline, not part of it
+    assert jobs.wait(ids[0], 180)["state"] == "done"
+    assert jobs.wait(ids[1], 120)["state"] == "failed"
+    jobs.start_next()  # the runner does this itself; the cancellation of the rest happens here
+    for i in ids[2:]:
+        j = jobs.wait(i, 60)
+        assert j["state"] == "cancelled" and "started" not in j
+        assert j["result"]["stoppedBy"] == ids[1] and j["result"]["stoppedByState"] == "failed"
+    assert not os.path.exists(results / "never1.txt") and os.path.exists(results / "first.txt")  # what was written stays
+    assert jobs.wait(other, 180)["state"] == "done"  # an unrelated job is not touched
+
+
+def test_cancelling_a_waiting_pipeline_job_cancels_the_rest_of_its_pipeline(results, dump):
+    big = dump("big.bin", games=400, per_game=10)
+    small = dump("small.bin", games=40)
+    long_id = jobs.start("train_mlp", "long", {"data": [big], "out": str(results / "long.json"),
+                                               "options": {"hidden": "64", "epochs": 500, "batch": 16, "patience": 500}})
+    ids = jobs.start_pipeline("p", [_train_step(results, small, n) for n in ("a", "b", "c")])
+    other = jobs.start("train_lgbm", "other", _train_step(results, small, "other")["spec"])
+    jobs.cancel(ids[1])
+    states = [jobs.read_job(i)["state"] for i in ids]
+    assert states == ["cancelled", "cancelled", "cancelled"]  # the first one had not started either: nothing of the pipeline runs
+    assert jobs.read_job(other)["state"] == "waiting"
+    jobs.cancel(long_id)
+    assert jobs.wait(long_id, 60)["state"] == "cancelled"
+    assert jobs.wait(other, 180)["state"] == "done"
+
+
+def test_cancel_pipeline_stops_the_running_job_and_removes_the_waiting_ones(results, dump):
+    big = dump("big.bin", games=400, per_game=10)
+    small = dump("small.bin", games=40)
+    long_step = {"kind": "train_mlp", "title": "long", "stage": "train",
+                 "spec": {"data": [big], "out": str(results / "long.json"), "options": {"hidden": "64", "epochs": 500, "batch": 16, "patience": 500}}}
+    ids = jobs.start_pipeline("p", [long_step, _train_step(results, small, "b"), _train_step(results, small, "c")])
+    deadline = time.time() + 60
+    while not any(e["stage"] == "epoch" for e in jobs.events(ids[0])):
+        assert time.time() < deadline, jobs.log_tail(ids[0])
+        time.sleep(0.2)
+    pid = jobs.read_job(ids[0])["pipeline"]["id"]
+    jobs.cancel_pipeline(pid)
+    assert [jobs.read_job(i)["state"] for i in ids[1:]] == ["cancelled", "cancelled"]
+    assert jobs.wait(ids[0], 60)["state"] == "cancelled"
+    assert jobs.active_job() is None and jobs.waiting_jobs() == []
+    assert not os.path.exists(results / "b.txt")
+
+
+def test_an_interrupted_pipeline_job_stops_the_rest_too(results):
+    pid = "pipe-x"
+    d = os.path.join(jobs.jobs_dir(), "dead")
+    os.makedirs(d)
+    with open(os.path.join(d, "job.json"), "w", encoding="utf-8") as f:
+        json.dump({"id": "dead", "kind": "train_lgbm", "title": "dead", "status": "running", "createdEpoch": time.time() - 999,
+                   "heartbeatEpoch": time.time() - 999, "pipeline": {"id": pid, "name": "p", "stage": "train", "index": 0, "total": 2}}, f)
+    waiting = jobs._create("train_lgbm", "next", {"data": [], "out": str(results / "n.txt")},
+                           pipeline={"id": pid, "name": "p", "stage": "match", "index": 1, "total": 2})
+    jobs.start_next()
+    job = jobs.read_job(waiting)
+    assert job["state"] == "cancelled" and job["result"]["stoppedBy"] == "dead" and job["result"]["stoppedByState"] == "interrupted"
