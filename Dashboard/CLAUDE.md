@@ -20,7 +20,8 @@
 - 「策略模擬」頁的範本下拉選單：先列 `results/*.json`（結果檔、掃描檔），再列專案設定檔（根目錄 `config*.json`、`mcts/`、`tournaments/`、`sweeps/`、`ml/data-configs/`，顯示相對路徑；`Simulate.razor` 的 `ConfigFolders`）。`AppState.ReadConfigAsync` 讀結果檔的 `config` 欄位，沒有時整份當純設定檔讀（頂層就是 `seats`）。新增放設定檔的資料夾要加進 `ConfigFolders`。
 - `SimulationService.cs`（背景執行、進度、取消）、`SnapshotEventSink.cs`（回放：每個決策前的狀態、動作、搜尋摘要）。
 - `ActionText.cs`（動作的中文說明）、`StrategyInfo.cs`（流派介紹：文字全在 `i18n/dash.*.json` 的 `strat.<id>.title／summary／rule.N／p.N.name／default／meaning／range`、`strat.group.<組>.title／hint`，程式只有排序與分組：`All(L)`、`Doc(L, id)`、`Groups(L)`、`InGroup(L, key)`）、`Palette.cs`（策略顏色與名稱）、`OverviewPresets.cs`。
-- `ValueModelCatalog.cs`：列出正式 `ml/models/` 與本機 `ml/local/models/` 的估值模型（標「正式／本機」；讀 `.meta.json` 的人數、種類、對原版 MCTS 最佳勝率，正式模型另讀 `ml/local/match-records/`；不依賴 Python）；「策略模擬」頁 MCTS 座位參數欄下的「估值模型」下拉選單用它，選擇結果寫回參數文字（`valueModel=ml/models/…`），參數文字仍是唯一的來源。
+- 「策略模擬」頁的座位參數：每個參數一個輸入框（名稱、灰字預設值、留空＝預設；填了的欄位藍框、應是數字卻填了文字的紅框）。參數清單與預設值直接取自引擎 `StrategyRegistry.Resolve(new SeatConfig{Strategy=…}, players).Params`（依玩家人數，`Simulate.razor` 的 `Defaults`），所以新增策略參數（用 `GetDouble`／`GetString` 讀）不用改 Dashboard；名稱的 tooltip 是 `StrategyInfo` 的意義與範圍。每個座位打的值存在 `pv`（名稱→文字），`BuildParams` 轉成引擎參數（預設值是數字的必須是數字）；`valueModel` 用下拉選單、`rolloutStrategy` 用策略下拉選單；換策略時丟掉新策略沒有的參數。
+- `ValueModelCatalog.cs`：列出正式 `ml/models/` 與本機 `ml/local/models/` 的估值模型（標「正式／本機」；讀 `.meta.json` 的人數、種類、對原版 MCTS 最佳勝率，正式模型另讀 `ml/local/match-records/`；不依賴 Python）；「策略模擬」頁 MCTS 座位的 `valueModel` 參數用它做下拉選單，選擇結果寫回該座位的參數值（`valueModel=ml/models/…`）。
 - `PageMemory.cs`：每個瀏覽器分頁一份的頁面記憶（Results／Sweep 的資料在 `AppState`，本來就保留）。
 
 **`wwwroot/`**：`app.css`（色票 token；只有一套扁平深色主題，沒有淺色模式）、`favicon.svg`。

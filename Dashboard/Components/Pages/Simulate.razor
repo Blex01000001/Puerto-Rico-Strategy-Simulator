@@ -86,24 +86,54 @@
             {
                 <label><input type="radio" name="target" checked="@(Math.Min(target, players - 1) == seat)" @onchange="@(() => target = seat)" disabled="@Sim.Running" /> @L.T("sim.target")</label>
             }
-            <select @bind="strategies[seat]" disabled="@Sim.Running">
+            <select value="@strategies[seat]" @onchange="e => OnStrategy(seat, e.Value?.ToString() ?? strategies[seat])" disabled="@Sim.Running">
                 @foreach (var n in Choices) { <option value="@n">@Palette.DisplayName(n)</option> }
             </select>
             <div class="paramcell">
-                <input type="text" placeholder="@L.T("sim.params_ph")"
-                       @bind="paramText[seat]" disabled="@Sim.Running" />
-                @if (strategies[seat] == "mcts")
+                @{
+                    var defs = Defaults(strategies[seat]);
+                    var keys = defs.Keys.Concat(pv[seat].Keys.Where(k => !defs.ContainsKey(k))).ToList();
+                }
+                @if (keys.Count == 0)
                 {
-                    var models = ValueModelCatalog.List(players);
-                    string current = CurrentValueModel(seat);
-                    <label class="modelpick" title="@L.T("sim.model_title")">
-                        @L.T("sim.value_model")
-                        <select value="@current" @onchange="e => SetValueModel(seat, e.Value?.ToString() ?? string.Empty)" disabled="@Sim.Running">
-                            <option value="">@L.T("sim.no_model")</option>
-                            @foreach (var m in models) { <option value="@m.Path">@m.Label(L)</option> }
-                            @if (current != "" && models.All(m => m.Path != current)) { <option value="@current">@L.T("sim.model_missing", current)</option> }
-                        </select>
-                    </label>
+                    <span class="muted">@L.T("sim.no_params")</span>
+                }
+                else
+                {
+                    <div class="paramgrid">
+                    @foreach (var key in keys)
+                    {
+                        string k = key;
+                        bool known = defs.TryGetValue(k, out var def);
+                        string curv = pv[seat].GetValueOrDefault(k, "");
+                        string defText = k == "valueModel" ? L.T("sim.no_model") : known ? DefaultText(def) : "";
+                        bool invalid = known && def.ValueKind == JsonValueKind.Number && curv.Length > 0
+                            && !double.TryParse(curv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _);
+                        <label class="pfield @(curv.Length > 0 ? "changed" : "") @(invalid ? "invalid" : "")" title="@ParamHelp(strategies[seat], k)">
+                            <span class="pname">@(k == "valueModel" ? L.T("sim.value_model") : k)</span>
+                            @if (k == "valueModel")
+                            {
+                                var models = ValueModelCatalog.List(players);
+                                <select value="@curv" @onchange="e => SetParam(seat, k, e.Value?.ToString() ?? string.Empty)" disabled="@Sim.Running">
+                                    <option value="">@L.T("sim.no_model")</option>
+                                    @foreach (var m in models) { <option value="@m.Path">@m.Label(L)</option> }
+                                    @if (curv != "" && models.All(m => m.Path != curv)) { <option value="@curv">@L.T("sim.model_missing", curv)</option> }
+                                </select>
+                            }
+                            else if (k == "rolloutStrategy" && known)
+                            {
+                                <select value="@(curv.Length > 0 ? curv : defText)" @onchange="e => SetParam(seat, k, e.Value?.ToString() == defText ? string.Empty : (e.Value?.ToString() ?? string.Empty))" disabled="@Sim.Running">
+                                    @foreach (var n in RolloutChoices) { <option value="@n">@Palette.DisplayName(n)</option> }
+                                </select>
+                            }
+                            else
+                            {
+                                <input type="text" value="@curv" placeholder="@defText" @onchange="e => SetParam(seat, k, e.Value?.ToString() ?? string.Empty)" disabled="@Sim.Running" />
+                            }
+                            <span class="pdef">@L.T("sim.param_default", defText)</span>
+                        </label>
+                    }
+                    </div>
                 }
             </div>
             </div>
@@ -219,7 +249,10 @@
     private ulong seed = 12345;
     private string seatOrder = "random";
     private string[] strategies = { "corn-shipper", "corn-to-premium", "harbor-rush", "build-first" };
-    private string[] paramText = { "", "", "", "" };
+    /// <summary>Every seat's typed parameter values (name -> text); a parameter that is not here (or empty) uses its default.</summary>
+    private Dictionary<string, string>[] pv = NewParams();
+    private static Dictionary<string, string>[] NewParams() => Enumerable.Range(0, 4).Select(_ => new Dictionary<string, string>(StringComparer.Ordinal)).ToArray();
+    private static Dictionary<string, string>[] CloneParams(Dictionary<string, string>[] src) => src.Select(d => new Dictionary<string, string>(d, StringComparer.Ordinal)).ToArray();
     private bool sweep;
     private int target = 3;
     private string sweepText = "buildThreshold=3.5,4,4.5,5";
@@ -232,7 +265,7 @@
     /// <summary>Number of seat permutations (3! or 4!) that <c>balanced</c> cycles through.</summary>
     private int BalancedStep => players == 3 ? 6 : players == 4 ? 24 : 0;
 
-    private sealed record Snap(string DocTab, int Players, int Games, string FileNameText, ulong Seed, string SeatOrder, string[] Strategies, string[] ParamText,
+    private sealed record Snap(string DocTab, int Players, int Games, string FileNameText, ulong Seed, string SeatOrder, string[] Strategies, Dictionary<string, string>[] ParamValues,
         bool Sweep, int Target, string SweepText, string? Error, string TemplateFile, string? TemplateNote, string? TemplateError);
 
     protected override void OnInitialized()
@@ -242,7 +275,7 @@
         if (Memory.Get<Snap>("simulate") is { } m)
         {
             docTab = m.DocTab; players = m.Players; games = m.Games; fileNameText = m.FileNameText; seed = m.Seed; seatOrder = m.SeatOrder;
-            strategies = (string[])m.Strategies.Clone(); paramText = (string[])m.ParamText.Clone(); sweep = m.Sweep; target = m.Target; sweepText = m.SweepText;
+            strategies = (string[])m.Strategies.Clone(); pv = CloneParams(m.ParamValues); sweep = m.Sweep; target = m.Target; sweepText = m.SweepText;
             error = m.Error; templateFile = m.TemplateFile; templateNote = m.TemplateNote; templateError = m.TemplateError;
         }
         RefreshTemplates();
@@ -295,7 +328,7 @@
         var notes = new List<string>();
         for (int i = 0; i < 4; i++)
         {
-            if (i >= c.Seats.Count) { paramText[i] = ""; continue; }
+            if (i >= c.Seats.Count) { pv[i] = new Dictionary<string, string>(StringComparer.Ordinal); continue; }
             var seat = c.Seats[i];
             var prm = new Dictionary<string, JsonElement>(seat.Params);
             string name = seat.Strategy;
@@ -306,7 +339,7 @@
             }
             if (!Choices.Contains(name, StringComparer.OrdinalIgnoreCase)) { notes.Add(L.T("sim.err.seat_missing", i + 1, name, Choices[0])); name = Choices[0]; }
             strategies[i] = Choices.First(x => x.Equals(name, StringComparison.OrdinalIgnoreCase));
-            paramText[i] = FormatParams(prm);
+            pv[i] = prm.ToDictionary(kv => kv.Key, kv => ParamText(kv.Value), StringComparer.Ordinal);
         }
         if (c.Sweep != null)
         {
@@ -319,10 +352,14 @@
         templateNote = L.T("sim.applied", source, c.Players, games.ToString("N0"), c.Seed, Palette.SeatOrderLabel(c.SeatOrder, L)) + (c.Sweep != null ? L.T("sim.applied_sweep") : "") + L.T("sim.applied_end") + (notes.Count > 0 ? " " + string.Join(L.T("common.sep"), notes) : "");
     }
 
-    private static string FormatParams(Dictionary<string, JsonElement> prm) =>
-        string.Join(", ", prm.Select(kv => kv.Value.ValueKind == JsonValueKind.Number
-            ? kv.Key + "=" + kv.Value.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture)
-            : kv.Key + "=" + (kv.Value.ValueKind == JsonValueKind.String ? kv.Value.GetString() : kv.Value.ToString())));
+    /// <summary>A parameter value as the text of its input box (numbers in invariant format).</summary>
+    private static string ParamText(JsonElement v) => v.ValueKind switch
+    {
+        JsonValueKind.Number => v.GetDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+        JsonValueKind.String => v.GetString() ?? "",
+        _ => v.ToString(),
+    };
+
     // Measured: 4 players, 300 simulations, 8 rollout rounds: 400 games in about 92 s on 4 cores (docs/TODO.md).
     private const double MctsSecondsPerGame = 92.0 / 400 * 4; // per core, at 300 simulations
     private const int MctsWarnGames = 200;
@@ -336,9 +373,9 @@
         {
             if (!strategies[i].Equals("mcts", StringComparison.OrdinalIgnoreCase)) continue;
             mctsSeats++;
-            double sims = 300;
-            try { if (ParseParams(paramText[i]).TryGetValue("simulations", out var e) && e.ValueKind == JsonValueKind.Number) sims = Math.Max(1, e.GetDouble()); }
-            catch (FormatException) { }
+            double sims = 200; // the engine's default (Defaults gives the real one)
+            if (Defaults("mcts").TryGetValue("simulations", out var ds) && ds.ValueKind == JsonValueKind.Number) sims = ds.GetDouble();
+            if (pv[i].TryGetValue("simulations", out var typed) && double.TryParse(typed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sv)) sims = Math.Max(1, sv);
             totalSims += sims;
         }
         if (mctsSeats == 0) return null;
@@ -382,7 +419,7 @@
     public void Dispose()
     {
         Sim.Changed -= OnChanged;
-        Memory.Set("simulate", new Snap(docTab, players, games, fileNameText, seed, seatOrder, (string[])strategies.Clone(), (string[])paramText.Clone(),
+        Memory.Set("simulate", new Snap(docTab, players, games, fileNameText, seed, seatOrder, (string[])strategies.Clone(), CloneParams(pv),
             sweep, target, sweepText, error, templateFile, templateNote, templateError));
     }
 
@@ -399,8 +436,8 @@
         {
             string name = strategies[i];
             var seat = new SeatConfig { Strategy = name };
-            try { seat.Params = ParseParams(paramText[i]); }
-            catch (FormatException e) { error = L.T("sim.err.seat_params", i + 1, e.Message); return; }
+            seat.Params = BuildParams(i, out var paramProblem);
+            if (paramProblem != null) { error = L.T("sim.err.seat_params", i + 1, paramProblem); return; }
             // the seat id is the name shown in the results: an MCTS seat with a value model carries the model's name,
             // so two MCTS seats with different models can be told apart (mcts(4p-v2) vs mcts(4p-v3))
             string label = name;
@@ -465,35 +502,67 @@
         return result;
     }
 
-    /// <summary>valueModel=… of the seat's parameter text ("" when absent or unparsable).</summary>
-    private string CurrentValueModel(int seat)
-    {
-        try { return ParseParams(paramText[seat]).TryGetValue("valueModel", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : ""; }
-        catch (FormatException) { return ""; }
-    }
+    // ---- parameters: one input box per parameter, the placeholder is the default of the engine for this player count
 
-    /// <summary>Puts (or removes, for "") valueModel=… into the seat's parameter text, keeping the other parameters as typed.</summary>
-    private void SetValueModel(int seat, string path)
-    {
-        var parts = (paramText[seat] ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(p => !p.StartsWith("valueModel", StringComparison.Ordinal) || !p.Split('=', 2)[0].Trim().Equals("valueModel", StringComparison.Ordinal))
-            .ToList();
-        if (path.Length > 0) parts.Add("valueModel=" + path);
-        paramText[seat] = string.Join(", ", parts);
-    }
+    private static readonly Dictionary<(string, int), Dictionary<string, JsonElement>> DefaultCache = new();
 
-    private Dictionary<string, JsonElement> ParseParams(string text)
+    /// <summary>The strategy's parameters with the values it uses by default for the current player count (what the engine resolves).</summary>
+    private Dictionary<string, JsonElement> Defaults(string strategy)
     {
-        var result = new Dictionary<string, JsonElement>();
-        foreach (var part in (text ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        lock (DefaultCache)
         {
-            var kv = part.Split('=', 2, StringSplitOptions.TrimEntries);
-            if (kv.Length != 2 || kv[0].Length == 0 || kv[1].Length == 0)
-                throw new FormatException(L.T("sim.err.param_format", part));
-            // numbers become numeric parameters, anything else a text parameter (e.g. rolloutStrategy=random)
-            result[kv[0]] = double.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
-                ? JsonSerializer.SerializeToElement(v)
-                : JsonSerializer.SerializeToElement(kv[1]);
+            if (DefaultCache.TryGetValue((strategy, players), out var d)) return d;
+            try { d = StrategyRegistry.Resolve(new SeatConfig { Strategy = strategy }, players).Params; }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException or KeyNotFoundException) { d = new(); }
+            return DefaultCache[(strategy, players)] = d;
+        }
+    }
+
+    private string DefaultText(JsonElement v) => v.ValueKind switch
+    {
+        JsonValueKind.Number => v.GetDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+        JsonValueKind.String => string.IsNullOrEmpty(v.GetString()) ? L.T("sim.param_empty") : v.GetString()!,
+        _ => v.ToString(),
+    };
+
+    /// <summary>Meaning and range of a parameter from the strategy guide (tooltip of its name); "" when not documented.</summary>
+    private string ParamHelp(string strategy, string key)
+    {
+        var info = StrategyInfo.Doc(L, strategy).Params.FirstOrDefault(p => p.Name == key);
+        return info == null ? "" : $"{info.Meaning} ({info.Range})";
+    }
+
+    private static readonly string[] RolloutChoices = Choices.Where(n => n != "mcts").ToArray();
+
+    private void SetParam(int seat, string key, string value)
+    {
+        value = (value ?? "").Trim();
+        if (value.Length == 0) pv[seat].Remove(key); else pv[seat][key] = value;
+    }
+
+    /// <summary>Another strategy for a seat: the typed values of parameters it does not have are dropped.</summary>
+    private void OnStrategy(int seat, string name)
+    {
+        strategies[seat] = name;
+        var keys = Defaults(name).Keys.ToHashSet();
+        foreach (var k in pv[seat].Keys.Where(k => !keys.Contains(k)).ToList()) pv[seat].Remove(k);
+    }
+
+    /// <summary>The typed values of a seat as engine parameters: a parameter whose default is a number must be a number; unknown names keep what was typed (a number if it parses).</summary>
+    private Dictionary<string, JsonElement> BuildParams(int seat, out string? problem)
+    {
+        problem = null;
+        var defs = Defaults(strategies[seat]);
+        var result = new Dictionary<string, JsonElement>();
+        foreach (var (key, text) in pv[seat])
+        {
+            bool isNumber = double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v);
+            if (defs.TryGetValue(key, out var def) && def.ValueKind == JsonValueKind.Number)
+            {
+                if (!isNumber) { problem = L.T("sim.err.param_nan", key, text); return result; }
+                result[key] = JsonSerializer.SerializeToElement(v);
+            }
+            else result[key] = isNumber && !defs.ContainsKey(key) ? JsonSerializer.SerializeToElement(v) : JsonSerializer.SerializeToElement(text);
         }
         return result;
     }
