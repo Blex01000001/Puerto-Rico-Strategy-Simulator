@@ -2558,16 +2558,57 @@ def pl_train_dialog(players):
     new_tokens = [pipeline_form.new_token(k) for k, d in enumerate(datas) if "out_rel" in d]
     options = new_tokens + list(by_path)
     pl_default("pld-data", "init", list(new_tokens))   # a new model starts with the data sets of this pipeline
-    if isinstance(st.session_state.get("pld-data"), list):
-        st.session_state["pld-data"] = [x for x in st.session_state["pld-data"] if x in options]
+    chosen_before = [x for x in (st.session_state.get("pld-data") or []) if x in options]
+    current_rules = fingerprint.rules_name(fingerprint.current_rules_revision())
 
-    def label(tok):
+    def data_row(tok):
         k = pipeline_form.token_index(tok)
         if k is not None:
-            return t("pl.train.new_item", n=k + 1, name=datas[k]["name"])
-        return t("pl.train.data_item", file=os.path.basename(tok), v=by_path[tok]["特徵版本"], rows=f"{by_path[tok]['列數']:,}")
+            d = datas[k]
+            return {"kind": t("pl.train.kind_new", n=k + 1), "file": d["name"] + ".bin", "games": d["games"], "rows": d["rows"], "rate": d["rate"],
+                    "feature": d["feature"], "rules": current_rules}
+        d = by_path[tok]
+        return {"kind": t("pl.train.kind_existing"), "file": os.path.basename(tok), "games": d["局數"], "rows": d["列數"], "rate": d.get("抽樣率"),
+                "feature": d["特徵版本"], "rules": d.get("規則版本")}
 
-    picked = st.multiselect(t("pl.train.data"), options, key="pld-data", format_func=label)
+    all_rows = {tok: data_row(tok) for tok in options}
+    if not options:
+        st.caption(t("pl.train.no_data_rows"))
+    else:
+        st.markdown(f"**{t('pl.train.data')}**")
+        with st.container(key="filterbar-pl-train"):   # quick filters, same look as the training page's
+            f1, f2, f3, _ = st.columns([1, 1, 1, 2])
+            kind_opts = [t("pl.train.kind_new_short"), t("pl.train.kind_existing")]
+            feature_opts = sorted({r["feature"] for r in all_rows.values()})
+            rules_opts = sorted({r["rules"] for r in all_rows.values() if r["rules"]})
+            fk = f1.pills(t("pl.train.col.kind"), kind_opts, selection_mode="multi", key="pld-tf-kind")
+            fv = f2.pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key="pld-tf-feature")
+            rv = f3.pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key="pld-tf-rules")
+
+        def shown(tok):
+            r = all_rows[tok]
+            is_new = pipeline_form.token_index(tok) is not None
+            return ((not fk or kind_opts[0 if is_new else 1] in fk) and r["feature"] in (fv or feature_opts)
+                    and (r["rules"] in (rv or rules_opts) or not r["rules"]))
+
+        visible = [tok for tok in options if shown(tok)]
+        if not visible:
+            st.caption(t("mlist.none"))
+        else:
+            frame = pd.DataFrame({t("pl.train.col.kind"): [all_rows[x]["kind"] for x in visible], t("dump.col.file"): [all_rows[x]["file"] for x in visible],
+                                  t("dump.col.games"): [all_rows[x]["games"] for x in visible], t("dump.col.rows"): [all_rows[x]["rows"] for x in visible],
+                                  t("dump.col.rate"): [all_rows[x]["rate"] for x in visible], t("dump.col.feature"): [all_rows[x]["feature"] for x in visible],
+                                  t("dump.col.rules"): [all_rows[x]["rules"] or "—" for x in visible]})
+            # a selection is by row number: the filters are part of the key (another filter = another table), and a new table starts with what was chosen
+            tkey = f"pld-dtable-{'.'.join(map(str, fk or []))}-{'.'.join(map(str, fv or []))}-{'.'.join(map(str, rv or []))}"
+            if tkey not in st.session_state:
+                st.session_state[tkey] = {"selection": {"rows": [n for n, x in enumerate(visible) if x in chosen_before], "columns": []}}
+            event = grid(frame, hide_index=True, on_select="rerun", selection_mode="multi-row", width="stretch", key=tkey,
+                         column_config={t("dump.col.rows"): st.column_config.NumberColumn(format="localized"), t("dump.col.games"): st.column_config.NumberColumn(format="localized")})
+            selected = {visible[n] for n in event.selection.rows if n < len(visible)}
+            hidden_kept = {x for x in chosen_before if x not in visible}    # chosen earlier, hidden by a filter now: still chosen
+            st.session_state["pld-data"] = [x for x in options if x in selected or x in hidden_kept]
+    picked = [x for x in st.session_state.get("pld-data", []) if x in options]
     pl_default("pld-kind", "open", "train_lgbm")
     kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True, key="pld-kind")
     with st.expander(t("pl.train.advanced")):

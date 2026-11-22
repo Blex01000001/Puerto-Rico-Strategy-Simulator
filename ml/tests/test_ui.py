@@ -627,3 +627,16 @@ def test_pipeline_custom_seat_boxes_are_filled_for_every_strategy_also_after_swi
             boxes = [w for w in at.text_input if w.key.startswith("pld-cp1-")]
             assert all(w.value != "" for w in boxes), (raw, [w.key for w in boxes if w.value == ""])
     assert len(names) > 5
+
+
+def test_pipeline_training_data_is_chosen_from_a_filterable_table(results, no_spawn, inline):
+    at = goto(run_app(), "pipeline")
+    _add(at, "d")
+    at.button(key="pl-btn-add-t").click().run()
+    assert not at.exception, at.exception
+    assert at.session_state["pld-data"] == ["new:0"]                              # the pipeline's own data starts chosen
+    assert any(p.key == "pld-tf-kind" for p in at.get("pills"))                   # quick filters like the training page
+    key = next(k for k in at.session_state.to_dict() if str(k).startswith("pld-dtable-"))
+    at.session_state[key] = {"selection": {"rows": [], "columns": []}}             # unticking the row (the user's click)
+    at.run()
+    assert at.session_state["pld-data"] == [] and at.button(key="pld-ok").disabled
