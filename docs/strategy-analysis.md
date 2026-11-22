@@ -801,3 +801,16 @@ cheap-engine 的勝率（±0.6）：
 - 結論：**進步很小，大致在誤差邊緣**：對 `4p-v2` 勉強顯著、對 `4p-v3` 不顯著、絕對水準與 `4p-v2` 相同。與 10.1（多一輪自我對戰）、10.5（高品質資料 +3.3）一致：**資料（量與品質）不是 4 人局價值模型的瓶頸，搜尋變強也沒有改變這一點**。
 - 不建議把 `4p-v4-leaf40` 設成正式模型或預設：它沒有明顯勝過 `4p-v3`，而且是新舊規則版本混用的資料。
 - 已確定的槓桿只剩搜尋設定（`leafRollout` 40，10.10）；剩下的方向（價值模型的架構、rollout 策略、搜尋演算法）見 TODO。
+
+### 10.13 rollout 策略：隨機比手寫策略好（`4p-v2`，`leafRollout` 40，使用者在本機跑，Dashboard「策略模擬」頁）
+
+問題：`leafRollout` 的 rollout 預設是隨機玩家，換成更聰明的手寫策略會不會更強？設定 `mcts/value/4p-v2-leaf40-random-vs-cheap-engine.json`：同一個 `4p-v2`、300 次、`leafRollout` 40，座位 A 用隨機 rollout，座位 B 用 `cheap-engine` rollout（`rolloutStrategy`），同桌另有 cheap-engine、build-first，balanced 960 局、種子 9191。
+
+| 座位 | 勝率 | 平均分 |
+|---|---|---|
+| 隨機 rollout | **61.0% ± 3.1%** | 46.6 |
+| `cheap-engine` rollout | 37.9% ± 3.1% | 41.6 |
+
+- 隨機 rollout 勝 **+23.1 個百分點**（標準誤約 3.2，z 約 7，95% 區間約 +17～+29）、平均分 +5.0；耗時 27 分 10 秒（隨機 vs `leafRollout` 0 的同類場約 19 分）。
+- 結論：**更好的（手寫策略）rollout 反而明顯更差，而且更慢**。與沒有模型時的結果相同（`build-first` rollout 比隨機差，第 5 節）。再結合 10.11（`leafRollout` 讓排序只略好、絕對誤差反而變大），隨機 rollout 的價值大概不是「打得像真的」，而是中性、無偏好：它對同一局面的各個動作造成大致相同的偏移（比較時抵銷）。手寫策略有固定的偏好與打法，rollout 會把局面推向那個策略喜歡的樣子，對不同動作偏的方向不同，扭曲了動作之間的排序。這個解釋與資料相容，**沒有直接驗證**。
+- 不再往這個方向走：`harbor-rush`、`guided-random` 沒有跑（`harbor-rush` 更慢，`guided-random` 沒有模型時就沒有比隨機好）。
