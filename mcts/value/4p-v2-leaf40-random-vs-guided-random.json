@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "name": "4p-v2-leaf40-random-vs-guided-random",
+  "players": 4,
+  "games": 960,
+  "seed": 9191,
+  "seatOrder": "balanced",
+  "seats": [
+    {
+      "id": "random-rollout",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 40
+      }
+    },
+    {
+      "id": "guided-random-rollout",
+      "strategy": "mcts",
+      "params": {
+        "simulations": 300,
+        "valueModel": "ml/models/4p-v2.txt",
+        "leafRollout": 40,
+        "rolloutStrategy": "guided-random"
+      }
+    },
+    {
+      "id": "cheap-engine",
+      "strategy": "cheap-engine",
+      "params": {}
+    },
+    {
+      "id": "build-first",
+      "strategy": "build-first",
+      "params": {}
+    }
+  ],
+  "output": {
+    "perGameRecords": false
+  }
+}
