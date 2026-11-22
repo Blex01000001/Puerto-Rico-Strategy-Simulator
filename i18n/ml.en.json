@@ -717,5 +717,7 @@
   "queue.pipeline": "Pipeline {name} · {i}/{n}",
   "queue.pipeline_line": "Pipeline **{name}**: {done} of {total} done",
   "queue.cancel_pipeline": "Cancel the whole pipeline",
-  "remark.pipeline_stopped": "Pipeline stopped: an earlier job failed or was cancelled."
+  "remark.pipeline_stopped": "Pipeline stopped: an earlier job failed or was cancelled.",
+  "pl.match.sims": "Simulations of the model under test",
+  "pl.match.sims_help": "The simulation count of the model under test in every match below (the same for all of them). The opponent's count is set on each match row."
 }
