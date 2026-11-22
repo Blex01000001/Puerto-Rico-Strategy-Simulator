@@ -241,9 +241,13 @@ th.sortable:hover { color: var(--text); }
 .seatrow { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; padding: .55rem .7rem; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
 .seatrow.head { padding: 0 .7rem; background: transparent; border: 0; }
 .paramcell { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
-.paramcell > input { width: 100%; box-sizing: border-box; }
-.modelpick { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--text-2); }
-.modelpick select { flex: 1; min-width: 0; }
+.paramgrid { display: flex; flex-wrap: wrap; gap: .4rem .8rem; }
+.pfield { display: flex; flex-direction: column; gap: .1rem; flex: 0 1 9.5rem; min-width: 7.5rem; font-size: .8rem; color: var(--text-2); }
+.pfield .pname { font-weight: 600; }
+.pfield input, .pfield select { width: 100%; box-sizing: border-box; }
+.pfield .pdef { font-size: .72rem; color: var(--text-3); overflow-wrap: anywhere; }
+.pfield.changed input, .pfield.changed select { border-color: var(--accent); }
+.pfield.invalid input { border-color: var(--neg); }
 .seathead { font-size: .8rem; font-weight: 700; color: var(--text-2); padding-bottom: .15rem; border-bottom: 1px solid var(--line); }
 /* overview: file picker table */
 .filetable tbody tr { cursor: pointer; }
