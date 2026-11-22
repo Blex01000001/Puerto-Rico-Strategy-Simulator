@@ -91,7 +91,7 @@
 | `corn-monopoly-tiles`、`corn-monopoly-hoard` | 壟斷派的兩個變體（只搶種植園／只囤貨），用來拆開兩種搗亂手段（分析文件 7.4） |
 | `random`、`guided-random` | 隨機基準／按動作種類加權的隨機 |
 
-另外，`mcts` 是 UCT 樹搜尋（只用模擬次數，不用時間），可搭配上面的估值模型使用（`valueModel` 參數）。
+另外，`mcts` 是 UCT 樹搜尋（只用模擬次數，不用時間），可搭配上面的估值模型使用（`valueModel` 參數）。4 人局帶模型時，葉節點先用隨機 rollout 往下打 `leafRollout` 個決策再交給模型估值，預設 40（成本幾乎不變，同桌對打比 0 強 20 個百分點，見 `docs/strategy-analysis.md` 10.10）；模型表格裡的勝率是 `leafRollout` 0 的數字。
 
 ## 快速開始
 

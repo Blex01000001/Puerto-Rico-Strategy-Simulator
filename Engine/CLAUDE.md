@@ -15,7 +15,7 @@
 - `RuleBased/` 子類別：`CornShipper`（玉米出貨）、`CornToPremium`（前期玉米、中後期菸草／咖啡）、`HarborRush`（先港口，後期加 Wharf）、`BuildFirst`（採石場折扣、依終局加成挑大型建築）、`CheapEngine`（便宜 1 分建築、少種植園、頻繁出貨；實驗參數 `roleCoinWeight` 預設 1）、`WharfRush`、`WharfPremium`、`CornMonopoly`（搗亂；`grab`／`hoard` 旗標分出 `-tiles`、`-hoard` 變體）。
 - `RuleBased/TieBreakRules.cs`：同分的第二準則（字典式，只在主要分數完全相同時生效）。文字參數 `tieTile`／`tieGood`／`tieRole`／`tieBuild`，`tieOpponent` 預留。預設＝引擎順序；只有 build-first／harbor-rush／wharf-rush 有 `DefaultTieTile`＝`hacienda>corn>sugar>indigo>tobacco>coffee>quarry`（`tieTile: ""` 關閉）。策略的偏好寫在自己的規則裡，基底不內建「常理」。
 - 實驗參數 `randomTies`（預設 0；1＝開拓者＋工匠額外貨物、2＝市長以外所有階段、3＝只有開拓者、4＝只有工匠額外貨物，同分時隨機）。
-- `Mcts/MctsStrategy.cs`：UCT，`params.simulations`／`rolloutStrategy`／`rolloutRounds`／`exploration`／`valueModel`（葉節點改用模型估值）／`leafRollout`。
+- `Mcts/MctsStrategy.cs`：UCT，`params.simulations`／`rolloutStrategy`／`rolloutRounds`／`exploration`／`valueModel`（葉節點改用模型估值）／`leafRollout`（有模型且 4 人局預設 `MctsStrategy.DefaultLeafRollout`＝40，其他情況 0；實作是 `IResolvesParameters`，要知道人數才讀；改預設要同步 `ml/fingerprint.py` 的 `DEFAULT_LEAF_ROLLOUT`，測試會比對）。
 - `Mcts/FeatureSets.cs`（`FeatureSet` 抽象類別＋`FeatureSets` 登錄：`All`、`Latest`、`Get(版本)`、`Find(名稱)`；`LatestVersion` 常數給 `ml/fingerprint.py` 讀）、`Mcts/FeaturesV1.cs`（版本 1，430 個特徵，**凍結**）、`Mcts/FeaturesV2.cs`（版本 2 ＝ 版本 1 原樣＋82 個衍生特徵：各職業被誰選走、每個座位能出貨／能賣／能蓋／能生產多少…）；局面特徵都從某座位視角、全部小整數。`Mcts/ValueModel.cs`（`IValueModel`：LightGBM 文字模型與 MLP JSON 的純 C# 推論，依路徑快取；`ValueModels.Resolve`：相對路徑找不到時往目前目錄與程式目錄的上層找）。
 - 選用介面：`IDecisionExplainer`（MCTS 回報 `SearchSummary` → `IGameEventSink.OnSearch`）、`IScoreExplainer`（手寫策略回報每個動作的分數 → `OnScores`；`RecordScores` 只有回放 sink 會由 `GameRunner` 打開，不影響大量模擬與選擇結果）。
 
