@@ -1481,15 +1481,14 @@ def models_table(paths):
         v = meta.get("validation") or {}
         rows.append({
             col("model"): name, col("place"): places[place_of(p)], col("kind"): KIND_TEXT.get(meta["kind"], meta["kind"]), col("players"): meta["players"],
-            col("feature"): meta.get("featureVersion"), col("rules"): fingerprint.rules_name(meta.get("rulesRevision", 1)),
-            col("created"): (meta.get("created") or t("mlist.backfilled"))[:16].replace("T", " "),
+            col("feature"): meta.get("featureVersion"),
             col("rows"): sum(d["rows"] for d in meta["data"]),
             col("selfplay"): t("common.list").join(sorted({os.path.basename(m) for d in meta["data"] for m in d.get("valueModels", [])})),
             col("r2"): v.get("r2"), col("ce"): v.get("crossEntropy"),
             col("matches"): len(meta.get("matches", [])),
             col("best"): best["winShare"] if best else None,
             col("hash"): fingerprint.short(meta.get("fingerprint")) or "—",
-            col("status"): version_text(model_stale(meta)) if meta.get("data") else "—",
+            col("rules"): fingerprint.rules_name(meta.get("rulesRevision", 1)),
             col("note"): t("mlist.params_backfilled") if "note" in meta.get("params", {}) else (t("mlist.old_record") if not meta.get("fingerprint") else ""),
         })
     df = pd.DataFrame(rows)
@@ -1659,6 +1658,28 @@ def rename_dialog(path):
             st.error(str(e))
 
 
+def model_data_table(meta):
+    """The training data of a model with the same columns, in the same order, as the table that picks training data on the
+    training page: file, players, games, rows, sampling rate, feature version, size, strategies (an MCTS seat names its value
+    model), hash, rules version, engine commit. Players and feature version are the model's (all its data shares them); size and
+    commit come from the dump on disk, only when it still is the same recipe (hash) as when the model was trained."""
+    on_disk = {d["path"]: d for d in list_dumps() if "_fp" in d}
+    col = lambda key: t(f"dump.col.{key}")  # noqa: E731
+    rows = []
+    for d in meta["data"]:
+        path = d["path"].replace("\\", "/")
+        disk = on_disk.get(path)
+        same = disk is not None and disk["_fp"] == d.get("fingerprint")
+        models = [os.path.splitext(os.path.basename(m))[0] for m in d.get("valueModels", [])]
+        strategies = [f"{x}({t('common.list').join(models)})" if x == "mcts" and models else x for x in d.get("strategies", []) if x]
+        rows.append({col("file"): os.path.basename(path), col("players"): str(meta["players"]), col("games"): d["games"], col("rows"): d["rows"],
+                     col("rate"): d["rate"], col("feature"): str(meta["featureVersion"]), col("size"): disk["大小 MB"] if same else "—",
+                     col("strategies"): t("common.list").join(dict.fromkeys(strategies)), "hash": fingerprint.short(d.get("fingerprint")) or "—",
+                     col("rules"): fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")),
+                     col("commit"): disk["引擎 commit"] if same else "—"})
+    return pd.DataFrame(rows)
+
+
 def model_detail(path):
     meta = model_meta(path)
     name = os.path.basename(path)
@@ -1686,15 +1707,8 @@ def model_detail(path):
         match_summary_box(meta, path, f"detail-{name}")
 
     st.markdown(t("md.data_title"))
-    sep = t("common.list")
-    grid(pd.DataFrame([{t("md.dcol.source"): d["source"], t("md.dcol.games"): d["games"], t("md.dcol.rows"): d["rows"], t("md.dcol.rate"): d["rate"],
-                                t("md.dcol.status"): d["status"], t("md.dcol.strategies"): sep.join(dict.fromkeys(s for s in d["strategies"] if s)),
-                                t("md.dcol.selfplay"): sep.join(os.path.basename(m) for m in d.get("valueModels", [])),
-                                "hash": fingerprint.short(d.get("fingerprint")) or "—",
-                                t("md.dcol.version"): (fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")) + sep
-                                         + sep.join(fingerprint.strategy_name(k, v) for k, v in (d.get("revisions") or {}).items())).rstrip(sep),
-                                t("md.dcol.file"): os.path.basename(d["path"])} for d in meta["data"]]),
-                 hide_index=True, width="stretch")
+    df = model_data_table(meta)
+    grid(df, hide_index=True, width="stretch", column_config=dump_column_config())
     if meta.get("data"):
         folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
 
