@@ -106,7 +106,10 @@ def _dump_info(path, mtime):
     except (ValueError, OSError, json.JSONDecodeError, KeyError) as e:
         return {"path": rel(path), "error": scrub(str(e))}
     meta = {k: v for k, v in m.items() if k != "featureNames"}
-    strategies = [s.get("strategy") for s in m.get("seats", [])]
+    def seat_text(s):  # an MCTS seat names the value model it plays with: mcts(4p-v2)
+        vm = (s.get("params") or {}).get("valueModel")
+        return f"{s.get('strategy')}({os.path.splitext(os.path.basename(str(vm)))[0]})" if vm and s.get("strategy") else s.get("strategy")
+    strategies = [seat_text(s) for s in m.get("seats", [])]
     models = sorted({os.path.basename(str((s.get("params") or {}).get("valueModel"))) for s in m.get("seats", [])
                      if (s.get("params") or {}).get("valueModel")})
     return {"path": rel(path), "來源": m.get("name") or os.path.basename(path), "人數": m["players"],
@@ -170,12 +173,29 @@ DUMP_COLUMNS = {"來源": "source", "人數": "players", "局數": "games", "列
                 "大小 MB": "size", "策略": "strategies", "自我對戰模型": "selfplay", "規則版本": "rules", "版本狀態": "versions", "引擎 commit": "commit"}
 
 
+HIDDEN_DUMP_COLUMNS = ("來源", "狀態", "自我對戰模型", "版本狀態")  # not shown in the data tables (the file name says the source)
+CENTRED_DUMP_COLUMNS = ("人數", "特徵版本")
+
+
 def table_view(rows, path_as=None):
-    """Dump rows for display: no internal columns (those starting with _); the path column is dropped or renamed."""
+    """Dump rows for display: no internal columns (those starting with _) and none of HIDDEN_DUMP_COLUMNS; the path column is
+    dropped or renamed. Player count and feature version are text, so that column_config(df) can centre them."""
     df = pd.DataFrame(rows)
-    df = df.drop(columns=[c for c in df.columns if c.startswith("_")])
+    df = df.drop(columns=[c for c in df.columns if c.startswith("_") or c in HIDDEN_DUMP_COLUMNS])
+    for c in CENTRED_DUMP_COLUMNS:
+        if c in df:
+            df[c] = [str(v) for v in df[c]]
     df = df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
     return df.rename(columns={zh: t(f"dump.col.{key}") for zh, key in DUMP_COLUMNS.items()})
+
+
+def dump_column_config():
+    """Number formats and centring of the dump tables' columns (names are the translated ones)."""
+    config = {t("dump.col.rows"): st.column_config.NumberColumn(format="localized"), t("dump.col.games"): st.column_config.NumberColumn(format="localized")}
+    for key in ("players", "feature"):
+        name = t(f"dump.col.{key}")
+        config[name] = st.column_config.TextColumn(name, alignment="center")
+    return config
 
 
 def models_using(dump_rel):
@@ -407,13 +427,11 @@ def training_tab():
         if not rows:
             st.caption(t("mlist.none"))
             return
-        df = table_view(rows).drop(columns=[t("dump.col.versions")], errors="ignore")
+        df = table_view(rows)
         df = df.set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
         # the filters are part of the key: a selection is by row number, which a different filter would point at other files
         picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch",
-                      key=f"dumps-{delete_gen()}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}",
-                              column_config={t("dump.col.rows"): st.column_config.NumberColumn(format="localized"),
-                                             t("dump.col.games"): st.column_config.NumberColumn(format="localized")})
+                      key=f"dumps-{delete_gen()}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}", column_config=dump_column_config())
         chosen = [rows[i] for i in picked.selection.rows]
         folder_line(os.path.dirname(rows[0]["path"]) + "/", "train-data")
         for d in writing:
@@ -652,6 +670,10 @@ table.vtable.cmp td { overflow-wrap: anywhere; }
 table.vtable td.best { color: #4aa8ff; font-weight: 700; background: rgba(74, 168, 255, .13); }
 /* left navigation (Dashboard style): brand, section headings, one full-width entry per page, the active one highlighted */
 section[data-testid="stSidebar"] { background: #171a21 !important; border-right: 1px solid #000; }
+/* a narrower navigation (Streamlit's default is 300px); the brand keeps its own width on two lines, long entries are not wrapped. Only while
+   it is open: a collapsed sidebar is moved away by Streamlit with its own width */
+section[data-testid="stSidebar"]:not([aria-expanded="false"]) { width: 14rem !important; min-width: 14rem !important; max-width: 14rem !important; }
+.nav-brand { white-space: nowrap; }
 .nav-brand { display: flex; align-items: center; gap: .55rem; font-weight: 700; color: #fff; line-height: 1.25; font-size: .95rem;
   padding: .2rem 0 .7rem; border-bottom: 1px solid #333a4b; margin-bottom: .2rem; }
 .nav-brand .nav-icon { font-size: 1.5rem; }
@@ -1322,7 +1344,8 @@ def data_tab():
         dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
         if dumps:
             df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name=t("dump.col.file")))
-            picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-manage-{delete_gen()}")
+            picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-manage-{delete_gen()}",
+                          column_config=dump_column_config())
             chosen = [dumps[i] for i in picked.selection.rows]
             folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
             c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
@@ -1458,7 +1481,7 @@ def models_table(paths):
         v = meta.get("validation") or {}
         rows.append({
             col("model"): name, col("place"): places[place_of(p)], col("kind"): KIND_TEXT.get(meta["kind"], meta["kind"]), col("players"): meta["players"],
-            col("feature"): meta.get("featureVersion"),
+            col("feature"): meta.get("featureVersion"), col("rules"): fingerprint.rules_name(meta.get("rulesRevision", 1)),
             col("created"): (meta.get("created") or t("mlist.backfilled"))[:16].replace("T", " "),
             col("rows"): sum(d["rows"] for d in meta["data"]),
             col("selfplay"): t("common.list").join(sorted({os.path.basename(m) for d in meta["data"] for m in d.get("valueModels", [])})),
@@ -1800,26 +1823,47 @@ def models_tab():
 
 
 def models_list():
-    """Every model, with quick filters (place: git / local, kind, player count); empty filter = all."""
+    """Every model, with quick filters (place: git / local, kind, player count, rules version; each in its own box); empty
+    filter = all. Selected rows can be deleted (red button)."""
     paths = model_files()
     if not paths:
         return
     table = models_table(paths)
     col = lambda key: t(f"mlist.col.{key}")  # noqa: E731
-    with st.container(key="filterbar"):  # one flat bar for all quick filters (CSS .st-key-filterbar)
-        c1, c2, c3, _ = st.columns([1, 1, 1, 3])
-        places = c1.pills(t("mlist.place"), ["git", "local"], selection_mode="multi", key="mf-place")
-        kinds = c2.pills(t("mlist.kind"), ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
-        players = c3.pills(t("mlist.players"), ["3", "4"], selection_mode="multi", key="mf-players", format_func=lambda n: t("match.players_n", n=n))
+    rules_opts = sorted({r for r in table[col("rules")] if r}) if col("rules") in table else []
+    widths = [1.1, 1.5, 1.5, 0.6 + 0.9 * len(rules_opts), 2]
+    cols = st.columns(widths)
+    boxes = []
+    for c, name in zip(cols, ("place", "kind", "players", "rules")):
+        boxes.append(c.container(key=f"filterbar-mf-{name}"))  # one box per category (CSS .st-key-filterbar*)
+    places = boxes[0].pills(t("mlist.place"), ["git", "local"], selection_mode="multi", key="mf-place")
+    kinds = boxes[1].pills(t("mlist.kind"), ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
+    players = boxes[2].pills(t("mlist.players"), ["3", "4"], selection_mode="multi", key="mf-players", format_func=lambda n: t("match.players_n", n=n))
+    rules = boxes[3].pills(t("mlist.rules"), rules_opts, selection_mode="multi", key="mf-rules")
     keep = (table[col("place")].isin(places or ["git", "local"]) & table[col("kind")].isin(kinds or ["LightGBM", "MLP"])
             & table[col("players")].isin(players or ["3", "4"]))
+    if rules:  # models without metadata have no rules version: they only show while no rules filter is selected
+        keep &= table[col("rules")].isin(rules)
     shown = table[keep]
+    shown_paths = [p for p, k in zip(paths, keep) if k]
     if shown.empty:
         st.caption(t("mlist.none"))
         return
-    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in (col("players"), col("feature"), col("r2"), col("ce"), col("matches"), col("best"))}
-    grid(shown, hide_index=True, width="stretch", column_config=centred)
+    centred = {c: st.column_config.TextColumn(c, alignment="center") for c in (col("players"), col("feature"), col("rules"), col("r2"), col("ce"), col("matches"), col("best"))
+               if c in shown}
+    # a selection is by row number: the filters and the deletion counter are part of the key
+    picked = grid(shown, hide_index=True, width="stretch", column_config=centred, on_select="rerun", selection_mode="multi-row",
+                  key=f"models-list-{delete_gen()}-{'.'.join(places or [])}-{'.'.join(kinds or [])}-{'.'.join(players or [])}-{'.'.join(rules or [])}")
+    chosen = [shown_paths[i] for i in picked.selection.rows]
     st.caption(t("mlist.footer", shown=len(shown), total=len(table)))
+    busy = {f for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY for f in job_reads(j)}
+    busy |= busy_files("out")  # a training job that is writing it
+    files = [p for m in chosen for p in [m, os.path.join(modelmeta.local_records_dir(), os.path.basename(m) + ".matches.json")]
+             if os.path.exists(p)]  # the model and the match records kept beside it (official models' records are local)
+    c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
+    c1.caption(t("mlist.delete_hint") + (" " + t("mlist.delete_official") if any(place_of(m) == "official" for m in chosen) else ""))
+    with c2:
+        delete_button("del-models", t("del.button", n=len(chosen)), files, extra_suffixes=(".meta.json", ".check.txt"), busy=busy)
 
 
 # ---------------------------------------------------------------- hash 說明、版本控管

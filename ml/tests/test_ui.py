@@ -102,9 +102,9 @@ def test_match_page_offers_a_model_versus_model_table(results):
     assert any(f"MCTS＋{rival.value}" in c.value for c in at.caption)  # the table is spelled out under the form
 
 
-def test_model_list_has_place_kind_and_player_count_filters(results):
+def test_model_list_has_place_kind_player_count_and_rules_filters(results):
     at = goto(run_app(), "modellist")  # the list lives on its own page
-    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players"]
+    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules"]
     goto(at, "models")
     assert not at.get("button_group")
 
