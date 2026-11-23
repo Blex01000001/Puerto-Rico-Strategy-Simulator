@@ -636,6 +636,8 @@ def test_pipeline_training_data_is_chosen_from_a_filterable_table(results, no_sp
     assert not at.exception, at.exception
     assert at.session_state["pld-data"] == ["new:0"]                              # the pipeline's own data starts chosen
     assert any(p.key == "pld-tf-kind" for p in at.get("pills"))                   # quick filters like the training page
+    # the same columns, in the same order, as the training page's data table (after the kind of data)
+    assert list(at.dataframe[0].value.columns) == ["資料", "檔案", "人數", "局數", "列數", "抽樣率", "特徵版本", "大小 MB", "策略", "hash", "規則版本", "引擎 commit"]
     key = next(k for k in at.session_state.to_dict() if str(k).startswith("pld-dtable-"))
     at.session_state[key] = {"selection": {"rows": [], "columns": []}}             # unticking the row (the user's click)
     at.run()
