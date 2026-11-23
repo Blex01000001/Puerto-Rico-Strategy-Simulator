@@ -140,7 +140,7 @@ def test_model_list_page_is_english(monkeypatch, tmp_path):
     at = _english_app(monkeypatch, tmp_path, "modellist")
     assert any("Model List" in x for x in [c.value for c in at.main.caption] + [m.value for m in at.main.markdown])
     cols = [c for d in at.dataframe for c in d.value.columns]
-    for name in ("Model", "Location", "Type", "Players", "Best win rate vs original MCTS", "Version status"):
+    for name in ("Model", "Location", "Type", "Players", "Best win rate vs original MCTS", "Rules version"):
         assert name in cols, (name, cols)
     assert not [c for c in cols if CJK.search(str(c))], cols
     cells = [str(v) for d in at.dataframe for v in d.value.to_numpy().ravel()]

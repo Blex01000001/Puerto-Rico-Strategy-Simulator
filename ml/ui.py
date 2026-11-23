@@ -1481,15 +1481,14 @@ def models_table(paths):
         v = meta.get("validation") or {}
         rows.append({
             col("model"): name, col("place"): places[place_of(p)], col("kind"): KIND_TEXT.get(meta["kind"], meta["kind"]), col("players"): meta["players"],
-            col("feature"): meta.get("featureVersion"), col("rules"): fingerprint.rules_name(meta.get("rulesRevision", 1)),
-            col("created"): (meta.get("created") or t("mlist.backfilled"))[:16].replace("T", " "),
+            col("feature"): meta.get("featureVersion"),
             col("rows"): sum(d["rows"] for d in meta["data"]),
             col("selfplay"): t("common.list").join(sorted({os.path.basename(m) for d in meta["data"] for m in d.get("valueModels", [])})),
             col("r2"): v.get("r2"), col("ce"): v.get("crossEntropy"),
             col("matches"): len(meta.get("matches", [])),
             col("best"): best["winShare"] if best else None,
             col("hash"): fingerprint.short(meta.get("fingerprint")) or "—",
-            col("status"): version_text(model_stale(meta)) if meta.get("data") else "—",
+            col("rules"): fingerprint.rules_name(meta.get("rulesRevision", 1)),
             col("note"): t("mlist.params_backfilled") if "note" in meta.get("params", {}) else (t("mlist.old_record") if not meta.get("fingerprint") else ""),
         })
     df = pd.DataFrame(rows)
