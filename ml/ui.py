@@ -2621,15 +2621,28 @@ def pl_train_dialog(players):
     chosen_before = [x for x in (st.session_state.get("pld-data") or []) if x in options]
     current_rules = fingerprint.rules_name(fingerprint.current_rules_revision())
 
+    def seat_text(seats):  # an MCTS seat names the value model it plays with, as in the data tables
+        names = []
+        for x in seats or []:
+            vm = (x.get("params") or {}).get("valueModel")
+            names.append(f"{x['strategy']}({os.path.splitext(os.path.basename(str(vm)))[0]})" if vm and x.get("strategy") else x.get("strategy"))
+        return t("common.list").join(dict.fromkeys(n for n in names if n))
+
     def data_row(tok):
         k = pipeline_form.token_index(tok)
         if k is not None:
             d = datas[k]
-            return {"kind": t("pl.train.kind_new", n=k + 1), "file": d["name"] + ".bin", "games": d["games"], "rows": d["rows"], "rate": d["rate"],
-                    "feature": d["feature"], "rules": current_rules}
+            try:
+                new_hash = fingerprint.short(fingerprint.fingerprint(fingerprint.planned_dump_recipe(d["eff"], d["rate"], d["feature"])))
+            except (KeyError, ValueError, TypeError):
+                new_hash = "—"
+            return {"kind": t("pl.train.kind_new", n=k + 1), "file": d["name"] + ".bin", "players": players, "games": d["games"], "rows": d["rows"],
+                    "rate": d["rate"], "feature": d["feature"], "size": "—", "strategies": seat_text(d["eff"].get("seats")), "hash": new_hash,
+                    "rules": current_rules, "commit": "—"}
         d = by_path[tok]
-        return {"kind": t("pl.train.kind_existing"), "file": os.path.basename(tok), "games": d["局數"], "rows": d["列數"], "rate": d.get("抽樣率"),
-                "feature": d["特徵版本"], "rules": d.get("規則版本")}
+        return {"kind": t("pl.train.kind_existing"), "file": os.path.basename(tok), "players": d["人數"], "games": d["局數"], "rows": d["列數"],
+                "rate": d.get("抽樣率"), "feature": d["特徵版本"], "size": d.get("大小 MB", "—"), "strategies": d.get("策略", ""),
+                "hash": d.get("hash") or "—", "rules": d.get("規則版本"), "commit": d.get("引擎 commit", "—")}
 
     all_rows = {tok: data_row(tok) for tok in options}
     if not options:
@@ -2655,16 +2668,19 @@ def pl_train_dialog(players):
         if not visible:
             st.caption(t("mlist.none"))
         else:
-            frame = pd.DataFrame({t("pl.train.col.kind"): [all_rows[x]["kind"] for x in visible], t("dump.col.file"): [all_rows[x]["file"] for x in visible],
-                                  t("dump.col.games"): [all_rows[x]["games"] for x in visible], t("dump.col.rows"): [all_rows[x]["rows"] for x in visible],
-                                  t("dump.col.rate"): [all_rows[x]["rate"] for x in visible], t("dump.col.feature"): [all_rows[x]["feature"] for x in visible],
-                                  t("dump.col.rules"): [all_rows[x]["rules"] or "—" for x in visible]})
+            col = lambda key: t(f"dump.col.{key}")  # noqa: E731
+            pick = lambda key, fn=lambda v: v: [fn(all_rows[x][key]) for x in visible]  # noqa: E731
+            # the same columns, in the same order, as the training page's data table (plus what kind of data it is)
+            frame = pd.DataFrame({t("pl.train.col.kind"): pick("kind"), col("file"): pick("file"), col("players"): pick("players", str),
+                                  col("games"): pick("games"), col("rows"): pick("rows"), col("rate"): pick("rate"), col("feature"): pick("feature", str),
+                                  col("size"): pick("size", str), col("strategies"): pick("strategies"), "hash": pick("hash"),
+                                  col("rules"): pick("rules", lambda v: v or "—"), col("commit"): pick("commit")})
             # a selection is by row number: the filters are part of the key (another filter = another table), and a new table starts with what was chosen
             tkey = f"pld-dtable-{'.'.join(map(str, fk or []))}-{'.'.join(map(str, fv or []))}-{'.'.join(map(str, rv or []))}"
             if tkey not in st.session_state:
                 st.session_state[tkey] = {"selection": {"rows": [n for n, x in enumerate(visible) if x in chosen_before], "columns": []}}
             event = grid(frame, hide_index=True, on_select="rerun", selection_mode="multi-row", width="stretch", key=tkey,
-                         column_config={t("dump.col.rows"): st.column_config.NumberColumn(format="localized"), t("dump.col.games"): st.column_config.NumberColumn(format="localized")})
+                         column_config=dump_column_config())
             selected = {visible[n] for n in event.selection.rows if n < len(visible)}
             hidden_kept = {x for x in chosen_before if x not in visible}    # chosen earlier, hidden by a filter now: still chosen
             st.session_state["pld-data"] = [x for x in options if x in selected or x in hidden_kept]
