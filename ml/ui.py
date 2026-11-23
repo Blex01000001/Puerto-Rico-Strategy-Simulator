@@ -591,6 +591,9 @@ div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
 div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
 div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12); }
 div[class*="st-key-stop-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
+/* the cancel button under the narrow navigation: smaller text and padding, never cut off with an ellipsis (both languages) */
+div[class*="st-key-stop-side-"] button { padding: .25rem .3rem !important; min-height: 0 !important; font-size: .78rem !important; }
+div[class*="st-key-stop-side-"] button p { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; font-size: .78rem !important; }
 div[class*="st-key-stop-"] button:hover:not(:disabled) { filter: brightness(1.12); }
 div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
 .pl-detail { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem 1.1rem; padding: .45rem .3rem .55rem .75rem; }
@@ -820,7 +823,7 @@ def sidebar_status():
                     unsafe_allow_html=True)
         frac, text = progress_of(active, jobs.events(active["id"]))
         lost = active["state"] == "lost"
-        c1, c2 = st.columns([3, 1.3], vertical_alignment="bottom")
+        c1, c2 = st.columns([2.6, 1.4], vertical_alignment="bottom")
         if lost:
             c1.markdown(f'<div class="side-state lost">{t("side.lost")}</div>', unsafe_allow_html=True)
         else:
