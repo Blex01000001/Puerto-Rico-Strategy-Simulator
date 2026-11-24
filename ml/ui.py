@@ -372,6 +372,21 @@ def delete_gen():
     return st.session_state.get("del-gen", 0)
 
 
+FILTER_ALL = "*"
+
+
+def filter_bar(key, dims):
+    """One flat bar of quick filters. dims = [(label, options, widget key, format_func or None)]: each is a label and a segmented control
+    (All | option | option ...). Returns one list per dimension: [] for "All" (or nothing selected), [value] otherwise."""
+    out = []
+    with st.container(key=f"filterbar-{key}"):  # CSS .st-key-filterbar*
+        for c, (label, options, wkey, fmt) in zip(st.columns(len(dims), vertical_alignment="center"), dims):
+            value = c.segmented_control(label, [FILTER_ALL] + list(options), default=FILTER_ALL, selection_mode="single", key=wkey,
+                                        format_func=lambda o, fmt=fmt: t("filter.all") if o == FILTER_ALL else (fmt(o) if fmt else str(o)))
+            out.append([] if value in (None, FILTER_ALL) else [value])
+    return out
+
+
 def delete_button(key, label, paths, extra_suffixes=(), busy=()):
     """A red delete button (right-aligned via the 'del-' key prefix) that asks for confirmation in a dialog; files a
     queued or running job needs are refused. A dialog closes with the rerun after deleting (a popover stayed open)."""
@@ -419,12 +434,10 @@ def training_tab():
         players = sorted({d["人數"] for d in good})
         p = st.radio(t("tr.players"), players, index=len(players) - 1, horizontal=True, format_func=lambda n: t("match.players_n", n=n))
         rows = [d for d in good if d["人數"] == p]
-        with st.container(key="filterbar-train"):  # quick filters (CSS .st-key-filterbar*); empty = all
-            c1, c2, _ = st.columns([1, 1, 3])
-            feature_opts = sorted({d["特徵版本"] for d in rows})
-            rules_opts = sorted({d["規則版本"] for d in rows if "規則版本" in d})
-            fv = c1.pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key=f"tf-feature-{p}")
-            rv = c2.pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key=f"tf-rules-{p}")
+        feature_opts = sorted({d["特徵版本"] for d in rows})
+        rules_opts = sorted({d["規則版本"] for d in rows if "規則版本" in d})
+        fv, rv = filter_bar("train", [(t("dump.col.feature"), feature_opts, f"tf-feature-{p}", lambda n: f"v{n}"),
+                                      (t("dump.col.rules"), rules_opts, f"tf-rules-{p}", None)])
         rows = [d for d in rows if d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)]
         if not rows:
             st.caption(t("mlist.none"))
@@ -446,7 +459,7 @@ def training_tab():
             f = max(d.get("_features") or 430 for d in chosen)  # the feature count of the chosen version (430 for version 1, 512 for version 2)
             st.caption(t("tr.chosen", n=len(chosen), rows=f"{total:,}", f=f, lgbm=f"{total * f * 4 * 2.2 / 1e9:.1f}", mlp=f"{total * f * 2 * 1.5 / 1e9:.1f}"))
         else:
-            st.caption(t("tr.pick_hint", page=TAB_DATA))
+            st.caption(t("tr.pick_hint", page=TAB_DATAMANAGE))
 
     with card("train-model", t("tr.card2")):
         kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True)
@@ -660,14 +673,32 @@ div[class*="st-key-modelpick"] [data-testid="stSelectbox"] { font-size: 1.15rem;
 div[class*="st-key-modelpick"] .react-aria-ComboBox > div, div[class*="st-key-modelpick"] div[data-baseweb="select"] > div { min-height: 3.1rem; }
 div[class*="st-key-modelpick"] [data-testid="stSelectbox"] input, div[class*="st-key-modelpick"] [data-testid="stSelectbox"] div { font-size: 1.15rem; }
 /* quick filters (model list): one flat bar, a small label and round chips per group; a chosen chip is filled blue */
-div[class*="st-key-filterbar"] { background: #171a21; border: 1px solid #2a3040; border-radius: 6px; padding: .35rem .8rem .5rem; margin-bottom: .3rem; }
-div[class*="st-key-filterbar"] [data-testid="stHorizontalBlock"] { gap: 1.6rem !important; flex-wrap: wrap; }
+/* quick filters: ONE flat bar per list; each dimension is a label and a segmented control (All | value | value ...) with dividers between them
+   (st.segmented_control, helper filter_bar) */
+div[class*="st-key-filterbar"] { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+div[class*="st-key-filterbar"] [data-testid="stHorizontalBlock"] { gap: 16px !important; flex-wrap: wrap; align-items: center; }
 div[class*="st-key-filterbar"] [data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
-div[class*="st-key-filterbar"] [data-testid="stWidgetLabel"] p { font-size: .72rem; font-weight: 700; letter-spacing: .12em; color: #8892a2; margin: 0 0 .2rem; }
-div[class*="st-key-filterbar"] button[data-variant="pills"] { background: transparent; border: 1px solid #3a4258; border-radius: 999px; color: #b4bcc9;
-  padding: .1rem .75rem; min-height: 0; font-size: .85rem; }
-div[class*="st-key-filterbar"] button[data-variant="pills"]:hover { border-color: #4aa8ff; color: #eef1f5; }
-div[class*="st-key-filterbar"] button[data-variant="pills"][aria-pressed="true"] { background: #1d3a5c; border-color: #4aa8ff; color: #fff; font-weight: 600; }
+div[class*="st-key-filterbar"] [data-testid="stColumn"] + [data-testid="stColumn"] { border-left: 1px solid #30363d; padding-left: 16px; }
+div[class*="st-key-filterbar"] [data-testid="stButtonGroup"] { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+div[class*="st-key-filterbar"] [data-testid="stWidgetLabel"] { min-height: 0; margin: 0; }
+div[class*="st-key-filterbar"] [data-testid="stWidgetLabel"] p { font-size: 12px; font-weight: 500; letter-spacing: 0; color: #8b949e; margin: 0; white-space: nowrap; }
+div[class*="st-key-filterbar"] [role="radiogroup"] { display: inline-flex; gap: 0; background: #0d1117; padding: 2px; border-radius: 6px; border: 1px solid #21262d; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"] { background: transparent; color: #8b949e; border: 0; border-radius: 4px;
+  padding: 4px 10px; min-height: 0; font-size: 12px; font-weight: 400; box-shadow: none; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"] p { font-size: 12px; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"]:hover { color: #f0f6fc; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"][aria-checked="true"] { background: #21262d; color: #f0f6fc; font-weight: 500; }
+/* the action bar under a management list: safe actions on the left (rename, copy details in blue, a hint), the dangerous one on the right */
+div[class*="st-key-actionbar"] { border-top: 1px solid #21262d; margin-top: 0; padding-top: 12px; }
+div[class*="st-key-actionbar"] button { background: #21262d !important; border: 1px solid #30363d !important; color: #c9d1d9 !important; padding: 6px 12px; border-radius: 6px;
+  min-height: 0; font-size: 13px; font-weight: 400 !important; white-space: nowrap; }
+div[class*="st-key-actionbar"] button p { font-size: 13px; }
+div[class*="st-key-actionbar"] button:hover:not(:disabled) { border-color: #8b949e !important; filter: none; }
+div[class*="st-key-actionbar"] button:disabled { opacity: .45; cursor: not-allowed; }
+div[class*="st-key-actionbar"] div[class*="st-key-del-"] button { color: #f85149 !important; }
+div[class*="st-key-actionbar"] div[class*="st-key-digest-off-"] button { background: #1f6feb !important; color: #fff !important; border-color: rgba(240,246,252,.1) !important; font-weight: 500 !important; }
+div[class*="st-key-actionbar"] .act-note, div[class*="st-key-actionbar"] .act-err { font-size: 12px; }
+div[class*="st-key-actionbar"] .act-note { color: #8b949e; }
 table.vtable.doc th { text-align: left; } table.vtable.doc td { vertical-align: top; }
 table.vtable.cmp { table-layout: fixed; }  /* compare: equal model columns, long data lists wrap */
 table.vtable.cmp th:first-child { width: 12rem; } table.vtable.cmp th:last-child { width: 3.5rem; }
@@ -960,9 +991,9 @@ def copy_button(text, label=None):
     label = label or t("copy.label")
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
-<style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 3px; }}</style>
-<button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
-  font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
+<style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 5px; }}</style>
+<button id="b" style="width:100%;height:34px;border-radius:6px;border:1px solid rgba(240,246,252,.1);background:#1f6feb;color:#fff;
+  font:500 13px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer;white-space:nowrap">{label}</button>
 <script>
 const text = {payload}, b = document.getElementById('b'), label = b.textContent;
 function fallback() {{ const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
@@ -1875,11 +1906,9 @@ def dump_list(good):
     players_opts = sorted({str(d["人數"]) for d in good})
     feature_opts = sorted({d["特徵版本"] for d in good})
     rules_opts = sorted({d["規則版本"] for d in good if "規則版本" in d})
-    cols = st.columns([1.1 + 0.2 * len(players_opts), 0.9 + 0.5 * len(feature_opts), 0.6 + 0.9 * len(rules_opts), 2])
-    boxes = [c.container(key=f"filterbar-dm-{n}") for c, n in zip(cols, ("players", "feature", "rules"))]  # one box per category
-    pl = boxes[0].pills(t("dump.col.players"), players_opts, selection_mode="multi", key="dm-players", format_func=lambda n: t("match.players_n", n=n))
-    fv = boxes[1].pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key="dm-feature")
-    rv = boxes[2].pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key="dm-rules")
+    pl, fv, rv = filter_bar("dm", [(t("dump.col.players"), players_opts, "dm-players", lambda n: t("match.players_n", n=n)),
+                                   (t("dump.col.feature"), feature_opts, "dm-feature", lambda n: f"v{n}"),
+                                   (t("dump.col.rules"), rules_opts, "dm-rules", None)])
     rows = [d for d in good if str(d["人數"]) in (pl or players_opts) and d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)]
     if not rows:
         st.caption(t("mlist.none"))
@@ -1892,15 +1921,16 @@ def dump_list(good):
     st.caption(t("dm.footer", shown=len(rows), total=len(good)))
     items = [modelmeta.dump_digest(os.path.basename(d["path"]), d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"], d["_stale"])
              for d in chosen]
-    # one row: rename (exactly one ticked) | copy details | delete
-    c_rename, c_copy, c_delete, _ = st.columns([1.2, 1.9, 1.6, 3], vertical_alignment="center")
-    if c_rename.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
-        rename_dump_dialog(chosen[0])
-    digest_line = digest_box(modelmeta.digest(items) if chosen else "", "dumps", len(chosen), c_copy)
-    with c_delete:
-        delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen], extra_suffixes=(".json",), busy=busy_files("data"))
-    if digest_line:
-        st.markdown(digest_line, unsafe_allow_html=True)
+    # the action bar: rename (exactly one ticked) | copy details | hint ........ delete
+    with st.container(key="actionbar-dumps"):
+        c_rename, c_copy, c_hint, c_delete = st.columns([1.2, 1.9, 4.2, 1.7], vertical_alignment="center")
+        if c_rename.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
+            rename_dump_dialog(chosen[0])
+        hint = digest_box(modelmeta.digest(items) if chosen else "", "dumps", len(chosen), c_copy)
+        if hint:
+            c_hint.markdown(hint, unsafe_allow_html=True)
+        with c_delete:
+            delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen], extra_suffixes=(".json",), busy=busy_files("data"))
     st.caption(t("dm.actions_hint") + " " + t("dt.delete_hint", page=TAB_TRAIN))
     return chosen
 
@@ -1932,14 +1962,15 @@ def models_page():
 
 
 def digest_box(text, key, n_chosen, container):
-    """The copy-details button (label with the number of ticked rows) in `container`, a cell of the action row. Nothing ticked, or the text
-    over modelmeta.DIGEST_LIMIT characters: the button is off. Returns the line to show under the row (how long the text is)."""
+    """The copy-details button (label with the number of ticked rows) in `container`, a cell of the action bar. Nothing ticked, or the text
+    over modelmeta.DIGEST_LIMIT characters: the button is off. Returns the hint for the bar (how long the text is), '' when nothing is ticked."""
     n, limit = len(text), modelmeta.DIGEST_LIMIT
     over = n > limit
     label = t("digest.copy", n=n_chosen)
     with container:
         if not n_chosen or over:
-            st.button(label, key=f"digest-off-{key}", disabled=True, width="stretch")
+            with st.container(key=f"digest-off-{key}"):  # CSS: the same blue, dimmed
+                st.button(label, key=f"digest-off-{key}-btn", disabled=True, width="stretch")
         else:
             copy_button(text, label)
     if not n_chosen:
@@ -1957,15 +1988,9 @@ def models_list():
     table = models_table(paths)
     col = lambda key: t(f"mlist.col.{key}")  # noqa: E731
     rules_opts = sorted({r for r in table[col("rules")] if r}) if col("rules") in table else []
-    widths = [1.1, 1.5, 1.5, 0.6 + 0.9 * len(rules_opts), 2]
-    cols = st.columns(widths)
-    boxes = []
-    for c, name in zip(cols, ("place", "kind", "players", "rules")):
-        boxes.append(c.container(key=f"filterbar-mf-{name}"))  # one box per category (CSS .st-key-filterbar*)
-    places = boxes[0].pills(t("mlist.place"), ["git", "local"], selection_mode="multi", key="mf-place")
-    kinds = boxes[1].pills(t("mlist.kind"), ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
-    players = boxes[2].pills(t("mlist.players"), ["3", "4"], selection_mode="multi", key="mf-players", format_func=lambda n: t("match.players_n", n=n))
-    rules = boxes[3].pills(t("mlist.rules"), rules_opts, selection_mode="multi", key="mf-rules")
+    places, kinds, players, rules = filter_bar("mf", [(t("mlist.place"), ["git", "local"], "mf-place", None), (t("mlist.kind"), ["LightGBM", "MLP"], "mf-kind", None),
+                                                      (t("mlist.players"), ["3", "4"], "mf-players", lambda n: t("match.players_n", n=n)),
+                                                      (t("mlist.rules"), rules_opts, "mf-rules", None)])
     keep = (table[col("place")].isin(places or ["git", "local"]) & table[col("kind")].isin(kinds or ["LightGBM", "MLP"])
             & table[col("players")].isin(players or ["3", "4"]))
     if rules:  # models without metadata have no rules version: they only show while no rules filter is selected
@@ -1990,15 +2015,17 @@ def models_list():
     busy |= busy_files("out")  # a training job that is writing it
     files = [p for m in chosen for p in [m, os.path.join(modelmeta.local_records_dir(), os.path.basename(m) + ".matches.json")]
              if os.path.exists(p)]  # the model and the match records kept beside it (official models' records are local)
-    # one row: rename | make official / move to local | copy details | delete (rename and move work on exactly one ticked model)
-    c_rename, c_move, c_copy, c_delete, _ = st.columns([1.2, 1.7, 1.9, 1.6, 1.2], vertical_alignment="center")
-    note = move_buttons(chosen[0] if len(chosen) == 1 else None, c_rename, c_move)
-    digest_line = digest_box(modelmeta.digest(items) if chosen else "", "models", len(chosen), c_copy)
-    with c_delete:
-        delete_button("del-models", t("del.button", n=len(chosen)), files, extra_suffixes=(".meta.json", ".check.txt"), busy=busy)
-    for line in (note, digest_line):
-        if line:
-            st.markdown(line, unsafe_allow_html=True)
+    # the action bar: rename | make official / move to local | copy details | hint ........ delete (rename and move: exactly one ticked model)
+    with st.container(key="actionbar-models"):
+        c_rename, c_move, c_copy, c_hint, c_delete = st.columns([1.2, 1.7, 1.9, 4, 1.7], vertical_alignment="center")
+        note = move_buttons(chosen[0] if len(chosen) == 1 else None, c_rename, c_move)
+        hint = digest_box(modelmeta.digest(items) if chosen else "", "models", len(chosen), c_copy)
+        if hint:
+            c_hint.markdown(hint, unsafe_allow_html=True)
+        with c_delete:
+            delete_button("del-models", t("del.button", n=len(chosen)), files, extra_suffixes=(".meta.json", ".check.txt"), busy=busy)
+    if note:
+        st.markdown(note, unsafe_allow_html=True)
     st.caption(t("mlist.delete_hint") + (" " + t("mlist.delete_official") if any(place_of(m) == "official" for m in chosen) else ""))
     return chosen
 
@@ -2772,14 +2799,12 @@ def pl_train_dialog(players):
         st.caption(t("pl.train.no_data_rows"))
     else:
         st.markdown(f"**{t('pl.train.data')}**")
-        with st.container(key="filterbar-pl-train"):   # quick filters, same look as the training page's
-            f1, f2, f3, _ = st.columns([1, 1, 1, 2])
-            kind_opts = [t("pl.train.kind_new_short"), t("pl.train.kind_existing")]
-            feature_opts = sorted({r["feature"] for r in all_rows.values()})
-            rules_opts = sorted({r["rules"] for r in all_rows.values() if r["rules"]})
-            fk = f1.pills(t("pl.train.col.kind"), kind_opts, selection_mode="multi", key="pld-tf-kind")
-            fv = f2.pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key="pld-tf-feature")
-            rv = f3.pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key="pld-tf-rules")
+        kind_opts = [t("pl.train.kind_new_short"), t("pl.train.kind_existing")]
+        feature_opts = sorted({r["feature"] for r in all_rows.values()})
+        rules_opts = sorted({r["rules"] for r in all_rows.values() if r["rules"]})
+        fk, fv, rv = filter_bar("pl-train", [(t("pl.train.col.kind"), kind_opts, "pld-tf-kind", None),
+                                              (t("dump.col.feature"), feature_opts, "pld-tf-feature", lambda n: f"v{n}"),
+                                              (t("dump.col.rules"), rules_opts, "pld-tf-rules", None)])  # same look as the training page's
 
         def shown(tok):
             r = all_rows[tok]
