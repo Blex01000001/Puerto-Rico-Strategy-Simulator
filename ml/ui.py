@@ -601,16 +601,23 @@ div[class*="st-key-folderline-"] { margin: -.35rem 0 .35rem; }
 .folder-path { font-size: .74rem; color: #8892a2; overflow-wrap: anywhere; }
 div[class*="st-key-folderline-"] button { background: transparent !important; border: 0 !important; padding: 0 !important; min-height: 0 !important; height: auto !important; color: #4aa8ff !important; }
 div[class*="st-key-folderline-"] button p { font-size: .74rem !important; text-decoration: underline; }
+/* ONE button look in the whole UI (the one of the management action bars): secondary = dark with a grey frame, primary = blue (white text),
+   dangerous (key prefix del- / stop-) = dark with red text; only the confirmation inside a delete dialog is solid red */
+button[kind="secondary"] { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; font-size: 13px; font-weight: 400;
+  min-height: 0; padding: 6px 12px; }
+button[kind="secondary"]:hover:not(:disabled) { border-color: #8b949e; color: #f0f6fc; }
+button[kind="secondary"]:disabled { opacity: .45; cursor: not-allowed; }
+button[kind="primary"] { background: #1f6feb !important; border: 1px solid rgba(240,246,252,.1) !important; color: #fff !important; border-radius: 6px;
+  font-size: 13px; font-weight: 500 !important; min-height: 0; padding: 6px 14px; }
+button[kind="primary"]:hover:not(:disabled) { filter: brightness(1.12); }
+button[kind="primary"]:disabled { opacity: .4; cursor: not-allowed !important; }
 div[class*="st-key-del-"] { align-items: flex-end !important; }
 div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
-div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
-div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12); }
-div[class*="st-key-stop-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
+div[class*="st-key-del-"]:not([class*="-confirm"]) button, div[class*="st-key-stop-"] button { color: #f85149 !important; }
+div[class*="st-key-del-"][class*="-confirm"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
 /* the cancel button under the narrow navigation: smaller text and padding, never cut off with an ellipsis (both languages) */
 div[class*="st-key-stop-side-"] button { padding: .25rem .3rem !important; min-height: 0 !important; font-size: .78rem !important; }
 div[class*="st-key-stop-side-"] button p { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; font-size: .78rem !important; }
-div[class*="st-key-stop-"] button:hover:not(:disabled) { filter: brightness(1.12); }
-div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
 .pl-detail { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem 1.1rem; padding: .45rem .3rem .55rem .75rem; }
 .pl-detail .c { display: flex; flex-direction: column; min-width: 0; }
 .pl-detail .k { color: #8892a2; font-size: .78rem; line-height: 1.3; }
@@ -625,11 +632,6 @@ div[class*="st-key-pl-seatcard"] .react-aria-ComboBox { height: 2rem; min-height
 div[class*="st-key-pl-seatcard"] input { padding: .2rem .5rem; height: 100%; min-height: 0; font-size: .9rem; }
 div[class*="st-key-pl-seatcard"] div[data-baseweb="select"] > div { padding-top: 0; padding-bottom: 0; }
 div[class*="st-key-pl-addbox"] { border: 2px dashed #3a4258; border-radius: 8px; padding: .7rem .8rem; margin-top: .2rem; }
-div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
-/* buttons like the Dashboard: blue when they can start, locked otherwise */
-button[kind="primary"] { background: #4aa8ff !important; border: 0 !important; color: #07131f !important; font-weight: 600 !important; }
-button[kind="primary"]:hover:not(:disabled) { filter: brightness(1.12); }
-button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2 !important; cursor: not-allowed !important; }
 [data-testid="stPopover"] button, button[kind="primary"], button[kind="secondary"] { white-space: nowrap; }
 .act-note { color: #8892a2; font-size: .82rem; line-height: 1.35; }
 .act-err { color: #ec6a6a; font-size: .82rem; line-height: 1.35; }
@@ -689,14 +691,8 @@ div[class*="st-key-filterbar"] button[data-variant="segmented_control"] p { font
 div[class*="st-key-filterbar"] button[data-variant="segmented_control"]:hover { color: #f0f6fc; }
 div[class*="st-key-filterbar"] button[data-variant="segmented_control"][aria-checked="true"] { background: #21262d; color: #f0f6fc; font-weight: 500; }
 /* the action bar under a management list: safe actions on the left (rename, copy details in blue, a hint), the dangerous one on the right */
-div[class*="st-key-actionbar"] { border-top: 1px solid #21262d; margin-top: 0; padding-top: 12px; }
-div[class*="st-key-actionbar"] button { background: #21262d !important; border: 1px solid #30363d !important; color: #c9d1d9 !important; padding: 6px 12px; border-radius: 6px;
-  min-height: 0; font-size: 13px; font-weight: 400 !important; white-space: nowrap; }
-div[class*="st-key-actionbar"] button p { font-size: 13px; }
-div[class*="st-key-actionbar"] button:hover:not(:disabled) { border-color: #8b949e !important; filter: none; }
-div[class*="st-key-actionbar"] button:disabled { opacity: .45; cursor: not-allowed; }
-div[class*="st-key-actionbar"] div[class*="st-key-del-"] button { color: #f85149 !important; }
-div[class*="st-key-actionbar"] div[class*="st-key-digest-off-"] button { background: #1f6feb !important; color: #fff !important; border-color: rgba(240,246,252,.1) !important; font-weight: 500 !important; }
+div[class*="st-key-actionbar"] { border-top: 1px solid #30363d; margin-top: 0; padding-top: 12px; }
+div[class*="st-key-digest-off-"] button { background: #1f6feb !important; color: #fff !important; border-color: rgba(240,246,252,.1) !important; font-weight: 500 !important; }
 div[class*="st-key-actionbar"] .act-note, div[class*="st-key-actionbar"] .act-err { font-size: 12px; }
 div[class*="st-key-actionbar"] .act-note { color: #8b949e; }
 table.vtable.doc th { text-align: left; } table.vtable.doc td { vertical-align: top; }
@@ -751,9 +747,14 @@ def plain(text):
 def action_row(label, key, problems, extra=None):
     """A start button with its hint on the same line, to its right: blue when it can start, locked with the reasons in
     red otherwise; while jobs run, the hint says where the new one will queue. Returns True when clicked."""
-    c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
-    with c1:
-        clicked = st.button(start_label(label), type="primary", disabled=bool(problems), key=key, width="stretch")
+    with st.container(key=f"actionbar-{key}"):  # CSS: a line above, like the management pages' action bar
+        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
+        clicked = c1.button(start_label(label), type="primary", disabled=bool(problems), key=key, width="stretch")
+        _action_hint(c2, problems, extra)
+    return clicked
+
+
+def _action_hint(c2, problems, extra):
     with c2:
         if problems:
             st.markdown(f'<span class="act-err">{t("act.cannot", reasons=t("common.sep").join(plain(p) for p in problems))}</span>', unsafe_allow_html=True)
@@ -764,7 +765,6 @@ def action_row(label, key, problems, extra=None):
                 notes.append(t("act.queue_note", pos=len(waiting) + 1, ahead=(1 if active else 0) + len(waiting)))
             if notes:
                 st.markdown(f'<span class="act-note">{"。".join(plain(n) for n in notes)}</span>', unsafe_allow_html=True)
-    return clicked
 
 
 def card(key, title=None, sub=None):
@@ -1245,11 +1245,12 @@ def config_table(rows):
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
     for i, folder in enumerate(dict.fromkeys(os.path.dirname(r["設定檔"]) for r in rows)):
         folder_line(folder + "/", f"configs-{i}")
-    c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
-    c1.caption(t("cfg.hint") + (("" if lang() == "zh-TW" else " ") + t("cfg.tracked", n=len(tracked)) if tracked else ""))
-    with c2:
-        delete_button("del-configs", t("del.button", n=len(chosen)), [absolute(c) for c in chosen], busy=busy_files("config"))
+    with st.container(key="actionbar-configs"):  # the hint on the left, the dangerous action on the right
+        c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
+        c1.caption(t("cfg.hint") + (("" if lang() == "zh-TW" else " ") + t("cfg.tracked", n=len(tracked)) if tracked else ""))
+        with c2:
+            delete_button("del-configs", t("del.button", n=len(chosen)), [absolute(c) for c in chosen], busy=busy_files("config"))
 
 
 def selfplay_config(name, players, games, seed, sims, leaf, model_rel):
