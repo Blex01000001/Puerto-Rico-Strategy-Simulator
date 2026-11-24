@@ -663,65 +663,112 @@ def test_pipeline_training_data_is_chosen_from_a_filterable_table(results, no_sp
     assert at.session_state["pld-data"] == [] and at.button(key="pld-ok").disabled
 
 
-def test_ai_analysis_page_sends_the_first_message_then_follows_up(results, monkeypatch, tmp_path):
+def _ai_setup(monkeypatch, tmp_path, claude=False):
+    """llm.json in a temp folder with a key for both providers (the file is the key source here); Claude enabled only when asked."""
     import llm
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
-    llm.save_settings({**llm.default_settings(), "apiKey": "TESTKEY-1234"})
+    settings = llm.default_settings()
+    settings["providers"]["gemini"]["apiKey"] = "GEMINI-TESTKEY-1234"
+    settings["providers"]["claude"].update(apiKey="CLAUDE-TESTKEY-5678", enabled=claude)
+    llm.save_settings(settings)
+    return llm
+
+
+def _ai_pick_first_model(at):
+    at.multiselect(key="ai-sel-models").set_value([at.multiselect(key="ai-sel-models").options[0]]).run()
+
+
+def test_ai_analysis_asks_every_enabled_provider_and_keeps_one_conversation_each(results, monkeypatch, tmp_path):
+    llm = _ai_setup(monkeypatch, tmp_path)
     calls = []
 
-    def fake_chat(settings, system, history, **kw):
-        calls.append([m["text"] for m in history])
-        return {"text": f"answer {len(calls)}", "seconds": 0.1, "tokens": 7}
+    def fake_chat(ps, system, history, **kw):
+        calls.append((ps["name"], [m["text"] for m in history]))
+        return {"text": f"{ps['label']} answer {len(calls)}", "seconds": 0.1, "tokens": 7}
 
     monkeypatch.setattr(llm, "chat", fake_chat)
     at = goto(run_app(), "analysis")
     assert not at.exception, at.exception
-    send = next(b for b in at.button if b.key == "ai-send")
-    assert send.disabled                                              # nothing picked and no question yet
-    at.multiselect(key="ai-sel-models").set_value([at.multiselect(key="ai-sel-models").options[0]]).run()
+    assert next(b for b in at.button if b.key == "ai-send").disabled                 # nothing picked and no question yet
+    _ai_pick_first_model(at)
     at.text_area(key="ai-question").set_value("which one is best?").run()
-    assert not next(b for b in at.button if b.key == "ai-send").disabled
     next(b for b in at.button if b.key == "ai-send").click().run()
     assert not at.exception, at.exception
-    assert len(calls) == 1 and calls[0][0].startswith("# 前情提要") and "# 資料" in calls[0][0] and calls[0][0].endswith("which one is best?")
-    assert at.session_state["ai-question"] == "" and [m["role"] for m in at.session_state["ai-history"]] == ["user", "model"]
+    assert [n for n, _ in calls] == ["gemini"]                                       # Claude is off by default: only Gemini was asked
+    assert calls[0][1][0].startswith("# 前情提要") and "# 資料" in calls[0][1][0] and calls[0][1][0].endswith("which one is best?")
+    assert at.session_state["ai-question"] == "" and [m["role"] for m in at.session_state["ai-histories"]["gemini"]] == ["user", "model"]
+    # the user turns Claude on (the checkbox saves at once): the follow-up goes to both, each with its own history
+    at.checkbox(key="ai-claude-enabled").check().run()
+    assert llm.load_settings()["providers"]["claude"]["enabled"]
     at.text_area(key="ai-question").set_value("and the second?").run()
     next(b for b in at.button if b.key == "ai-send").click().run()
-    assert len(calls) == 2 and calls[1][-1] == "and the second?" and len(calls[1]) == 3   # the whole history goes again, the data only once
-    assert at.multiselect(key="ai-sel-models").disabled                                   # the data is fixed after the first message
+    assert not at.exception, at.exception
+    by_name = dict(calls[1:])
+    assert by_name["gemini"][-1] == "and the second?" and len(by_name["gemini"]) == 3                    # the history goes again, the data only once
+    assert by_name["claude"][0].startswith("# 前情提要") and by_name["claude"][0].endswith("and the second?")  # Claude had no history: first message with the new question
+    assert set(at.session_state["ai-histories"]) == {"gemini", "claude"}
+    assert at.multiselect(key="ai-sel-models").disabled                                                  # the data is fixed after the first message
     next(b for b in at.button if b.key == "ai-new").click().run()
-    assert "ai-history" not in at.session_state and not at.multiselect(key="ai-sel-models").disabled   # a clean start
+    assert "ai-histories" not in at.session_state and not at.multiselect(key="ai-sel-models").disabled   # a clean start
 
 
-def test_ai_analysis_failure_keeps_the_question_and_shows_the_error(results, monkeypatch, tmp_path):
-    import llm
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
-    llm.save_settings({**llm.default_settings(), "apiKey": "TESTKEY-1234"})
+def test_ai_analysis_one_provider_failing_does_not_stop_the_others_and_can_be_retried(results, monkeypatch, tmp_path):
+    llm = _ai_setup(monkeypatch, tmp_path, claude=True)
+    state = {"claude_fails": True, "calls": []}
 
-    def failing(settings, system, history, **kw):
-        raise llm.LlmError("HTTP 429: quota")
+    def fake_chat(ps, system, history, **kw):
+        state["calls"].append(ps["name"])
+        if ps["name"] == "claude" and state["claude_fails"]:
+            raise llm.LlmError("HTTP 429: quota")
+        return {"text": f"{ps['name']} ok", "seconds": 0.1, "tokens": 7}
 
-    monkeypatch.setattr(llm, "chat", failing)
+    monkeypatch.setattr(llm, "chat", fake_chat)
     at = goto(run_app(), "analysis")
-    at.multiselect(key="ai-sel-models").set_value([at.multiselect(key="ai-sel-models").options[0]]).run()
+    _ai_pick_first_model(at)
     at.text_area(key="ai-question").set_value("q?").run()
     next(b for b in at.button if b.key == "ai-send").click().run()
     assert not at.exception, at.exception
-    assert at.session_state["ai-question"] == "q?" and not at.session_state["ai-history"] and "429" in at.session_state["ai-error"]
+    assert sorted(state["calls"]) == ["claude", "gemini"]
+    assert "429" in at.session_state["ai-errors"]["claude"] and "claude" not in at.session_state["ai-histories"]   # Claude failed, Gemini answered
+    assert at.session_state["ai-histories"]["gemini"][-1]["text"] == "gemini ok" and at.session_state["ai-question"] == ""
+    state["claude_fails"] = False
+    state["calls"].clear()
+    next(b for b in at.button if b.key == "ai-retry-claude").click().run()                               # retry only the failed one
+    assert not at.exception, at.exception
+    assert state["calls"] == ["claude"] and at.session_state["ai-histories"]["claude"][-1]["text"] == "claude ok"
+    assert "claude" not in at.session_state["ai-errors"]
 
 
-def test_ai_analysis_page_only_says_whether_the_key_was_found(results, monkeypatch, tmp_path):
+def test_ai_analysis_with_every_provider_failing_puts_the_question_back(results, monkeypatch, tmp_path):
+    llm = _ai_setup(monkeypatch, tmp_path)
+
+    def failing(ps, system, history, **kw):
+        raise llm.LlmError("HTTP 500")
+
+    monkeypatch.setattr(llm, "chat", failing)
+    at = goto(run_app(), "analysis")
+    _ai_pick_first_model(at)
+    at.text_area(key="ai-question").set_value("q?").run()
+    next(b for b in at.button if b.key == "ai-send").click().run()
+    assert not at.exception, at.exception
+    assert at.session_state["ai-question"] == "q?" and not at.session_state["ai-histories"] and "500" in at.session_state["ai-errors"]["gemini"]
+
+
+def test_ai_analysis_page_only_says_whether_each_key_was_found(results, monkeypatch, tmp_path):
     import llm
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
     at = goto(run_app(), "analysis")
     assert not at.exception, at.exception
-    assert not any(i.type == "password" for i in at.text_input) and not any("API 金鑰" == i.label for i in at.text_input)   # no key input at all
+    assert not any(i.type == "password" for i in at.text_input)                                           # no key input at all
     text = " ".join(m.value for m in at.markdown)
-    assert "沒有讀到 API 金鑰" in text and next(b for b in at.button if b.key == "ai-load-models").disabled
+    assert text.count("沒有讀到 API 金鑰") == 2 and next(b for b in at.button if b.key == "ai-gemini-load").disabled   # one line per provider
+    assert not at.checkbox(key="ai-claude-enabled").value                                                 # Claude starts off
     monkeypatch.setenv("GEMINI_API_KEY", "ENVKEY-SECRET-9999")
     at = goto(run_app(), "analysis")
     text = " ".join(m.value for m in at.markdown)
-    assert "已讀到 API 金鑰" in text and "環境變數" in text and "ENVKEY-SECRET" not in text   # found, and never shown
+    assert "已讀到 API 金鑰" in text and "環境變數 GEMINI_API_KEY" in text and "ENVKEY-SECRET" not in text   # found, and never shown
+    assert text.count("沒有讀到 API 金鑰") == 1                                                            # Claude still has none

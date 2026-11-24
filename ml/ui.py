@@ -1939,31 +1939,34 @@ def dump_list(good):
 
 # ---------------------------------------------------------------- AI 分析（Gemini 聊天）
 
-def ai_status_error(message):
-    st.session_state["ai-error"] = message
-
-
-def ai_save_settings():
+def ai_save_provider(name):
     settings = llm.load_settings()
-    settings["model"] = (st.session_state.get("ai-model-in") or settings["model"]).strip() or llm.DEFAULT_MODEL
+    ps = settings["providers"][name]
+    ps["model"] = (st.session_state.get(f"ai-{name}-model-in") or ps["model"]).strip() or llm.PROVIDERS[name]["model"]
     try:
-        settings["conversationLimit"] = max(2000, int(st.session_state.get("ai-limit-in") or settings["conversationLimit"]))
+        ps["conversationLimit"] = max(2000, int(st.session_state.get(f"ai-{name}-limit-in") or ps["conversationLimit"]))
     except (TypeError, ValueError):
         pass
     llm.save_settings(settings)
     st.session_state["job-started"] = t("ai.saved")
 
 
-def ai_load_models():
+def ai_set_enabled(name):
+    settings = llm.load_settings()
+    settings["providers"][name]["enabled"] = bool(st.session_state.get(f"ai-{name}-enabled"))
+    llm.save_settings(settings)
+
+
+def ai_load_models(name):
     try:
-        st.session_state["ai-models"] = llm.list_models(llm.load_settings())
-        st.session_state.pop("ai-error", None)
+        st.session_state[f"ai-{name}-models"] = llm.list_models(llm.provider_settings(llm.load_settings(), name))
+        st.session_state.setdefault("ai-errors", {}).pop(name, None)
     except llm.LlmError as e:
-        ai_status_error(str(e))
+        st.session_state.setdefault("ai-errors", {})[name] = str(e)
 
 
-def ai_pick_model():
-    st.session_state["ai-model-in"] = st.session_state.get("ai-model-pick") or st.session_state.get("ai-model-in")
+def ai_pick_model(name):
+    st.session_state[f"ai-{name}-model-in"] = st.session_state.get(f"ai-{name}-model-pick") or st.session_state.get(f"ai-{name}-model-in")
 
 
 def ai_save_primer():
@@ -2002,39 +2005,68 @@ def ai_question_add():
 
 
 def ai_new_conversation():
-    for k in ("ai-history", "ai-items", "ai-error", "ai-pending"):
+    for k in ("ai-histories", "ai-items", "ai-errors", "ai-pending", "ai-last-question"):
         st.session_state.pop(k, None)
 
 
-def ai_send(digests, labels):
-    question = (st.session_state.get("ai-question") or "").strip()
+def ai_targets(settings):
+    """The providers that will get the next question: enabled and with a key found."""
+    return [n for n in llm.PROVIDERS if settings["providers"][n]["enabled"] and llm.api_key(llm.provider_settings(settings, n))[0]]
+
+
+def ai_send(digests, labels, only=None):
+    """Callback of the send button (only=None: every target) and of a tab's retry button (only=[provider])."""
+    question = (st.session_state.get("ai-question") or "").strip() if only is None else st.session_state.get("ai-last-question", "")
     if not question:
         return
-    settings = llm.load_settings()
-    first = not st.session_state.get("ai-history")
-    st.session_state["ai-pending"] = {"text": llm.first_message(settings["primer"], digests, question) if first else question,
-                                      "items": labels if first else None, "question": question}
-    st.session_state["ai-question"] = ""
+    st.session_state["ai-pending"] = {"question": question, "digests": digests, "labels": labels, "only": only}
+    st.session_state["ai-last-question"] = question
+    if only is None:
+        st.session_state["ai-question"] = ""
 
 
 def ai_process_pending(settings):
-    """Sends the pending message with the whole history; on failure the question goes back into the box and the error is shown."""
+    """Sends the pending question to every target at once (one thread each; one provider failing does not stop the others). Each provider
+    has its own history: a provider with none yet gets the first message (background + data + question), the others only the question.
+    When nobody answers, the question goes back into the box."""
     pending = st.session_state.pop("ai-pending", None)
     if not pending:
         return
-    history = st.session_state.setdefault("ai-history", [])
-    user = {"role": "user", "text": pending["text"]}
-    try:
-        with st.spinner(t("ai.waiting", model=settings["model"])):
-            reply = llm.chat(settings, llm.SYSTEM_INSTRUCTION, history + [user])
-    except llm.LlmError as e:
-        ai_status_error(str(e))
+    histories = st.session_state.setdefault("ai-histories", {})
+    errors = st.session_state.setdefault("ai-errors", {})
+    names = [n for n in ai_targets(settings) if pending["only"] is None or n in pending["only"]]
+    calls = {}
+    for name in names:
+        ps = llm.provider_settings(settings, name)
+        history = histories.get(name, [])
+        text = pending["question"] if history else llm.first_message(settings["primer"], pending["digests"], pending["question"])
+        user = {"role": "user", "text": text}
+        projected = llm.history_chars(history) + len(text)
+        if projected > ps["conversationLimit"]:
+            errors[name] = t("ai.p.limit", n=f"{projected:,}", limit=f"{ps['conversationLimit']:,}")
+            continue
+        errors.pop(name, None)
+        calls[name] = (ps, history + [user], user)
+    answered = False
+    if calls:
+        from concurrent.futures import ThreadPoolExecutor
+        with st.spinner(t("ai.waiting", model=t("common.list").join(llm.PROVIDERS[n]["label"] for n in calls))):
+            with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+                futures = {n: pool.submit(llm.chat, ps, llm.SYSTEM_INSTRUCTION, hist) for n, (ps, hist, _) in calls.items()}
+                for name, future in futures.items():
+                    ps, hist, user = calls[name]
+                    try:
+                        reply = future.result()
+                    except llm.LlmError as e:
+                        errors[name] = str(e)
+                        continue
+                    answered = True
+                    histories.setdefault(name, []).extend([user, {"role": "model", "text": reply["text"], "model": ps["model"],
+                                                                 "seconds": reply["seconds"], "tokens": reply["tokens"]}])
+    if answered and not st.session_state.get("ai-items"):
+        st.session_state["ai-items"] = pending["labels"]
+    if not answered and pending["only"] is None:
         st.session_state["ai-question"] = pending["question"]
-        return
-    st.session_state.pop("ai-error", None)
-    history += [user, {"role": "model", "text": reply["text"], "model": settings["model"], "seconds": reply["seconds"], "tokens": reply["tokens"]}]
-    if pending["items"] is not None:
-        st.session_state["ai-items"] = pending["items"]
 
 
 def ai_sources(locked):
@@ -2055,22 +2087,39 @@ def ai_sources(locked):
     return (modelmeta.digest(items) if items else ""), chosen_models + chosen_dumps
 
 
-def ai_settings_card(settings):
-    key, source = llm.api_key(settings)
+def ai_provider_tab(settings, name):
+    ps = llm.provider_settings(settings, name)
+    key, source = llm.api_key(ps)
+    env = llm.PROVIDERS[name]["env"]
     if key:
-        st.markdown(f'<span class="act-note">{t("ai.key_ok", source=t("ai.key_src." + source))}</span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="act-note">{t("ai.key_ok", source=t("ai.key_src." + source, env=env))}</span>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<span class="act-err">{t("ai.key_missing")}</span>', unsafe_allow_html=True)
+        st.markdown(f'<span class="act-err">{t("ai.key_missing", env=env)}</span>', unsafe_allow_html=True)
+    st.checkbox(t("ai.enabled"), value=ps["enabled"], key=f"ai-{name}-enabled", on_change=ai_set_enabled, args=(name,))
     c1, c2 = st.columns([3, 2], vertical_alignment="bottom")
-    c1.text_input(t("ai.model"), value=settings["model"], key="ai-model-in")
-    c2.number_input(t("ai.limit"), min_value=2000, step=10000, value=int(settings["conversationLimit"]), key="ai-limit-in")
-    models = st.session_state.get("ai-models") or []
+    c1.text_input(t("ai.model"), value=ps["model"], key=f"ai-{name}-model-in")
+    c2.number_input(t("ai.limit"), min_value=2000, step=10000, value=int(ps["conversationLimit"]), key=f"ai-{name}-limit-in")
+    models = st.session_state.get(f"ai-{name}-models") or []
     d1, d2, d3 = st.columns([1.6, 1.6, 3.4], vertical_alignment="bottom")
-    d1.button(t("ai.save"), key="ai-save", on_click=ai_save_settings, width="stretch")
-    d2.button(t("ai.load_models"), key="ai-load-models", on_click=ai_load_models, disabled=not key, width="stretch")
+    d1.button(t("ai.save"), key=f"ai-{name}-save", on_click=ai_save_provider, args=(name,), width="stretch")
+    d2.button(t("ai.load_models"), key=f"ai-{name}-load", on_click=ai_load_models, args=(name,), disabled=not key, width="stretch")
     if models:
-        d3.selectbox(t("ai.model_pick"), models, index=models.index(settings["model"]) if settings["model"] in models else 0,
-                     key="ai-model-pick", on_change=ai_pick_model)
+        d3.selectbox(t("ai.model_pick"), models, index=models.index(ps["model"]) if ps["model"] in models else 0,
+                     key=f"ai-{name}-model-pick", on_change=ai_pick_model, args=(name,))
+    if st.session_state.get("ai-errors", {}).get(name) and not st.session_state.get("ai-histories", {}).get(name):
+        st.markdown(f'<span class="act-err">{plain(st.session_state["ai-errors"][name])}</span>', unsafe_allow_html=True)
+
+
+def ai_settings_card(settings):
+    names = list(llm.PROVIDERS)
+
+    def title(n):
+        key = llm.api_key(llm.provider_settings(settings, n))[0]
+        return f"{llm.PROVIDERS[n]['label']}　{'✔' if key else '✘'}" + ("" if settings["providers"][n]["enabled"] else f"（{t('ai.off')}）")
+
+    for tab, name in zip(st.tabs([title(n) for n in names]), names):
+        with tab:
+            ai_provider_tab(settings, name)
     st.caption(t("ai.privacy"))
 
 
@@ -2095,18 +2144,37 @@ def ai_primer_card(settings):
     st.button(t("ai.q_add"), key="ai-q-add", on_click=ai_question_add)
 
 
+def ai_conversation(name, settings, digests, labels):
+    """One provider's conversation in its tab: the messages, its error (with a retry button) and nothing else."""
+    history = st.session_state.get("ai-histories", {}).get(name, [])
+    for m in history:
+        with st.chat_message("user" if m["role"] == "user" else "assistant"):
+            st.markdown(llm.display_question(m["text"]) if m["role"] == "user" else m["text"])
+            if m["role"] == "model":
+                st.caption(t("ai.reply_info", model=m.get("model") or "?", sec=m.get("seconds"), tokens=m.get("tokens") or "—"))
+    error = st.session_state.get("ai-errors", {}).get(name)
+    if error:
+        st.markdown(f'<span class="act-err">{plain(error)}</span>', unsafe_allow_html=True)
+        if st.session_state.get("ai-last-question"):
+            st.button(t("ai.retry"), key=f"ai-retry-{name}", on_click=ai_send, args=(digests, labels, [name]))
+    elif not history:
+        st.caption(t("ai.empty_conversation"))
+
+
 def analysis_page():
-    """Ask Gemini about training data and value models (their digests, no paths) and keep asking: the history is kept here and sent whole every time."""
+    """Ask several LLMs (Gemini, Claude) the same question about training data and value models (their digests, no paths) and keep asking:
+    every provider has its own conversation, shown side by side in tabs; each history is kept here and sent whole every time."""
     settings = llm.load_settings()
     ai_process_pending(settings)
-    history = st.session_state.get("ai-history", [])
+    histories = st.session_state.get("ai-histories", {})
+    started = any(histories.values())
     with card("ai-settings", t("ai.settings_card"), t("ai.settings_sub")):
         ai_settings_card(settings)
     with card("ai-primer", t("ai.primer_card"), t("ai.primer_sub")):
         ai_primer_card(settings)
     with card("ai-sources", t("ai.sources_card"), t("ai.sources_sub")):
-        digests, labels = ai_sources(bool(history))
-        if history:
+        digests, labels = ai_sources(started)
+        if started:
             st.caption(t("ai.locked", items=t("common.list").join(st.session_state.get("ai-items", [])) or "—"))
         elif digests:
             n, limit = len(digests), modelmeta.DIGEST_LIMIT
@@ -2114,36 +2182,42 @@ def analysis_page():
                         f'{t("digest.over", n=f"{n:,}", limit=f"{limit:,}") if n > limit else t("digest.count", n=f"{n:,}", limit=f"{limit:,}")}</span>',
                         unsafe_allow_html=True)
     with card("ai-chat", t("ai.chat_card")):
-        for m in history:
-            with st.chat_message("user" if m["role"] == "user" else "assistant"):
-                st.markdown(llm.display_question(m["text"]) if m["role"] == "user" else m["text"])
-                if m["role"] == "model":
-                    st.caption(t("ai.reply_info", model=m.get("model") or "?", sec=m.get("seconds"), tokens=m.get("tokens") or "—"))
-        if st.session_state.get("ai-error"):
-            st.markdown(f'<span class="act-err">{plain(st.session_state["ai-error"])}</span>', unsafe_allow_html=True)
+        targets = ai_targets(settings)
+        shown = [n for n in llm.PROVIDERS if n in targets or histories.get(n)]
+        if shown:
+            for tab, name in zip(st.tabs([llm.PROVIDERS[n]["label"] for n in shown]), shown):
+                with tab:
+                    ai_conversation(name, settings, digests, labels)
         st.text_area(t("ai.question"), key="ai-question", height=110)
         question = (st.session_state.get("ai-question") or "").strip()
-        projected = llm.history_chars(history) + len(question) + (0 if history else len(settings["primer"]) + len(digests))
-        problems = []
-        if not llm.api_key(settings)[0]:
-            problems.append(t("ai.p.key"))
+        problems, skipped = [], []
+        if not targets:
+            problems.append(t("ai.p.no_target"))
         if not question:
             problems.append(t("ai.p.question"))
-        if not history and not digests:
+        if targets and not any(histories.get(n) for n in targets) and not digests:
             problems.append(t("ai.p.sources"))
-        if projected > settings["conversationLimit"]:
-            problems.append(t("ai.p.limit", n=f"{projected:,}", limit=f"{settings['conversationLimit']:,}"))
+        first_len = len(settings["primer"]) + len(digests)
+        for n in targets:  # a provider whose conversation would pass its limit is skipped (its tab says why); all of them over = nothing to send
+            ps = llm.provider_settings(settings, n)
+            if llm.history_chars(histories.get(n, [])) + len(question) + (0 if histories.get(n) else first_len) > ps["conversationLimit"]:
+                skipped.append(ps["label"])
+        if targets and len(skipped) == len(targets):
+            problems.append(t("ai.p.limit_all", names=t("common.list").join(skipped)))
         with st.container(key="actionbar-ai-send"):
-            c1, c2, c3, c4 = st.columns([1.3, 1.3, 1.6, 4], vertical_alignment="center")
-            c1.button(t("ai.send"), key="ai-send", type="primary", disabled=bool(problems), on_click=ai_send, args=(digests, labels), width="stretch")
-            c2.button(t("ai.new"), key="ai-new", disabled=not history, on_click=ai_new_conversation, width="stretch")
-            c3.download_button(t("ai.export"), llm.export_markdown(settings["model"], st.session_state.get("ai-items", []), history),
-                               file_name=f"ai-analysis-{datetime.date.today():%Y%m%d}.md", mime="text/markdown", disabled=not history, width="stretch")
+            c1, c2, c3, c4 = st.columns([1.6, 1.3, 1.6, 4], vertical_alignment="center")
+            c1.button(t("ai.send", n=len(targets) - len(skipped)), key="ai-send", type="primary", disabled=bool(problems), on_click=ai_send,
+                      args=(digests, labels), width="stretch")
+            c2.button(t("ai.new"), key="ai-new", disabled=not started, on_click=ai_new_conversation, width="stretch")
+            conversations = [{"label": llm.PROVIDERS[n]["label"], "history": histories[n]} for n in llm.PROVIDERS if histories.get(n)]
+            c3.download_button(t("ai.export"), llm.export_markdown(st.session_state.get("ai-items", []), conversations),
+                               file_name=f"ai-analysis-{datetime.date.today():%Y%m%d}.md", mime="text/markdown", disabled=not started, width="stretch")
             if problems:
                 c4.markdown(f'<span class="act-err">{t("act.cannot", reasons=t("common.sep").join(plain(x) for x in problems))}</span>', unsafe_allow_html=True)
             else:
-                size_text = t("ai.size", n=f"{projected:,}", limit=f"{settings['conversationLimit']:,}")
-                c4.markdown(f'<span class="act-note">{size_text}</span>', unsafe_allow_html=True)
+                names_text = t("common.list").join(llm.PROVIDERS[n]["label"] for n in targets if llm.PROVIDERS[n]["label"] not in skipped)
+                note = t("ai.targets", names=names_text) + (t("ai.skipped", names=t("common.list").join(skipped)) if skipped else "")
+                c4.markdown(f'<span class="act-note">{note}</span>', unsafe_allow_html=True)
 
 
 def models_page():

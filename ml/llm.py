@@ -1,9 +1,10 @@
-"""Chat with an LLM about the experiments (the ML UI's "AI 分析" page): Gemini's generateContent API, settings in ml/local/llm.json.
+"""Chat with LLMs about the experiments (the ML UI's "AI 分析" page): Gemini (generateContent) and Claude (Messages API), one adapter each,
+settings in ml/local/llm.json.
 
-Everything here is plain Python without Streamlit, so it can be tested with a fake HTTP opener. The conversation lives in the UI's
-session (history = [{"role": "user" | "model", "text": ...}]); the API is stateless, so every call sends the whole history.
-Privacy: the key is only in ml/local/llm.json (git ignores ml/local), it goes in a request header (never the URL) and is scrubbed from any
-error text; what is sent are the compact digests of modelmeta (no paths, no personal data)."""
+Everything here is plain Python without Streamlit, so it can be tested with a fake HTTP opener. A conversation lives in the UI's session, one per
+provider (history = [{"role": "user" | "model", "text": ...}]); the APIs are stateless, so every call sends that provider's whole history.
+Privacy: a key comes from an environment variable or from ml/local/llm.json (git ignores ml/local), it goes in a request header (never the URL)
+and is scrubbed from any error text; what is sent are the compact digests of modelmeta (no paths, no personal data)."""
 import datetime
 import json
 import os
@@ -15,9 +16,19 @@ import urllib.request
 import modelmeta
 
 SETTINGS_FILE = os.path.join(modelmeta.LOCAL_DIR, "llm.json")
-DEFAULT_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
-DEFAULT_MODEL = "gemini-2.5-flash"  # editable in the UI; "load the model list" asks the API what is available
-DEFAULT_CONVERSATION_LIMIT = 120000  # characters of the whole conversation (what every call sends)
+DEFAULT_CONVERSATION_LIMIT = 120000  # characters of one provider's whole conversation (what every call sends)
+CLAUDE_MAX_TOKENS = 8192
+CLAUDE_VERSION = "2023-06-01"  # the anthropic-version header
+
+# The providers (one adapter each): label, the environment variable that holds the key, and the defaults of its settings.
+# A provider that costs money (Claude) starts disabled; enabling it is a checkbox on its settings tab.
+PROVIDERS = {
+    "gemini": {"label": "Gemini", "env": "GEMINI_API_KEY", "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+               "model": "gemini-2.5-flash", "enabled": True},
+    "claude": {"label": "Claude", "env": "ANTHROPIC_API_KEY", "endpoint": "https://api.anthropic.com",
+               "model": "claude-sonnet-5-5", "enabled": False},
+}
+DEFAULT_MODEL = PROVIDERS["gemini"]["model"]  # kept for callers that only know Gemini
 
 SYSTEM_INSTRUCTION = (
     "你是機器學習實驗的分析助理。使用者提供的數字都已經算好，不要重新計算，也不要編造不存在的數字；"
@@ -42,22 +53,39 @@ class LlmError(Exception):
     """A failed call; the text never contains the API key."""
 
 
+def provider_defaults(name):
+    p = PROVIDERS[name]
+    return {"enabled": p["enabled"], "endpoint": p["endpoint"], "apiKey": "", "model": p["model"], "conversationLimit": DEFAULT_CONVERSATION_LIMIT}
+
+
 def default_settings():
-    return {"provider": "gemini", "endpoint": DEFAULT_ENDPOINT, "apiKey": "", "model": DEFAULT_MODEL,
-            "conversationLimit": DEFAULT_CONVERSATION_LIMIT, "primer": DEFAULT_PRIMER, "questions": [dict(q) for q in DEFAULT_QUESTIONS]}
+    return {"primer": DEFAULT_PRIMER, "questions": [dict(q) for q in DEFAULT_QUESTIONS], "providers": {n: provider_defaults(n) for n in PROVIDERS}}
 
 
 def load_settings(path=None):
-    """The saved settings over the defaults (a missing or broken file = defaults)."""
+    """The saved settings over the defaults (a missing or broken file = defaults). A file from before there were several providers
+    (endpoint / apiKey / model / conversationLimit at the top) becomes the Gemini entry."""
     settings = default_settings()
     try:
         with open(path or SETTINGS_FILE, encoding="utf-8") as f:
             saved = json.load(f)
     except (OSError, json.JSONDecodeError):
         return settings
-    if isinstance(saved, dict):
-        settings.update({k: v for k, v in saved.items() if k in settings})
+    if not isinstance(saved, dict):
+        return settings
+    settings["providers"]["gemini"].update({k: saved[k] for k in ("endpoint", "apiKey", "model", "conversationLimit") if k in saved})
+    for k in ("primer", "questions"):
+        if k in saved:
+            settings[k] = saved[k]
+    for name, p in (saved.get("providers") or {}).items():
+        if name in settings["providers"] and isinstance(p, dict):
+            settings["providers"][name].update({k: v for k, v in p.items() if k in settings["providers"][name]})
     return settings
+
+
+def provider_settings(settings, name):
+    """One provider's settings with its name, kind (= which adapter) and label, the shape chat / list_models / api_key take."""
+    return {**settings["providers"][name], "name": name, "kind": name, "label": PROVIDERS[name]["label"]}
 
 
 def save_settings(settings, path=None):
@@ -75,17 +103,15 @@ def save_settings(settings, path=None):
     os.replace(tmp, path)
 
 
-KEY_ENV = "GEMINI_API_KEY"
-
-
-def api_key(settings, env=None):
-    """(key, source): the environment variable GEMINI_API_KEY first, then "apiKey" in ml/local/llm.json (edited by hand; the page never
-    asks for or shows the key). source is "env", "file" or "" (no key)."""
+def api_key(ps, env=None):
+    """(key, source) of a provider: its environment variable first (GEMINI_API_KEY, ANTHROPIC_API_KEY), then "apiKey" in ml/local/llm.json
+    (edited by hand; the page never asks for or shows a key). source is "env", "file" or "" (no key)."""
     env = os.environ if env is None else env
-    if (env.get(KEY_ENV) or "").strip():
-        return env[KEY_ENV].strip(), "env"
-    if (settings.get("apiKey") or "").strip():
-        return settings["apiKey"].strip(), "file"
+    var = PROVIDERS[ps.get("kind", "gemini")]["env"]
+    if (env.get(var) or "").strip():
+        return env[var].strip(), "env"
+    if (ps.get("apiKey") or "").strip():
+        return ps["apiKey"].strip(), "file"
     return "", ""
 
 
@@ -97,13 +123,18 @@ def redact(text, key):
     return re.sub(r"([?&]key=)[^&\s\"']+", r"\1[key]", text)
 
 
-def _request(settings, url, body=None, timeout=120, opener=urllib.request.urlopen):
-    key, _ = api_key(settings)
+def _headers(ps, key):
+    if ps.get("kind", "gemini") == "claude":
+        return {"Content-Type": "application/json", "x-api-key": key, "anthropic-version": CLAUDE_VERSION}
+    return {"Content-Type": "application/json", "x-goog-api-key": key}
+
+
+def _request(ps, url, body=None, timeout=120, opener=urllib.request.urlopen):
+    key, _ = api_key(ps)
     if not key:
-        raise LlmError("沒有讀到 API 金鑰：設定環境變數 GEMINI_API_KEY，或在 ml/local/llm.json 加上 apiKey")
+        raise LlmError(f"沒有讀到 {ps.get('label', 'API')} 的金鑰：設定環境變數 {PROVIDERS[ps.get('kind', 'gemini')]['env']}，或在 ml/local/llm.json 加上 apiKey")
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(url, data=data, method="POST" if body is not None else "GET",
-                                 headers={"Content-Type": "application/json", "x-goog-api-key": key})
+    req = urllib.request.Request(url, data=data, method="POST" if body is not None else "GET", headers=_headers(ps, key))
     try:
         with opener(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -117,33 +148,49 @@ def _request(settings, url, body=None, timeout=120, opener=urllib.request.urlope
         raise LlmError(redact(f"連線失敗：{getattr(e, 'reason', e)}", key)) from None
 
 
-def model_url(settings):
-    model = settings["model"].removeprefix("models/")
-    return f"{settings['endpoint'].rstrip('/')}/models/{model}:generateContent"
+def model_url(ps):
+    base = ps["endpoint"].rstrip("/")
+    if ps.get("kind", "gemini") == "claude":
+        return f"{base}/v1/messages"
+    return f"{base}/models/{ps['model'].removeprefix('models/')}:generateContent"
 
 
-def build_body(system, history):
-    """The generateContent request body: the system instruction and the whole conversation so far."""
+def build_body(ps, system, history):
+    """The request body of the provider's API: the system instruction and the whole conversation so far."""
+    if ps.get("kind", "gemini") == "claude":
+        return {"model": ps["model"], "max_tokens": CLAUDE_MAX_TOKENS, "system": system,
+                "messages": [{"role": "user" if m["role"] == "user" else "assistant", "content": m["text"]} for m in history]}
     return {"systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": m["role"], "parts": [{"text": m["text"]}]} for m in history]}
 
 
-def chat(settings, system, history, timeout=120, opener=urllib.request.urlopen):
+def chat(ps, system, history, timeout=180, opener=urllib.request.urlopen):
     """Sends the history (the last entry is the new user message) and returns {"text", "seconds", "tokens"}."""
     start = time.time()
-    reply = _request(settings, model_url(settings), build_body(system, history), timeout, opener)
-    candidates = reply.get("candidates") or []
-    parts = (candidates[0].get("content") or {}).get("parts") if candidates else None
-    text = "".join(p.get("text", "") for p in parts or [])
-    if not text:
+    reply = _request(ps, model_url(ps), build_body(ps, system, history), timeout, opener)
+    if ps.get("kind", "gemini") == "claude":
+        text = "".join(b.get("text", "") for b in reply.get("content") or [] if b.get("type") == "text")
+        reason = reply.get("stop_reason") or "no text"
+        usage = reply.get("usage") or {}
+        tokens = (usage.get("input_tokens") or 0) + (usage.get("output_tokens") or 0) or None
+    else:
+        candidates = reply.get("candidates") or []
+        parts = (candidates[0].get("content") or {}).get("parts") if candidates else None
+        text = "".join(p.get("text", "") for p in parts or [])
         reason = (candidates[0].get("finishReason") if candidates else None) or (reply.get("promptFeedback") or {}).get("blockReason") or "no text"
+        tokens = (reply.get("usageMetadata") or {}).get("totalTokenCount")
+    if not text:
         raise LlmError(f"沒有回答（{reason}）")
-    return {"text": text, "seconds": round(time.time() - start, 1), "tokens": (reply.get("usageMetadata") or {}).get("totalTokenCount")}
+    return {"text": text, "seconds": round(time.time() - start, 1), "tokens": tokens}
 
 
-def list_models(settings, timeout=30, opener=urllib.request.urlopen):
-    """Names of the models that can generate text (without the 'models/' prefix)."""
-    reply = _request(settings, f"{settings['endpoint'].rstrip('/')}/models?pageSize=200", None, timeout, opener)
+def list_models(ps, timeout=30, opener=urllib.request.urlopen):
+    """Names of the models the provider offers for text (Gemini: without the 'models/' prefix)."""
+    base = ps["endpoint"].rstrip("/")
+    if ps.get("kind", "gemini") == "claude":
+        reply = _request(ps, f"{base}/v1/models?limit=100", None, timeout, opener)
+        return sorted(m["id"] for m in reply.get("data", []) if m.get("id"))
+    reply = _request(ps, f"{base}/models?pageSize=200", None, timeout, opener)
     return sorted(m["name"].removeprefix("models/") for m in reply.get("models", []) if "generateContent" in (m.get("supportedGenerationMethods") or []))
 
 
@@ -162,14 +209,18 @@ def history_chars(history):
     return sum(len(m["text"]) for m in history)
 
 
-def export_markdown(model, items, history, when=None):
-    """The summary to download: when, model, what was analysed, and the conversation (not the data itself)."""
+def export_markdown(items, conversations, when=None):
+    """The summary to download: when, what was analysed, and every provider's conversation (not the data itself).
+    conversations = [{"label": "Gemini", "history": [...]}, ...]; each answer says which model gave it."""
     when = when or datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    lines = [f"# AI 分析總結（{when}）", "", f"- 模型：{model}", f"- 分析的內容：{'、'.join(items) if items else '—'}", ""]
-    for m in history:
-        who = "問" if m["role"] == "user" else f"答（{m.get('model') or model}）"
-        text = display_question(m["text"]) if m["role"] == "user" else m["text"]  # the first message carries the background and the data too
-        lines += [f"## {who}", "", text.strip(), ""]
+    lines = [f"# AI 分析總結（{when}）", "", f"- 分析的內容：{'、'.join(items) if items else '—'}",
+             f"- 供應商：{'、'.join(c['label'] for c in conversations) or '—'}", ""]
+    for c in conversations:
+        lines += [f"## {c['label']}", ""]
+        for m in c["history"]:
+            who = "問" if m["role"] == "user" else f"答（{m.get('model') or c['label']}）"
+            text = display_question(m["text"]) if m["role"] == "user" else m["text"]  # the first message carries the background and the data too
+            lines += [f"### {who}", "", text.strip(), ""]
     return "\n".join(lines)
 
 
