@@ -220,7 +220,7 @@ input[type=number] { width: 7.5rem; }
 .qf-seg { display: inline-flex; background: #0d1117; padding: 2px; border-radius: 6px; border: 1px solid #21262d; }
 button.qf-btn { background: transparent; color: #8b949e; border: 0; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 400; white-space: nowrap; }
 button.qf-btn:hover:not(.on) { color: #f0f6fc; filter: none; }
-button.qf-btn.on { background: #21262d; color: #f0f6fc; font-weight: 500; }
+button.qf-btn.on, button.qf-btn.on:hover { background: #1f6feb; color: #fff; font-weight: 500; filter: none; }
 /* in the wrapping game-list bars a divider could start a line: spacing only */
 .filters .qf-bar > .qf + .qf { border-left: 0; padding-left: 0; }
 .qf-bar label { display: inline-flex; align-items: center; gap: .3rem; font-size: .88rem; }

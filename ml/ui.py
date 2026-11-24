@@ -690,7 +690,8 @@ div[class*="st-key-filterbar"] button[data-variant="segmented_control"] { backgr
   padding: 4px 10px; min-height: 0; font-size: 12px; font-weight: 400; box-shadow: none; }
 div[class*="st-key-filterbar"] button[data-variant="segmented_control"] p { font-size: 12px; }
 div[class*="st-key-filterbar"] button[data-variant="segmented_control"]:hover { color: #f0f6fc; }
-div[class*="st-key-filterbar"] button[data-variant="segmented_control"][aria-checked="true"] { background: #21262d; color: #f0f6fc; font-weight: 500; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"][aria-checked="true"], div[class*="st-key-filterbar"] button[data-variant="segmented_control"][aria-checked="true"]:hover,
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"][aria-checked="true"]:focus { background: #1f6feb !important; color: #fff !important; font-weight: 500; }
 /* the action bar under a management list: safe actions on the left (rename, copy details in blue, a hint), the dangerous one on the right */
 div[class*="st-key-actionbar"] { border-top: 1px solid #30363d; margin-top: 0; padding-top: 12px; }
 div[class*="st-key-digest-off-"] button { background: #1f6feb !important; color: #fff !important; border-color: rgba(240,246,252,.1) !important; font-weight: 500 !important; }
