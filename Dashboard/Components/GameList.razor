@@ -9,48 +9,21 @@
             <legend>@L.T("gl.whole")</legend>
             <label>@L.T("gl.rounds") <input type="number" min="0" @bind="f.RoundsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.RoundsMax" placeholder="@L.T("gl.max")" /></label>
             <label>@L.T("gl.decisions") <input type="number" min="0" @bind="f.DecisionsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.DecisionsMax" placeholder="@L.T("gl.max")" /></label>
-            <label>@L.T("gl.th.reason")
-                <select @bind="endReason">
-                    <option value="">@L.T("gl.any")</option>
-                    @foreach (var (key, name) in Reasons) { <option value="@key">@name</option> }
-                </select>
-            </label>
-            <label>@L.T("gl.winner_strategy")
-                <select @bind="winnerStrategy">
-                    <option value="">@L.T("gl.any")</option>
-                    @foreach (var s in Strategies) { <option value="@s">@Palette.DisplayName(s)</option> }
-                </select>
-            </label>
-            <label>@L.T("gl.winner_seat")
-                <select @bind="winnerSeat">
-                    <option value="-1">@L.T("gl.any")</option>
-                    @for (int i = 0; i < Result.Config.Players; i++) { <option value="@i">@L.T("sim.seat_n", i + 1)</option> }
-                </select>
-            </label>
-            <label>@L.T("gl.tie")
-                <select @bind="tie">
-                    <option value="">@L.T("gl.any")</option>
-                    <option value="yes">@L.T("gl.tie_only")</option>
-                    <option value="no">@L.T("gl.tie_exclude")</option>
-                </select>
-            </label>
+            <div class="qf-bar">
+                <QuickFilter T="string" Label="@L.T("gl.th.reason")" @bind-Value="endReason" @bind-Value:after="Apply" AllValue="@("")" Options="@Reasons.Select(r => (r.Key, r.Name)).ToList()" />
+                <QuickFilter T="string" Label="@L.T("gl.winner_strategy")" @bind-Value="winnerStrategy" @bind-Value:after="Apply" AllValue="@("")" Options="@Strategies.Select(s => (s, Palette.DisplayName(s))).ToList()" />
+                <QuickFilter T="int" Label="@L.T("gl.winner_seat")" @bind-Value="winnerSeat" @bind-Value:after="Apply" AllValue="-1" Options="@Enumerable.Range(0, Result.Config.Players).Select(i => (i, L.T("sim.seat_n", i + 1))).ToList()" />
+                <QuickFilter T="string" Label="@L.T("gl.tie")" @bind-Value="tie" @bind-Value:after="Apply" AllValue="@("")" Options="@(new[] { ("yes", L.T("gl.tie_only")), ("no", L.T("gl.tie_exclude")) })" />
+            </div>
             <label>@L.T("gl.margin_filter") <input type="number" min="0" @bind="f.MarginMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.MarginMax" placeholder="@L.T("gl.max")" /></label>
         </fieldset>
 
         <fieldset>
             <legend>@L.T("gl.player_legend")</legend>
-            <label>@L.T("gl.strategy")
-                <select @bind="playerStrategy">
-                    <option value="">@L.T("gl.any")</option>
-                    @foreach (var s in Strategies) { <option value="@s">@Palette.DisplayName(s)</option> }
-                </select>
-            </label>
-            <label>@L.T("gl.rank")
-                <select @bind="playerRank">
-                    <option value="0">@L.T("gl.any")</option>
-                    @for (int r = 1; r <= Result.Config.Players; r++) { <option value="@r">@L.T("gl.place", r)</option> }
-                </select>
-            </label>
+            <div class="qf-bar">
+                <QuickFilter T="string" Label="@L.T("gl.strategy")" @bind-Value="playerStrategy" @bind-Value:after="Apply" AllValue="@("")" Options="@Strategies.Select(s => (s, Palette.DisplayName(s))).ToList()" />
+                <QuickFilter T="int" Label="@L.T("gl.rank")" @bind-Value="playerRank" @bind-Value:after="Apply" AllValue="0" Options="@Enumerable.Range(1, Result.Config.Players).Select(r => (r, L.T("gl.place", r))).ToList()" />
+            </div>
             <label>@L.T("gl.score") <input type="number" min="0" @bind="f.Player.ScoreMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.Player.ScoreMax" placeholder="@L.T("gl.max")" /></label>
             <label>@L.T("gl.shipments") <input type="number" min="0" @bind="f.Player.ShipmentsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.Player.ShipmentsMax" placeholder="@L.T("gl.max")" /></label>
             <label>@L.T("gl.coins") <input type="number" min="0" @bind="f.Player.CoinsMin" placeholder="@L.T("gl.min")" /> – <input type="number" min="0" @bind="f.Player.CoinsMax" placeholder="@L.T("gl.max")" /></label>
