@@ -37,7 +37,7 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "管線", "訓練資料", "模型", "排程佇列", "hash 說明", "版本控管"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "管線", "訓練資料", "估值模型", "排程佇列", "hash 說明", "版本控管"]
     assert at.button(key="navon-data")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
@@ -81,7 +81,7 @@ def test_typed_model_name_survives_a_rerun_in_a_later_minute(results, monkeypatc
 def test_each_page_has_its_own_english_title(results, monkeypatch):
     monkeypatch.setenv("PR_LANG", "en")
     at = run_app()
-    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "datamanage": "Training Data", "models": "Models",
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "datamanage": "Training Data", "models": "Value Models",
               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
     for pid, title in titles.items():
         goto(at, pid)
@@ -656,7 +656,7 @@ def test_pipeline_training_data_is_chosen_from_a_filterable_table(results, no_sp
     assert at.session_state["pld-data"] == ["new:0"]                              # the pipeline's own data starts chosen
     assert any(p.key == "pld-tf-kind" for p in at.get("pills"))                   # quick filters like the training page
     # the same columns, in the same order, as the training page's data table (after the kind of data)
-    assert list(at.dataframe[0].value.columns) == ["資料", "檔案", "人數", "局數", "列數", "抽樣率", "特徵版本", "大小 MB", "策略", "hash", "規則版本", "引擎 commit"]
+    assert list(at.dataframe[0].value.columns) == ["資料", "檔案", "人數", "局數", "列數", "抽樣率", "特徵版本", "大小 MB", "策略", "規則版本", "引擎 commit", "hash"]
     key = next(k for k in at.session_state.to_dict() if str(k).startswith("pld-dtable-"))
     at.session_state[key] = {"selection": {"rows": [], "columns": []}}             # unticking the row (the user's click)
     at.run()

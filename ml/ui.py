@@ -186,6 +186,8 @@ def table_view(rows, path_as=None):
         if c in df:
             df[c] = [str(v) for v in df[c]]
     df = df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
+    if "hash" in df:  # the hash is the last column of every data table
+        df = df[[c for c in df.columns if c != "hash"] + ["hash"]]
     return df.rename(columns={zh: t(f"dump.col.{key}") for zh, key in DUMP_COLUMNS.items()})
 
 
@@ -1476,9 +1478,9 @@ def models_table(paths):
             col("r2"): v.get("r2"), col("ce"): v.get("crossEntropy"),
             col("matches"): len(meta.get("matches", [])),
             col("best"): best["winShare"] if best else None,
-            col("hash"): fingerprint.short(meta.get("fingerprint")) or "—",
             col("rules"): fingerprint.rules_name(meta.get("rulesRevision", 1)),
             col("note"): t("mlist.params_backfilled") if "note" in meta.get("params", {}) else (t("mlist.old_record") if not meta.get("fingerprint") else ""),
+            col("hash"): fingerprint.short(meta.get("fingerprint")) or "—",
         })
     df = pd.DataFrame(rows)
     # text columns so that missing values read "—" instead of Streamlit's grey "None"
@@ -1549,40 +1551,43 @@ def flat_params(meta):
     return {k: (", ".join(map(str, v)) if isinstance(v, list) else v) for k, v in (meta.get("params") or {}).items()}
 
 
-def move_buttons(path):
-    """Make official (local -> ml/models, then commit it) and move to local (an official-folder model git does not track)."""
+def move_buttons(path, c_rename, c_move):
+    """Rename, and make official (local -> ml/models, then commit it) / move to local (an official-folder model git does not track), in the
+    two cells of the action row. path=None (nothing or several ticked): the buttons are off. Returns the note to show under the row."""
+    if path is None:
+        c_rename.button(t("md.rename"), key="rename-off", disabled=True, width="stretch")
+        c_move.button(t("md.promote"), key="move-off", disabled=True, width="stretch")
+        return ""
     name = os.path.basename(path)
     if place_of(path) == "local":
-        c1, c3, c2 = st.columns([2.2, 2.2, 5], vertical_alignment="center")
-        with c3:
-            if st.button(t("md.rename"), key=f"rename-{name}", width="stretch"):
-                rename_dialog(path)
-        with c1:
-            with st.popover(t("md.promote"), width="stretch"):
-                st.markdown(t("md.promote_text", name=name))
-                if st.button(t("md.promote_ok"), type="primary", key=f"promote-{name}"):
-                    try:
-                        modelmeta.move_model(path, MODELS_DIR)
-                        st.session_state["job-started"] = t("md.promoted", name=name)
-                        st.session_state["del-gen"] = delete_gen() + 1
-                        st.cache_data.clear()
-                        st.rerun()
-                    except ValueError as e:
-                        st.error(str(e))
-        c2.markdown(f'<span class="act-note">{t("md.local_note")}</span>', unsafe_allow_html=True)
-    elif not tracked_by_git([path]):
-        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
-        with c1:
-            if st.button(t("md.demote"), key=f"demote-{name}", width="stretch"):
+        if c_rename.button(t("md.rename"), key=f"rename-{name}", width="stretch"):
+            rename_dialog(path)
+        with c_move.popover(t("md.promote"), width="stretch"):
+            st.markdown(t("md.promote_text", name=name))
+            if st.button(t("md.promote_ok"), type="primary", key=f"promote-{name}"):
                 try:
-                    modelmeta.move_model(path, LOCAL_MODELS)
-                    st.session_state["job-started"] = t("md.demoted", name=name)
+                    modelmeta.move_model(path, MODELS_DIR)
+                    st.session_state["job-started"] = t("md.promoted", name=name)
                     st.session_state["del-gen"] = delete_gen() + 1
                     st.cache_data.clear()
                     st.rerun()
                 except ValueError as e:
                     st.error(str(e))
-        c2.markdown(f'<span class="act-note">{t("md.demote_note")}</span>', unsafe_allow_html=True)
+        return f'<span class="act-note">{t("md.local_note")}</span>'
+    c_rename.button(t("md.rename"), key=f"rename-{name}", disabled=True, width="stretch")  # official models are in git
+    if not tracked_by_git([path]):
+        if c_move.button(t("md.demote"), key=f"demote-{name}", width="stretch"):
+            try:
+                modelmeta.move_model(path, LOCAL_MODELS)
+                st.session_state["job-started"] = t("md.demoted", name=name)
+                st.session_state["del-gen"] = delete_gen() + 1
+                st.cache_data.clear()
+                st.rerun()
+            except ValueError as e:
+                st.error(str(e))
+        return f'<span class="act-note">{t("md.demote_note")}</span>'
+    c_move.button(t("md.promote"), key=f"move-off-{name}", disabled=True, width="stretch")
+    return ""
 
 
 def model_name_users(path):
@@ -1665,9 +1670,9 @@ def model_data_table(meta):
         strategies = [f"{x}({t('common.list').join(models)})" if x == "mcts" and models else x for x in d.get("strategies", []) if x]
         rows.append({col("file"): os.path.basename(path), col("players"): str(meta["players"]), col("games"): d["games"], col("rows"): d["rows"],
                      col("rate"): d["rate"], col("feature"): str(meta["featureVersion"]), col("size"): disk["大小 MB"] if same else "—",
-                     col("strategies"): t("common.list").join(dict.fromkeys(strategies)), "hash": fingerprint.short(d.get("fingerprint")) or "—",
+                     col("strategies"): t("common.list").join(dict.fromkeys(strategies)),
                      col("rules"): fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")),
-                     col("commit"): disk["引擎 commit"] if same else "—"})
+                     col("commit"): disk["引擎 commit"] if same else "—", "hash": fingerprint.short(d.get("fingerprint")) or "—"})
     return pd.DataFrame(rows)
 
 
@@ -1885,19 +1890,18 @@ def dump_list(good):
                   key=f"dumps-manage-{delete_gen()}-{'.'.join(pl or [])}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}")
     chosen = [rows[i] for i in picked.selection.rows]
     st.caption(t("dm.footer", shown=len(rows), total=len(good)))
-    if chosen:
-        items = [modelmeta.dump_digest(os.path.basename(d["path"]), d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"],
-                                       d["_stale"]) for d in chosen]
-        digest_box(modelmeta.digest(items), "dumps")
-    a1, a2 = st.columns([1.3, 5], vertical_alignment="center")
-    with a1:
-        if st.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
-            rename_dump_dialog(chosen[0])
-    a2.caption(t("dm.actions_hint"))
-    c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
-    c1.caption(t("dt.delete_hint", page=TAB_TRAIN))
-    with c2:
+    items = [modelmeta.dump_digest(os.path.basename(d["path"]), d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"], d["_stale"])
+             for d in chosen]
+    # one row: rename (exactly one ticked) | copy details | delete
+    c_rename, c_copy, c_delete, _ = st.columns([1.2, 1.9, 1.6, 3], vertical_alignment="center")
+    if c_rename.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
+        rename_dump_dialog(chosen[0])
+    digest_line = digest_box(modelmeta.digest(items) if chosen else "", "dumps", len(chosen), c_copy)
+    with c_delete:
         delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen], extra_suffixes=(".json",), busy=busy_files("data"))
+    if digest_line:
+        st.markdown(digest_line, unsafe_allow_html=True)
+    st.caption(t("dm.actions_hint") + " " + t("dt.delete_hint", page=TAB_TRAIN))
     return chosen
 
 
@@ -1927,19 +1931,21 @@ def models_page():
         st.caption(t("md.m.note"))
 
 
-def digest_box(text, key):
-    """'Copy for AI' for a compact digest: how long it is (characters) and the copy button; over modelmeta.DIGEST_LIMIT the button is off."""
+def digest_box(text, key, n_chosen, container):
+    """The copy-details button (label with the number of ticked rows) in `container`, a cell of the action row. Nothing ticked, or the text
+    over modelmeta.DIGEST_LIMIT characters: the button is off. Returns the line to show under the row (how long the text is)."""
     n, limit = len(text), modelmeta.DIGEST_LIMIT
     over = n > limit
-    c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
-    c1.markdown(f'<span class="{"act-err" if over else "act-note"}">'
-                f'{t("digest.over", n=f"{n:,}", limit=f"{limit:,}") if over else t("digest.count", n=f"{n:,}", limit=f"{limit:,}")}</span>',
-                unsafe_allow_html=True)
-    with c2:
-        if over:
-            st.button(t("digest.copy"), key=f"digest-off-{key}", disabled=True, width="stretch")
+    label = t("digest.copy", n=n_chosen)
+    with container:
+        if not n_chosen or over:
+            st.button(label, key=f"digest-off-{key}", disabled=True, width="stretch")
         else:
-            copy_button(text, t("digest.copy"))
+            copy_button(text, label)
+    if not n_chosen:
+        return ""
+    return (f'<span class="act-err">{t("digest.over", n=f"{n:,}", limit=f"{limit:,}")}</span>' if over
+            else f'<span class="act-note">{t("digest.count", n=f"{n:,}", limit=f"{limit:,}")}</span>')
 
 
 def models_list():
@@ -1976,22 +1982,24 @@ def models_list():
                   key=f"models-list-{delete_gen()}-{'.'.join(places or [])}-{'.'.join(kinds or [])}-{'.'.join(players or [])}-{'.'.join(rules or [])}")
     chosen = [shown_paths[i] for i in picked.selection.rows]
     st.caption(t("mlist.footer", shown=len(shown), total=len(table)))
-    if len(chosen) == 1:  # rename, make official / move to local: one model at a time
-        move_buttons(chosen[0])
-    if chosen:
-        items = []
-        for m in chosen:
-            meta = model_meta(m)
-            items.append(modelmeta.model_digest(os.path.basename(m), meta, model_stale(meta)) if meta else f"M {os.path.basename(m)} (no metadata)")
-        digest_box(modelmeta.digest(items), "models")
+    items = []
+    for m in chosen:
+        meta = model_meta(m)
+        items.append(modelmeta.model_digest(os.path.basename(m), meta, model_stale(meta)) if meta else f"M {os.path.basename(m)} (no metadata)")
     busy = {f for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY for f in job_reads(j)}
     busy |= busy_files("out")  # a training job that is writing it
     files = [p for m in chosen for p in [m, os.path.join(modelmeta.local_records_dir(), os.path.basename(m) + ".matches.json")]
              if os.path.exists(p)]  # the model and the match records kept beside it (official models' records are local)
-    c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
-    c1.caption(t("mlist.delete_hint") + (" " + t("mlist.delete_official") if any(place_of(m) == "official" for m in chosen) else ""))
-    with c2:
+    # one row: rename | make official / move to local | copy details | delete (rename and move work on exactly one ticked model)
+    c_rename, c_move, c_copy, c_delete, _ = st.columns([1.2, 1.7, 1.9, 1.6, 1.2], vertical_alignment="center")
+    note = move_buttons(chosen[0] if len(chosen) == 1 else None, c_rename, c_move)
+    digest_line = digest_box(modelmeta.digest(items) if chosen else "", "models", len(chosen), c_copy)
+    with c_delete:
         delete_button("del-models", t("del.button", n=len(chosen)), files, extra_suffixes=(".meta.json", ".check.txt"), busy=busy)
+    for line in (note, digest_line):
+        if line:
+            st.markdown(line, unsafe_allow_html=True)
+    st.caption(t("mlist.delete_hint") + (" " + t("mlist.delete_official") if any(place_of(m) == "official" for m in chosen) else ""))
     return chosen
 
 
@@ -2788,8 +2796,8 @@ def pl_train_dialog(players):
             # the same columns, in the same order, as the training page's data table (plus what kind of data it is)
             frame = pd.DataFrame({t("pl.train.col.kind"): pick("kind"), col("file"): pick("file"), col("players"): pick("players", str),
                                   col("games"): pick("games"), col("rows"): pick("rows"), col("rate"): pick("rate"), col("feature"): pick("feature", str),
-                                  col("size"): pick("size", str), col("strategies"): pick("strategies"), "hash": pick("hash"),
-                                  col("rules"): pick("rules", lambda v: v or "—"), col("commit"): pick("commit")})
+                                  col("size"): pick("size", str), col("strategies"): pick("strategies"),
+                                  col("rules"): pick("rules", lambda v: v or "—"), col("commit"): pick("commit"), "hash": pick("hash")})
             # a selection is by row number: the filters are part of the key (another filter = another table), and a new table starts with what was chosen
             tkey = f"pld-dtable-{'.'.join(map(str, fk or []))}-{'.'.join(map(str, fv or []))}-{'.'.join(map(str, rv or []))}"
             if tkey not in st.session_state:
