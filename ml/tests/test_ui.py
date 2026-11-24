@@ -37,7 +37,7 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "流程排定", "訓練資料", "估值模型", "排程佇列", "hash 說明", "版本控管"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "流程排定", "訓練資料", "估值模型", "AI 分析", "排程佇列", "hash 說明", "版本控管"]
     assert at.button(key="navon-data")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
@@ -81,7 +81,7 @@ def test_typed_model_name_survives_a_rerun_in_a_later_minute(results, monkeypatc
 def test_each_page_has_its_own_english_title(results, monkeypatch):
     monkeypatch.setenv("PR_LANG", "en")
     at = run_app()
-    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "datamanage": "Training Data", "models": "Value Models",
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "datamanage": "Training Data", "models": "Value Models", "analysis": "AI Analysis",
               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
     for pid, title in titles.items():
         goto(at, pid)
@@ -661,3 +661,50 @@ def test_pipeline_training_data_is_chosen_from_a_filterable_table(results, no_sp
     at.session_state[key] = {"selection": {"rows": [], "columns": []}}             # unticking the row (the user's click)
     at.run()
     assert at.session_state["pld-data"] == [] and at.button(key="pld-ok").disabled
+
+
+def test_ai_analysis_page_sends_the_first_message_then_follows_up(results, monkeypatch, tmp_path):
+    import llm
+    monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
+    llm.save_settings({**llm.default_settings(), "apiKey": "TESTKEY-1234"})
+    calls = []
+
+    def fake_chat(settings, system, history, **kw):
+        calls.append([m["text"] for m in history])
+        return {"text": f"answer {len(calls)}", "seconds": 0.1, "tokens": 7}
+
+    monkeypatch.setattr(llm, "chat", fake_chat)
+    at = goto(run_app(), "analysis")
+    assert not at.exception, at.exception
+    send = next(b for b in at.button if b.key == "ai-send")
+    assert send.disabled                                              # nothing picked and no question yet
+    at.multiselect(key="ai-sel-models").set_value([at.multiselect(key="ai-sel-models").options[0]]).run()
+    at.text_area(key="ai-question").set_value("which one is best?").run()
+    assert not next(b for b in at.button if b.key == "ai-send").disabled
+    next(b for b in at.button if b.key == "ai-send").click().run()
+    assert not at.exception, at.exception
+    assert len(calls) == 1 and calls[0][0].startswith("# 前情提要") and "# 資料" in calls[0][0] and calls[0][0].endswith("which one is best?")
+    assert at.session_state["ai-question"] == "" and [m["role"] for m in at.session_state["ai-history"]] == ["user", "model"]
+    at.text_area(key="ai-question").set_value("and the second?").run()
+    next(b for b in at.button if b.key == "ai-send").click().run()
+    assert len(calls) == 2 and calls[1][-1] == "and the second?" and len(calls[1]) == 3   # the whole history goes again, the data only once
+    assert at.multiselect(key="ai-sel-models").disabled                                   # the data is fixed after the first message
+    next(b for b in at.button if b.key == "ai-new").click().run()
+    assert "ai-history" not in at.session_state and not at.multiselect(key="ai-sel-models").disabled   # a clean start
+
+
+def test_ai_analysis_failure_keeps_the_question_and_shows_the_error(results, monkeypatch, tmp_path):
+    import llm
+    monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
+    llm.save_settings({**llm.default_settings(), "apiKey": "TESTKEY-1234"})
+
+    def failing(settings, system, history, **kw):
+        raise llm.LlmError("HTTP 429: quota")
+
+    monkeypatch.setattr(llm, "chat", failing)
+    at = goto(run_app(), "analysis")
+    at.multiselect(key="ai-sel-models").set_value([at.multiselect(key="ai-sel-models").options[0]]).run()
+    at.text_area(key="ai-question").set_value("q?").run()
+    next(b for b in at.button if b.key == "ai-send").click().run()
+    assert not at.exception, at.exception
+    assert at.session_state["ai-question"] == "q?" and not at.session_state["ai-history"] and "429" in at.session_state["ai-error"]

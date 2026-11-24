@@ -1,6 +1,7 @@
 import os
 import re
 
+import llm
 import pytest
 
 import i18n
@@ -181,13 +182,14 @@ def test_every_page_is_english_and_switches_back(monkeypatch, tmp_path):
     monkeypatch.delenv("PR_LANG", raising=False)
     monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
     at = AppTest.from_file(UI, default_timeout=60).run()
-    for page in ("data", "train", "match", "datamanage", "models", "queue", "hash", "versions"):
+    for page in ("data", "train", "match", "datamanage", "models", "analysis", "queue", "hash", "versions"):
         if not any(b.key == f"navon-{page}" for b in at.button):
             at.button(key=f"nav-{page}").click().run()
         assert not at.exception, (page, at.exception)
         texts = [x for x in _page_text(at) + [m.value for m in at.sidebar.markdown] if not x.lstrip().startswith("<style>")]
         if page != "versions":  # the version list is project data in Chinese
-            bad = [x for x in texts if CJK.search(x) and x != "中文"]
+            own = {q["text"] for q in llm.DEFAULT_QUESTIONS}   # the saved common questions are the user's own text (Chinese by default)
+            bad = [x for x in texts if CJK.search(x) and x != "中文" and x not in own]
             assert not bad, (page, bad[:3])
     at.button(key="lang-toggle").click().run()
     assert at.title[0].value == "版本控管"

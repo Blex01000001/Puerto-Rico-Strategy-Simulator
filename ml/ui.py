@@ -52,6 +52,7 @@ import pandas as pd  # noqa: E402
 import fingerprint  # noqa: E402
 import folders  # noqa: E402
 import jobs  # noqa: E402
+import llm  # noqa: E402
 import modelmeta  # noqa: E402
 import positions  # noqa: E402
 import train_lgbm  # noqa: E402
@@ -1936,6 +1937,219 @@ def dump_list(good):
     return chosen
 
 
+# ---------------------------------------------------------------- AI 分析（Gemini 聊天）
+
+def ai_status_error(message):
+    st.session_state["ai-error"] = message
+
+
+def ai_save_settings():
+    settings = llm.load_settings()
+    key = (st.session_state.get("ai-key-in") or "").strip()
+    if key:
+        settings["apiKey"] = key
+    settings["model"] = (st.session_state.get("ai-model-in") or settings["model"]).strip() or llm.DEFAULT_MODEL
+    try:
+        settings["conversationLimit"] = max(2000, int(st.session_state.get("ai-limit-in") or settings["conversationLimit"]))
+    except (TypeError, ValueError):
+        pass
+    llm.save_settings(settings)
+    st.session_state["ai-key-in"] = ""
+    st.session_state["job-started"] = t("ai.saved")
+
+
+def ai_load_models():
+    settings = llm.load_settings()
+    key = (st.session_state.get("ai-key-in") or "").strip()
+    if key:
+        settings["apiKey"] = key
+    try:
+        st.session_state["ai-models"] = llm.list_models(settings)
+        st.session_state.pop("ai-error", None)
+    except llm.LlmError as e:
+        ai_status_error(str(e))
+
+
+def ai_pick_model():
+    st.session_state["ai-model-in"] = st.session_state.get("ai-model-pick") or st.session_state.get("ai-model-in")
+
+
+def ai_save_primer():
+    settings = llm.load_settings()
+    settings["primer"] = st.session_state.get("ai-primer-in", "")
+    llm.save_settings(settings)
+    st.session_state["job-started"] = t("ai.saved")
+
+
+def ai_reset_primer():
+    st.session_state["ai-primer-in"] = llm.DEFAULT_PRIMER
+    ai_save_primer()
+
+
+def ai_question_use():
+    settings = llm.load_settings()
+    q = next((q for q in settings["questions"] if q["name"] == st.session_state.get("ai-q-pick")), None)
+    if q:
+        st.session_state["ai-question"] = q["text"]
+
+
+def ai_question_delete():
+    settings = llm.load_settings()
+    settings["questions"] = [q for q in settings["questions"] if q["name"] != st.session_state.get("ai-q-pick")]
+    llm.save_settings(settings)
+
+
+def ai_question_add():
+    name, text = (st.session_state.get("ai-q-name") or "").strip(), (st.session_state.get("ai-q-text") or "").strip()
+    if not name or not text:
+        return
+    settings = llm.load_settings()
+    settings["questions"] = [q for q in settings["questions"] if q["name"] != name] + [{"name": name, "text": text}]
+    llm.save_settings(settings)
+    st.session_state["ai-q-name"] = st.session_state["ai-q-text"] = ""
+
+
+def ai_new_conversation():
+    for k in ("ai-history", "ai-items", "ai-error", "ai-pending"):
+        st.session_state.pop(k, None)
+
+
+def ai_send(digests, labels):
+    question = (st.session_state.get("ai-question") or "").strip()
+    if not question:
+        return
+    settings = llm.load_settings()
+    first = not st.session_state.get("ai-history")
+    st.session_state["ai-pending"] = {"text": llm.first_message(settings["primer"], digests, question) if first else question,
+                                      "items": labels if first else None, "question": question}
+    st.session_state["ai-question"] = ""
+
+
+def ai_process_pending(settings):
+    """Sends the pending message with the whole history; on failure the question goes back into the box and the error is shown."""
+    pending = st.session_state.pop("ai-pending", None)
+    if not pending:
+        return
+    history = st.session_state.setdefault("ai-history", [])
+    user = {"role": "user", "text": pending["text"]}
+    try:
+        with st.spinner(t("ai.waiting", model=settings["model"])):
+            reply = llm.chat(settings, llm.SYSTEM_INSTRUCTION, history + [user])
+    except llm.LlmError as e:
+        ai_status_error(str(e))
+        st.session_state["ai-question"] = pending["question"]
+        return
+    st.session_state.pop("ai-error", None)
+    history += [user, {"role": "model", "text": reply["text"], "model": settings["model"], "seconds": reply["seconds"], "tokens": reply["tokens"]}]
+    if pending["items"] is not None:
+        st.session_state["ai-items"] = pending["items"]
+
+
+def ai_sources(locked):
+    """The multiselects for what to analyse; returns (digest text, labels). Locked once a conversation started (the data is in the first message)."""
+    models = [os.path.basename(p) for p in model_files()]
+    dumps = {os.path.basename(d["path"]): d for d in list_dumps() if "_meta" in d}
+    c1, c2 = st.columns(2)
+    chosen_models = c1.multiselect(t("ai.models"), models, key="ai-sel-models", disabled=locked)
+    chosen_dumps = c2.multiselect(t("ai.dumps"), list(dumps), key="ai-sel-dumps", disabled=locked)
+    with_matches = st.checkbox(t("ai.with_matches"), value=True, key="ai-matches", disabled=locked)
+    items = []
+    for name in chosen_models:
+        meta = model_meta(model_path(name))
+        items.append(modelmeta.model_digest(name, meta, model_stale(meta), matches=with_matches) if meta else f"M {name} (no metadata)")
+    for name in chosen_dumps:
+        d = dumps[name]
+        items.append(modelmeta.dump_digest(name, d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"], d["_stale"]))
+    return (modelmeta.digest(items) if items else ""), chosen_models + chosen_dumps
+
+
+def ai_settings_card(settings):
+    c1, c2 = st.columns([3, 2], vertical_alignment="bottom")
+    c1.text_input(t("ai.key"), type="password", key="ai-key-in", placeholder=llm.mask_key(settings["apiKey"]) or t("ai.key_ph"))
+    c2.text_input(t("ai.model"), value=settings["model"], key="ai-model-in")
+    models = st.session_state.get("ai-models") or []
+    d1, d2, d3, d4 = st.columns([2, 1.6, 2.4, 1.8], vertical_alignment="bottom")
+    d1.button(t("ai.save"), key="ai-save", on_click=ai_save_settings, width="stretch")
+    d2.button(t("ai.load_models"), key="ai-load-models", on_click=ai_load_models, width="stretch")
+    if models:
+        d3.selectbox(t("ai.model_pick"), models, index=models.index(settings["model"]) if settings["model"] in models else 0,
+                     key="ai-model-pick", on_change=ai_pick_model)
+    d4.number_input(t("ai.limit"), min_value=2000, step=10000, value=int(settings["conversationLimit"]), key="ai-limit-in")
+    st.caption(t("ai.privacy"))
+
+
+def ai_primer_card(settings):
+    st.text_area(t("ai.primer"), value=settings["primer"], height=190, key="ai-primer-in")
+    a1, a2, _ = st.columns([1.4, 1.4, 4])
+    a1.button(t("ai.primer_save"), key="ai-primer-save", on_click=ai_save_primer, width="stretch")
+    a2.button(t("ai.primer_reset"), key="ai-primer-reset", on_click=ai_reset_primer, width="stretch")
+    st.markdown(f"**{t('ai.questions')}**")
+    names = [q["name"] for q in settings["questions"]]
+    b1, b2, b3, _ = st.columns([2.4, 1.2, 1.2, 2.4], vertical_alignment="bottom")
+    pick = b1.selectbox(t("ai.q_pick"), names, key="ai-q-pick") if names else None
+    b2.button(t("ai.q_use"), key="ai-q-use", on_click=ai_question_use, disabled=not names, width="stretch")
+    with b3:
+        delete_row = st.container(key="del-ai-question")  # dangerous action: dark, red text (CSS del-)
+        delete_row.button(t("ai.q_delete"), key="del-ai-question-btn", on_click=ai_question_delete, disabled=not names, width="stretch")
+    if pick:
+        st.caption(next(q["text"] for q in settings["questions"] if q["name"] == pick))
+    n1, n2 = st.columns([1, 3], vertical_alignment="bottom")
+    n1.text_input(t("ai.q_name"), key="ai-q-name")
+    n2.text_input(t("ai.q_text"), key="ai-q-text")
+    st.button(t("ai.q_add"), key="ai-q-add", on_click=ai_question_add)
+
+
+def analysis_page():
+    """Ask Gemini about training data and value models (their digests, no paths) and keep asking: the history is kept here and sent whole every time."""
+    settings = llm.load_settings()
+    ai_process_pending(settings)
+    history = st.session_state.get("ai-history", [])
+    with card("ai-settings", t("ai.settings_card"), t("ai.settings_sub")):
+        ai_settings_card(settings)
+    with card("ai-primer", t("ai.primer_card"), t("ai.primer_sub")):
+        ai_primer_card(settings)
+    with card("ai-sources", t("ai.sources_card"), t("ai.sources_sub")):
+        digests, labels = ai_sources(bool(history))
+        if history:
+            st.caption(t("ai.locked", items=t("common.list").join(st.session_state.get("ai-items", [])) or "—"))
+        elif digests:
+            n, limit = len(digests), modelmeta.DIGEST_LIMIT
+            st.markdown(f'<span class="{"act-err" if n > limit else "act-note"}">'
+                        f'{t("digest.over", n=f"{n:,}", limit=f"{limit:,}") if n > limit else t("digest.count", n=f"{n:,}", limit=f"{limit:,}")}</span>',
+                        unsafe_allow_html=True)
+    with card("ai-chat", t("ai.chat_card")):
+        for m in history:
+            with st.chat_message("user" if m["role"] == "user" else "assistant"):
+                st.markdown(llm.display_question(m["text"]) if m["role"] == "user" else m["text"])
+                if m["role"] == "model":
+                    st.caption(t("ai.reply_info", model=m.get("model") or "?", sec=m.get("seconds"), tokens=m.get("tokens") or "—"))
+        if st.session_state.get("ai-error"):
+            st.markdown(f'<span class="act-err">{plain(st.session_state["ai-error"])}</span>', unsafe_allow_html=True)
+        st.text_area(t("ai.question"), key="ai-question", height=110)
+        question = (st.session_state.get("ai-question") or "").strip()
+        projected = llm.history_chars(history) + len(question) + (0 if history else len(settings["primer"]) + len(digests))
+        problems = []
+        if not settings["apiKey"]:
+            problems.append(t("ai.p.key"))
+        if not question:
+            problems.append(t("ai.p.question"))
+        if not history and not digests:
+            problems.append(t("ai.p.sources"))
+        if projected > settings["conversationLimit"]:
+            problems.append(t("ai.p.limit", n=f"{projected:,}", limit=f"{settings['conversationLimit']:,}"))
+        with st.container(key="actionbar-ai-send"):
+            c1, c2, c3, c4 = st.columns([1.3, 1.3, 1.6, 4], vertical_alignment="center")
+            c1.button(t("ai.send"), key="ai-send", type="primary", disabled=bool(problems), on_click=ai_send, args=(digests, labels), width="stretch")
+            c2.button(t("ai.new"), key="ai-new", disabled=not history, on_click=ai_new_conversation, width="stretch")
+            c3.download_button(t("ai.export"), llm.export_markdown(settings["model"], st.session_state.get("ai-items", []), history),
+                               file_name=f"ai-analysis-{datetime.date.today():%Y%m%d}.md", mime="text/markdown", disabled=not history, width="stretch")
+            if problems:
+                c4.markdown(f'<span class="act-err">{t("act.cannot", reasons=t("common.sep").join(plain(x) for x in problems))}</span>', unsafe_allow_html=True)
+            else:
+                size_text = t("ai.size", n=f"{projected:,}", limit=f"{settings['conversationLimit']:,}")
+                c4.markdown(f'<span class="act-note">{size_text}</span>', unsafe_allow_html=True)
+
+
 def models_page():
     """The list (quick filters, tick rows) with the actions on the ticked rows, then the details of the ticked model (one: its
     details, two to four: side by side). Rename, make official / move to local, delete and copy-for-AI live here only."""
@@ -3094,6 +3308,7 @@ PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), t("section.flow")),
          ("pipeline", t("page.pipeline"), "🔗", lambda: pipeline_page(), None),
          ("datamanage", TAB_DATAMANAGE, "🗃️", lambda: data_manage_page(), t("section.manage")),
          ("models", TAB_MODELS, "📦", lambda: models_page(), None),
+         ("analysis", t("page.analysis"), "🤖", lambda: analysis_page(), None),
          ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None),
          ("hash", t("page.hash"), "🔑", lambda: hash_page(), t("section.help")),
          ("versions", t("page.versions"), "🏷️", lambda: versions_page(), None)]

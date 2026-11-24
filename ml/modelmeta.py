@@ -585,8 +585,9 @@ def dump_digest(name, dump_meta, hash_short, rules, used_by=(), size_mb=None, st
     return "\n".join(lines)
 
 
-def model_digest(name, meta, stale=()):
-    """One model (its .meta.json) as compact lines for an AI: data, parameters, validation, matches. No loss curve, no paths."""
+def model_digest(name, meta, stale=(), matches=True):
+    """One model (its .meta.json) as compact lines for an AI: data, parameters, validation, matches (matches=False leaves the match records out).
+    No loss curve, no paths."""
     t, v = meta.get("training") or {}, meta.get("validation") or {}
     params = " ".join(f"{k}={','.join(map(str, x)) if isinstance(x, list) else x}" for k, x in (meta.get("params") or {}).items() if k not in NOISY_PARAMS)
     lines = [f"M {name} kind={meta.get('kind')} players={meta.get('players')} feat={meta.get('featureVersion')}({meta.get('featureCount')}) "
@@ -606,7 +607,7 @@ def model_digest(name, meta, stale=()):
     top = ",".join(f["name"] for f in (meta.get("topFeatures") or [])[:10])
     if top:
         lines.append(f" topFeatures: {top}")
-    for m in meta.get("matches", []):
+    for m in (meta.get("matches", []) if matches else []):
         games = m.get("games") or 0
         ws = m.get("winShare")
         ci = f"±{1.96 * (ws * (1 - ws) / games) ** 0.5:.3f}" if games and ws is not None else ""
