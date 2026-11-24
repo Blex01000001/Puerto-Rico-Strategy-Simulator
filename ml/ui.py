@@ -52,6 +52,7 @@ import pandas as pd  # noqa: E402
 import fingerprint  # noqa: E402
 import folders  # noqa: E402
 import jobs  # noqa: E402
+import llm  # noqa: E402
 import modelmeta  # noqa: E402
 import positions  # noqa: E402
 import train_lgbm  # noqa: E402
@@ -186,6 +187,8 @@ def table_view(rows, path_as=None):
         if c in df:
             df[c] = [str(v) for v in df[c]]
     df = df.rename(columns={"path": path_as}) if path_as else df.drop(columns=["path"])
+    if "hash" in df:  # the hash is the last column of every data table
+        df = df[[c for c in df.columns if c != "hash"] + ["hash"]]
     return df.rename(columns={zh: t(f"dump.col.{key}") for zh, key in DUMP_COLUMNS.items()})
 
 
@@ -370,6 +373,21 @@ def delete_gen():
     return st.session_state.get("del-gen", 0)
 
 
+FILTER_ALL = "*"
+
+
+def filter_bar(key, dims):
+    """One flat bar of quick filters. dims = [(label, options, widget key, format_func or None)]: each is a label and a segmented control
+    (All | option | option ...). Returns one list per dimension: [] for "All" (or nothing selected), [value] otherwise."""
+    out = []
+    with st.container(key=f"filterbar-{key}"):  # CSS .st-key-filterbar*
+        for c, (label, options, wkey, fmt) in zip(st.columns(len(dims), vertical_alignment="center"), dims):
+            value = c.segmented_control(label, [FILTER_ALL] + list(options), default=FILTER_ALL, selection_mode="single", key=wkey,
+                                        format_func=lambda o, fmt=fmt: t("filter.all") if o == FILTER_ALL else (fmt(o) if fmt else str(o)))
+            out.append([] if value in (None, FILTER_ALL) else [value])
+    return out
+
+
 def delete_button(key, label, paths, extra_suffixes=(), busy=()):
     """A red delete button (right-aligned via the 'del-' key prefix) that asks for confirmation in a dialog; files a
     queued or running job needs are refused. A dialog closes with the rerun after deleting (a popover stayed open)."""
@@ -417,12 +435,10 @@ def training_tab():
         players = sorted({d["人數"] for d in good})
         p = st.radio(t("tr.players"), players, index=len(players) - 1, horizontal=True, format_func=lambda n: t("match.players_n", n=n))
         rows = [d for d in good if d["人數"] == p]
-        with st.container(key="filterbar-train"):  # quick filters (CSS .st-key-filterbar*); empty = all
-            c1, c2, _ = st.columns([1, 1, 3])
-            feature_opts = sorted({d["特徵版本"] for d in rows})
-            rules_opts = sorted({d["規則版本"] for d in rows if "規則版本" in d})
-            fv = c1.pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key=f"tf-feature-{p}")
-            rv = c2.pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key=f"tf-rules-{p}")
+        feature_opts = sorted({d["特徵版本"] for d in rows})
+        rules_opts = sorted({d["規則版本"] for d in rows if "規則版本" in d})
+        fv, rv = filter_bar("train", [(t("dump.col.feature"), feature_opts, f"tf-feature-{p}", lambda n: f"v{n}"),
+                                      (t("dump.col.rules"), rules_opts, f"tf-rules-{p}", None)])
         rows = [d for d in rows if d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)]
         if not rows:
             st.caption(t("mlist.none"))
@@ -444,7 +460,7 @@ def training_tab():
             f = max(d.get("_features") or 430 for d in chosen)  # the feature count of the chosen version (430 for version 1, 512 for version 2)
             st.caption(t("tr.chosen", n=len(chosen), rows=f"{total:,}", f=f, lgbm=f"{total * f * 4 * 2.2 / 1e9:.1f}", mlp=f"{total * f * 2 * 1.5 / 1e9:.1f}"))
         else:
-            st.caption(t("tr.pick_hint", page=TAB_DATA))
+            st.caption(t("tr.pick_hint", page=TAB_DATAMANAGE))
 
     with card("train-model", t("tr.card2")):
         kind = st.radio(t("tr.model"), ["train_lgbm", "train_mlp"], format_func=lambda k: KIND_TEXT[k], horizontal=True)
@@ -522,8 +538,8 @@ def training_tab():
 # ---------------------------------------------------------------- jobs (shared by every tab)
 
 TITLE = "Puerto Rico Machine Learning"
-TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE, TAB_MODELLIST = (
-    t(f"page.{p}") for p in ("data", "train", "match", "models", "queue", "modellist"))
+TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE, TAB_DATAMANAGE = (
+    t(f"page.{p}") for p in ("data", "train", "match", "models", "queue", "datamanage"))
 
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
@@ -586,13 +602,23 @@ div[class*="st-key-folderline-"] { margin: -.35rem 0 .35rem; }
 .folder-path { font-size: .74rem; color: #8892a2; overflow-wrap: anywhere; }
 div[class*="st-key-folderline-"] button { background: transparent !important; border: 0 !important; padding: 0 !important; min-height: 0 !important; height: auto !important; color: #4aa8ff !important; }
 div[class*="st-key-folderline-"] button p { font-size: .74rem !important; text-decoration: underline; }
+/* ONE button look in the whole UI (the one of the management action bars): secondary = dark with a grey frame, primary = blue (white text),
+   dangerous (key prefix del- / stop-) = dark with red text; only the confirmation inside a delete dialog is solid red */
+button[kind="secondary"] { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; font-size: 13px; font-weight: 400;
+  min-height: 0; padding: 6px 12px; }
+button[kind="secondary"]:hover:not(:disabled) { border-color: #8b949e; color: #f0f6fc; }
+button[kind="secondary"]:disabled { opacity: .45; cursor: not-allowed; }
+button[kind="primary"] { background: #1f6feb !important; border: 1px solid rgba(240,246,252,.1) !important; color: #fff !important; border-radius: 6px;
+  font-size: 13px; font-weight: 500 !important; min-height: 0; padding: 6px 14px; }
+button[kind="primary"]:hover:not(:disabled) { filter: brightness(1.12); }
+button[kind="primary"]:disabled { opacity: .4; cursor: not-allowed !important; }
 div[class*="st-key-del-"] { align-items: flex-end !important; }
 div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
-div[class*="st-key-del-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
-div[class*="st-key-del-"] button:hover:not(:disabled) { filter: brightness(1.12); }
-div[class*="st-key-stop-"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
-div[class*="st-key-stop-"] button:hover:not(:disabled) { filter: brightness(1.12); }
-div[class*="st-key-stop-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
+div[class*="st-key-del-"]:not([class*="-confirm"]) button, div[class*="st-key-stop-"] button { color: #f85149 !important; }
+div[class*="st-key-del-"][class*="-confirm"] button { background: #c43c3c !important; border: 0 !important; color: #fff !important; font-weight: 600 !important; }
+/* the cancel button under the narrow navigation: smaller text and padding, never cut off with an ellipsis (both languages) */
+div[class*="st-key-stop-side-"] button { padding: .25rem .3rem !important; min-height: 0 !important; font-size: .78rem !important; }
+div[class*="st-key-stop-side-"] button p { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; font-size: .78rem !important; }
 .pl-detail { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem 1.1rem; padding: .45rem .3rem .55rem .75rem; }
 .pl-detail .c { display: flex; flex-direction: column; min-width: 0; }
 .pl-detail .k { color: #8892a2; font-size: .78rem; line-height: 1.3; }
@@ -607,11 +633,6 @@ div[class*="st-key-pl-seatcard"] .react-aria-ComboBox { height: 2rem; min-height
 div[class*="st-key-pl-seatcard"] input { padding: .2rem .5rem; height: 100%; min-height: 0; font-size: .9rem; }
 div[class*="st-key-pl-seatcard"] div[data-baseweb="select"] > div { padding-top: 0; padding-bottom: 0; }
 div[class*="st-key-pl-addbox"] { border: 2px dashed #3a4258; border-radius: 8px; padding: .7rem .8rem; margin-top: .2rem; }
-div[class*="st-key-del-"] button:disabled { background: #4a2a2e !important; color: #b9a3a6 !important; }
-/* buttons like the Dashboard: blue when they can start, locked otherwise */
-button[kind="primary"] { background: #4aa8ff !important; border: 0 !important; color: #07131f !important; font-weight: 600 !important; }
-button[kind="primary"]:hover:not(:disabled) { filter: brightness(1.12); }
-button[kind="primary"]:disabled { background: #2a3040 !important; color: #8892a2 !important; cursor: not-allowed !important; }
 [data-testid="stPopover"] button, button[kind="primary"], button[kind="secondary"] { white-space: nowrap; }
 .act-note { color: #8892a2; font-size: .82rem; line-height: 1.35; }
 .act-err { color: #ec6a6a; font-size: .82rem; line-height: 1.35; }
@@ -655,14 +676,26 @@ div[class*="st-key-modelpick"] [data-testid="stSelectbox"] { font-size: 1.15rem;
 div[class*="st-key-modelpick"] .react-aria-ComboBox > div, div[class*="st-key-modelpick"] div[data-baseweb="select"] > div { min-height: 3.1rem; }
 div[class*="st-key-modelpick"] [data-testid="stSelectbox"] input, div[class*="st-key-modelpick"] [data-testid="stSelectbox"] div { font-size: 1.15rem; }
 /* quick filters (model list): one flat bar, a small label and round chips per group; a chosen chip is filled blue */
-div[class*="st-key-filterbar"] { background: #171a21; border: 1px solid #2a3040; border-radius: 6px; padding: .35rem .8rem .5rem; margin-bottom: .3rem; }
-div[class*="st-key-filterbar"] [data-testid="stHorizontalBlock"] { gap: 1.6rem !important; flex-wrap: wrap; }
+/* quick filters: ONE flat bar per list; each dimension is a label and a segmented control (All | value | value ...) with dividers between them
+   (st.segmented_control, helper filter_bar) */
+div[class*="st-key-filterbar"] { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+div[class*="st-key-filterbar"] [data-testid="stHorizontalBlock"] { gap: 16px !important; flex-wrap: wrap; align-items: center; }
 div[class*="st-key-filterbar"] [data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
-div[class*="st-key-filterbar"] [data-testid="stWidgetLabel"] p { font-size: .72rem; font-weight: 700; letter-spacing: .12em; color: #8892a2; margin: 0 0 .2rem; }
-div[class*="st-key-filterbar"] button[data-variant="pills"] { background: transparent; border: 1px solid #3a4258; border-radius: 999px; color: #b4bcc9;
-  padding: .1rem .75rem; min-height: 0; font-size: .85rem; }
-div[class*="st-key-filterbar"] button[data-variant="pills"]:hover { border-color: #4aa8ff; color: #eef1f5; }
-div[class*="st-key-filterbar"] button[data-variant="pills"][aria-pressed="true"] { background: #1d3a5c; border-color: #4aa8ff; color: #fff; font-weight: 600; }
+div[class*="st-key-filterbar"] [data-testid="stColumn"] + [data-testid="stColumn"] { border-left: 1px solid #30363d; padding-left: 16px; }
+div[class*="st-key-filterbar"] [data-testid="stButtonGroup"] { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+div[class*="st-key-filterbar"] [data-testid="stWidgetLabel"] { min-height: 0; margin: 0; }
+div[class*="st-key-filterbar"] [data-testid="stWidgetLabel"] p { font-size: 12px; font-weight: 500; letter-spacing: 0; color: #8b949e; margin: 0; white-space: nowrap; }
+div[class*="st-key-filterbar"] [role="radiogroup"] { display: inline-flex; gap: 0; background: #0d1117; padding: 2px; border-radius: 6px; border: 1px solid #21262d; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"] { background: transparent; color: #8b949e; border: 0; border-radius: 4px;
+  padding: 4px 10px; min-height: 0; font-size: 12px; font-weight: 400; box-shadow: none; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"] p { font-size: 12px; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"]:hover { color: #f0f6fc; }
+div[class*="st-key-filterbar"] button[data-variant="segmented_control"][aria-checked="true"] { background: #21262d; color: #f0f6fc; font-weight: 500; }
+/* the action bar under a management list: safe actions on the left (rename, copy details in blue, a hint), the dangerous one on the right */
+div[class*="st-key-actionbar"] { border-top: 1px solid #30363d; margin-top: 0; padding-top: 12px; }
+div[class*="st-key-digest-off-"] button { background: #1f6feb !important; color: #fff !important; border-color: rgba(240,246,252,.1) !important; font-weight: 500 !important; }
+div[class*="st-key-actionbar"] .act-note, div[class*="st-key-actionbar"] .act-err { font-size: 12px; }
+div[class*="st-key-actionbar"] .act-note { color: #8b949e; }
 table.vtable.doc th { text-align: left; } table.vtable.doc td { vertical-align: top; }
 table.vtable.cmp { table-layout: fixed; }  /* compare: equal model columns, long data lists wrap */
 table.vtable.cmp th:first-child { width: 12rem; } table.vtable.cmp th:last-child { width: 3.5rem; }
@@ -715,9 +748,14 @@ def plain(text):
 def action_row(label, key, problems, extra=None):
     """A start button with its hint on the same line, to its right: blue when it can start, locked with the reasons in
     red otherwise; while jobs run, the hint says where the new one will queue. Returns True when clicked."""
-    c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
-    with c1:
-        clicked = st.button(start_label(label), type="primary", disabled=bool(problems), key=key, width="stretch")
+    with st.container(key=f"actionbar-{key}"):  # CSS: a line above, like the management pages' action bar
+        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
+        clicked = c1.button(start_label(label), type="primary", disabled=bool(problems), key=key, width="stretch")
+        _action_hint(c2, problems, extra)
+    return clicked
+
+
+def _action_hint(c2, problems, extra):
     with c2:
         if problems:
             st.markdown(f'<span class="act-err">{t("act.cannot", reasons=t("common.sep").join(plain(p) for p in problems))}</span>', unsafe_allow_html=True)
@@ -728,7 +766,6 @@ def action_row(label, key, problems, extra=None):
                 notes.append(t("act.queue_note", pos=len(waiting) + 1, ahead=(1 if active else 0) + len(waiting)))
             if notes:
                 st.markdown(f'<span class="act-note">{"。".join(plain(n) for n in notes)}</span>', unsafe_allow_html=True)
-    return clicked
 
 
 def card(key, title=None, sub=None):
@@ -820,7 +857,7 @@ def sidebar_status():
                     unsafe_allow_html=True)
         frac, text = progress_of(active, jobs.events(active["id"]))
         lost = active["state"] == "lost"
-        c1, c2 = st.columns([3, 1.3], vertical_alignment="bottom")
+        c1, c2 = st.columns([2.6, 1.4], vertical_alignment="bottom")
         if lost:
             c1.markdown(f'<div class="side-state lost">{t("side.lost")}</div>', unsafe_allow_html=True)
         else:
@@ -955,9 +992,9 @@ def copy_button(text, label=None):
     label = label or t("copy.label")
     payload = json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
-<style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 3px; }}</style>
-<button id="b" style="width:100%;height:38px;border-radius:8px;border:1px solid #4aa8ff;background:#4aa8ff;color:#08121f;
-  font:600 14px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer">{label}</button>
+<style>html, body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }} body {{ padding-top: 5px; }}</style>
+<button id="b" style="width:100%;height:34px;border-radius:6px;border:1px solid rgba(240,246,252,.1);background:#1f6feb;color:#fff;
+  font:500 13px system-ui,'Microsoft JhengHei',sans-serif;cursor:pointer;white-space:nowrap">{label}</button>
 <script>
 const text = {payload}, b = document.getElementById('b'), label = b.textContent;
 function fallback() {{ const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
@@ -1209,11 +1246,12 @@ def config_table(rows):
     chosen = [rows[i]["設定檔"] for i in picked.selection.rows]
     for i, folder in enumerate(dict.fromkeys(os.path.dirname(r["設定檔"]) for r in rows)):
         folder_line(folder + "/", f"configs-{i}")
-    c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
     tracked = tracked_by_git(chosen) if chosen else set()
-    c1.caption(t("cfg.hint") + (("" if lang() == "zh-TW" else " ") + t("cfg.tracked", n=len(tracked)) if tracked else ""))
-    with c2:
-        delete_button("del-configs", t("del.button", n=len(chosen)), [absolute(c) for c in chosen], busy=busy_files("config"))
+    with st.container(key="actionbar-configs"):  # the hint on the left, the dangerous action on the right
+        c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
+        c1.caption(t("cfg.hint") + (("" if lang() == "zh-TW" else " ") + t("cfg.tracked", n=len(tracked)) if tracked else ""))
+        with c2:
+            delete_button("del-configs", t("del.button", n=len(chosen)), [absolute(c) for c in chosen], busy=busy_files("config"))
 
 
 def selfplay_config(name, players, games, seed, sims, leaf, model_rel):
@@ -1340,21 +1378,7 @@ def data_tab():
                       {"config": spec_config, "out": rel(out), "rate": float(rate), "games": int(games), "seed": int(seed),
                        "threads": int(threads), "featureVersion": int(feature)}, title_key, name=name, **title_args)
 
-    with card("data-list", t("dt.card3")):
-        dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
-        if dumps:
-            df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name=t("dump.col.file")))
-            picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-manage-{delete_gen()}",
-                          column_config=dump_column_config())
-            chosen = [dumps[i] for i in picked.selection.rows]
-            folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
-            c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
-            c1.caption(t("dt.delete_hint", page=TAB_TRAIN))
-            with c2:
-                delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen],
-                              extra_suffixes=(".json",), busy=busy_files("data"))
-        else:
-            st.caption(t("dt.none"))
+    st.caption(t("dt.manage_hint", page=TAB_DATAMANAGE))
 
 
 # ---------------------------------------------------------------- 對戰驗證
@@ -1487,9 +1511,9 @@ def models_table(paths):
             col("r2"): v.get("r2"), col("ce"): v.get("crossEntropy"),
             col("matches"): len(meta.get("matches", [])),
             col("best"): best["winShare"] if best else None,
-            col("hash"): fingerprint.short(meta.get("fingerprint")) or "—",
             col("rules"): fingerprint.rules_name(meta.get("rulesRevision", 1)),
             col("note"): t("mlist.params_backfilled") if "note" in meta.get("params", {}) else (t("mlist.old_record") if not meta.get("fingerprint") else ""),
+            col("hash"): fingerprint.short(meta.get("fingerprint")) or "—",
         })
     df = pd.DataFrame(rows)
     # text columns so that missing values read "—" instead of Streamlit's grey "None"
@@ -1560,38 +1584,43 @@ def flat_params(meta):
     return {k: (", ".join(map(str, v)) if isinstance(v, list) else v) for k, v in (meta.get("params") or {}).items()}
 
 
-def move_buttons(path):
-    """Make official (local -> ml/models, then commit it) and move to local (an official-folder model git does not track)."""
+def move_buttons(path, c_rename, c_move):
+    """Rename, and make official (local -> ml/models, then commit it) / move to local (an official-folder model git does not track), in the
+    two cells of the action row. path=None (nothing or several ticked): the buttons are off. Returns the note to show under the row."""
+    if path is None:
+        c_rename.button(t("md.rename"), key="rename-off", disabled=True, width="stretch")
+        c_move.button(t("md.promote"), key="move-off", disabled=True, width="stretch")
+        return ""
     name = os.path.basename(path)
     if place_of(path) == "local":
-        c1, c3, c2 = st.columns([2.2, 2.2, 5], vertical_alignment="center")
-        with c3:
-            if st.button(t("md.rename"), key=f"rename-{name}", width="stretch"):
-                rename_dialog(path)
-        with c1:
-            with st.popover(t("md.promote"), width="stretch"):
-                st.markdown(t("md.promote_text", name=name))
-                if st.button(t("md.promote_ok"), type="primary", key=f"promote-{name}"):
-                    try:
-                        modelmeta.move_model(path, MODELS_DIR)
-                        st.session_state["job-started"] = t("md.promoted", name=name)
-                        st.cache_data.clear()
-                        st.rerun()
-                    except ValueError as e:
-                        st.error(str(e))
-        c2.markdown(f'<span class="act-note">{t("md.local_note")}</span>', unsafe_allow_html=True)
-    elif not tracked_by_git([path]):
-        c1, c2 = st.columns([2.2, 5], vertical_alignment="center")
-        with c1:
-            if st.button(t("md.demote"), key=f"demote-{name}", width="stretch"):
+        if c_rename.button(t("md.rename"), key=f"rename-{name}", width="stretch"):
+            rename_dialog(path)
+        with c_move.popover(t("md.promote"), width="stretch"):
+            st.markdown(t("md.promote_text", name=name))
+            if st.button(t("md.promote_ok"), type="primary", key=f"promote-{name}"):
                 try:
-                    modelmeta.move_model(path, LOCAL_MODELS)
-                    st.session_state["job-started"] = t("md.demoted", name=name)
+                    modelmeta.move_model(path, MODELS_DIR)
+                    st.session_state["job-started"] = t("md.promoted", name=name)
+                    st.session_state["del-gen"] = delete_gen() + 1
                     st.cache_data.clear()
                     st.rerun()
                 except ValueError as e:
                     st.error(str(e))
-        c2.markdown(f'<span class="act-note">{t("md.demote_note")}</span>', unsafe_allow_html=True)
+        return f'<span class="act-note">{t("md.local_note")}</span>'
+    c_rename.button(t("md.rename"), key=f"rename-{name}", disabled=True, width="stretch")  # official models are in git
+    if not tracked_by_git([path]):
+        if c_move.button(t("md.demote"), key=f"demote-{name}", width="stretch"):
+            try:
+                modelmeta.move_model(path, LOCAL_MODELS)
+                st.session_state["job-started"] = t("md.demoted", name=name)
+                st.session_state["del-gen"] = delete_gen() + 1
+                st.cache_data.clear()
+                st.rerun()
+            except ValueError as e:
+                st.error(str(e))
+        return f'<span class="act-note">{t("md.demote_note")}</span>'
+    c_move.button(t("md.promote"), key=f"move-off-{name}", disabled=True, width="stretch")
+    return ""
 
 
 def model_name_users(path):
@@ -1651,7 +1680,7 @@ def rename_dialog(path):
         try:
             target = modelmeta.rename_model(path, new, configs=picked)
             st.session_state["job-started"] = t("md.rn.done", name=name, new=os.path.basename(target))
-            st.session_state["model-pick"] = os.path.basename(target)
+            st.session_state["del-gen"] = delete_gen() + 1  # the table rows are renumbered: drop the selection
             st.cache_data.clear()
             st.rerun()
         except ValueError as e:
@@ -1674,16 +1703,15 @@ def model_data_table(meta):
         strategies = [f"{x}({t('common.list').join(models)})" if x == "mcts" and models else x for x in d.get("strategies", []) if x]
         rows.append({col("file"): os.path.basename(path), col("players"): str(meta["players"]), col("games"): d["games"], col("rows"): d["rows"],
                      col("rate"): d["rate"], col("feature"): str(meta["featureVersion"]), col("size"): disk["大小 MB"] if same else "—",
-                     col("strategies"): t("common.list").join(dict.fromkeys(strategies)), "hash": fingerprint.short(d.get("fingerprint")) or "—",
+                     col("strategies"): t("common.list").join(dict.fromkeys(strategies)),
                      col("rules"): fingerprint.rules_name(d.get("rulesRevision", 1), d.get("ruleset")),
-                     col("commit"): disk["引擎 commit"] if same else "—"})
+                     col("commit"): disk["引擎 commit"] if same else "—", "hash": fingerprint.short(d.get("fingerprint")) or "—"})
     return pd.DataFrame(rows)
 
 
 def model_detail(path):
     meta = model_meta(path)
     name = os.path.basename(path)
-    move_buttons(path)
     if not meta:
         st.warning(t("md.no_meta", name=name))
         return
@@ -1790,44 +1818,426 @@ def compare(paths):
     st.caption(t("md.cmp.note"))
 
 
-def _models_body():
-    paths = model_files()
-    if not paths:
-        st.info(t("md.none"))
-        return
-    by_name = {os.path.basename(p): p for p in paths}
-    mode = st.radio(t("md.view"), ["single", "compare"], horizontal=True, format_func=lambda m: t(f"md.view.{m}"), key="models-view")
-    if mode == "single":
-        # open on the strongest model (best win share against the original MCTS)
-        scores = [(best_vs_default(model_meta(p))["winShare"] if model_meta(p) and best_vs_default(model_meta(p)) else -1) for p in paths]
-        if st.session_state.get("model-pick") not in by_name:
-            st.session_state.pop("model-pick", None)  # opens on the strongest model; a rename selects the renamed one
-        # passing index while the key already holds a value makes Streamlit warn: only on the first draw
-        start = {} if "model-pick" in st.session_state else {"index": scores.index(max(scores))}
-        with st.container(key="modelpick"):  # a bigger label and dropdown (CSS .st-key-modelpick)
-            name = st.selectbox(t("md.pick"), list(by_name), key="model-pick", **start)
-        model_detail(by_name[name])
-    else:
-        names = st.multiselect(t("md.pick_many"), list(by_name), max_selections=4)
-        if len(names) >= 2:
-            compare([by_name[n] for n in names])
-        else:
-            st.caption(t("md.pick_hint"))
-
-
 def match_tab():
     with card("match", t("match.card")):
         _match_body()
 
 
-def model_list_page():
-    with card("models-list", t("mlist.card"), t("mlist.card_sub", page=TAB_MODELS)):
-        models_list()
+@st.dialog(t("dm.rn.title"))
+def rename_dump_dialog(d):
+    path = absolute(d["path"])
+    name = os.path.basename(path)
+    new = st.text_input(t("dm.rn.new"), value=name[:-4], key=f"dm-rename-new-{name}").strip()
+    if new.endswith(".bin"):
+        new = new[:-4]
+    problems = []
+    if not new or any(c in new for c in modelmeta.INVALID_NAME_CHARS):
+        problems.append(t("md.rn.p.name"))
+    elif new + ".bin" == name:
+        problems.append(t("md.rn.p.same"))
+    elif os.path.exists(os.path.join(os.path.dirname(path), new + ".bin")):
+        problems.append(t("dm.rn.p.taken", name=new + ".bin"))
+    busy = pending_readers(d["path"]) + ([job_title(j) for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY
+                                          and str(j.get("spec", {}).get("out", "")).replace("\\", "/") == d["path"]])
+    if busy:
+        problems.append(t("dm.rn.p.busy", title=busy[0]))
+    st.caption(t("dm.rn.caption", name=name))
+    refs = modelmeta.dump_references(path)
+    if refs["local"]:
+        st.info(t("dm.rn.refs", list="\n".join(f"- `{os.path.basename(p).removesuffix('.meta.json')}`" for p in refs["local"])))
+    if refs["official"]:
+        st.warning(t("dm.rn.official", list=t("common.list").join(f"`{os.path.basename(p).removesuffix('.meta.json')}`" for p in refs["official"])))
+    if problems:
+        st.markdown(f'<span class="act-err">{t("md.rn.cannot", reasons=t("common.sep").join(plain(x) for x in problems))}</span>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    if c1.button(t("queue.cancel"), key=f"dm-rename-cancel-{name}", width="stretch"):
+        st.rerun()
+    if c2.button(t("md.rn.ok"), type="primary", key=f"dm-rename-ok-{name}", width="stretch", disabled=bool(problems)):
+        try:
+            target = modelmeta.rename_dump(path, new)
+            st.session_state["job-started"] = t("md.rn.done", name=name, new=os.path.basename(target))
+            st.session_state["del-gen"] = delete_gen() + 1  # the table rows are renumbered: drop the selection
+            st.cache_data.clear()
+            st.rerun()
+        except ValueError as e:
+            st.error(str(e))
 
 
-def models_tab():
+def dump_detail(d):
+    """What one training data file is: sizes, versions, the seats that played it, the models trained on it."""
+    meta = d["_meta"]
+    st.markdown(version_tiles([(t("dump.col.players"), str(d["人數"])), (t("dump.col.games"), f"{d['局數']:,}"), (t("dump.col.rows"), f"{d['列數']:,}"),
+                               (t("dump.col.rate"), f"{d['抽樣率']:g}"), (t("dump.col.feature"), str(d["特徵版本"])),
+                               (t("dump.col.size"), f"{d['大小 MB']:g}")], centre=True), unsafe_allow_html=True)
+    st.caption(t("dm.d.foot", rules=d["規則版本"], hash=d["hash"], commit=(d.get("引擎 commit") or "—")[:7], engine=meta.get("engineVersion") or "—",
+                 seed=meta.get("seed"), order=meta.get("seatOrder"), status=d["狀態"]))
+    seats = pd.DataFrame([{t("dm.d.col.seat"): s_.get("id", i), t("dm.d.col.strategy"): s_.get("strategy"),
+                           t("dm.d.col.params"): ", ".join(f"{k}={v}" for k, v in (s_.get("params") or {}).items()) or "—"}
+                          for i, s_ in enumerate(meta.get("seats", []))])
+    st.markdown(t("dm.d.seats"))
+    grid(seats, hide_index=True, width="stretch")
+    users = models_using(d["path"])
+    st.markdown(t("dm.d.used_by"))
+    st.caption(t("common.list").join(f"`{u}`" for u in users) if users else t("dm.d.not_used"))
+    if d.get("_stale"):
+        st.warning(t("dm.d.stale", notes=t("common.sep").join(d["_stale"])))
+    folder_line(os.path.dirname(d["path"]) + "/", f"dm-folder-{d['path']}")
+
+
+def data_manage_page():
+    """Training data: the list (quick filters, tick rows), rename / delete / copy-for-AI on the ticked rows, and the details of one.
+    Deleting and renaming training data happens here only."""
+    dumps = list_dumps()
+    good = [d for d in dumps if "error" not in d and not d.get("writing")]
+    with card("dm-list", t("dm.card"), t("dm.card_sub", train=TAB_TRAIN)):
+        for d in (x for x in dumps if x.get("writing")):
+            st.info(t("tr.writing_wait", path=d["path"], mb=d["大小 MB"]))
+        if not good:
+            st.caption(t("dm.none", page=TAB_DATA))
+            chosen = []
+        else:
+            chosen = dump_list(good)
+    with card("dm-detail", t("dm.detail")):
+        if len(chosen) == 1:
+            dump_detail(chosen[0])
+        else:
+            st.caption(t("dm.select_hint"))
+
+
+def dump_list(good):
+    players_opts = sorted({str(d["人數"]) for d in good})
+    feature_opts = sorted({d["特徵版本"] for d in good})
+    rules_opts = sorted({d["規則版本"] for d in good if "規則版本" in d})
+    pl, fv, rv = filter_bar("dm", [(t("dump.col.players"), players_opts, "dm-players", lambda n: t("match.players_n", n=n)),
+                                   (t("dump.col.feature"), feature_opts, "dm-feature", lambda n: f"v{n}"),
+                                   (t("dump.col.rules"), rules_opts, "dm-rules", None)])
+    rows = [d for d in good if str(d["人數"]) in (pl or players_opts) and d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)]
+    if not rows:
+        st.caption(t("mlist.none"))
+        return []
+    df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
+    # a selection is by row number: the filters and the deletion counter are part of the key
+    picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", column_config=dump_column_config(),
+                  key=f"dumps-manage-{delete_gen()}-{'.'.join(pl or [])}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}")
+    chosen = [rows[i] for i in picked.selection.rows]
+    st.caption(t("dm.footer", shown=len(rows), total=len(good)))
+    items = [modelmeta.dump_digest(os.path.basename(d["path"]), d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"], d["_stale"])
+             for d in chosen]
+    # the action bar: rename (exactly one ticked) | copy details | hint ........ delete
+    with st.container(key="actionbar-dumps"):
+        c_rename, c_copy, c_hint, c_delete = st.columns([1.2, 1.9, 4.2, 1.7], vertical_alignment="center")
+        if c_rename.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
+            rename_dump_dialog(chosen[0])
+        hint = digest_box(modelmeta.digest(items) if chosen else "", "dumps", len(chosen), c_copy)
+        if hint:
+            c_hint.markdown(hint, unsafe_allow_html=True)
+        with c_delete:
+            delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen], extra_suffixes=(".json",), busy=busy_files("data"))
+    st.caption(t("dm.actions_hint") + " " + t("dt.delete_hint", page=TAB_TRAIN))
+    return chosen
+
+
+# ---------------------------------------------------------------- AI 分析（Gemini 聊天）
+
+def ai_save_provider(name):
+    settings = llm.load_settings()
+    ps = settings["providers"][name]
+    ps["model"] = (st.session_state.get(f"ai-{name}-model-in") or ps["model"]).strip() or llm.PROVIDERS[name]["model"]
+    try:
+        ps["conversationLimit"] = max(2000, int(st.session_state.get(f"ai-{name}-limit-in") or ps["conversationLimit"]))
+    except (TypeError, ValueError):
+        pass
+    llm.save_settings(settings)
+    st.session_state["job-started"] = t("ai.saved")
+
+
+def ai_set_enabled(name):
+    settings = llm.load_settings()
+    settings["providers"][name]["enabled"] = bool(st.session_state.get(f"ai-{name}-enabled"))
+    llm.save_settings(settings)
+
+
+def ai_load_models(name):
+    try:
+        st.session_state[f"ai-{name}-models"] = llm.list_models(llm.provider_settings(llm.load_settings(), name))
+        st.session_state.setdefault("ai-errors", {}).pop(name, None)
+    except llm.LlmError as e:
+        st.session_state.setdefault("ai-errors", {})[name] = str(e)
+
+
+def ai_pick_model(name):
+    st.session_state[f"ai-{name}-model-in"] = st.session_state.get(f"ai-{name}-model-pick") or st.session_state.get(f"ai-{name}-model-in")
+
+
+def ai_save_primer():
+    settings = llm.load_settings()
+    settings["primer"] = st.session_state.get("ai-primer-in", "")
+    llm.save_settings(settings)
+    st.session_state["job-started"] = t("ai.saved")
+
+
+def ai_reset_primer():
+    st.session_state["ai-primer-in"] = llm.DEFAULT_PRIMER
+    ai_save_primer()
+
+
+def ai_question_use():
+    settings = llm.load_settings()
+    q = next((q for q in settings["questions"] if q["name"] == st.session_state.get("ai-q-pick")), None)
+    if q:
+        st.session_state["ai-question"] = q["text"]
+
+
+def ai_question_delete():
+    settings = llm.load_settings()
+    settings["questions"] = [q for q in settings["questions"] if q["name"] != st.session_state.get("ai-q-pick")]
+    llm.save_settings(settings)
+
+
+def ai_question_add():
+    name, text = (st.session_state.get("ai-q-name") or "").strip(), (st.session_state.get("ai-q-text") or "").strip()
+    if not name or not text:
+        return
+    settings = llm.load_settings()
+    settings["questions"] = [q for q in settings["questions"] if q["name"] != name] + [{"name": name, "text": text}]
+    llm.save_settings(settings)
+    st.session_state["ai-q-name"] = st.session_state["ai-q-text"] = ""
+
+
+def ai_new_conversation():
+    for k in ("ai-histories", "ai-items", "ai-errors", "ai-pending", "ai-last-question"):
+        st.session_state.pop(k, None)
+
+
+def ai_targets(settings):
+    """The providers that will get the next question: enabled and with a key found."""
+    return [n for n in llm.PROVIDERS if settings["providers"][n]["enabled"] and llm.api_key(llm.provider_settings(settings, n))[0]]
+
+
+def ai_send(digests, labels, only=None):
+    """Callback of the send button (only=None: every target) and of a tab's retry button (only=[provider])."""
+    question = (st.session_state.get("ai-question") or "").strip() if only is None else st.session_state.get("ai-last-question", "")
+    if not question:
+        return
+    st.session_state["ai-pending"] = {"question": question, "digests": digests, "labels": labels, "only": only}
+    st.session_state["ai-last-question"] = question
+    if only is None:
+        st.session_state["ai-question"] = ""
+
+
+def ai_process_pending(settings):
+    """Sends the pending question to every target at once (one thread each; one provider failing does not stop the others). Each provider
+    has its own history: a provider with none yet gets the first message (background + data + question), the others only the question.
+    When nobody answers, the question goes back into the box."""
+    pending = st.session_state.pop("ai-pending", None)
+    if not pending:
+        return
+    histories = st.session_state.setdefault("ai-histories", {})
+    errors = st.session_state.setdefault("ai-errors", {})
+    names = [n for n in ai_targets(settings) if pending["only"] is None or n in pending["only"]]
+    calls = {}
+    for name in names:
+        ps = llm.provider_settings(settings, name)
+        history = histories.get(name, [])
+        text = pending["question"] if history else llm.first_message(settings["primer"], pending["digests"], pending["question"])
+        user = {"role": "user", "text": text}
+        projected = llm.history_chars(history) + len(text)
+        if projected > ps["conversationLimit"]:
+            errors[name] = t("ai.p.limit", n=f"{projected:,}", limit=f"{ps['conversationLimit']:,}")
+            continue
+        errors.pop(name, None)
+        calls[name] = (ps, history + [user], user)
+    answered = False
+    if calls:
+        from concurrent.futures import ThreadPoolExecutor
+        with st.spinner(t("ai.waiting", model=t("common.list").join(llm.PROVIDERS[n]["label"] for n in calls))):
+            with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+                futures = {n: pool.submit(llm.chat, ps, llm.SYSTEM_INSTRUCTION, hist) for n, (ps, hist, _) in calls.items()}
+                for name, future in futures.items():
+                    ps, hist, user = calls[name]
+                    try:
+                        reply = future.result()
+                    except llm.LlmError as e:
+                        errors[name] = str(e)
+                        continue
+                    answered = True
+                    histories.setdefault(name, []).extend([user, {"role": "model", "text": reply["text"], "model": ps["model"],
+                                                                 "seconds": reply["seconds"], "tokens": reply["tokens"]}])
+    if answered and not st.session_state.get("ai-items"):
+        st.session_state["ai-items"] = pending["labels"]
+    if not answered and pending["only"] is None:
+        st.session_state["ai-question"] = pending["question"]
+
+
+def ai_sources(locked):
+    """The multiselects for what to analyse; returns (digest text, labels). Locked once a conversation started (the data is in the first message)."""
+    models = [os.path.basename(p) for p in model_files()]
+    dumps = {os.path.basename(d["path"]): d for d in list_dumps() if "_meta" in d}
+    c1, c2 = st.columns(2)
+    chosen_models = c1.multiselect(t("ai.models"), models, key="ai-sel-models", disabled=locked)
+    chosen_dumps = c2.multiselect(t("ai.dumps"), list(dumps), key="ai-sel-dumps", disabled=locked)
+    with_matches = st.checkbox(t("ai.with_matches"), value=True, key="ai-matches", disabled=locked)
+    items = []
+    for name in chosen_models:
+        meta = model_meta(model_path(name))
+        items.append(modelmeta.model_digest(name, meta, model_stale(meta), matches=with_matches) if meta else f"M {name} (no metadata)")
+    for name in chosen_dumps:
+        d = dumps[name]
+        items.append(modelmeta.dump_digest(name, d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"], d["_stale"]))
+    return (modelmeta.digest(items) if items else ""), chosen_models + chosen_dumps
+
+
+def ai_provider_tab(settings, name):
+    ps = llm.provider_settings(settings, name)
+    key, source = llm.api_key(ps)
+    env = llm.PROVIDERS[name]["env"]
+    if key:
+        st.markdown(f'<span class="act-note">{t("ai.key_ok", source=t("ai.key_src." + source, env=env))}</span>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<span class="act-err">{t("ai.key_missing", env=env)}</span>', unsafe_allow_html=True)
+    st.checkbox(t("ai.enabled"), value=ps["enabled"], key=f"ai-{name}-enabled", on_change=ai_set_enabled, args=(name,))
+    c1, c2 = st.columns([3, 2], vertical_alignment="bottom")
+    c1.text_input(t("ai.model"), value=ps["model"], key=f"ai-{name}-model-in")
+    c2.number_input(t("ai.limit"), min_value=2000, step=10000, value=int(ps["conversationLimit"]), key=f"ai-{name}-limit-in")
+    models = st.session_state.get(f"ai-{name}-models") or []
+    d1, d2, d3 = st.columns([1.6, 1.6, 3.4], vertical_alignment="bottom")
+    d1.button(t("ai.save"), key=f"ai-{name}-save", on_click=ai_save_provider, args=(name,), width="stretch")
+    d2.button(t("ai.load_models"), key=f"ai-{name}-load", on_click=ai_load_models, args=(name,), disabled=not key, width="stretch")
+    if models:
+        d3.selectbox(t("ai.model_pick"), models, index=models.index(ps["model"]) if ps["model"] in models else 0,
+                     key=f"ai-{name}-model-pick", on_change=ai_pick_model, args=(name,))
+    if st.session_state.get("ai-errors", {}).get(name) and not st.session_state.get("ai-histories", {}).get(name):
+        st.markdown(f'<span class="act-err">{plain(st.session_state["ai-errors"][name])}</span>', unsafe_allow_html=True)
+
+
+def ai_settings_card(settings):
+    names = list(llm.PROVIDERS)
+
+    def title(n):
+        key = llm.api_key(llm.provider_settings(settings, n))[0]
+        return f"{llm.PROVIDERS[n]['label']}　{'✔' if key else '✘'}" + ("" if settings["providers"][n]["enabled"] else f"（{t('ai.off')}）")
+
+    for tab, name in zip(st.tabs([title(n) for n in names]), names):
+        with tab:
+            ai_provider_tab(settings, name)
+    st.caption(t("ai.privacy"))
+
+
+def ai_primer_card(settings):
+    st.text_area(t("ai.primer"), value=settings["primer"], height=190, key="ai-primer-in")
+    a1, a2, _ = st.columns([1.4, 1.4, 4])
+    a1.button(t("ai.primer_save"), key="ai-primer-save", on_click=ai_save_primer, width="stretch")
+    a2.button(t("ai.primer_reset"), key="ai-primer-reset", on_click=ai_reset_primer, width="stretch")
+    st.markdown(f"**{t('ai.questions')}**")
+    names = [q["name"] for q in settings["questions"]]
+    b1, b2, b3, _ = st.columns([2.4, 1.2, 1.2, 2.4], vertical_alignment="bottom")
+    pick = b1.selectbox(t("ai.q_pick"), names, key="ai-q-pick") if names else None
+    b2.button(t("ai.q_use"), key="ai-q-use", on_click=ai_question_use, disabled=not names, width="stretch")
+    with b3:
+        delete_row = st.container(key="del-ai-question")  # dangerous action: dark, red text (CSS del-)
+        delete_row.button(t("ai.q_delete"), key="del-ai-question-btn", on_click=ai_question_delete, disabled=not names, width="stretch")
+    if pick:
+        st.caption(next(q["text"] for q in settings["questions"] if q["name"] == pick))
+    n1, n2 = st.columns([1, 3], vertical_alignment="bottom")
+    n1.text_input(t("ai.q_name"), key="ai-q-name")
+    n2.text_input(t("ai.q_text"), key="ai-q-text")
+    st.button(t("ai.q_add"), key="ai-q-add", on_click=ai_question_add)
+
+
+def ai_conversation(name, settings, digests, labels):
+    """One provider's conversation in its tab: the messages, its error (with a retry button) and nothing else."""
+    history = st.session_state.get("ai-histories", {}).get(name, [])
+    for m in history:
+        with st.chat_message("user" if m["role"] == "user" else "assistant"):
+            st.markdown(llm.display_question(m["text"]) if m["role"] == "user" else m["text"])
+            if m["role"] == "model":
+                st.caption(t("ai.reply_info", model=m.get("model") or "?", sec=m.get("seconds"), tokens=m.get("tokens") or "—"))
+    error = st.session_state.get("ai-errors", {}).get(name)
+    if error:
+        st.markdown(f'<span class="act-err">{plain(error)}</span>', unsafe_allow_html=True)
+        if st.session_state.get("ai-last-question"):
+            st.button(t("ai.retry"), key=f"ai-retry-{name}", on_click=ai_send, args=(digests, labels, [name]))
+    elif not history:
+        st.caption(t("ai.empty_conversation"))
+
+
+def analysis_page():
+    """Ask several LLMs (Gemini, Claude) the same question about training data and value models (their digests, no paths) and keep asking:
+    every provider has its own conversation, shown side by side in tabs; each history is kept here and sent whole every time."""
+    settings = llm.load_settings()
+    ai_process_pending(settings)
+    histories = st.session_state.get("ai-histories", {})
+    started = any(histories.values())
+    with card("ai-settings", t("ai.settings_card"), t("ai.settings_sub")):
+        ai_settings_card(settings)
+    with card("ai-primer", t("ai.primer_card"), t("ai.primer_sub")):
+        ai_primer_card(settings)
+    with card("ai-sources", t("ai.sources_card"), t("ai.sources_sub")):
+        digests, labels = ai_sources(started)
+        if started:
+            st.caption(t("ai.locked", items=t("common.list").join(st.session_state.get("ai-items", [])) or "—"))
+        elif digests:
+            n, limit = len(digests), modelmeta.DIGEST_LIMIT
+            st.markdown(f'<span class="{"act-err" if n > limit else "act-note"}">'
+                        f'{t("digest.over", n=f"{n:,}", limit=f"{limit:,}") if n > limit else t("digest.count", n=f"{n:,}", limit=f"{limit:,}")}</span>',
+                        unsafe_allow_html=True)
+    with card("ai-chat", t("ai.chat_card")):
+        targets = ai_targets(settings)
+        shown = [n for n in llm.PROVIDERS if n in targets or histories.get(n)]
+        if shown:
+            for tab, name in zip(st.tabs([llm.PROVIDERS[n]["label"] for n in shown]), shown):
+                with tab:
+                    ai_conversation(name, settings, digests, labels)
+        st.text_area(t("ai.question"), key="ai-question", height=110)
+        question = (st.session_state.get("ai-question") or "").strip()
+        problems, skipped = [], []
+        if not targets:
+            problems.append(t("ai.p.no_target"))
+        if not question:
+            problems.append(t("ai.p.question"))
+        if targets and not any(histories.get(n) for n in targets) and not digests:
+            problems.append(t("ai.p.sources"))
+        first_len = len(settings["primer"]) + len(digests)
+        for n in targets:  # a provider whose conversation would pass its limit is skipped (its tab says why); all of them over = nothing to send
+            ps = llm.provider_settings(settings, n)
+            if llm.history_chars(histories.get(n, [])) + len(question) + (0 if histories.get(n) else first_len) > ps["conversationLimit"]:
+                skipped.append(ps["label"])
+        if targets and len(skipped) == len(targets):
+            problems.append(t("ai.p.limit_all", names=t("common.list").join(skipped)))
+        with st.container(key="actionbar-ai-send"):
+            c1, c2, c3, c4 = st.columns([1.6, 1.3, 1.6, 4], vertical_alignment="center")
+            c1.button(t("ai.send", n=len(targets) - len(skipped)), key="ai-send", type="primary", disabled=bool(problems), on_click=ai_send,
+                      args=(digests, labels), width="stretch")
+            c2.button(t("ai.new"), key="ai-new", disabled=not started, on_click=ai_new_conversation, width="stretch")
+            conversations = [{"label": llm.PROVIDERS[n]["label"], "history": histories[n]} for n in llm.PROVIDERS if histories.get(n)]
+            c3.download_button(t("ai.export"), llm.export_markdown(st.session_state.get("ai-items", []), conversations),
+                               file_name=f"ai-analysis-{datetime.date.today():%Y%m%d}.md", mime="text/markdown", disabled=not started, width="stretch")
+            if problems:
+                c4.markdown(f'<span class="act-err">{t("act.cannot", reasons=t("common.sep").join(plain(x) for x in problems))}</span>', unsafe_allow_html=True)
+            else:
+                names_text = t("common.list").join(llm.PROVIDERS[n]["label"] for n in targets if llm.PROVIDERS[n]["label"] not in skipped)
+                note = t("ai.targets", names=names_text) + (t("ai.skipped", names=t("common.list").join(skipped)) if skipped else "")
+                c4.markdown(f'<span class="act-note">{note}</span>', unsafe_allow_html=True)
+
+
+def models_page():
+    """The list (quick filters, tick rows) with the actions on the ticked rows, then the details of the ticked model (one: its
+    details, two to four: side by side). Rename, make official / move to local, delete and copy-for-AI live here only."""
+    paths = model_files()
+    if not paths:
+        st.info(t("md.none"))
+        return
+    with card("models-list", t("mlist.card"), t("mlist.card_sub")):
+        chosen = models_list()
     with card("models", t("md.card")):
-        _models_body()
+        if not chosen:
+            st.caption(t("md.select_hint"))
+        elif len(chosen) == 1:
+            model_detail(chosen[0])
+        elif len(chosen) <= 4:
+            compare(chosen)
+        else:
+            st.caption(t("md.pick_max"))
     with card("models-metrics", t("md.metrics_card")):
         st.markdown(version_table([t("md.m.col.metric"), t("md.m.col.meaning"), t("md.m.col.range"), t("md.m.col.read")], [
             [("R²", "l nw"), (t("md.m.r2.meaning"), "l"), (t("md.m.r2.range"), "l nw"), (t("md.m.r2.read"), "l")],
@@ -1836,24 +2246,36 @@ def models_tab():
         st.caption(t("md.m.note"))
 
 
+def digest_box(text, key, n_chosen, container):
+    """The copy-details button (label with the number of ticked rows) in `container`, a cell of the action bar. Nothing ticked, or the text
+    over modelmeta.DIGEST_LIMIT characters: the button is off. Returns the hint for the bar (how long the text is), '' when nothing is ticked."""
+    n, limit = len(text), modelmeta.DIGEST_LIMIT
+    over = n > limit
+    label = t("digest.copy", n=n_chosen)
+    with container:
+        if not n_chosen or over:
+            with st.container(key=f"digest-off-{key}"):  # CSS: the same blue, dimmed
+                st.button(label, key=f"digest-off-{key}-btn", disabled=True, width="stretch")
+        else:
+            copy_button(text, label)
+    if not n_chosen:
+        return ""
+    return (f'<span class="act-err">{t("digest.over", n=f"{n:,}", limit=f"{limit:,}")}</span>' if over
+            else f'<span class="act-note">{t("digest.count", n=f"{n:,}", limit=f"{limit:,}")}</span>')
+
+
 def models_list():
     """Every model, with quick filters (place: git / local, kind, player count, rules version; each in its own box); empty
     filter = all. Selected rows can be deleted (red button)."""
     paths = model_files()
     if not paths:
-        return
+        return []
     table = models_table(paths)
     col = lambda key: t(f"mlist.col.{key}")  # noqa: E731
     rules_opts = sorted({r for r in table[col("rules")] if r}) if col("rules") in table else []
-    widths = [1.1, 1.5, 1.5, 0.6 + 0.9 * len(rules_opts), 2]
-    cols = st.columns(widths)
-    boxes = []
-    for c, name in zip(cols, ("place", "kind", "players", "rules")):
-        boxes.append(c.container(key=f"filterbar-mf-{name}"))  # one box per category (CSS .st-key-filterbar*)
-    places = boxes[0].pills(t("mlist.place"), ["git", "local"], selection_mode="multi", key="mf-place")
-    kinds = boxes[1].pills(t("mlist.kind"), ["LightGBM", "MLP"], selection_mode="multi", key="mf-kind")
-    players = boxes[2].pills(t("mlist.players"), ["3", "4"], selection_mode="multi", key="mf-players", format_func=lambda n: t("match.players_n", n=n))
-    rules = boxes[3].pills(t("mlist.rules"), rules_opts, selection_mode="multi", key="mf-rules")
+    places, kinds, players, rules = filter_bar("mf", [(t("mlist.place"), ["git", "local"], "mf-place", None), (t("mlist.kind"), ["LightGBM", "MLP"], "mf-kind", None),
+                                                      (t("mlist.players"), ["3", "4"], "mf-players", lambda n: t("match.players_n", n=n)),
+                                                      (t("mlist.rules"), rules_opts, "mf-rules", None)])
     keep = (table[col("place")].isin(places or ["git", "local"]) & table[col("kind")].isin(kinds or ["LightGBM", "MLP"])
             & table[col("players")].isin(players or ["3", "4"]))
     if rules:  # models without metadata have no rules version: they only show while no rules filter is selected
@@ -1862,7 +2284,7 @@ def models_list():
     shown_paths = [p for p, k in zip(paths, keep) if k]
     if shown.empty:
         st.caption(t("mlist.none"))
-        return
+        return []
     centred = {c: st.column_config.TextColumn(c, alignment="center") for c in (col("players"), col("feature"), col("rules"), col("r2"), col("ce"), col("matches"), col("best"))
                if c in shown}
     # a selection is by row number: the filters and the deletion counter are part of the key
@@ -1870,14 +2292,27 @@ def models_list():
                   key=f"models-list-{delete_gen()}-{'.'.join(places or [])}-{'.'.join(kinds or [])}-{'.'.join(players or [])}-{'.'.join(rules or [])}")
     chosen = [shown_paths[i] for i in picked.selection.rows]
     st.caption(t("mlist.footer", shown=len(shown), total=len(table)))
+    items = []
+    for m in chosen:
+        meta = model_meta(m)
+        items.append(modelmeta.model_digest(os.path.basename(m), meta, model_stale(meta)) if meta else f"M {os.path.basename(m)} (no metadata)")
     busy = {f for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY for f in job_reads(j)}
     busy |= busy_files("out")  # a training job that is writing it
     files = [p for m in chosen for p in [m, os.path.join(modelmeta.local_records_dir(), os.path.basename(m) + ".matches.json")]
              if os.path.exists(p)]  # the model and the match records kept beside it (official models' records are local)
-    c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
-    c1.caption(t("mlist.delete_hint") + (" " + t("mlist.delete_official") if any(place_of(m) == "official" for m in chosen) else ""))
-    with c2:
-        delete_button("del-models", t("del.button", n=len(chosen)), files, extra_suffixes=(".meta.json", ".check.txt"), busy=busy)
+    # the action bar: rename | make official / move to local | copy details | hint ........ delete (rename and move: exactly one ticked model)
+    with st.container(key="actionbar-models"):
+        c_rename, c_move, c_copy, c_hint, c_delete = st.columns([1.2, 1.7, 1.9, 4, 1.7], vertical_alignment="center")
+        note = move_buttons(chosen[0] if len(chosen) == 1 else None, c_rename, c_move)
+        hint = digest_box(modelmeta.digest(items) if chosen else "", "models", len(chosen), c_copy)
+        if hint:
+            c_hint.markdown(hint, unsafe_allow_html=True)
+        with c_delete:
+            delete_button("del-models", t("del.button", n=len(chosen)), files, extra_suffixes=(".meta.json", ".check.txt"), busy=busy)
+    if note:
+        st.markdown(note, unsafe_allow_html=True)
+    st.caption(t("mlist.delete_hint") + (" " + t("mlist.delete_official") if any(place_of(m) == "official" for m in chosen) else ""))
+    return chosen
 
 
 # ---------------------------------------------------------------- hash 說明、版本控管
@@ -2649,14 +3084,12 @@ def pl_train_dialog(players):
         st.caption(t("pl.train.no_data_rows"))
     else:
         st.markdown(f"**{t('pl.train.data')}**")
-        with st.container(key="filterbar-pl-train"):   # quick filters, same look as the training page's
-            f1, f2, f3, _ = st.columns([1, 1, 1, 2])
-            kind_opts = [t("pl.train.kind_new_short"), t("pl.train.kind_existing")]
-            feature_opts = sorted({r["feature"] for r in all_rows.values()})
-            rules_opts = sorted({r["rules"] for r in all_rows.values() if r["rules"]})
-            fk = f1.pills(t("pl.train.col.kind"), kind_opts, selection_mode="multi", key="pld-tf-kind")
-            fv = f2.pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key="pld-tf-feature")
-            rv = f3.pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key="pld-tf-rules")
+        kind_opts = [t("pl.train.kind_new_short"), t("pl.train.kind_existing")]
+        feature_opts = sorted({r["feature"] for r in all_rows.values()})
+        rules_opts = sorted({r["rules"] for r in all_rows.values() if r["rules"]})
+        fk, fv, rv = filter_bar("pl-train", [(t("pl.train.col.kind"), kind_opts, "pld-tf-kind", None),
+                                              (t("dump.col.feature"), feature_opts, "pld-tf-feature", lambda n: f"v{n}"),
+                                              (t("dump.col.rules"), rules_opts, "pld-tf-rules", None)])  # same look as the training page's
 
         def shown(tok):
             r = all_rows[tok]
@@ -2673,8 +3106,8 @@ def pl_train_dialog(players):
             # the same columns, in the same order, as the training page's data table (plus what kind of data it is)
             frame = pd.DataFrame({t("pl.train.col.kind"): pick("kind"), col("file"): pick("file"), col("players"): pick("players", str),
                                   col("games"): pick("games"), col("rows"): pick("rows"), col("rate"): pick("rate"), col("feature"): pick("feature", str),
-                                  col("size"): pick("size", str), col("strategies"): pick("strategies"), "hash": pick("hash"),
-                                  col("rules"): pick("rules", lambda v: v or "—"), col("commit"): pick("commit")})
+                                  col("size"): pick("size", str), col("strategies"): pick("strategies"),
+                                  col("rules"): pick("rules", lambda v: v or "—"), col("commit"): pick("commit"), "hash": pick("hash")})
             # a selection is by row number: the filters are part of the key (another filter = another table), and a new table starts with what was chosen
             tkey = f"pld-dtable-{'.'.join(map(str, fk or []))}-{'.'.join(map(str, fv or []))}-{'.'.join(map(str, rv or []))}"
             if tkey not in st.session_state:
@@ -2943,8 +3376,9 @@ PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), t("section.flow")),
          ("train", TAB_TRAIN, "🧠", lambda: training_tab(), None),
          ("match", TAB_MATCH, "⚔️", lambda: match_tab(), None),
          ("pipeline", t("page.pipeline"), "🔗", lambda: pipeline_page(), None),
-         ("modellist", TAB_MODELLIST, "📋", lambda: model_list_page(), t("section.manage")),
-         ("models", TAB_MODELS, "📦", lambda: models_tab(), None),
+         ("datamanage", TAB_DATAMANAGE, "🗃️", lambda: data_manage_page(), t("section.manage")),
+         ("models", TAB_MODELS, "📦", lambda: models_page(), None),
+         ("analysis", t("page.analysis"), "🤖", lambda: analysis_page(), None),
          ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None),
          ("hash", t("page.hash"), "🔑", lambda: hash_page(), t("section.help")),
          ("versions", t("page.versions"), "🏷️", lambda: versions_page(), None)]
@@ -2953,6 +3387,7 @@ PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), t("section.flow")),
 def current_page():
     ids = [p[0] for p in PAGES]
     page = st.session_state.get("page") or st.query_params.get("page")
+    page = {"modellist": "models"}.get(page, page)  # the model list and the model details are one page now
     return page if page in ids else ids[0]
 
 

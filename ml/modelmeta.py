@@ -481,6 +481,152 @@ def rename_model(model_path, new_name, configs=()):
     return target
 
 
+def _dump_file_name(entry_path):
+    return os.path.basename(str(entry_path or "").replace("\\", "/"))
+
+
+def _rename_dump_in_meta(meta, old_file, new_file):
+    """Points the data entries of a model's metadata (data[].path and data[].source) at a renamed dump file.
+    Returns whether anything changed. Display records only: no hash includes the file name."""
+    changed = False
+    for d in meta.get("data", []):
+        if _dump_file_name(d.get("path")) == old_file:
+            d["path"] = _renamed_path(d["path"], old_file, new_file)
+            if d.get("source") == old_file:
+                d["source"] = new_file
+            changed = True
+    return changed
+
+
+def _model_metas(folder):
+    for p in sorted(glob.glob(os.path.join(folder, "*.meta.json"))):
+        try:
+            with open(p, encoding="utf-8") as f:
+                yield p, json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+
+
+def dump_references(dump_path):
+    """Models whose metadata names this dump file, as {"local": [.meta.json paths on this machine, updated by rename_dump],
+    "official": [tracked .meta.json paths, left alone]}."""
+    old_file = os.path.basename(dump_path)
+    out = {"local": [], "official": []}
+    for key, folder in (("local", local_models_dir()), ("official", OFFICIAL_MODELS)):
+        for p, meta in _model_metas(folder):
+            if _rename_dump_in_meta(meta, old_file, old_file + "\0"):
+                out[key].append(p)
+    return out
+
+
+def rename_dump(dump_path, new_name):
+    """Renames a dump (`<name>.bin` and `<name>.bin.json`; the `.bin` extension stays). Points the metadata on this machine that names
+    it (local models' data entries) at the new name; tracked official .meta.json files stay as git has them. Refuses invalid
+    names and names already taken. Returns the new `.bin` path. The hash does not change (it never includes the file name)."""
+    name = new_name.strip()
+    if name.endswith(".bin"):
+        name = name[:-4]
+    if not name or any(c in name for c in INVALID_NAME_CHARS):
+        raise ValueError("名稱不能空白，也不能有路徑符號或空白")
+    target = os.path.join(os.path.dirname(dump_path), name + ".bin")
+    if os.path.abspath(target) == os.path.abspath(dump_path):
+        raise ValueError("名稱沒有改變")
+    if os.path.exists(target) or os.path.exists(target + ".json"):
+        raise ValueError(f"已經有叫 {name}.bin 的資料，換一個名稱")
+    old_file, new_file = os.path.basename(dump_path), name + ".bin"
+    refs = dump_references(dump_path)
+    os.replace(dump_path, target)
+    if os.path.exists(dump_path + ".json"):
+        os.replace(dump_path + ".json", target + ".json")
+        with open(target + ".json", encoding="utf-8") as f:
+            meta = json.load(f)
+        if meta.get("name") in (old_file, old_file[:-4]):  # a name recorded inside follows the file
+            meta["name"] = new_file if meta["name"] == old_file else name
+            with open(target + ".json", "w", encoding="utf-8") as f:
+                json.dump(meta, f, indent=2, ensure_ascii=False)
+    for p in refs["local"]:
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+        _rename_dump_in_meta(data, old_file, new_file)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    return target
+
+
+# ---- compact text for an AI (the "copy for AI" buttons of the management pages): key=value lines, no paths, no prose
+
+DIGEST_LIMIT = 30000  # characters; the UI shows the count and refuses to copy more
+
+
+def _num(x, digits=4):
+    return "—" if x is None else (f"{x:.{digits}f}" if isinstance(x, float) else str(x))
+
+
+def _seat_digest(seat):
+    p = seat.get("params") or {}
+    extras = [f"{k}={p[k]}" for k in ("simulations", "leafRollout") if p.get(k) is not None]
+    if p.get("valueModel"):
+        extras.append("model=" + os.path.basename(str(p["valueModel"]).replace("\\", "/")))
+    return f"{seat['strategy']}" + (f"({','.join(extras)})" if extras else "")
+
+
+def dump_digest(name, dump_meta, hash_short, rules, used_by=(), size_mb=None, stale=()):
+    """One dump as compact lines for an AI. dump_meta = its .bin.json; used_by = names of the models trained on it."""
+    seats = " ".join(f"{i}={_seat_digest(s)}" for i, s in enumerate(dump_meta.get("seats", [])))
+    lines = [f"D {name} players={dump_meta.get('players')} games={dump_meta.get('games')} rows={dump_meta.get('rows')} rate={dump_meta.get('rate')} "
+             f"seed={dump_meta.get('seed')} order={dump_meta.get('seatOrder')} feat={dump_meta.get('featureVersion')} rules={rules} hash={hash_short or '—'} "
+             f"status={dump_meta.get('status')} engine={dump_meta.get('engineVersion') or '—'}@{(dump_meta.get('engineCommit') or '—')[:7]}"
+             + (f" sizeMB={size_mb}" if size_mb is not None else ""),
+             f" seats: {seats or '—'}"]
+    if used_by:
+        lines.append(" usedBy: " + ",".join(used_by))
+    if stale:
+        lines.append(" older: " + "; ".join(stale))
+    return "\n".join(lines)
+
+
+def model_digest(name, meta, stale=(), matches=True):
+    """One model (its .meta.json) as compact lines for an AI: data, parameters, validation, matches (matches=False leaves the match records out).
+    No loss curve, no paths."""
+    t, v = meta.get("training") or {}, meta.get("validation") or {}
+    params = " ".join(f"{k}={','.join(map(str, x)) if isinstance(x, list) else x}" for k, x in (meta.get("params") or {}).items() if k not in NOISY_PARAMS)
+    lines = [f"M {name} kind={meta.get('kind')} players={meta.get('players')} feat={meta.get('featureVersion')}({meta.get('featureCount')}) "
+             f"rules={fingerprint.rules_name(meta.get('rulesRevision', 1))} hash={fingerprint.short(meta.get('fingerprint')) or '—'} "
+             f"trainSec={_num(t.get('seconds'), 0)} " + " ".join(f"{k}={t[k]}" for k in ("iterations", "bestIteration", "epochsRun", "bestEpoch") if k in t),
+             f" params: {params or '—'}"]
+    if v:
+        stages = ",".join(f"{b['rounds']}:{b['mse']:.4f}" for b in v.get("byRound", []))
+        lines.append(f" valid: rows={v.get('rows')} ce={_num(v.get('crossEntropy'))} mse={_num(v.get('mse'))} baseMse={_num(v.get('constantMse'))} "
+                     f"r2={_num(v.get('r2'), 3)} mseByRound={stages or '—'}")
+    for d in meta.get("data", []):
+        models = ",".join(os.path.basename(x) for x in d.get("valueModels", []))
+        strategies = ",".join(dict.fromkeys(x for x in d.get("strategies", []) if x))
+        lines.append(f" data: {_dump_file_name(d.get('path'))} games={d['games']} rows={d['rows']} rate={d['rate']:g} seed={d['seed']} "
+                     f"rules={fingerprint.rules_name(d.get('rulesRevision', 1), d.get('ruleset'))} hash={fingerprint.short(d.get('fingerprint')) or '—'} "
+                     f"seats={strategies}" + (f" selfplayModels={models}" if models else ""))
+    top = ",".join(f["name"] for f in (meta.get("topFeatures") or [])[:10])
+    if top:
+        lines.append(f" topFeatures: {top}")
+    for m in (meta.get("matches", []) if matches else []):
+        games = m.get("games") or 0
+        ws = m.get("winShare")
+        ci = f"±{1.96 * (ws * (1 - ws) / games) ** 0.5:.3f}" if games and ws is not None else ""
+        others = " ".join(f"{o['strategy']}{'(' + os.path.basename(o['valueModel']) + ')' if o.get('valueModel') else ''}"
+                          f"={_num(o.get('winShare'), 3)}" for o in m.get("others", []))
+        lines.append(f" match: {m.get('config') or '—'} games={games} seed={m.get('seed')} order={m.get('seatOrder')} sims={m.get('simulations')} "
+                     f"leaf={m.get('leafRollout') or 0} win={_num(ws, 3)}{ci} avg={_num(m.get('avgScore'), 1)} vs {others or '—'}")
+    if stale:
+        lines.append(" older: " + "; ".join(stale))
+    return "\n".join(lines)
+
+
+def digest(items, legend=True):
+    """Joins dump_digest / model_digest blocks (strings); the legend explains the format once."""
+    head = ("# key=value lines. D=training data (dump), M=model. win/avg are shares/scores of the tested model seat; ±=95% half-width; "
+            "ce=cross-entropy, mse by round range; rules=base-vN; hash=recipe hash (same hash = same recipe)\n") if legend else ""
+    return head + "\n".join(items)
+
+
 def _relpath(path, start):
     try:
         return os.path.relpath(path, start)

@@ -85,13 +85,8 @@
 
     <h2>@L.T("rp.h.log", shown.Count, events.Count)</h2>
     <div class="panel">
-        <div class="row">
-            <label>@L.T("rp.seat")
-                <select @bind="seatFilter">
-                    <option value="-1">@L.T("ov.all")</option>
-                    @foreach (var p in record.Players) { <option value="@p.Seat">@(p.Seat + 1) · @SeatName(p.Seat)</option> }
-                </select>
-            </label>
+        <div class="qf-bar">
+            <QuickFilter T="int" Label="@L.T("rp.seat")" @bind-Value="seatFilter" AllValue="-1" Options="@record.Players.Select(p => (p.Seat, $"{p.Seat + 1} · {SeatName(p.Seat)}")).ToList()" />
             <label>@L.T("rp.round") <input type="number" min="0" max="@record.Rounds" @bind="roundFilter" /> @L.T("rp.round_all")</label>
             <label>@L.T("rp.action_has") <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="@L.T("rp.action_ph")" /></label>
         </div>

@@ -590,6 +590,7 @@
   "ov.intro": "Tick several normal simulation result files (for example the 4-player full table and the four 3-player combinations produced from <code>tournaments/</code>); every strategy is summarised by player count: its win rate is averaged over the tables (every table has the same weight) and the win rate of each table is listed. “Edge” = average win rate − the equal-share baseline (1/players).",
   "ov.players": "Players",
   "ov.all": "All",
+  "qf.all": "All",
   "ov.filter": "File name or strategy contains",
   "ov.filter_ph": "e.g. harbor, 4p",
   "ov.preset": "Preset",

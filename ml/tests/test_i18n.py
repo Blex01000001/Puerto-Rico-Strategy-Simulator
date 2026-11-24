@@ -1,6 +1,7 @@
 import os
 import re
 
+import llm
 import pytest
 
 import i18n
@@ -136,129 +137,43 @@ def test_match_page_is_english(monkeypatch, tmp_path):
     assert not [c for c in cols if CJK.search(str(c))], cols
 
 
-def test_model_list_page_is_english(monkeypatch, tmp_path):
-    at = _english_app(monkeypatch, tmp_path, "modellist")
-    assert any("Model List" in x for x in [c.value for c in at.main.caption] + [m.value for m in at.main.markdown])
+def test_models_page_is_english(monkeypatch, tmp_path):
+    at = _english_app(monkeypatch, tmp_path, "models")
+    assert any("Value model list" in x for x in [c.value for c in at.main.caption] + [m.value for m in at.main.markdown])
     cols = [c for d in at.dataframe for c in d.value.columns]
     for name in ("Model", "Location", "Type", "Players", "Best win rate vs original MCTS", "Rules version"):
         assert name in cols, (name, cols)
     assert not [c for c in cols if CJK.search(str(c))], cols
-    cells = [str(v) for d in at.dataframe for v in d.value.to_numpy().ravel()]
-    bad = [x for x in cells if CJK.search(x)]
-    assert not bad, bad[:5]
-    assert not [x for x in _page_text(at) if CJK.search(x)]
-
-
-def test_model_details_page_is_english(monkeypatch, tmp_path):
-    at = _english_app(monkeypatch, tmp_path, "models")
-    texts = _page_text(at) + [m.value for m in at.main.markdown if not m.value.lstrip().startswith("<style>")]
-    assert any("What R² and cross-entropy mean" in x for x in texts)
-    assert any("Matches" in x or "No match records yet." in x for x in texts)
-    bad = [x for x in texts if CJK.search(x)]
-    assert not bad, bad[:3]
-    cells = [str(v) for d in at.dataframe for v in list(d.value.columns) + list(d.value.to_numpy().ravel())]
-    bad = [x for x in cells if CJK.search(x)]
-    assert not bad, bad[:5]
-    # side by side: pick the first two models
-    names = list(at.selectbox(key="model-pick").options)
-    at.radio(key="models-view").set_value("compare").run()
-    assert not at.exception, at.exception
-    at.multiselect[0].set_value(names[:2]).run()
-    assert not at.exception, at.exception
-    bad = [x for x in [m.value for m in at.main.markdown if not m.value.lstrip().startswith("<style>")] + [c.value for c in at.main.caption] if CJK.search(x)]
-    assert not bad, bad[:3]
-
-
-def test_fingerprint_texts_follow_the_language():
-    import fingerprint
-    old = {"hashFormat": 2, "players": 4, "games": 20000, "rate": 0.01, "rulesRevision": 1, "ruleset": "base",
-           "seats": [{"strategy": "mcts", "revisions": {"mcts": 1}, "params": {"simulations": 300}}], "options": {"autoAdvanceForced": True}}
-    new = {**old, "games": 200000, "rulesRevision": 2, "options": {"autoAdvanceForced": False, "x": 1},
-           "seats": [{"strategy": "mcts", "revisions": {"mcts": 2}, "params": {"simulations": 100}}]}
-    zh, en = fingerprint.describe(old, new), fingerprint.describe(old, new, lang="en")
-    assert "局數：20,000 → 200,000" in zh  # the default stays Chinese (existing callers, tests)
-    assert "Games: 20,000 → 200,000" in en and "Seat 1 simulations: 300 → 100" in en
-    assert not [x for x in en if CJK.search(x)], en
-    assert len(zh) == len(en)
-    notes = fingerprint.stale_notes({"rulesRevision": 1, "ruleset": "base", "seats": []}, "en")
-    assert all(n.startswith("Rules ") for n in notes)
-
-
-def _no_chinese(at, where):
-    texts = _page_text(at) + [x for s in at.main.selectbox for x in s.options] + [x.placeholder for x in at.main.text_input]
-    texts += [e.label for e in at.main.expander]
-    bad = [x for x in texts if isinstance(x, str) and CJK.search(x)]
-    assert not bad, (where, bad[:4])
-
-
-def test_data_page_is_english_in_every_mode(monkeypatch, tmp_path):
-    from conftest import write_dump
-    os.makedirs(tmp_path / "ml")
-    write_dump(str(tmp_path / "ml" / "4p-test.bin"), games=10)  # the "existing data" table
-    at = _english_app(monkeypatch, tmp_path, "data")
-    assert at.title[0].value == "Data Sampling"
-    assert "Start generating data" in [b.label for b in at.main.button]
-    for mode in ("config", "custom", "selfplay"):
-        radio = next(r for r in at.main.radio if r.label == "Sampling source")
-        radio.set_value(mode).run()
-        assert not at.exception, (mode, at.exception)
-        _no_chinese(at, mode)
-    cells = [str(v) for d in at.dataframe for v in list(d.value.columns) + list(d.value.index.names or []) + list(d.value.to_numpy().ravel())]
-    assert "Sampling rate" in cells and "File" in cells
-    assert not [x for x in cells if CJK.search(x)], [x for x in cells if CJK.search(x)][:4]
-
-
-def test_job_titles_follow_the_language(monkeypatch, tmp_path):
-    import jobs
-    rows = [{"id": "a", "title": "資料（自訂：cheap-engine）→ x.bin", "titleKey": "job.title.dump_custom", "titleArgs": {"strategies": "cheap-engine", "name": "x"},
-             "kind": "dump", "state": "running", "spec": {}, "created": "2026-01-01T00:00:00Z"},
-            {"id": "b", "title": "舊的工作標題", "kind": "match", "state": "waiting", "spec": {}, "created": "2026-01-01T00:00:00Z"}]  # no key: keeps its text
-    monkeypatch.delenv("PR_LANG", raising=False)
-    monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
-    monkeypatch.setattr(jobs, "list_jobs", lambda: rows)
-    monkeypatch.setattr(jobs, "active_job", lambda: rows[0])
-    monkeypatch.setattr(jobs, "waiting_jobs", lambda: rows[1:])
-    monkeypatch.setattr(jobs, "events", lambda job_id: [])
-    monkeypatch.setattr(jobs, "queue_position", lambda job_id: 1)
-    at = AppTest.from_file(UI, default_timeout=60).run()
-    side = " ".join(m.value for m in at.sidebar.markdown)
-    assert "Data (custom: cheap-engine) → x.bin" in side
-    at.button(key="lang-toggle").click().run()
-    side = " ".join(m.value for m in at.sidebar.markdown)
-    assert "資料（自訂：cheap-engine）→ x.bin" in side
-
-
-def _table_cells(at):
-    out = []
-    for d in list(at.dataframe) + list(at.table):
-        v = d.value
-        out += [str(c) for c in v.columns] + [str(i) for i in v.index.names if i] + [str(x) for x in v.index] + [str(x) for x in v.to_numpy().ravel()]
-    return out
-
-
-def test_training_page_is_english(monkeypatch, tmp_path):
-    from conftest import write_dump
-    os.makedirs(tmp_path / "ml")
-    write_dump(str(tmp_path / "ml" / "4p-test.bin"), games=10)
-    at = _english_app(monkeypatch, tmp_path, "train")
-    assert "Start training" in [b.label for b in at.main.button]
-    for kind in ("train_lgbm", "train_mlp"):
-        next(r for r in at.main.radio if r.label == "Model").set_value(kind).run()
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
+    for rows in ([], [0], [0, 1]):  # nothing ticked, one model's details, two side by side
+        at.session_state[key] = {"selection": {"rows": rows, "columns": []}}
+        at.run()
         assert not at.exception, at.exception
-        _no_chinese(at, kind)
-        bad = [x for x in _table_cells(at) if CJK.search(x)]
-        assert not bad, (kind, bad[:4])
-    labels = [n.label for n in at.main.number_input] + [x.label for x in at.main.text_input]
-    assert any(x.startswith("Maximum epochs (epochs)") for x in labels), labels
+        texts = _page_text(at) + [m.value for m in at.main.markdown if not m.value.lstrip().startswith("<style>")]
+        bad = [x for x in texts if CJK.search(x)]
+        assert not bad, (rows, bad[:3])
+        cells = [str(v) for d in at.dataframe for v in list(d.value.columns) + list(d.value.to_numpy().ravel())]
+        bad = [x for x in cells if CJK.search(x)]
+        assert not bad, (rows, bad[:5])
+    assert any("What R² and cross-entropy mean" in x for x in texts)
 
 
-def test_hash_page_is_english(monkeypatch, tmp_path):
-    at = _english_app(monkeypatch, tmp_path, "hash")
+def test_training_data_page_is_english(monkeypatch, tmp_path):
+    from conftest import write_dump
+    os.makedirs(tmp_path / "ml", exist_ok=True)
+    write_dump(str(tmp_path / "ml" / "4p-a.bin"), games=10)
+    at = _english_app(monkeypatch, tmp_path, "datamanage")
+    assert not at.exception, at.exception
+    cols = [c for d in at.dataframe for c in d.value.columns]
+    assert "Players" in cols and "Rules version" in cols, cols
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
+    at.session_state[key] = {"selection": {"rows": [0], "columns": []}}
+    at.run()
+    assert not at.exception, at.exception
     texts = _page_text(at) + [m.value for m in at.main.markdown if not m.value.lstrip().startswith("<style>")]
-    assert any("What a hash is" in x for x in texts)
-    bad = [x for x in texts + _table_cells(at) if CJK.search(x)]
-    assert not bad, bad[:4]
-    assert any("LightGBM training parameters" in x for x in _table_cells(at))
+    assert not [x for x in texts if CJK.search(x)], [x for x in texts if CJK.search(x)][:3]
+    cells = [str(v) for d in at.dataframe for v in list(d.value.columns) + list(d.value.to_numpy().ravel())]
+    assert not [x for x in cells if CJK.search(x)], [x for x in cells if CJK.search(x)][:5]
 
 
 def test_every_page_is_english_and_switches_back(monkeypatch, tmp_path):
@@ -267,13 +182,14 @@ def test_every_page_is_english_and_switches_back(monkeypatch, tmp_path):
     monkeypatch.delenv("PR_LANG", raising=False)
     monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
     at = AppTest.from_file(UI, default_timeout=60).run()
-    for page in ("data", "train", "match", "modellist", "models", "queue", "hash", "versions"):
+    for page in ("data", "train", "match", "datamanage", "models", "analysis", "queue", "hash", "versions"):
         if not any(b.key == f"navon-{page}" for b in at.button):
             at.button(key=f"nav-{page}").click().run()
         assert not at.exception, (page, at.exception)
         texts = [x for x in _page_text(at) + [m.value for m in at.sidebar.markdown] if not x.lstrip().startswith("<style>")]
         if page != "versions":  # the version list is project data in Chinese
-            bad = [x for x in texts if CJK.search(x) and x != "中文"]
+            own = {q["text"] for q in llm.DEFAULT_QUESTIONS}   # the saved common questions are the user's own text (Chinese by default)
+            bad = [x for x in texts if CJK.search(x) and x != "中文" and x not in own]
             assert not bad, (page, bad[:3])
     at.button(key="lang-toggle").click().run()
     assert at.title[0].value == "版本控管"

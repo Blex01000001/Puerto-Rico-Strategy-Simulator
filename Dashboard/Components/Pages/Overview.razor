@@ -8,14 +8,8 @@
 <p class="note">@((MarkupString)L.T("ov.intro"))</p>
 
 <div class="panel">
-    <div class="row">
-        <label>@L.T("ov.players")
-            <select @bind="playersFilter">
-                <option value="0">@L.T("ov.all")</option>
-                <option value="3">@L.T("sim.p3")</option>
-                <option value="4">@L.T("sim.p4")</option>
-            </select>
-        </label>
+    <div class="qf-bar">
+        <QuickFilter T="int" Label="@L.T("ov.players")" @bind-Value="playersFilter" AllValue="0" Options="@(new[] { (3, L.T("sim.p3")), (4, L.T("sim.p4")) })" />
         <label>@L.T("ov.filter") <input type="text" @bind="textFilter" @bind:event="oninput" placeholder="@L.T("ov.filter_ph")" /></label>
         <button class="secondary" @onclick="Refresh">@L.T("sim.refresh")</button>
     </div>

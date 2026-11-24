@@ -1,0 +1,38 @@
+@typeparam T
+
+@* A quick filter: a label and a segmented control (All | value | value ...), the same look as the ML UI's quick filters.
+   One click selects (or clears, with the "All" button); use it as <QuickFilter T="int" @bind-Value="x" AllValue="0" Options="..." />.
+   Put several in a <div class="qf-bar"> (one flat bar, dividers between them). Few options only (it does not scroll): long lists stay a <select>. *@
+<span class="qf">
+    <span class="qf-label">@Label</span>
+    <span class="qf-seg" role="radiogroup" aria-label="@Label">
+        <button type="button" role="radio" aria-checked="@(IsAll ? "true" : "false")" class="qf-btn@(IsAll ? " on" : "")" @onclick="() => Select(AllValue)">@(AllText ?? L.T("qf.all"))</button>
+        @foreach (var o in Options)
+        {
+            var v = o.Value;
+            var on = Same(Value, v);
+            <button type="button" role="radio" aria-checked="@(on ? "true" : "false")" class="qf-btn@(on ? " on" : "")" @onclick="() => Select(v)">@o.Text</button>
+        }
+    </span>
+</span>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public T? Value { get; set; }
+    [Parameter] public EventCallback<T?> ValueChanged { get; set; }
+    /// <summary>The value that means "no filter" (0, -1, "" ...).</summary>
+    [Parameter] public T? AllValue { get; set; }
+    /// <summary>Text of the first button; default "All" / "全部".</summary>
+    [Parameter] public string? AllText { get; set; }
+    [Parameter] public IEnumerable<(T? Value, string Text)> Options { get; set; } = Array.Empty<(T?, string)>();
+
+    private bool IsAll => Same(Value, AllValue);
+    private static bool Same(T? a, T? b) => EqualityComparer<T?>.Default.Equals(a, b);
+
+    private async Task Select(T? v)
+    {
+        if (Same(Value, v)) return;
+        Value = v;
+        await ValueChanged.InvokeAsync(v);
+    }
+}
