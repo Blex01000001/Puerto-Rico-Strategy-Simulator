@@ -254,3 +254,59 @@ def test_rename_refuses_bad_names_taken_names_and_official_models(tmp_path, monk
         modelmeta.rename_model(str(local / "a.txt"), "c")  # taken by an official model
     with pytest.raises(ValueError):
         modelmeta.rename_model(str(official / "c.txt"), "d")  # official models stay as git has them
+
+
+def test_rename_dump_renames_both_files_and_points_local_models_at_it(tmp_path, monkeypatch):
+    import json
+    from conftest import write_dump
+    official, ws = tmp_path / "official", tmp_path / "ws"
+    local = ws / "models"
+    for d in (official, local):
+        d.mkdir(parents=True)
+    monkeypatch.setattr(modelmeta, "OFFICIAL_MODELS", str(official))
+    monkeypatch.setattr(modelmeta, "local_models_dir", lambda: str(local))
+    out = tmp_path / "ml"
+    out.mkdir()
+    old = write_dump(str(out / "old.bin"), games=5)
+    entry = {"path": "results/ml/old.bin", "source": "old.bin", "games": 5, "rows": 100}
+    (local / "m.txt.meta.json").write_text(json.dumps({"model": "m.txt", "data": [entry, {"path": "results/ml/other.bin", "source": "other.bin"}]}))
+    tracked = json.dumps({"model": "o.txt", "data": [entry]})
+    (official / "o.txt.meta.json").write_text(tracked)
+    refs = modelmeta.dump_references(old)
+    assert refs == {"local": [str(local / "m.txt.meta.json")], "official": [str(official / "o.txt.meta.json")]}
+    for bad in ("", "a b", "a/b"):
+        with pytest.raises(ValueError):
+            modelmeta.rename_dump(old, bad)
+    with pytest.raises(ValueError):
+        modelmeta.rename_dump(old, "old")                 # nothing changed
+    write_dump(str(out / "taken.bin"), games=5)
+    with pytest.raises(ValueError):
+        modelmeta.rename_dump(old, "taken")
+    new = modelmeta.rename_dump(old, "fresh")
+    assert new == str(out / "fresh.bin") and os.path.exists(new) and os.path.exists(new + ".json")
+    assert not os.path.exists(old) and not os.path.exists(old + ".json")
+    assert json.loads(open(new + ".json", encoding="utf-8").read())["name"] == "fresh.bin"  # the name inside follows the file
+    data = json.loads((local / "m.txt.meta.json").read_text())["data"]
+    assert data[0]["path"] == "results/ml/fresh.bin" and data[0]["source"] == "fresh.bin" and data[1]["path"] == "results/ml/other.bin"
+    assert (official / "o.txt.meta.json").read_text() == tracked  # tracked official metadata is never edited
+
+
+def test_digests_are_compact_key_value_lines_without_paths():
+    meta = {"kind": "lightgbm", "players": 4, "featureVersion": 1, "featureCount": 430, "rulesRevision": 1, "fingerprint": "abcdef0123456789",
+            "params": {"num_leaves": 63, "verbose": -1}, "training": {"seconds": 12.0, "iterations": 5, "validLossCurve": [1.0, 0.9]},
+            "validation": {"rows": 10, "crossEntropy": 0.5, "mse": 0.08, "constantMse": 0.15, "r2": 0.47, "byRound": [{"rounds": "1-4", "mse": 0.12}]},
+            "data": [{"path": "C:\\Users\\someone\\results\\ml\\a.bin", "games": 5, "rows": 100, "rate": 0.01, "seed": 1, "strategies": ["mcts", "random"],
+                      "valueModels": ["ml/models/x.txt"], "rulesRevision": 1, "ruleset": "base"}],
+            "topFeatures": [{"name": "p0_rank", "gain": 1.0}],
+            "matches": [{"config": "c", "games": 100, "seed": 9, "seatOrder": "balanced", "simulations": 300, "leafRollout": 0, "winShare": 0.6, "avgScore": 47.0,
+                         "others": [{"strategy": "mcts", "valueModel": "ml/models/x.txt", "winShare": 0.4}]}]}
+    text = modelmeta.model_digest("m.txt", meta)
+    assert text.splitlines()[0].startswith("M m.txt kind=lightgbm players=4")
+    assert "num_leaves=63" in text and "verbose" not in text and "validLossCurve" not in text and "0.9" not in text   # no curve, no noise
+    assert "data: a.bin" in text and "selfplayModels=x.txt" in text and "C:\\" not in text and "someone" not in text  # file names only
+    assert "match: c games=100" in text and "vs mcts(x.txt)=0.400" in text
+    dump = modelmeta.dump_digest("a.bin", {"players": 4, "games": 5, "rows": 100, "rate": 0.01, "seed": 1, "seatOrder": "Random", "featureVersion": 1,
+                                           "status": "completed", "seats": [{"strategy": "mcts", "params": {"valueModel": "ml/models/x.txt"}}]},
+                                 "abcd", "base-v1", used_by=["m.txt"], size_mb=1.5)
+    assert dump.splitlines()[0].startswith("D a.bin players=4 games=5") and "usedBy: m.txt" in dump and "0=mcts(model=x.txt)" in dump
+    assert modelmeta.digest([text]).splitlines()[0].startswith("# key=value lines")

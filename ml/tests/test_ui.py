@@ -37,7 +37,7 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "管線", "模型清單", "模型詳細資料", "排程佇列", "hash 說明", "版本控管"]
+    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "管線", "訓練資料", "模型", "排程佇列", "hash 說明", "版本控管"]
     assert at.button(key="navon-data")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
@@ -81,7 +81,7 @@ def test_typed_model_name_survives_a_rerun_in_a_later_minute(results, monkeypatc
 def test_each_page_has_its_own_english_title(results, monkeypatch):
     monkeypatch.setenv("PR_LANG", "en")
     at = run_app()
-    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "modellist": "Model List", "models": "Model Details",
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "datamanage": "Training Data", "models": "Models",
               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
     for pid, title in titles.items():
         goto(at, pid)
@@ -102,11 +102,29 @@ def test_match_page_offers_a_model_versus_model_table(results):
     assert any(f"MCTS＋{rival.value}" in c.value for c in at.caption)  # the table is spelled out under the form
 
 
-def test_model_list_has_place_kind_player_count_and_rules_filters(results):
-    at = goto(run_app(), "modellist")  # the list lives on its own page
+def test_model_and_data_pages_have_one_filter_box_per_category(results):
+    from conftest import write_dump
+    write_dump(str(results / "ml" / "4p-a.bin"), games=10)
+    at = goto(run_app(), "models")  # the list and the details are one page
     assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules"]
-    goto(at, "models")
+    goto(at, "datamanage")
+    assert [g.key for g in at.get("button_group")] == ["dm-players", "dm-feature", "dm-rules"]
+    goto(at, "data")
     assert not at.get("button_group")
+
+
+def test_models_page_shows_details_of_the_ticked_model(results):
+    at = goto(run_app(), "models")
+    assert any(c.value.startswith("在清單勾選模型") for c in at.caption)      # nothing ticked yet: a hint instead of details
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
+    at.session_state[key] = {"selection": {"rows": [0], "columns": []}}      # ticking a row (the user's click)
+    at.run()
+    assert not at.exception, at.exception
+    assert not any(c.value.startswith("在清單勾選模型") for c in at.caption)  # the details replaced the hint
+    assert any(b.key == "del-models-open" and "（1）" in b.label for b in at.button)
+    at.session_state[key] = {"selection": {"rows": [0, 1], "columns": []}}   # two ticked: side by side
+    at.run()
+    assert not at.exception, at.exception
 
 
 def test_match_tab_refuses_game_counts_that_break_seat_balance(results):
@@ -231,18 +249,19 @@ def test_deleting_closes_the_dialog_and_clears_the_selection(results):
     from conftest import write_dump
     write_dump(str(results / "ml" / "4p-a.bin"), games=10)
     write_dump(str(results / "ml" / "4p-b.bin"), games=10)
-    at = goto(run_app(), "data")  # data are deleted on the sampling page; the training page only selects
+    at = goto(run_app(), "datamanage")  # data are deleted and renamed on the management page only
     table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
-    assert table.key == "dumps-manage-0"
+    assert table.key.startswith("dumps-manage-0")
     assert any(b.label.startswith("🗑 刪除勾選") for b in at.button)
     # deleting is done in a dialog (AppTest cannot click inside it): emulate the confirmed deletion's bookkeeping
     at.session_state["del-gen"] = 1
     os.remove(results / "ml" / "4p-a.bin")
     at.run()
     table = next(d for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
-    assert table.key == "dumps-manage-1"  # a new key: the old row selection is gone
-    goto(at, "train")
-    assert not any(b.label.startswith("🗑 刪除勾選") for b in at.button)  # selecting only
+    assert table.key.startswith("dumps-manage-1")  # a new key: the old row selection is gone
+    for page in ("data", "train"):
+        goto(at, page)
+        assert not any(b.key == "del-dumps-open" for b in at.button)  # selecting only
 
 
 def test_queue_rows_are_framed_cards(results, monkeypatch):

@@ -522,8 +522,8 @@ def training_tab():
 # ---------------------------------------------------------------- jobs (shared by every tab)
 
 TITLE = "Puerto Rico Machine Learning"
-TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE, TAB_MODELLIST = (
-    t(f"page.{p}") for p in ("data", "train", "match", "models", "queue", "modellist"))
+TAB_DATA, TAB_TRAIN, TAB_MATCH, TAB_MODELS, TAB_QUEUE, TAB_DATAMANAGE = (
+    t(f"page.{p}") for p in ("data", "train", "match", "models", "queue", "datamanage"))
 
 # Same palette as the Dashboard (Dashboard/wwwroot/app.css); the base theme is in .streamlit/config.toml.
 CSS = """
@@ -1343,21 +1343,7 @@ def data_tab():
                       {"config": spec_config, "out": rel(out), "rate": float(rate), "games": int(games), "seed": int(seed),
                        "threads": int(threads), "featureVersion": int(feature)}, title_key, name=name, **title_args)
 
-    with card("data-list", t("dt.card3")):
-        dumps = [d for d in list_dumps() if "error" not in d and not d.get("writing")]
-        if dumps:
-            df = table_view(dumps).set_index(pd.Index([os.path.basename(d["path"]) for d in dumps], name=t("dump.col.file")))
-            picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", key=f"dumps-manage-{delete_gen()}",
-                          column_config=dump_column_config())
-            chosen = [dumps[i] for i in picked.selection.rows]
-            folder_line(os.path.dirname(dumps[0]["path"]) + "/", "data-list")
-            c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
-            c1.caption(t("dt.delete_hint", page=TAB_TRAIN))
-            with c2:
-                delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen],
-                              extra_suffixes=(".json",), busy=busy_files("data"))
-        else:
-            st.caption(t("dt.none"))
+    st.caption(t("dt.manage_hint", page=TAB_DATAMANAGE))
 
 
 # ---------------------------------------------------------------- 對戰驗證
@@ -1578,6 +1564,7 @@ def move_buttons(path):
                     try:
                         modelmeta.move_model(path, MODELS_DIR)
                         st.session_state["job-started"] = t("md.promoted", name=name)
+                        st.session_state["del-gen"] = delete_gen() + 1
                         st.cache_data.clear()
                         st.rerun()
                     except ValueError as e:
@@ -1590,6 +1577,7 @@ def move_buttons(path):
                 try:
                     modelmeta.move_model(path, LOCAL_MODELS)
                     st.session_state["job-started"] = t("md.demoted", name=name)
+                    st.session_state["del-gen"] = delete_gen() + 1
                     st.cache_data.clear()
                     st.rerun()
                 except ValueError as e:
@@ -1654,7 +1642,7 @@ def rename_dialog(path):
         try:
             target = modelmeta.rename_model(path, new, configs=picked)
             st.session_state["job-started"] = t("md.rn.done", name=name, new=os.path.basename(target))
-            st.session_state["model-pick"] = os.path.basename(target)
+            st.session_state["del-gen"] = delete_gen() + 1  # the table rows are renumbered: drop the selection
             st.cache_data.clear()
             st.rerun()
         except ValueError as e:
@@ -1686,7 +1674,6 @@ def model_data_table(meta):
 def model_detail(path):
     meta = model_meta(path)
     name = os.path.basename(path)
-    move_buttons(path)
     if not meta:
         st.warning(t("md.no_meta", name=name))
         return
@@ -1793,44 +1780,145 @@ def compare(paths):
     st.caption(t("md.cmp.note"))
 
 
-def _models_body():
-    paths = model_files()
-    if not paths:
-        st.info(t("md.none"))
-        return
-    by_name = {os.path.basename(p): p for p in paths}
-    mode = st.radio(t("md.view"), ["single", "compare"], horizontal=True, format_func=lambda m: t(f"md.view.{m}"), key="models-view")
-    if mode == "single":
-        # open on the strongest model (best win share against the original MCTS)
-        scores = [(best_vs_default(model_meta(p))["winShare"] if model_meta(p) and best_vs_default(model_meta(p)) else -1) for p in paths]
-        if st.session_state.get("model-pick") not in by_name:
-            st.session_state.pop("model-pick", None)  # opens on the strongest model; a rename selects the renamed one
-        # passing index while the key already holds a value makes Streamlit warn: only on the first draw
-        start = {} if "model-pick" in st.session_state else {"index": scores.index(max(scores))}
-        with st.container(key="modelpick"):  # a bigger label and dropdown (CSS .st-key-modelpick)
-            name = st.selectbox(t("md.pick"), list(by_name), key="model-pick", **start)
-        model_detail(by_name[name])
-    else:
-        names = st.multiselect(t("md.pick_many"), list(by_name), max_selections=4)
-        if len(names) >= 2:
-            compare([by_name[n] for n in names])
-        else:
-            st.caption(t("md.pick_hint"))
-
-
 def match_tab():
     with card("match", t("match.card")):
         _match_body()
 
 
-def model_list_page():
-    with card("models-list", t("mlist.card"), t("mlist.card_sub", page=TAB_MODELS)):
-        models_list()
+@st.dialog(t("dm.rn.title"))
+def rename_dump_dialog(d):
+    path = absolute(d["path"])
+    name = os.path.basename(path)
+    new = st.text_input(t("dm.rn.new"), value=name[:-4], key=f"dm-rename-new-{name}").strip()
+    if new.endswith(".bin"):
+        new = new[:-4]
+    problems = []
+    if not new or any(c in new for c in modelmeta.INVALID_NAME_CHARS):
+        problems.append(t("md.rn.p.name"))
+    elif new + ".bin" == name:
+        problems.append(t("md.rn.p.same"))
+    elif os.path.exists(os.path.join(os.path.dirname(path), new + ".bin")):
+        problems.append(t("dm.rn.p.taken", name=new + ".bin"))
+    busy = pending_readers(d["path"]) + ([job_title(j) for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY
+                                          and str(j.get("spec", {}).get("out", "")).replace("\\", "/") == d["path"]])
+    if busy:
+        problems.append(t("dm.rn.p.busy", title=busy[0]))
+    st.caption(t("dm.rn.caption", name=name))
+    refs = modelmeta.dump_references(path)
+    if refs["local"]:
+        st.info(t("dm.rn.refs", list="\n".join(f"- `{os.path.basename(p).removesuffix('.meta.json')}`" for p in refs["local"])))
+    if refs["official"]:
+        st.warning(t("dm.rn.official", list=t("common.list").join(f"`{os.path.basename(p).removesuffix('.meta.json')}`" for p in refs["official"])))
+    if problems:
+        st.markdown(f'<span class="act-err">{t("md.rn.cannot", reasons=t("common.sep").join(plain(x) for x in problems))}</span>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    if c1.button(t("queue.cancel"), key=f"dm-rename-cancel-{name}", width="stretch"):
+        st.rerun()
+    if c2.button(t("md.rn.ok"), type="primary", key=f"dm-rename-ok-{name}", width="stretch", disabled=bool(problems)):
+        try:
+            target = modelmeta.rename_dump(path, new)
+            st.session_state["job-started"] = t("md.rn.done", name=name, new=os.path.basename(target))
+            st.session_state["del-gen"] = delete_gen() + 1  # the table rows are renumbered: drop the selection
+            st.cache_data.clear()
+            st.rerun()
+        except ValueError as e:
+            st.error(str(e))
 
 
-def models_tab():
+def dump_detail(d):
+    """What one training data file is: sizes, versions, the seats that played it, the models trained on it."""
+    meta = d["_meta"]
+    st.markdown(version_tiles([(t("dump.col.players"), str(d["人數"])), (t("dump.col.games"), f"{d['局數']:,}"), (t("dump.col.rows"), f"{d['列數']:,}"),
+                               (t("dump.col.rate"), f"{d['抽樣率']:g}"), (t("dump.col.feature"), str(d["特徵版本"])),
+                               (t("dump.col.size"), f"{d['大小 MB']:g}")], centre=True), unsafe_allow_html=True)
+    st.caption(t("dm.d.foot", rules=d["規則版本"], hash=d["hash"], commit=(d.get("引擎 commit") or "—")[:7], engine=meta.get("engineVersion") or "—",
+                 seed=meta.get("seed"), order=meta.get("seatOrder"), status=d["狀態"]))
+    seats = pd.DataFrame([{t("dm.d.col.seat"): s_.get("id", i), t("dm.d.col.strategy"): s_.get("strategy"),
+                           t("dm.d.col.params"): ", ".join(f"{k}={v}" for k, v in (s_.get("params") or {}).items()) or "—"}
+                          for i, s_ in enumerate(meta.get("seats", []))])
+    st.markdown(t("dm.d.seats"))
+    grid(seats, hide_index=True, width="stretch")
+    users = models_using(d["path"])
+    st.markdown(t("dm.d.used_by"))
+    st.caption(t("common.list").join(f"`{u}`" for u in users) if users else t("dm.d.not_used"))
+    if d.get("_stale"):
+        st.warning(t("dm.d.stale", notes=t("common.sep").join(d["_stale"])))
+    folder_line(os.path.dirname(d["path"]) + "/", f"dm-folder-{d['path']}")
+
+
+def data_manage_page():
+    """Training data: the list (quick filters, tick rows), rename / delete / copy-for-AI on the ticked rows, and the details of one.
+    Deleting and renaming training data happens here only."""
+    dumps = list_dumps()
+    good = [d for d in dumps if "error" not in d and not d.get("writing")]
+    with card("dm-list", t("dm.card"), t("dm.card_sub", train=TAB_TRAIN)):
+        for d in (x for x in dumps if x.get("writing")):
+            st.info(t("tr.writing_wait", path=d["path"], mb=d["大小 MB"]))
+        if not good:
+            st.caption(t("dm.none", page=TAB_DATA))
+            chosen = []
+        else:
+            chosen = dump_list(good)
+    with card("dm-detail", t("dm.detail")):
+        if len(chosen) == 1:
+            dump_detail(chosen[0])
+        else:
+            st.caption(t("dm.select_hint"))
+
+
+def dump_list(good):
+    players_opts = sorted({str(d["人數"]) for d in good})
+    feature_opts = sorted({d["特徵版本"] for d in good})
+    rules_opts = sorted({d["規則版本"] for d in good if "規則版本" in d})
+    cols = st.columns([1.1 + 0.2 * len(players_opts), 0.9 + 0.5 * len(feature_opts), 0.6 + 0.9 * len(rules_opts), 2])
+    boxes = [c.container(key=f"filterbar-dm-{n}") for c, n in zip(cols, ("players", "feature", "rules"))]  # one box per category
+    pl = boxes[0].pills(t("dump.col.players"), players_opts, selection_mode="multi", key="dm-players", format_func=lambda n: t("match.players_n", n=n))
+    fv = boxes[1].pills(t("dump.col.feature"), feature_opts, selection_mode="multi", key="dm-feature")
+    rv = boxes[2].pills(t("dump.col.rules"), rules_opts, selection_mode="multi", key="dm-rules")
+    rows = [d for d in good if str(d["人數"]) in (pl or players_opts) and d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)]
+    if not rows:
+        st.caption(t("mlist.none"))
+        return []
+    df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
+    # a selection is by row number: the filters and the deletion counter are part of the key
+    picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", column_config=dump_column_config(),
+                  key=f"dumps-manage-{delete_gen()}-{'.'.join(pl or [])}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}")
+    chosen = [rows[i] for i in picked.selection.rows]
+    st.caption(t("dm.footer", shown=len(rows), total=len(good)))
+    if chosen:
+        items = [modelmeta.dump_digest(os.path.basename(d["path"]), d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"],
+                                       d["_stale"]) for d in chosen]
+        digest_box(modelmeta.digest(items), "dumps")
+    a1, a2 = st.columns([1.3, 5], vertical_alignment="center")
+    with a1:
+        if st.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
+            rename_dump_dialog(chosen[0])
+    a2.caption(t("dm.actions_hint"))
+    c1, c2 = st.columns([4, 2.2], vertical_alignment="center")
+    c1.caption(t("dt.delete_hint", page=TAB_TRAIN))
+    with c2:
+        delete_button("del-dumps", t("del.button", n=len(chosen)), [absolute(d["path"]) for d in chosen], extra_suffixes=(".json",), busy=busy_files("data"))
+    return chosen
+
+
+def models_page():
+    """The list (quick filters, tick rows) with the actions on the ticked rows, then the details of the ticked model (one: its
+    details, two to four: side by side). Rename, make official / move to local, delete and copy-for-AI live here only."""
+    paths = model_files()
+    if not paths:
+        st.info(t("md.none"))
+        return
+    with card("models-list", t("mlist.card"), t("mlist.card_sub")):
+        chosen = models_list()
     with card("models", t("md.card")):
-        _models_body()
+        if not chosen:
+            st.caption(t("md.select_hint"))
+        elif len(chosen) == 1:
+            model_detail(chosen[0])
+        elif len(chosen) <= 4:
+            compare(chosen)
+        else:
+            st.caption(t("md.pick_max"))
     with card("models-metrics", t("md.metrics_card")):
         st.markdown(version_table([t("md.m.col.metric"), t("md.m.col.meaning"), t("md.m.col.range"), t("md.m.col.read")], [
             [("R²", "l nw"), (t("md.m.r2.meaning"), "l"), (t("md.m.r2.range"), "l nw"), (t("md.m.r2.read"), "l")],
@@ -1839,12 +1927,27 @@ def models_tab():
         st.caption(t("md.m.note"))
 
 
+def digest_box(text, key):
+    """'Copy for AI' for a compact digest: how long it is (characters) and the copy button; over modelmeta.DIGEST_LIMIT the button is off."""
+    n, limit = len(text), modelmeta.DIGEST_LIMIT
+    over = n > limit
+    c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
+    c1.markdown(f'<span class="{"act-err" if over else "act-note"}">'
+                f'{t("digest.over", n=f"{n:,}", limit=f"{limit:,}") if over else t("digest.count", n=f"{n:,}", limit=f"{limit:,}")}</span>',
+                unsafe_allow_html=True)
+    with c2:
+        if over:
+            st.button(t("digest.copy"), key=f"digest-off-{key}", disabled=True, width="stretch")
+        else:
+            copy_button(text, t("digest.copy"))
+
+
 def models_list():
     """Every model, with quick filters (place: git / local, kind, player count, rules version; each in its own box); empty
     filter = all. Selected rows can be deleted (red button)."""
     paths = model_files()
     if not paths:
-        return
+        return []
     table = models_table(paths)
     col = lambda key: t(f"mlist.col.{key}")  # noqa: E731
     rules_opts = sorted({r for r in table[col("rules")] if r}) if col("rules") in table else []
@@ -1865,7 +1968,7 @@ def models_list():
     shown_paths = [p for p, k in zip(paths, keep) if k]
     if shown.empty:
         st.caption(t("mlist.none"))
-        return
+        return []
     centred = {c: st.column_config.TextColumn(c, alignment="center") for c in (col("players"), col("feature"), col("rules"), col("r2"), col("ce"), col("matches"), col("best"))
                if c in shown}
     # a selection is by row number: the filters and the deletion counter are part of the key
@@ -1873,6 +1976,14 @@ def models_list():
                   key=f"models-list-{delete_gen()}-{'.'.join(places or [])}-{'.'.join(kinds or [])}-{'.'.join(players or [])}-{'.'.join(rules or [])}")
     chosen = [shown_paths[i] for i in picked.selection.rows]
     st.caption(t("mlist.footer", shown=len(shown), total=len(table)))
+    if len(chosen) == 1:  # rename, make official / move to local: one model at a time
+        move_buttons(chosen[0])
+    if chosen:
+        items = []
+        for m in chosen:
+            meta = model_meta(m)
+            items.append(modelmeta.model_digest(os.path.basename(m), meta, model_stale(meta)) if meta else f"M {os.path.basename(m)} (no metadata)")
+        digest_box(modelmeta.digest(items), "models")
     busy = {f for j in jobs.list_jobs() if j["state"] in ("waiting",) + jobs.BUSY for f in job_reads(j)}
     busy |= busy_files("out")  # a training job that is writing it
     files = [p for m in chosen for p in [m, os.path.join(modelmeta.local_records_dir(), os.path.basename(m) + ".matches.json")]
@@ -1881,6 +1992,7 @@ def models_list():
     c1.caption(t("mlist.delete_hint") + (" " + t("mlist.delete_official") if any(place_of(m) == "official" for m in chosen) else ""))
     with c2:
         delete_button("del-models", t("del.button", n=len(chosen)), files, extra_suffixes=(".meta.json", ".check.txt"), busy=busy)
+    return chosen
 
 
 # ---------------------------------------------------------------- hash 說明、版本控管
@@ -2946,8 +3058,8 @@ PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), t("section.flow")),
          ("train", TAB_TRAIN, "🧠", lambda: training_tab(), None),
          ("match", TAB_MATCH, "⚔️", lambda: match_tab(), None),
          ("pipeline", t("page.pipeline"), "🔗", lambda: pipeline_page(), None),
-         ("modellist", TAB_MODELLIST, "📋", lambda: model_list_page(), t("section.manage")),
-         ("models", TAB_MODELS, "📦", lambda: models_tab(), None),
+         ("datamanage", TAB_DATAMANAGE, "🗃️", lambda: data_manage_page(), t("section.manage")),
+         ("models", TAB_MODELS, "📦", lambda: models_page(), None),
          ("queue", TAB_QUEUE, "🗂️", lambda: queue_page(), None),
          ("hash", t("page.hash"), "🔑", lambda: hash_page(), t("section.help")),
          ("versions", t("page.versions"), "🏷️", lambda: versions_page(), None)]
@@ -2956,6 +3068,7 @@ PAGES = [("data", TAB_DATA, "🎲", lambda: data_tab(), t("section.flow")),
 def current_page():
     ids = [p[0] for p in PAGES]
     page = st.session_state.get("page") or st.query_params.get("page")
+    page = {"modellist": "models"}.get(page, page)  # the model list and the model details are one page now
     return page if page in ids else ids[0]
 
 
