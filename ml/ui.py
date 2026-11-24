@@ -1945,26 +1945,18 @@ def ai_status_error(message):
 
 def ai_save_settings():
     settings = llm.load_settings()
-    key = (st.session_state.get("ai-key-in") or "").strip()
-    if key:
-        settings["apiKey"] = key
     settings["model"] = (st.session_state.get("ai-model-in") or settings["model"]).strip() or llm.DEFAULT_MODEL
     try:
         settings["conversationLimit"] = max(2000, int(st.session_state.get("ai-limit-in") or settings["conversationLimit"]))
     except (TypeError, ValueError):
         pass
     llm.save_settings(settings)
-    st.session_state["ai-key-in"] = ""
     st.session_state["job-started"] = t("ai.saved")
 
 
 def ai_load_models():
-    settings = llm.load_settings()
-    key = (st.session_state.get("ai-key-in") or "").strip()
-    if key:
-        settings["apiKey"] = key
     try:
-        st.session_state["ai-models"] = llm.list_models(settings)
+        st.session_state["ai-models"] = llm.list_models(llm.load_settings())
         st.session_state.pop("ai-error", None)
     except llm.LlmError as e:
         ai_status_error(str(e))
@@ -2064,17 +2056,21 @@ def ai_sources(locked):
 
 
 def ai_settings_card(settings):
+    key, source = llm.api_key(settings)
+    if key:
+        st.markdown(f'<span class="act-note">{t("ai.key_ok", source=t("ai.key_src." + source))}</span>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<span class="act-err">{t("ai.key_missing")}</span>', unsafe_allow_html=True)
     c1, c2 = st.columns([3, 2], vertical_alignment="bottom")
-    c1.text_input(t("ai.key"), type="password", key="ai-key-in", placeholder=llm.mask_key(settings["apiKey"]) or t("ai.key_ph"))
-    c2.text_input(t("ai.model"), value=settings["model"], key="ai-model-in")
+    c1.text_input(t("ai.model"), value=settings["model"], key="ai-model-in")
+    c2.number_input(t("ai.limit"), min_value=2000, step=10000, value=int(settings["conversationLimit"]), key="ai-limit-in")
     models = st.session_state.get("ai-models") or []
-    d1, d2, d3, d4 = st.columns([2, 1.6, 2.4, 1.8], vertical_alignment="bottom")
+    d1, d2, d3 = st.columns([1.6, 1.6, 3.4], vertical_alignment="bottom")
     d1.button(t("ai.save"), key="ai-save", on_click=ai_save_settings, width="stretch")
-    d2.button(t("ai.load_models"), key="ai-load-models", on_click=ai_load_models, width="stretch")
+    d2.button(t("ai.load_models"), key="ai-load-models", on_click=ai_load_models, disabled=not key, width="stretch")
     if models:
         d3.selectbox(t("ai.model_pick"), models, index=models.index(settings["model"]) if settings["model"] in models else 0,
                      key="ai-model-pick", on_change=ai_pick_model)
-    d4.number_input(t("ai.limit"), min_value=2000, step=10000, value=int(settings["conversationLimit"]), key="ai-limit-in")
     st.caption(t("ai.privacy"))
 
 
@@ -2129,7 +2125,7 @@ def analysis_page():
         question = (st.session_state.get("ai-question") or "").strip()
         projected = llm.history_chars(history) + len(question) + (0 if history else len(settings["primer"]) + len(digests))
         problems = []
-        if not settings["apiKey"]:
+        if not llm.api_key(settings)[0]:
             problems.append(t("ai.p.key"))
         if not question:
             problems.append(t("ai.p.question"))

@@ -8,6 +8,11 @@ import pytest
 import llm
 
 
+@pytest.fixture(autouse=True)
+def no_key_in_the_environment(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)  # the tests decide where the key comes from
+
+
 class FakeResponse:
     def __init__(self, payload):
         self.payload = payload
@@ -36,7 +41,14 @@ def test_settings_round_trip_keeps_the_key_private(tmp_path):
         assert oct(os.stat(path).st_mode & 0o777) == "0o600"             # only this user can read the key
     open(path, "w").write("{broken")
     assert llm.load_settings(path)["model"] == llm.DEFAULT_MODEL         # a broken file does not crash the page
-    assert llm.mask_key("SECRET-KEY-1234") == "•" * 8 + "1234" and llm.mask_key("") == ""
+
+
+def test_the_key_comes_from_the_environment_first_then_the_file():
+    assert llm.api_key({"apiKey": "from-file"}, env={}) == ("from-file", "file")
+    assert llm.api_key({"apiKey": "from-file"}, env={"GEMINI_API_KEY": " from-env "}) == ("from-env", "env")
+    assert llm.api_key({"apiKey": ""}, env={}) == ("", "")
+    with pytest.raises(llm.LlmError, match="GEMINI_API_KEY"):
+        llm.chat({**llm.default_settings(), "apiKey": ""}, "s", [{"role": "user", "text": "q"}], opener=lambda *a, **k: None)
 
 
 def test_chat_sends_the_whole_history_with_the_key_in_a_header_not_the_url():

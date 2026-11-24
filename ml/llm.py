@@ -61,7 +61,8 @@ def load_settings(path=None):
 
 
 def save_settings(settings, path=None):
-    """Writes the settings (the key included) to ml/local/llm.json, readable by this user only where the system allows it."""
+    """Writes the settings to ml/local/llm.json (an "apiKey" already in the file stays; the page never writes one), readable by this user only
+    where the system allows it."""
     path = path or SETTINGS_FILE
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
@@ -74,8 +75,18 @@ def save_settings(settings, path=None):
     os.replace(tmp, path)
 
 
-def mask_key(key):
-    return "" if not key else ("•" * 8 + key[-4:] if len(key) > 8 else "•" * len(key))
+KEY_ENV = "GEMINI_API_KEY"
+
+
+def api_key(settings, env=None):
+    """(key, source): the environment variable GEMINI_API_KEY first, then "apiKey" in ml/local/llm.json (edited by hand; the page never
+    asks for or shows the key). source is "env", "file" or "" (no key)."""
+    env = os.environ if env is None else env
+    if (env.get(KEY_ENV) or "").strip():
+        return env[KEY_ENV].strip(), "env"
+    if (settings.get("apiKey") or "").strip():
+        return settings["apiKey"].strip(), "file"
+    return "", ""
 
 
 def redact(text, key):
@@ -87,9 +98,9 @@ def redact(text, key):
 
 
 def _request(settings, url, body=None, timeout=120, opener=urllib.request.urlopen):
-    key = settings.get("apiKey") or ""
+    key, _ = api_key(settings)
     if not key:
-        raise LlmError("沒有 API 金鑰：先在設定存入金鑰")
+        raise LlmError("沒有讀到 API 金鑰：設定環境變數 GEMINI_API_KEY，或在 ml/local/llm.json 加上 apiKey")
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, method="POST" if body is not None else "GET",
                                  headers={"Content-Type": "application/json", "x-goog-api-key": key})

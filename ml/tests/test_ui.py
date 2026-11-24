@@ -665,6 +665,7 @@ def test_pipeline_training_data_is_chosen_from_a_filterable_table(results, no_sp
 
 def test_ai_analysis_page_sends_the_first_message_then_follows_up(results, monkeypatch, tmp_path):
     import llm
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
     llm.save_settings({**llm.default_settings(), "apiKey": "TESTKEY-1234"})
     calls = []
@@ -695,6 +696,7 @@ def test_ai_analysis_page_sends_the_first_message_then_follows_up(results, monke
 
 def test_ai_analysis_failure_keeps_the_question_and_shows_the_error(results, monkeypatch, tmp_path):
     import llm
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
     llm.save_settings({**llm.default_settings(), "apiKey": "TESTKEY-1234"})
 
@@ -708,3 +710,18 @@ def test_ai_analysis_failure_keeps_the_question_and_shows_the_error(results, mon
     next(b for b in at.button if b.key == "ai-send").click().run()
     assert not at.exception, at.exception
     assert at.session_state["ai-question"] == "q?" and not at.session_state["ai-history"] and "429" in at.session_state["ai-error"]
+
+
+def test_ai_analysis_page_only_says_whether_the_key_was_found(results, monkeypatch, tmp_path):
+    import llm
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "SETTINGS_FILE", str(tmp_path / "llm.json"))
+    at = goto(run_app(), "analysis")
+    assert not at.exception, at.exception
+    assert not any(i.type == "password" for i in at.text_input) and not any("API 金鑰" == i.label for i in at.text_input)   # no key input at all
+    text = " ".join(m.value for m in at.markdown)
+    assert "沒有讀到 API 金鑰" in text and next(b for b in at.button if b.key == "ai-load-models").disabled
+    monkeypatch.setenv("GEMINI_API_KEY", "ENVKEY-SECRET-9999")
+    at = goto(run_app(), "analysis")
+    text = " ".join(m.value for m in at.markdown)
+    assert "已讀到 API 金鑰" in text and "環境變數" in text and "ENVKEY-SECRET" not in text   # found, and never shown
