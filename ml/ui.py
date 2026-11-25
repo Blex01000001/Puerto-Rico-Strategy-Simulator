@@ -10,6 +10,7 @@ Reads the same folders as the Dashboard: results/ (PR_RESULTS_DIR overrides) and
 import datetime
 import html
 import glob
+import hashlib
 import json
 import os
 import re
@@ -2304,6 +2305,97 @@ def models_scatter(paths):
     st.caption(t("md.sc_note") + (" " + t("common.sep").join(notes) + ("。" if lang() == "zh-TW" else ".") if notes else ""))
 
 
+def forest_chart(df, fair=None):
+    """Win rate of each model with its 95% interval (a dot and a bar), the best on top; `fair` = the even share of a seat (a dashed line).
+    Bars that overlap: the difference may be only noise."""
+    d = df.sort_values("win", ascending=False).copy()
+    d["lo"], d["hi"] = d["win"] - d["ci"], d["win"] + d["ci"]
+    order = list(d["name"])
+    win = t("mc.win")
+    lo = min(float(d["lo"].min()), fair if fair is not None else 1.0) - 0.04
+    hi = float(d["hi"].max()) + 0.1
+    base = alt.Chart(d).encode(y=alt.Y("name:N", sort=order, title=None, axis=alt.Axis(labelLimit=320, labelOverlap=False)))
+    tip = [alt.Tooltip("name:N", title=t("mlist.col.model")), alt.Tooltip("win:Q", title=win, format=".1%"), alt.Tooltip("ci:Q", title="±95%", format=".1%"),
+           alt.Tooltip("games:Q", title=t("mt.games"), format=",")]
+    bars = base.mark_rule(color="#4aa8ff", strokeWidth=2.5).encode(
+        x=alt.X("lo:Q", scale=alt.Scale(domain=[max(lo, 0), min(hi, 1)], nice=False), axis=alt.Axis(format=".0%", title=win)), x2="hi:Q", tooltip=tip)
+    dots = base.mark_point(filled=True, size=110, color="#4aa8ff", opacity=1).encode(x="win:Q", tooltip=tip)
+    text = base.mark_text(align="left", dx=8, color="#eef1f5", fontSize=11).encode(x="hi:Q", text=alt.Text("win:Q", format=".1%"), tooltip=alt.value(None))
+    layers = [bars, dots, text]
+    if fair is not None:
+        ref = pd.DataFrame({"x": [fair], "tip": [t("mc.fair", p=f"{fair:.0%}")]})
+        layers += [alt.Chart(ref).mark_rule(color="#8892a2", strokeDash=[4, 3]).encode(x="x:Q", tooltip=alt.value(None)),
+                   alt.Chart(ref).mark_text(align="left", baseline="top", dx=4, dy=2, color="#8892a2", fontSize=10).encode(x="x:Q", y=alt.value(0), text="tip:N",
+                                                                                                                     tooltip=alt.value(None))]
+    return alt.layer(*layers).properties(height=max(120, 34 * len(d) + 50), padding={"left": 8, "right": 28, "top": 10, "bottom": 6})
+
+
+def compare_scatter(df, xcol, xtitle, height=340):
+    """Win rate (with its 95% interval) against one numeric column of the models, every dot named."""
+    d = df.dropna(subset=[xcol]).copy()
+    d["lo"], d["hi"] = (d["win"] - d["ci"]).clip(lower=0), (d["win"] + d["ci"]).clip(upper=1)
+    win = t("mc.win")
+    base = alt.Chart(d)
+    tip = [alt.Tooltip("name:N", title=t("mlist.col.model")), alt.Tooltip(f"{xcol}:Q", title=xtitle), alt.Tooltip("win:Q", title=win, format=".1%"),
+           alt.Tooltip("ci:Q", title="±95%", format=".1%")]
+    x = alt.X(f"{xcol}:Q", scale=alt.Scale(zero=False, nice=True), axis=alt.Axis(title=xtitle))
+    y = alt.Y("lo:Q", scale=alt.Scale(zero=False, nice=True), axis=alt.Axis(format=".0%", title=win))
+    bars = base.mark_rule(color="#4aa8ff", strokeWidth=2, opacity=.7).encode(x=x, y=y, y2="hi:Q", tooltip=tip)
+    dots = base.mark_point(filled=True, size=100, color="#4aa8ff", opacity=1).encode(x=x, y="win:Q", tooltip=tip)
+    names = base.mark_text(align="left", dx=8, dy=-8, color="#b4bcc9", fontSize=10).encode(x=x, y="win:Q", text="name:N", tooltip=alt.value(None))
+    return alt.layer(bars, dots, names).properties(height=height, padding={"left": 8, "right": 60, "top": 12, "bottom": 6})
+
+
+def models_compare(paths):
+    """Many models side by side under one match condition: win rates with their intervals, win rate against a parameter (trees, leaves,
+    learning rate, rows ...) and against what the model costs (time, size)."""
+    metas = {os.path.basename(p): model_meta(p) for p in paths}
+    metas = {n: m for n, m in metas.items() if m}
+    if len(metas) < 2:
+        st.caption(t("mc.none"))
+        return
+    players, kinds = filter_bar("mc", [(t("mlist.players"), sorted({str(m["players"]) for m in metas.values()}), "mc-players", lambda n: t("match.players_n", n=n)),
+                                       (t("mlist.kind"), sorted({KIND_TEXT.get(m["kind"], m["kind"]) for m in metas.values()}), "mc-kind", None)])
+    pool = {n: m for n, m in metas.items() if (not players or str(m["players"]) in players) and (not kinds or KIND_TEXT.get(m["kind"], m["kind"]) in kinds)}
+    conditions = modelmeta.comparison_conditions(pool)
+    if not conditions:
+        st.caption(t("mc.no_condition"))
+        return
+    labels = {c: f"{describe_match(sample)}（{t('mc.n_models', n=n)}）" if lang() == "zh-TW" else f"{describe_match(sample)} ({t('mc.n_models', n=n)})"
+              for c, sample, n in conditions}
+    sig = ".".join(players) + "-" + ".".join(kinds)
+    chosen = st.selectbox(t("mc.condition"), list(labels), format_func=labels.get, key=f"mc-cond-{sig}")
+    rows = pd.DataFrame(modelmeta.comparison_rows(pool, chosen))
+    picked = st.multiselect(t("mc.models"), list(rows["name"]), default=list(rows["name"]),
+                            key=f"mc-models-{sig}-{hashlib.md5(chosen.encode()).hexdigest()[:8]}")
+    rows = rows[rows["name"].isin(picked)]
+    if len(rows) < 2:
+        st.caption(t("mc.few"))
+        return
+    sides = {int(x) for x in rows["players"]}
+    fair = 1 / sides.pop() if len(sides) == 1 else None
+    tab_forest, tab_param, tab_cost = st.tabs([t("mc.tab.forest"), t("mc.tab.param"), t("mc.tab.cost")])
+    with tab_forest:
+        st.altair_chart(forest_chart(rows, fair), width="stretch")
+        st.caption(t("mc.forest_note"))
+
+    def scatter_tab(options, key, note):
+        usable = {label: col for label, col in options.items() if rows[col].dropna().nunique() >= 2}
+        if not usable:
+            st.caption(t("mc.no_x"))
+            return
+        label = st.selectbox(t("mc.pick_x"), list(usable), key=key)
+        st.altair_chart(compare_scatter(rows, usable[label], label), width="stretch")
+        missing = [n for n, v in zip(rows["name"], rows[usable[label]]) if v != v or v is None]  # no value recorded: not drawn
+        st.caption(note + (" " + t("mc.missing", names=t("common.list").join(missing)) if missing else ""))
+
+    with tab_param:
+        scatter_tab({t("mc.x.trees"): "trees", t("mc.x.grown"): "grown", t("mc.x.leaves"): "leaves", t("mc.x.lr"): "learningRate",
+                     t("mc.x.minleaf"): "minLeaf", t("mc.x.rounds"): "rounds", t("mc.x.rows"): "rows"}, f"mc-x-param-{sig}", t("mc.param_note"))
+    with tab_cost:
+        scatter_tab({t("mc.x.match_sec"): "matchSecPerGame", t("mc.x.train_sec"): "trainSeconds", t("mc.x.size"): "size"}, f"mc-x-cost-{sig}", t("mc.cost_note"))
+
+
 def models_page():
     """The list (quick filters, tick rows) with the actions on the ticked rows, then the details of the ticked model (one: its
     details, two to four: side by side). Rename, make official / move to local, delete and copy-for-AI live here only."""
@@ -2324,6 +2416,8 @@ def models_page():
             st.caption(t("md.pick_max"))
     with card("models-scatter", t("md.sc_card"), t("md.sc_sub")):
         models_scatter(paths)
+    with card("models-compare", t("mc.card"), t("mc.sub")):
+        models_compare(paths)
     with card("models-metrics", t("md.metrics_card")):
         st.markdown(version_table([t("md.m.col.metric"), t("md.m.col.meaning"), t("md.m.col.range"), t("md.m.col.read")], [
             [("R²", "l nw"), (t("md.m.r2.meaning"), "l"), (t("md.m.r2.range"), "l nw"), (t("md.m.r2.read"), "l")],
