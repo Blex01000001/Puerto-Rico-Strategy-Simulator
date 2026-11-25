@@ -78,5 +78,6 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 編碼：Windows（繁中）預設輸出編碼是 cp950，`job_runner` 一律把 stdout／stderr 改成 UTF-8（`utf8_output`，`errors=replace`），`jobs._spawn` 也設 `PYTHONIOENCODING=utf-8`；Runner 在輸出被導向時改用 UTF-8（`Console.IsOutputRedirected`），讀 Runner 輸出時 UTF-8 解不開就用系統編碼（`decode`）。曾因「±」讓對戰工作在寫紀錄時當掉。
 - Windows 上檔案被別的程序開著時 `os.replace` 會 PermissionError（UI 每 2 秒讀 `job.json`、防毒、索引都會）：`jobs._write_json` 會重試，`read_job` 也把它當暫時錯誤；心跳執行緒（`job_runner.heartbeat`）寫失敗只印訊息、不能讓執行緒結束。曾因此在約 10 分鐘後把還在跑的 dump 顯示成「中斷」。新的背景寫檔都走 `_write_json`。
 - Windows 常有兩個 Python（Anaconda 與 python.org）：`pip` 裝到 A、`py`／`python` 跑的是 B，ML UI 就會 `No module named 'lightgbm'`。所以指示一律寫 `python -m pip`，啟動檔挑「第一個套件齊全的 Python」（`PR_PYTHON` 可指定），失敗時印出該 Python 的完整路徑與修正指令。
+- Windows 的 cmd 會把 Streamlit 輸出的顏色碼顯示成 `[0m`：click 8.2 起沒有 colorama 就不轉換，所以 `requirements.txt` 在 Windows 加 `colorama`（已經裝好環境的人要另外 `python -m pip install colorama`）。
 - 這個雲端環境擋住 PyTorch 的 CPU 版下載站；PyPI 的 `torch` 一定要帶 CUDA 函式庫（不帶就 import 失敗），完整安裝約 8 GB。使用者電腦裝 CPU 版即可。
 - `train_mlp.py` 兩個後端（`fit_torch`／`fit_numpy`）要維持同樣的訓練規則（He 初始化、Adam＋L2、每 4 epoch 學習率減半、提早停止取最好的一輪）；匯出一律走同一段 JSON，`tests/test_train.py` 兩個後端都測（沒有 torch 就略過）並用 NumPy 從 JSON 重算 check 列。
