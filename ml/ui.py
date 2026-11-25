@@ -347,12 +347,12 @@ def param_inputs(defaults, key, container_key="params"):
     return values
 
 
-def grid(data, **kwargs):
+def grid(data, full=False, **kwargs):
     """st.dataframe with room for a horizontal scrollbar: Streamlit sizes a table to its rows exactly, so on Windows (a
     17 px scrollbar that takes space) the scrollbar of a wide table covered the last row. At most 10 rows are shown
-    before the table scrolls vertically."""
+    before the table scrolls vertically; full=True shows every row (no vertical scrolling)."""
     rows = len(getattr(data, "data", data))  # a pandas Styler keeps the frame in .data
-    kwargs.setdefault("height", 35 * (min(rows, 10) + 1) + 2 + 18)
+    kwargs.setdefault("height", 35 * ((rows if full else min(rows, 10)) + 1) + 2 + 18)
     return st.dataframe(data, **kwargs)
 
 
@@ -1737,6 +1737,7 @@ def model_detail(path):
     v = meta.get("validation") or {}
     best = best_vs_default(meta)
     st.markdown(version_tiles([(t("mlist.col.kind"), KIND_TEXT.get(meta["kind"], meta["kind"])),
+                               steps_tile(meta),
                                (t("mlist.col.rows"), f"{sum(d['rows'] for d in meta['data']):,}"),
                                ("R²", f"{v['r2']:.3f}" if v.get("r2") is not None else "—", METRIC_HELP["R²"]),
                                (t("mlist.col.ce"), f"{v['crossEntropy']:.4f}" if v.get("crossEntropy") is not None else "—", METRIC_HELP["交叉熵"]),
@@ -1748,14 +1749,14 @@ def model_detail(path):
     if mf.empty:
         st.caption(t("md.no_matches"))
     else:
-        grid(mf, hide_index=True, width="stretch",
+        grid(mf, full=True, hide_index=True, width="stretch",
                      column_config=MATCH_COLUMNS)
         st.caption(t("md.dash_note", url=DASHBOARD_URL))
         match_summary_box(meta, path, f"detail-{name}")
 
     st.markdown(t("md.data_title"))
     df = model_data_table(meta)
-    grid(df, hide_index=True, width="stretch", column_config=dump_column_config())
+    grid(df, full=True, hide_index=True, width="stretch", column_config=dump_column_config())
     if meta.get("data"):
         folder_line(os.path.dirname(meta["data"][0]["path"].replace("\\", "/")) + "/", f"model-data-{name}")
 
@@ -1763,12 +1764,12 @@ def model_detail(path):
     with left:
         st.markdown(t("md.params_title"))
         grid(pd.DataFrame(list(flat_params(meta).items()), columns=[t("md.pcol.param"), t("md.pcol.value")]).astype(str),
-                     hide_index=True, width="stretch")
+             full=True, hide_index=True, width="stretch")
     with right:
         st.markdown(t("md.valid_title"))
         if v.get("byRound"):
             grid(pd.DataFrame(v["byRound"]).rename(columns={"rounds": t("md.vcol.rounds"), "rows": t("md.vcol.rows"), "mse": "MSE"}),
-                         hide_index=True, width="stretch")
+                 full=True, hide_index=True, width="stretch")
         else:
             st.caption(t("md.no_record"))
         st.caption(t("md.valid_note"))
@@ -2404,19 +2405,47 @@ def _esc(text):
 
 def loss_chart(values, steps=None, height=240):
     """The validation-loss curve as a fixed chart: no zoom or pan, both axes fixed to the data plus a margin on every side (so the line
-    never touches the frame), whole steps on the x axis."""
+    never touches the frame), whole steps on the x axis. A crosshair follows the mouse: lines through the nearest point and its step / loss."""
     steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
     step, loss = t("md.step"), t("md.valid_loss")
-    df = pd.DataFrame({step: steps, loss: list(values)})
-    lo, hi = float(df[loss].min()), float(df[loss].max())
+    df = pd.DataFrame({"s": steps, "l": list(values)})
+    lo, hi = float(df["l"].min()), float(df["l"].max())
     ypad = (hi - lo) * 0.12 or max(abs(hi) * 0.02, 0.001)
     first, last = float(min(steps)), float(max(steps))
     xpad = max(0.5, (last - first) * 0.04)
-    chart = alt.Chart(df).mark_line(color="#4aa8ff", strokeWidth=2, point=alt.OverlayMarkDef(color="#4aa8ff", size=18)).encode(
-        x=alt.X(f"{step}:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title=step)),
-        y=alt.Y(f"{loss}:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title=loss, format=".3f")),
-        tooltip=[alt.Tooltip(f"{step}:Q", format="d"), alt.Tooltip(f"{loss}:Q", format=".4f")])
+    blue, grey = "#4aa8ff", "#8892a2"
+    x = alt.X("s:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title=step))
+    y = alt.Y("l:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title=loss, format=".3f"))
+    nearest = alt.selection_point(nearest=True, on="mouseover", clear="mouseout", encodings=["x"], empty=False)
+    base = alt.Chart(df).encode(x=x, y=y)
+    no_tip = alt.value(None)   # Streamlit adds a tooltip with the raw field names to every mark: the labels below say it already
+    line = base.mark_line(color=blue, strokeWidth=2, point=alt.OverlayMarkDef(color=blue, size=18)).encode(tooltip=no_tip)
+    hit = alt.Chart(df).mark_point(opacity=0).encode(x=x, tooltip=no_tip).add_params(nearest)   # invisible: picks the point nearest to the mouse
+    vrule = alt.Chart(df).mark_rule(color=grey, strokeDash=[4, 3]).encode(x=x, tooltip=no_tip).transform_filter(nearest)
+    hrule = alt.Chart(df).mark_rule(color=grey, strokeDash=[4, 3]).encode(y=y, tooltip=no_tip).transform_filter(nearest)
+    dot = base.mark_point(color="#fff", fill="#fff", filled=True, size=60).encode(tooltip=no_tip).transform_filter(nearest)
+    text = f"{json.dumps(step, ensure_ascii=False)} + ' ' + datum.s + ' ・ ' + format(datum.l, '.4f')"
+    mid = (first + last) / 2
+    labels = [base.mark_text(align=align, dx=dx, dy=-12, color="#eef1f5", fontSize=12, fontWeight="bold").encode(text="tip:N", tooltip=no_tip)
+              .transform_calculate(tip=text).transform_filter(nearest).transform_filter(cond)
+              for align, dx, cond in (("left", 8, f"datum.s <= {mid}"), ("right", -8, f"datum.s > {mid}"))]
+    chart = alt.layer(line, hit, vrule, hrule, dot, *labels)
     return chart.properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10})
+
+
+def steps_tile(meta):
+    """Tile with the trees (LightGBM) or epochs (MLP) of a model as actual/trained: what the saved model uses / how far the training ran
+    (early stopping runs `early_stopping` rounds past the best one before it stops; the settings are in the help text)."""
+    tr, params = meta.get("training") or {}, meta.get("params") or {}
+    curve = tr.get("validLossCurve") or []
+    if meta.get("kind") == "mlp":
+        actual, trained = tr.get("bestEpoch"), tr.get("epochsRun")
+        label, tip = t("md.epochs"), t("md.help.epochs", n=params.get("epochs", "—"))
+    else:
+        actual = tr.get("iterations")
+        trained = len(curve) or actual
+        label, tip = t("md.trees"), t("md.help.trees", n=params.get("num_boost_round", "—"), stop=params.get("early_stopping_rounds", "—"))
+    return (label, f"{actual}/{trained}" if actual is not None and trained is not None else "—", tip)
 
 
 def version_tiles(items, centre=False):
