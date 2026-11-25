@@ -585,6 +585,21 @@ def dump_digest(name, dump_meta, hash_short, rules, used_by=(), size_mb=None, st
     return "\n".join(lines)
 
 
+def _loss_digest(meta):
+    """' treesGrown=N trainCe=X gapCe=Y' for the first line of a model digest: the trees the training really grew (LightGBM; the saved model keeps
+    `iterations` of them), and the training cross-entropy and the validation-minus-training gap at the saved model's round. Fields the metadata
+    has no record of (older models, MLP) are left out. The curves themselves are never copied."""
+    t = meta.get("training") or {}
+    valid, train = t.get("validLossCurve") or [], t.get("trainLossCurve") or []
+    out = []
+    if meta.get("kind") == "lightgbm" and valid:
+        out.append(f"treesGrown={len(valid)}")
+    if valid and len(train) == len(valid):
+        i = min(max((t.get("bestIteration") or len(valid)) - 1, 0), len(valid) - 1)
+        out.append(f"trainCe={train[i]:.4f} gapCe={valid[i] - train[i]:+.4f}")
+    return (" " + " ".join(out)) if out else ""
+
+
 def model_digest(name, meta, stale=(), matches=True):
     """One model (its .meta.json) as compact lines for an AI: data, parameters, validation, matches (matches=False leaves the match records out).
     No loss curve, no paths."""
@@ -592,7 +607,8 @@ def model_digest(name, meta, stale=(), matches=True):
     params = " ".join(f"{k}={','.join(map(str, x)) if isinstance(x, list) else x}" for k, x in (meta.get("params") or {}).items() if k not in NOISY_PARAMS)
     lines = [f"M {name} kind={meta.get('kind')} players={meta.get('players')} feat={meta.get('featureVersion')}({meta.get('featureCount')}) "
              f"rules={fingerprint.rules_name(meta.get('rulesRevision', 1))} hash={fingerprint.short(meta.get('fingerprint')) or '—'} "
-             f"trainSec={_num(t.get('seconds'), 0)} " + " ".join(f"{k}={t[k]}" for k in ("iterations", "bestIteration", "epochsRun", "bestEpoch") if k in t),
+             f"trainSec={_num(t.get('seconds'), 0)} " + " ".join(f"{k}={t[k]}" for k in ("iterations", "bestIteration", "epochsRun", "bestEpoch") if k in t)
+             + _loss_digest(meta),
              f" params: {params or '—'}"]
     if v:
         stages = ",".join(f"{b['rounds']}:{b['mse']:.4f}" for b in v.get("byRound", []))

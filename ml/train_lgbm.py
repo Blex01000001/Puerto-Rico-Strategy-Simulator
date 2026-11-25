@@ -59,17 +59,20 @@ def train(data, out, progress=None, log=print, **options):
     del x
     train_set.construct()
     valid_set = lgb.Dataset(xv, yv, reference=train_set, params=params)
-    curve = []
+    curve, train_curve = [], []
 
     def record(env):
-        loss = env.evaluation_result_list[0][2]
+        # the training set is evaluated too (valid_sets below), so pick the entries by dataset name; early stopping ignores the training set
+        by_set = {name: value for name, _, value, _ in env.evaluation_result_list}
+        loss, train_loss = by_set["valid"], by_set["training"]
         curve.append(loss)
-        progress({"stage": "iteration", "iteration": env.iteration + 1, "total": o["rounds"], "validLoss": loss})
+        train_curve.append(train_loss)
+        progress({"stage": "iteration", "iteration": env.iteration + 1, "total": o["rounds"], "validLoss": loss, "trainLoss": train_loss})
         if (env.iteration + 1) % 50 == 0:
-            log(f"[{env.iteration + 1}] valid cross_entropy {loss:.6f}")
+            log(f"[{env.iteration + 1}] cross_entropy valid {loss:.6f} train {train_loss:.6f}")
 
     t0 = time.time()
-    booster = lgb.train(params, train_set, o["rounds"], valid_sets=[valid_set],
+    booster = lgb.train(params, train_set, o["rounds"], valid_sets=[valid_set, train_set], valid_names=["valid", "training"],
                         callbacks=[record, lgb.early_stopping(o["early_stopping"], verbose=False)])
     seconds = time.time() - t0
     log(f"trained {booster.num_trees()} trees in {seconds:.0f} s")
@@ -91,7 +94,7 @@ def train(data, out, progress=None, log=print, **options):
         out, "lightgbm", metas,
         params={**params, "num_boost_round": o["rounds"], "early_stopping_rounds": o["early_stopping"], "valid_share": o["valid"]},
         training={"seconds": round(seconds, 1), "iterations": booster.num_trees(), "bestIteration": booster.best_iteration,
-                  "validLossCurve": [round(v, 6) for v in curve]},
+                  "validLossCurve": [round(v, 6) for v in curve], "trainLossCurve": [round(v, 6) for v in train_curve]},
         validation=validation, top_features=top,
         libraries={"lightgbm": lgb.__version__, "numpy": np.__version__}, options=o)
     progress({"stage": "done", "model": out, "validation": validation})
