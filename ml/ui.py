@@ -724,6 +724,7 @@ section[data-testid="stSidebar"] [data-testid="stMarkdown"], section[data-testid
 [data-testid="stSidebarUserContent"] > div:first-child { flex: 1; display: flex; flex-direction: column; }
 [data-testid="stSidebarUserContent"] > div:first-child > [data-testid="stVerticalBlock"] { flex: 1; }
 [data-testid="stLayoutWrapper"]:has(> .st-key-side-status), .st-key-side-status { margin-top: auto !important; }
+.st-key-scrolltop, .st-key-scrolltop iframe { height: 0 !important; min-height: 0 !important; margin: 0 !important; overflow: hidden; }
 .st-key-side-status { border-top: 1px solid #333a4b; padding-top: .2rem; }
 /* job list: one framed row per job, the left edge coloured by state */
 div[class*="st-key-qrow-"] { background: #111418; border: 1px solid #333a4b; border-radius: 6px; padding: .45rem .8rem; }
@@ -3413,7 +3414,31 @@ def current_page():
     return page if page in ids else ids[0]
 
 
+SCROLL_TOP_PAGE = """<!doctype html><script>
+function up() {
+  const d = window.parent.document;
+  for (const sel of ['[data-testid="stMain"]', 'section.main', '[data-testid="stAppViewContainer"]']) {
+    const e = d.querySelector(sel); if (e) e.scrollTo(0, 0);
+  }
+  window.parent.scrollTo(0, 0);
+}
+up(); setTimeout(up, 150);
+</script>"""
+
+
+def scroll_to_top():
+    """Streamlit keeps the scroll position when another page is drawn: a tiny invisible iframe scrolls the main area to the top."""
+    with st.container(key="scrolltop"):  # zero-size (CSS)
+        if hasattr(st, "iframe"):
+            st.iframe(SCROLL_TOP_PAGE, height=1)
+        else:
+            import streamlit.components.v1 as components
+            components.html(SCROLL_TOP_PAGE, height=0)
+
+
 def go(page):
+    if page != st.session_state.get("page"):
+        st.session_state["scroll-top"] = True  # the next run draws the new page: start it at the top
     st.session_state["page"] = page
     st.query_params["page"] = page  # a reload stays on the same page
 
@@ -3449,7 +3474,10 @@ def main():
     started = st.session_state.pop("job-started", None)
     if started:
         st.toast(started)
+    scroll = st.session_state.pop("scroll-top", False)
     next(p for p in PAGES if p[0] == page)[3]()
+    if scroll:
+        scroll_to_top()  # after the page: an invisible element before the title would push it down
 
 
 main()
