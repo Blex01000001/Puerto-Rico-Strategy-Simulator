@@ -1068,7 +1068,9 @@ def job_detail(job_id):
             st.info(text)
         steps = [e for e in evs if e["stage"] in ("iteration", "epoch")]
         if steps:
-            st.altair_chart(loss_chart([e["validLoss"] for e in steps], [e.get("iteration") or e.get("epoch") for e in steps], height=220), width="stretch")
+            train_loss = [e.get("trainLoss") for e in steps]
+            st.altair_chart(loss_chart([e["validLoss"] for e in steps], [e.get("iteration") or e.get("epoch") for e in steps], height=220,
+                                       train=train_loss if all(v is not None for v in train_loss) else None), width="stretch")
     with right:
         st.markdown(f"**{t('detail.kind')}**: {KIND_TEXT.get(job['kind'], job['kind'])}")
         st.markdown(f"**{t('detail.state')}**: {STATE_TEXT.get(state, state)}")
@@ -1784,10 +1786,14 @@ def model_detail(path):
     with left:
         st.markdown(t("md.curve_title"))
         if curve:
-            st.altair_chart(loss_chart(curve, height=240, best=best_step), width="stretch")
+            train_curve = training.get("trainLossCurve")
+            st.altair_chart(loss_chart(curve, height=240, best=best_step, train=train_curve), width="stretch")
+            gap = gap_text(curve, train_curve)
             tail = tail_gain_text(curve)
-            if tail:
-                st.caption(tail)
+            if gap or tail:
+                st.caption(" ".join(x for x in (gap, tail) if x))
+            if gap:
+                st.caption(t("md.gap_note"))
             gchart, window = gain_chart(curve, best=best_step)
             if gchart is not None:
                 st.markdown(t("md.gain_title", w=window))
@@ -2463,37 +2469,65 @@ def _esc(text):
     return html.escape(str(text))
 
 
-def loss_chart(values, steps=None, height=240, best=None):
+def loss_chart(values, steps=None, height=240, best=None, train=None):
     """The validation-loss curve as a fixed chart: no zoom or pan, both axes fixed to the data plus a margin on every side (so the line
-    never touches the frame), whole steps on the x axis. A crosshair follows the mouse: lines through the nearest point and its step / loss."""
+    never touches the frame), whole steps on the x axis. `train` (same length) adds the training loss as a second line with a legend.
+    A crosshair follows the mouse: lines through the nearest point, its step and its loss(es)."""
     steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
-    step, loss = t("md.step"), t("md.valid_loss")
+    train = list(train) if train is not None and len(train) == len(values) else None
+    step, loss = t("md.step"), (t("md.loss") if train else t("md.valid_loss"))
+    valid_name, train_name = t("md.series.valid"), t("md.series.train")
     df = pd.DataFrame({"s": steps, "l": list(values)})
-    lo, hi = float(df["l"].min()), float(df["l"].max())
+    if train:
+        df["tr"] = train
+    allv = list(values) + (train or [])
+    lo, hi = float(min(allv)), float(max(allv))
     ypad = (hi - lo) * 0.12 or max(abs(hi) * 0.02, 0.001)
     first, last = float(min(steps)), float(max(steps))
     xpad = max(0.5, (last - first) * 0.04)
-    blue, grey = "#4aa8ff", "#8892a2"
+    blue, green, grey = "#4aa8ff", "#3fa83f", "#8892a2"
     x = alt.X("s:Q", scale=alt.Scale(domain=[first - xpad, last + xpad], nice=False), axis=alt.Axis(tickMinStep=1, format="d", title=step))
-    y = alt.Y("l:Q", scale=alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False), axis=alt.Axis(title=loss, format=".3f"))
+    yscale = alt.Scale(domain=[lo - ypad, hi + ypad], nice=False, zero=False)
+    y = alt.Y("l:Q", scale=yscale, axis=alt.Axis(title=loss, format=".3f"))
     nearest = alt.selection_point(nearest=True, on="mouseover", clear="mouseout", encodings=["x"], empty=False)
     base = alt.Chart(df).encode(x=x, y=y)
     no_tip = alt.value(None)   # Streamlit adds a tooltip with the raw field names to every mark: the labels below say it already
-    line = base.mark_line(color=blue, strokeWidth=2, point=alt.OverlayMarkDef(color=blue, size=18)).encode(tooltip=no_tip)
+    if train:  # long form for the lines: the colour field makes the legend
+        long = pd.concat([pd.DataFrame({"s": steps, "v": list(values), "series": valid_name}), pd.DataFrame({"s": steps, "v": train, "series": train_name})])
+        lines = alt.Chart(long).mark_line(strokeWidth=2).encode(
+            x=x, y=alt.Y("v:Q", scale=yscale, axis=None),
+            color=alt.Color("series:N", scale=alt.Scale(domain=[valid_name, train_name], range=[blue, green]), legend=alt.Legend(title=None, orient="bottom-left", fillColor="#111418", padding=4)),
+            tooltip=no_tip)
+        line = [lines]
+    else:
+        line = [base.mark_line(color=blue, strokeWidth=2, point=alt.OverlayMarkDef(color=blue, size=18)).encode(tooltip=no_tip)]
     hit = alt.Chart(df).mark_point(opacity=0).encode(x=x, tooltip=no_tip).add_params(nearest)   # invisible: picks the point nearest to the mouse
     vrule = alt.Chart(df).mark_rule(color=grey, strokeDash=[4, 3]).encode(x=x, tooltip=no_tip).transform_filter(nearest)
     hrule = alt.Chart(df).mark_rule(color=grey, strokeDash=[4, 3]).encode(y=y, tooltip=no_tip).transform_filter(nearest)
-    dot = base.mark_point(color="#fff", fill="#fff", filled=True, size=60).encode(tooltip=no_tip).transform_filter(nearest)
+    dots = [base.mark_point(color="#fff", fill="#fff", filled=True, size=60).encode(tooltip=no_tip).transform_filter(nearest)]
     text = f"{json.dumps(step, ensure_ascii=False)} + ' ' + datum.s + ' ・ ' + format(datum.l, '.4f')"
+    if train:
+        text = (f"{json.dumps(step, ensure_ascii=False)} + ' ' + datum.s + ' ・ ' + {json.dumps(valid_name, ensure_ascii=False)} + ' ' + format(datum.l, '.4f')"
+                f" + ' / ' + {json.dumps(train_name, ensure_ascii=False)} + ' ' + format(datum.tr, '.4f')")
+        dots.append(alt.Chart(df).mark_point(color="#fff", fill="#fff", filled=True, size=60).encode(x=x, y=alt.Y("tr:Q", scale=yscale), tooltip=no_tip)
+                    .transform_filter(nearest))
     mid = (first + last) / 2
     labels = [base.mark_text(align=align, dx=dx, dy=-12, color="#eef1f5", fontSize=12, fontWeight="bold").encode(text="tip:N", tooltip=no_tip)
               .transform_calculate(tip=text).transform_filter(nearest).transform_filter(cond)
               for align, dx, cond in (("left", 8, f"datum.s <= {mid}"), ("right", -8, f"datum.s > {mid}"))]
-    layers = [line, hit, vrule, hrule, dot, *labels]
+    layers = [*line, hit, vrule, hrule, *dots, *labels]
     if best is not None:
         layers += best_marker(best, x, no_tip)
     chart = alt.layer(*layers)
     return chart.properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10})
+
+
+def gap_text(values, train):
+    """'Final loss: training X, validation Y, gap Z (p%)' under the curve; None without a training curve."""
+    if not train or len(train) != len(values):
+        return None
+    gap = values[-1] - train[-1]
+    return t("md.gap_text", train=f"{train[-1]:.4f}", valid=f"{values[-1]:.4f}", gap=f"{gap:+.4f}", pct=f"{gap / values[-1]:+.2%}" if values[-1] else "—")
 
 
 def best_marker(best, x, no_tip):

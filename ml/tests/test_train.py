@@ -24,6 +24,9 @@ def test_lightgbm_writes_model_meta_and_check_rows(dump, tmp_path):
     assert meta["data"][0]["valueModels"] == ["ml/models/x.txt"]
     assert meta["params"]["num_leaves"] == 4
     assert len(meta["training"]["validLossCurve"]) == meta["training"]["iterations"]
+    train_curve = meta["training"]["trainLossCurve"]  # the training loss is recorded beside the validation loss
+    assert len(train_curve) == len(meta["training"]["validLossCurve"]) and train_curve[-1] < train_curve[0]
+    assert all(e.get("trainLoss") is not None for e in events if e["stage"] == "iteration")
     assert meta["validation"]["r2"] > 0.3  # the synthetic label is learnable
     assert meta["topFeatures"][0]["name"] in ("p0_score", "p1_score")
     assert events[0]["stage"] == "loaded" and events[-1]["stage"] == "done"
