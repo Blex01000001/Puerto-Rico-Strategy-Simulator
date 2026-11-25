@@ -308,6 +308,13 @@ def test_digests_are_compact_key_value_lines_without_paths():
     assert "num_leaves=63" in text and "verbose" not in text and "validLossCurve" not in text and "0.9" not in text   # no curve, no noise
     assert "data: a.bin" in text and "selfplayModels=x.txt" in text and "C:\\" not in text and "someone" not in text  # file names only
     assert "match: c games=100" in text and "vs mcts(x.txt)=0.400" in text
+    # the loss summary: trees grown, training loss and the gap at the saved model's round (best 2 of 3 rounds); no curve is copied
+    meta["training"].update(iterations=2, bestIteration=2, validLossCurve=[1.0, 0.9, 0.95], trainLossCurve=[0.9, 0.7, 0.6])
+    first = modelmeta.model_digest("m.txt", meta).splitlines()[0]
+    assert "treesGrown=3" in first and "trainCe=0.7000 gapCe=+0.2000" in first and "0.95" not in first
+    del meta["training"]["trainLossCurve"]  # an older model: only the trees grown
+    first = modelmeta.model_digest("m.txt", meta).splitlines()[0]
+    assert "treesGrown=3" in first and "trainCe" not in first
     dump = modelmeta.dump_digest("a.bin", {"players": 4, "games": 5, "rows": 100, "rate": 0.01, "seed": 1, "seatOrder": "Random", "featureVersion": 1,
                                            "status": "completed", "seats": [{"strategy": "mcts", "params": {"valueModel": "ml/models/x.txt"}}]},
                                  "abcd", "base-v1", used_by=["m.txt"], size_mb=1.5)
