@@ -3249,7 +3249,7 @@ def pl_add_card(kind, players, add_label, dialog_title, form, middle=None):
     n = len(pl_items(kind))
     with st.container(key=f"pl-addbox-{kind}"):
         cols = st.columns([2, 2.4, 1.6] if middle else [2, 1.6], vertical_alignment="center")
-        clicked = cols[0].button(add_label, key=f"pl-btn-add-{kind}", on_click=pl_dialog_reset, width="stretch")
+        clicked = cols[0].button(add_label, key=f"pl-btn-add-{kind}", type="primary", on_click=pl_dialog_reset, width="stretch")  # blue like the other main buttons
         if middle:
             label, callback, args = middle
             cols[1].button(label, key="pl-btn-standard", on_click=callback, args=args, width="stretch")
