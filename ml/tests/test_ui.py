@@ -445,6 +445,8 @@ def test_pipeline_page_with_data_training_and_a_match(results, no_spawn, inline)
         assert cfg["seats"][0]["params"]["valueModel"] == train_job["spec"]["out"]
         assert cfg["seats"][0]["params"]["leafRollout"] == 40 and cfg["seed"] == 424242
         assert jobs.read_job(dump_job["id"])["state"] == "queued" and jobs.read_job(match_job["id"])["state"] == "waiting"
+        assert not at.session_state["pl-data"] and not at.session_state["pl-train"] and not at.session_state["pl-match"]  # the form starts empty
+        assert at.session_state["pl-run-name"] == "pipeline"                                  # back to the default name
     finally:
         _cleanup(created)
 

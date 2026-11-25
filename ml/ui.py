@@ -3374,6 +3374,10 @@ def pl_run_card(players, datas, trains, matches):
             else:
                 st.session_state["job-select"] = ids[0]
                 st.session_state["job-started"] = t("pl.run.started", name=pipe_name, n=len(ids))
+                pl_new_players()   # the pipeline is queued: the form starts empty again (a template or the jobs page has what was run)
+                for k in ("pl-run-name", "pl-run-name-for"):
+                    st.session_state.pop(k, None)
+                pl_persist()
                 st.rerun()
 
 
