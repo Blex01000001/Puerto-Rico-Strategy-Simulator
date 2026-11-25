@@ -891,6 +891,21 @@ def _duration(seconds):
     return f"{h}:{m:02d}:{s_:02d}" if h else f"{m}:{s_:02d}"
 
 
+def eta_text(job, evs):
+    """'About N min left' (to the minute; 'at most' for training, which can stop early), or '' when unknown."""
+    left = jobs.eta_seconds(evs, time.time())
+    if left is None:
+        return ""
+    minutes = int(left // 60) + (1 if left % 60 else 0)
+    if minutes < 1:
+        span = t("eta.lt1")
+    elif minutes < 60:
+        span = t("eta.min", m=minutes)
+    else:
+        span = t("eta.hm", h=minutes // 60, m=minutes % 60)
+    return t("eta.max", time=span) if job["kind"].startswith("train") else t("eta.left", time=span)
+
+
 def elapsed_text(job):
     started, finished = _epoch(job.get("started")), _epoch(job.get("finished"))
     if job["state"] == "waiting":
@@ -962,9 +977,11 @@ def queue_page():
                              unsafe_allow_html=True)
             text, color = QUEUE_STATE.get(job["state"], (job["state"], "#8892a2"))
             cols[1].markdown(f"<div style='text-align:center;color:{color};font-weight:600'>{text}</div>", unsafe_allow_html=True)
-            cols[2].markdown(elapsed_text(job))
+            running_evs = jobs.events(job["id"]) if job["state"] in ("queued", "running") else []
+            eta = eta_text(job, running_evs) if job["state"] == "running" else ""
+            cols[2].markdown(elapsed_text(job) + (f"  \n<span class='act-note'>{eta}</span>" if eta else ""), unsafe_allow_html=True)
             if job["state"] in ("queued", "running"):
-                frac, ptext = progress_of(job, jobs.events(job["id"]))
+                frac, ptext = progress_of(job, running_evs)
                 cols[3].progress(frac or 0.0, text=ptext)
             elif job["state"] == "done":
                 cols[3].progress(1.0)
@@ -3357,6 +3374,10 @@ def pl_run_card(players, datas, trains, matches):
             else:
                 st.session_state["job-select"] = ids[0]
                 st.session_state["job-started"] = t("pl.run.started", name=pipe_name, n=len(ids))
+                pl_new_players()   # the pipeline is queued: the form starts empty again (a template or the jobs page has what was run)
+                for k in ("pl-run-name", "pl-run-name-for"):
+                    st.session_state.pop(k, None)
+                pl_persist()
                 st.rerun()
 
 
