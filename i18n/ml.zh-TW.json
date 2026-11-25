@@ -286,7 +286,7 @@
   "md.valid_note": "驗證成績只是檢查訓練有沒有壞掉；資料分布不同時 R² 不能互相比較。",
   "md.curve_title": "**驗證 loss 曲線**",
   "md.no_curve": "沒有紀錄（舊模型或補寫的 meta）。",
-  "md.feat_title": "**特徵重要度（前 20，gain）**",
+  "md.feat_title": "**特徵重要度（前 10，gain）**",
   "md.no_feat": "只有 LightGBM 有（MLP 或補寫的 meta 沒有）。",
   "md.env_missing": "環境未記錄",
   "md.foot": "特徵版本 {version}（{count} 個）・建立 {created}・{env}",

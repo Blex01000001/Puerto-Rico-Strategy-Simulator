@@ -286,7 +286,7 @@
   "md.valid_note": "Validation scores only check that training did not break; R² cannot be compared across different data distributions.",
   "md.curve_title": "**Validation loss curve**",
   "md.no_curve": "No record (old model or backfilled meta).",
-  "md.feat_title": "**Feature importance (top 20, gain)**",
+  "md.feat_title": "**Feature importance (top 10, gain)**",
   "md.no_feat": "Only LightGBM has it (MLP and backfilled meta do not).",
   "md.env_missing": "Environment not recorded",
   "md.foot": "Feature version {version} ({count} features)・created {created}・{env}",

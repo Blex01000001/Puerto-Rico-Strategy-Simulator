@@ -1800,16 +1800,16 @@ def model_detail(path):
         if gains:
             summary, top_df, fam_df = feature_importance_view(gains)
             st.caption(summary)
-            st.altair_chart(share_bars(top_df, 460), width="stretch")
+            st.altair_chart(share_bars(top_df, 26 * len(top_df) + 50), width="stretch")
             st.markdown(t("md.fam_title"))
             st.altair_chart(share_bars(fam_df, 24 * len(fam_df) + 40), width="stretch")
             st.caption(t("md.fam_note"))
         elif feats:  # the model file is gone: only the top of the metadata
-            fd = pd.DataFrame(feats[:20])
+            fd = pd.DataFrame(feats[:10])
             chart = alt.Chart(fd).mark_bar().encode(x=alt.X("gain:Q", title="gain"),
                                                     y=alt.Y("name:N", sort="-x", title=None),
                                                     tooltip=["name", alt.Tooltip("gain:Q", format=",.0f")])
-            st.altair_chart(chart.properties(height=420), width="stretch")
+            st.altair_chart(chart.properties(height=300), width="stretch")
         else:
             st.caption(t("md.no_feat"))
     env = meta.get("environment") or {}
@@ -2521,9 +2521,9 @@ def gain_chart(values, best=None, height=190):
     step, ylab = t("md.step"), t("md.gain_y")
     df = pd.DataFrame(rows, columns=["s", "g"])
     x = alt.X("s:Q", axis=alt.Axis(tickMinStep=1, format="d", title=step), scale=alt.Scale(domain=[float(df["s"].min()), float(df["s"].max())], nice=False))
-    y = alt.Y("g:Q", scale=alt.Scale(type="symlog", constant=1e-6), axis=alt.Axis(title=ylab, format=".0e", values=[0, 1e-5, 1e-4, 1e-3, 1e-2], labelOverlap=False))
+    y = alt.Y("g:Q", scale=alt.Scale(type="symlog", constant=1e-6), axis=alt.Axis(title=ylab, format=".5~f", values=[0, 1e-5, 1e-4, 1e-3, 1e-2], labelOverlap=False))
     line = alt.Chart(df).mark_line(color="#3fa83f", strokeWidth=2).encode(
-        x=x, y=y, tooltip=[alt.Tooltip("s:Q", title=step, format="d"), alt.Tooltip("g:Q", title=ylab, format=".2e")])
+        x=x, y=y, tooltip=[alt.Tooltip("s:Q", title=step, format="d"), alt.Tooltip("g:Q", title=ylab, format=".6~f")])
     zero = alt.Chart(pd.DataFrame({"g": [0.0]})).mark_rule(color="#8892a2", strokeDash=[4, 3]).encode(y=alt.Y("g:Q", scale=alt.Scale(type="symlog", constant=1e-6)),
                                                                                                     tooltip=alt.value(None))
     layers = [line, zero]
@@ -2569,7 +2569,7 @@ def feature_gains(path, meta):
     return list(zip(names, gains))
 
 
-def feature_importance_view(gains, top=20, families=15):
+def feature_importance_view(gains, top=10, families=15):
     """(summary text, top-features frame, family frame) of [(feature, gain)]: shares of the total gain, the count of unused (gain 0) features, the
     top `top` features and the `families` biggest families (the rest as one 'other' row)."""
     total = sum(g for _, g in gains) or 1.0
