@@ -323,3 +323,14 @@ def test_an_interrupted_pipeline_job_stops_the_rest_too(results):
     jobs.start_next()
     job = jobs.read_job(waiting)
     assert job["state"] == "cancelled" and job["result"]["stoppedBy"] == "dead" and job["result"]["stoppedByState"] == "interrupted"
+
+
+def test_eta_uses_recent_speed_and_waits_for_enough_progress():
+    def g(t, n):
+        return {"stage": "games", "done": n, "total": 1000, "t": t}
+    assert jobs.eta_seconds([]) is None
+    assert jobs.eta_seconds([g(0, 10), g(10, 20)]) is None  # under 3%... 2%
+    slow_then_fast = [g(0, 0), g(100, 100), g(200, 300), g(300, 600), g(400, 900)]
+    assert jobs.eta_seconds(slow_then_fast) == pytest.approx(100 * 100 / 300)  # latest window: 300 games per 100 s
+    assert jobs.eta_seconds(slow_then_fast + [g(430, 1000)]) is None  # finished
+    assert jobs.eta_seconds([g(0, 0), g(100, 100)], now_epoch=140) == pytest.approx(900 - 40)

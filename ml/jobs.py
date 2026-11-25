@@ -409,6 +409,35 @@ def cancel_pipeline(pipeline_id):
             cancel(j["id"])
 
 
+def eta_seconds(evs, now_epoch=None):
+    """Estimated seconds left for a running job from its progress events, or None while it cannot be told yet.
+    Speed comes from the latest ~30% of the observed time (the early part of a job is not representative);
+    nothing is estimated before 3% progress or with fewer than two points."""
+    pts = []
+    for e in evs:
+        if e.get("stage") == "games":
+            n, total = e.get("done"), e.get("total")
+        elif e.get("stage") in ("iteration", "epoch"):
+            n, total = e.get("iteration") or e.get("epoch"), e.get("total")
+        else:
+            continue
+        if n is not None and total and e.get("t") is not None:
+            pts.append((e["t"], n, total))
+    if len(pts) < 2:
+        return None
+    t_last, n_last, total = pts[-1]
+    if n_last >= total or n_last / total < 0.03:
+        return None
+    window = [p for p in pts if p[0] >= t_last - 0.3 * (t_last - pts[0][0])]
+    t0, n0, _ = window[0] if len(window) >= 2 else pts[0]
+    if n_last <= n0 or t_last <= t0:
+        return None
+    left = (total - n_last) * (t_last - t0) / (n_last - n0)
+    if now_epoch is not None:
+        left -= max(0.0, now_epoch - t_last)  # time already passed since the last event
+    return max(0.0, left)
+
+
 def events(job_id):
     path = os.path.join(jobs_dir(), job_id, "events.jsonl")
     if not os.path.exists(path):
