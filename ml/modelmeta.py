@@ -162,6 +162,51 @@ def result_seconds(result):
     return round((b - a).total_seconds(), 1) if a and b else None
 
 
+def match_condition(m):
+    """The conditions a match was played under, as one text: the models' win rates are only comparable between matches with the same one
+    (simulations, leafRollout, seat order and the opponents with their simulations / value models). Seed and number of games are not part of it."""
+    opponents = sorted(f"{o.get('strategy')}:{o.get('simulations') or ''}:{os.path.basename(str(o.get('valueModel') or ''))}" for o in m.get("others", []))
+    return "|".join([f"sims={m.get('simulations')}", f"leaf={m.get('leafRollout') or 0}", f"order={m.get('seatOrder')}", *opponents])
+
+
+def comparison_conditions(metas):
+    """{name: meta} -> [(condition, sample match entry, number of models)] for the conditions at least two models were played under,
+    the most shared first."""
+    seen = {}
+    for meta in metas.values():
+        for condition in {match_condition(m): m for m in (meta or {}).get("matches", [])}:
+            seen.setdefault(condition, [0, None])[0] += 1
+    sample = {}
+    for meta in metas.values():
+        for m in (meta or {}).get("matches", []):
+            sample.setdefault(match_condition(m), m)
+    return sorted(((c, sample[c], n) for c, (n, _) in seen.items() if n >= 2), key=lambda x: (-x[2], x[0]))
+
+
+def comparison_rows(metas, condition):
+    """{name: meta} -> one row per model that has a match played under `condition` (the one with the most games if there are several):
+    the win rate with its 95% half-width, and what the model cost / is made of, for the multi-model comparison charts."""
+    rows = []
+    for name, meta in metas.items():
+        mine = [m for m in (meta or {}).get("matches", []) if match_condition(m) == condition and m.get("winShare") is not None]
+        if not mine:
+            continue
+        m = max(mine, key=lambda x: x.get("games") or 0)
+        t, params = meta.get("training") or {}, meta.get("params") or {}
+        games = m.get("games") or 0
+        trees, leaves = t.get("iterations"), params.get("num_leaves")
+        rows.append({
+            "name": name, "kind": meta.get("kind"), "players": meta.get("players"),
+            "win": m["winShare"], "ci": m.get("winShareCi95") or 0.0, "games": games, "seed": m.get("seed"),
+            "matchSecPerGame": round(m["seconds"] / games, 2) if m.get("seconds") and games else None,
+            "trainSeconds": t.get("seconds"), "trees": trees, "grown": len(t.get("validLossCurve") or []) or trees,
+            "leaves": leaves, "learningRate": params.get("learning_rate"), "minLeaf": params.get("min_data_in_leaf"),
+            "rounds": params.get("num_boost_round"), "rows": sum(d.get("rows", 0) for d in meta.get("data", [])),
+            "size": trees * leaves if trees and leaves else None,   # a rough measure of the inference work: trees x leaves per tree
+        })
+    return rows
+
+
 def match_entry(result_path, model_path):
     """Summary of one Runner result file for the seat that used this model (MCTS valueModel)."""
     with open(result_path, encoding="utf-8") as f:

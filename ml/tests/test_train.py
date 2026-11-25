@@ -320,3 +320,27 @@ def test_digests_are_compact_key_value_lines_without_paths():
                                  "abcd", "base-v1", used_by=["m.txt"], size_mb=1.5)
     assert dump.splitlines()[0].startswith("D a.bin players=4 games=5") and "usedBy: m.txt" in dump and "0=mcts(model=x.txt)" in dump
     assert modelmeta.digest([text]).splitlines()[0].startswith("# key=value lines")
+
+
+def _match(win, games=240, seed=1, sims=300, leaf=40, seconds=120.0, opp="mcts"):
+    return {"winShare": win, "winShareCi95": 1.96 * (win * (1 - win) / games) ** 0.5, "games": games, "seed": seed, "simulations": sims,
+            "leafRollout": leaf, "seatOrder": "balanced", "seconds": seconds,
+            "others": [{"strategy": opp, "simulations": 300, "valueModel": None}, {"strategy": "cheap-engine"}]}
+
+
+def test_multi_model_comparison_rows_use_only_matches_of_the_same_conditions():
+    def meta(trees, leaves, win, **kw):
+        return {"kind": "lightgbm", "players": 4, "params": {"num_leaves": leaves, "learning_rate": 0.05, "min_data_in_leaf": 200, "num_boost_round": 1600},
+                "training": {"seconds": 60.0, "iterations": trees, "validLossCurve": [0.5] * (trees + 30)}, "data": [{"rows": 1000}],
+                "matches": [_match(win, **kw)]}
+    metas = {"a": meta(400, 63, 0.5), "b": meta(1000, 256, 0.6, games=480, seconds=480.0), "c": meta(800, 127, 0.55, leaf=0),
+             "d": {"kind": "lightgbm", "players": 4, "matches": []}}
+    conditions = modelmeta.comparison_conditions(metas)
+    assert [n for _, _, n in conditions] == [2]                      # a and b share one (c played another leafRollout, d has no match)
+    rows = {r["name"]: r for r in modelmeta.comparison_rows(metas, conditions[0][0])}
+    assert set(rows) == {"a", "b"}
+    assert rows["b"]["trees"] == 1000 and rows["b"]["grown"] == 1030 and rows["b"]["size"] == 1000 * 256
+    assert rows["a"]["matchSecPerGame"] == 0.5 and rows["b"]["matchSecPerGame"] == 1.0 and rows["a"]["ci"] > rows["b"]["ci"]
+    # two matches of the same condition: the one with the most games counts
+    metas["a"]["matches"].append(_match(0.9, games=1000, seed=2))
+    assert {r["name"]: r for r in modelmeta.comparison_rows(metas, conditions[0][0])}["a"]["games"] == 1000

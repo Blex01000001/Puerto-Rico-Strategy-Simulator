@@ -106,7 +106,8 @@ def test_model_and_data_pages_have_one_filter_box_per_category(results):
     from conftest import write_dump
     write_dump(str(results / "ml" / "4p-a.bin"), games=10)
     at = goto(run_app(), "models")  # the list and the details are one page
-    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules"]
+    # the list's four boxes, then the two of the "compare many models" card (players, kind)
+    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules", "mc-players", "mc-kind"]
     goto(at, "datamanage")
     assert [g.key for g in at.get("button_group")] == ["dm-players", "dm-feature", "dm-rules"]
     goto(at, "data")
