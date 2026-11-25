@@ -2346,40 +2346,48 @@ def compare_scatter(df, xcol, xtitle, height=340):
     return alt.layer(bars, dots, names).properties(height=height, padding={"left": 8, "right": 60, "top": 12, "bottom": 6})
 
 
-def models_compare(paths):
-    """Many models side by side under one match condition: win rates with their intervals, win rate against a parameter (trees, leaves,
-    learning rate, rows ...) and against what the model costs (time, size)."""
+MAX_COMPARE = 20   # models the multi-chart view takes (more dots make the names overlap)
+
+
+def view_switch(key, labels):
+    """A row of segmented buttons that works as tabs: only the selected view is drawn, and the choice stays over reruns (labels: {id: text})."""
+    ids = list(labels)
+    with st.container(key=f"filterbar-{key}"):  # the look of the quick filters (CSS .st-key-filterbar*)
+        value = st.segmented_control(key, ids, default=ids[0], selection_mode="single", key=key, format_func=labels.get, label_visibility="collapsed")
+    return value or ids[0]
+
+
+def models_multi(paths):
+    """The ticked models side by side in charts: win rates with their intervals under one match condition, win rate against a parameter
+    (trees, leaves, learning rate, rows ...) and against what the model costs (time, size), and validation loss against win rate."""
+    if len(paths) < 2:
+        st.caption(t("mv.pick"))
+        return
+    if len(paths) > MAX_COMPARE:
+        st.caption(t("mv.max", n=len(paths), max=MAX_COMPARE))
+        return
     metas = {os.path.basename(p): model_meta(p) for p in paths}
     metas = {n: m for n, m in metas.items() if m}
     if len(metas) < 2:
         st.caption(t("mc.none"))
         return
-    players, kinds = filter_bar("mc", [(t("mlist.players"), sorted({str(m["players"]) for m in metas.values()}), "mc-players", lambda n: t("match.players_n", n=n)),
-                                       (t("mlist.kind"), sorted({KIND_TEXT.get(m["kind"], m["kind"]) for m in metas.values()}), "mc-kind", None)])
-    pool = {n: m for n, m in metas.items() if (not players or str(m["players"]) in players) and (not kinds or KIND_TEXT.get(m["kind"], m["kind"]) in kinds)}
-    conditions = modelmeta.comparison_conditions(pool)
+    view = view_switch("mv-sub", {"forest": t("mc.tab.forest"), "param": t("mc.tab.param"), "cost": t("mc.tab.cost"), "scatter": t("mc.tab.scatter")})
+    if view == "scatter":
+        models_scatter([p for p in paths if os.path.basename(p) in metas])
+        return
+    conditions = modelmeta.comparison_conditions(metas)
     if not conditions:
         st.caption(t("mc.no_condition"))
         return
     labels = {c: f"{describe_match(sample)}（{t('mc.n_models', n=n)}）" if lang() == "zh-TW" else f"{describe_match(sample)} ({t('mc.n_models', n=n)})"
               for c, sample, n in conditions}
-    sig = ".".join(players) + "-" + ".".join(kinds)
-    chosen = st.selectbox(t("mc.condition"), list(labels), format_func=labels.get, key=f"mc-cond-{sig}")
-    rows = pd.DataFrame(modelmeta.comparison_rows(pool, chosen))
-    picked = st.multiselect(t("mc.models"), list(rows["name"]), default=list(rows["name"]),
-                            key=f"mc-models-{sig}-{hashlib.md5(chosen.encode()).hexdigest()[:8]}")
-    rows = rows[rows["name"].isin(picked)]
-    if len(rows) < 2:
-        st.caption(t("mc.few"))
-        return
+    sig = hashlib.md5(".".join(sorted(metas)).encode()).hexdigest()[:8]   # another set of ticked models: the condition list starts again
+    condition = st.selectbox(t("mc.condition"), list(labels), format_func=labels.get, key=f"mc-cond-{sig}")
+    rows = pd.DataFrame(modelmeta.comparison_rows(metas, condition))
     sides = {int(x) for x in rows["players"]}
     fair = 1 / sides.pop() if len(sides) == 1 else None
-    tab_forest, tab_param, tab_cost = st.tabs([t("mc.tab.forest"), t("mc.tab.param"), t("mc.tab.cost")])
-    with tab_forest:
-        st.altair_chart(forest_chart(rows, fair), width="stretch")
-        st.caption(t("mc.forest_note"))
 
-    def scatter_tab(options, key, note):
+    def scatter_view(options, key, note):
         usable = {label: col for label, col in options.items() if rows[col].dropna().nunique() >= 2}
         if not usable:
             st.caption(t("mc.no_x"))
@@ -2389,11 +2397,14 @@ def models_compare(paths):
         missing = [n for n, v in zip(rows["name"], rows[usable[label]]) if v != v or v is None]  # no value recorded: not drawn
         st.caption(note + (" " + t("mc.missing", names=t("common.list").join(missing)) if missing else ""))
 
-    with tab_param:
-        scatter_tab({t("mc.x.trees"): "trees", t("mc.x.grown"): "grown", t("mc.x.leaves"): "leaves", t("mc.x.lr"): "learningRate",
-                     t("mc.x.minleaf"): "minLeaf", t("mc.x.rounds"): "rounds", t("mc.x.rows"): "rows"}, f"mc-x-param-{sig}", t("mc.param_note"))
-    with tab_cost:
-        scatter_tab({t("mc.x.match_sec"): "matchSecPerGame", t("mc.x.train_sec"): "trainSeconds", t("mc.x.size"): "size"}, f"mc-x-cost-{sig}", t("mc.cost_note"))
+    if view == "forest":
+        st.altair_chart(forest_chart(rows, fair), width="stretch")
+        st.caption(t("mc.forest_note"))
+    elif view == "param":
+        scatter_view({t("mc.x.trees"): "trees", t("mc.x.grown"): "grown", t("mc.x.leaves"): "leaves", t("mc.x.lr"): "learningRate",
+                      t("mc.x.minleaf"): "minLeaf", t("mc.x.rounds"): "rounds", t("mc.x.rows"): "rows"}, f"mc-x-param-{sig}", t("mc.param_note"))
+    else:
+        scatter_view({t("mc.x.match_sec"): "matchSecPerGame", t("mc.x.train_sec"): "trainSeconds", t("mc.x.size"): "size"}, f"mc-x-cost-{sig}", t("mc.cost_note"))
 
 
 def models_page():
@@ -2405,8 +2416,11 @@ def models_page():
         return
     with card("models-list", t("mlist.card"), t("mlist.card_sub")):
         chosen = models_list()
-    with card("models", t("md.card")):
-        if not chosen:
+    with card("models"):
+        view = view_switch("mv-view", {"detail": t("mv.detail"), "multi": t("mv.multi")})
+        if view == "multi":
+            models_multi(chosen)
+        elif not chosen:
             st.caption(t("md.select_hint"))
         elif len(chosen) == 1:
             model_detail(chosen[0])
@@ -2414,10 +2428,6 @@ def models_page():
             compare(chosen)
         else:
             st.caption(t("md.pick_max"))
-    with card("models-scatter", t("md.sc_card"), t("md.sc_sub")):
-        models_scatter(paths)
-    with card("models-compare", t("mc.card"), t("mc.sub")):
-        models_compare(paths)
     with card("models-metrics", t("md.metrics_card")):
         st.markdown(version_table([t("md.m.col.metric"), t("md.m.col.meaning"), t("md.m.col.range"), t("md.m.col.read")], [
             [("R²", "l nw"), (t("md.m.r2.meaning"), "l"), (t("md.m.r2.range"), "l nw"), (t("md.m.r2.read"), "l")],
