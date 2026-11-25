@@ -1763,7 +1763,8 @@ def model_detail(path):
     left, right = st.columns(2)
     with left:
         st.markdown(t("md.params_title"))
-        grid(pd.DataFrame(list(flat_params(meta).items()), columns=[t("md.pcol.param"), t("md.pcol.value")]).astype(str),
+        extra = model_steps_row(meta)
+        grid(pd.DataFrame(list(flat_params(meta).items()) + ([extra] if extra else []), columns=[t("md.pcol.param"), t("md.pcol.value")]).astype(str),
              full=True, hide_index=True, width="stretch")
     with right:
         st.markdown(t("md.valid_title"))
@@ -2434,18 +2435,26 @@ def loss_chart(values, steps=None, height=240):
 
 
 def steps_tile(meta):
-    """Tile with the trees (LightGBM) or epochs (MLP) of a model as actual/trained: what the saved model uses / how far the training ran
-    (early stopping runs `early_stopping` rounds past the best one before it stops; the settings are in the help text)."""
+    """Tile with the trees (LightGBM) or epochs (MLP) of a model as actual/trained: how many the training really grew or ran / how many it was
+    told to (early stopping ends it sooner). What the saved model keeps (up to the best round) is a row of the parameter table (`model_steps_row`)."""
     tr, params = meta.get("training") or {}, meta.get("params") or {}
-    curve = tr.get("validLossCurve") or []
     if meta.get("kind") == "mlp":
-        actual, trained = tr.get("bestEpoch"), tr.get("epochsRun")
-        label, tip = t("md.epochs"), t("md.help.epochs", n=params.get("epochs", "—"))
+        actual, planned = tr.get("epochsRun"), params.get("epochs")
+        label, tip = t("md.epochs"), t("md.help.epochs")
     else:
-        actual = tr.get("iterations")
-        trained = len(curve) or actual
-        label, tip = t("md.trees"), t("md.help.trees", n=params.get("num_boost_round", "—"), stop=params.get("early_stopping_rounds", "—"))
-    return (label, f"{actual}/{trained}" if actual is not None and trained is not None else "—", tip)
+        actual = len(tr.get("validLossCurve") or []) or tr.get("iterations")
+        planned = params.get("num_boost_round")
+        label, tip = t("md.trees"), t("md.help.trees", stop=params.get("early_stopping_rounds", "—"))
+    return (label, f"{actual}/{planned if planned is not None else '—'}" if actual is not None else "—", tip)
+
+
+def model_steps_row(meta):
+    """The trees the saved model keeps (LightGBM: the best round, the rest of an early-stopped run is dropped) or its best epoch (MLP), as a
+    (name, value) row for the parameter table; None when the metadata has no record."""
+    tr = meta.get("training") or {}
+    if meta.get("kind") == "mlp":
+        return (t("md.row.best_epoch"), tr["bestEpoch"]) if tr.get("bestEpoch") is not None else None
+    return (t("md.row.model_trees"), tr["iterations"]) if tr.get("iterations") is not None else None
 
 
 def version_tiles(items, centre=False):

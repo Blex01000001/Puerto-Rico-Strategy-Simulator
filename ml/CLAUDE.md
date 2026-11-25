@@ -69,7 +69,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - 資料的刪除與重新命名只在「訓練資料」管理頁（`del-dumps`）；「模擬對局採樣」與「模型訓練/蒸餾」頁的資料表只能看或勾選。
 - 換頁回到最上方：`go()` 換了頁就設 `scroll-top`，`main()` 在頁面畫完後呼叫 `scroll_to_top()`（零高度的隱形 iframe，腳本用 `window.parent` 把 `stMain` 捲到頂；放在頁面後面，放在標題前會把標題推下去）。Streamlit 預設換頁會留著捲動位置。
 - 取消工作的按鈕（導覽最下方、排程佇列、工作詳細，含排隊中的「取消佇列」）key 以 `stop-` 開頭，CSS 讓它紅色；新的取消鈕照做。排程佇列的狀態文字用英文並置中（`QUEUE_STATE`、`STATE_TEXT`）。
-- 模型詳細資料：`steps_tile`（樹數／epoch 的「實際/訓練」小卡：實際＝存下來的模型用的樹數〔LightGBM 提早停止會把模型截在最佳輪，`iterations`＝`num_trees()`〕，訓練＝`validLossCurve` 的長度；MLP 是最佳 epoch／跑完的 epoch）；`grid(..., full=True)` 不限列數、不捲動（模型詳細的表格都用）；`loss_chart` 有十字線（最近點的垂直線＋水平線、白點與「步・loss」標籤，`selection_point(nearest, mouseover)`；每一層要 `tooltip=alt.value(None)`，否則 Streamlit 會自動加上帶欄位名稱的提示框）。
+- 模型詳細資料：`steps_tile`（樹數／epoch 的「實際/訓練」小卡：實際＝訓練真的長出的樹數〔`validLossCurve` 的長度，提早停止時比設定少〕，訓練＝設定的 `num_boost_round`；MLP 是 `epochsRun`／`epochs`；存下來的模型只留到最佳輪為止的樹〔`iterations`＝`num_trees()`〕，放在訓練參數表最後一列 `model_steps_row`：`model_trees`／`best_epoch`）；`grid(..., full=True)` 不限列數、不捲動（模型詳細的表格都用）；`loss_chart` 有十字線（最近點的垂直線＋水平線、白點與「步・loss」標籤，`selection_point(nearest, mouseover)`；每一層要 `tooltip=alt.value(None)`，否則 Streamlit 會自動加上帶欄位名稱的提示框）。
 - 剩餘時間：`jobs.eta_seconds(events)`（純函式；取最近約 30% 觀察時間的速度，進度未滿 3% 或不足兩點不估）；`ui.eta_text` 顯示到分鐘，放在排程佇列「經過時間」欄下方小字，訓練類工作會提早停止所以寫「最多約」。只看單一工作，整條排程的預估還沒做。
 - 排程佇列的每一列是 `st.container(key="qrow-<狀態>-<id>")`，CSS 畫框並依狀態給左邊框顏色，欄位順序：名稱、狀態、經過時間、進度、備註、操作（最右）；新狀態要在 `CSS` 補顏色。
 - Streamlit 的元件 ID 由種類＋參數產生：不同頁面裡標籤相同的按鈕（例如三個「加入排隊」）會撞 ID 而報錯，要給 `key`。
