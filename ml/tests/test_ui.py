@@ -106,12 +106,30 @@ def test_model_and_data_pages_have_one_filter_box_per_category(results):
     from conftest import write_dump
     write_dump(str(results / "ml" / "4p-a.bin"), games=10)
     at = goto(run_app(), "models")  # the list and the details are one page
-    # the list's four boxes, then the two of the "compare many models" card (players, kind)
-    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules", "mc-players", "mc-kind"]
+    # the list's four boxes, then the switch between the details and the compare charts
+    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules", "mv-view"]
     goto(at, "datamanage")
     assert [g.key for g in at.get("button_group")] == ["dm-players", "dm-feature", "dm-rules"]
     goto(at, "data")
     assert not at.get("button_group")
+
+
+def test_models_page_compare_charts_use_the_ticked_models(results):
+    at = goto(run_app(), "models")
+    at.session_state["mv-view"] = "multi"
+    at.run()
+    assert not at.exception, at.exception
+    assert any(c.value.startswith("在上方清單勾選 2 個以上") for c in at.caption)           # nothing ticked: a hint, no charts
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
+    at.session_state[key] = {"selection": {"rows": [4, 5, 6], "columns": []}}               # three official 4-player LightGBM models
+    at.run()
+    assert not at.exception, at.exception
+    assert [g.key for g in at.get("button_group")][-2:] == ["mv-view", "mv-sub"]            # the charts' own switch appears
+    assert any((s.key or "").startswith("mc-cond-") for s in at.selectbox)                   # the match condition they share
+    at.session_state["mv-sub"] = "scatter"                                                   # validation loss vs win rate
+    at.run()
+    assert not at.exception, at.exception
+    assert not any((s.key or "").startswith("mc-cond-") for s in at.selectbox)
 
 
 def test_models_page_shows_details_of_the_ticked_model(results):
