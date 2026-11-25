@@ -1775,18 +1775,36 @@ def model_detail(path):
             st.caption(t("md.no_record"))
         st.caption(t("md.valid_note"))
 
-    curve = (meta.get("training") or {}).get("validLossCurve")
+    training = meta.get("training") or {}
+    curve = training.get("validLossCurve")
+    best_step = (training.get("bestEpoch") if meta.get("kind") == "mlp" else training.get("bestIteration")) or None
+    gains = feature_gains(path, meta)
     feats = meta.get("topFeatures") or []
     left, right = st.columns(2)
     with left:
         st.markdown(t("md.curve_title"))
         if curve:
-            st.altair_chart(loss_chart(curve, height=240), width="stretch")
+            st.altair_chart(loss_chart(curve, height=240, best=best_step), width="stretch")
+            tail = tail_gain_text(curve)
+            if tail:
+                st.caption(tail)
+            gchart, window = gain_chart(curve, best=best_step)
+            if gchart is not None:
+                st.markdown(t("md.gain_title", w=window))
+                st.altair_chart(gchart, width="stretch")
+                st.caption(t("md.gain_note"))
         else:
             st.caption(t("md.no_curve"))
     with right:
         st.markdown(t("md.feat_title"))
-        if feats:
+        if gains:
+            summary, top_df, fam_df = feature_importance_view(gains)
+            st.caption(summary)
+            st.altair_chart(share_bars(top_df, 460), width="stretch")
+            st.markdown(t("md.fam_title"))
+            st.altair_chart(share_bars(fam_df, 24 * len(fam_df) + 40), width="stretch")
+            st.caption(t("md.fam_note"))
+        elif feats:  # the model file is gone: only the top of the metadata
             fd = pd.DataFrame(feats[:20])
             chart = alt.Chart(fd).mark_bar().encode(x=alt.X("gain:Q", title="gain"),
                                                     y=alt.Y("name:N", sort="-x", title=None),
@@ -2241,6 +2259,45 @@ def analysis_page():
                 c4.markdown(f'<span class="act-note">{note}</span>', unsafe_allow_html=True)
 
 
+def loss_win_frame(paths):
+    """One row per model that has both a validation cross-entropy and a match result: name, ce, win (best win rate vs the original MCTS),
+    players, kind, rows."""
+    rows = []
+    for p in paths:
+        meta = model_meta(p)
+        if not meta:
+            continue
+        ce, best = (meta.get("validation") or {}).get("crossEntropy"), best_vs_default(meta)
+        if ce is None or not best:
+            continue
+        rows.append({"name": os.path.basename(p), "ce": float(ce), "win": float(best["winShare"]), "players": str(meta["players"]),
+                     "kind": KIND_TEXT.get(meta["kind"], meta["kind"]), "rows": sum(d["rows"] for d in meta["data"])})
+    return pd.DataFrame(rows, columns=["name", "ce", "win", "players", "kind", "rows"])
+
+
+def models_scatter(paths):
+    """Validation cross-entropy against the best win rate, one point per model: does a lower loss go with a stronger model? The correlation is
+    per player count (needs 3 models; with so few points it is only a hint)."""
+    df = loss_win_frame(paths)
+    if len(df) < 2:
+        st.caption(t("md.sc_none"))
+        return
+    ce, win, pl, kind = t("mlist.col.ce"), t("mlist.col.best"), t("mlist.col.players"), t("mlist.col.kind")
+    shown = df.rename(columns={"ce": ce, "win": win, "players": pl, "kind": kind})
+    chart = alt.Chart(shown).mark_point(filled=True, size=90, opacity=.9).encode(
+        x=alt.X(f"{ce}:Q", scale=alt.Scale(zero=False), axis=alt.Axis(format=".3f")),
+        y=alt.Y(f"{win}:Q", scale=alt.Scale(zero=False), axis=alt.Axis(format=".0%")),
+        color=alt.Color(f"{pl}:N", scale=alt.Scale(range=["#4aa8ff", "#e8672f"])), shape=alt.Shape(f"{kind}:N"),
+        tooltip=[alt.Tooltip("name:N", title=t("mlist.col.model")), alt.Tooltip(f"{ce}:Q", format=".4f"), alt.Tooltip(f"{win}:Q", format=".1%"),
+                 alt.Tooltip("rows:Q", title=t("mlist.col.rows"), format=",")])
+    st.altair_chart(chart.properties(height=320), width="stretch")
+    notes = []
+    for players, g in shown.groupby(pl):
+        if len(g) >= 3 and g[ce].nunique() > 1 and g[win].nunique() > 1:
+            notes.append(t("md.sc_corr", players=players, n=len(g), r=f"{g[ce].corr(g[win]):+.2f}"))
+    st.caption(t("md.sc_note") + (" " + t("common.sep").join(notes) + ("。" if lang() == "zh-TW" else ".") if notes else ""))
+
+
 def models_page():
     """The list (quick filters, tick rows) with the actions on the ticked rows, then the details of the ticked model (one: its
     details, two to four: side by side). Rename, make official / move to local, delete and copy-for-AI live here only."""
@@ -2259,6 +2316,8 @@ def models_page():
             compare(chosen)
         else:
             st.caption(t("md.pick_max"))
+    with card("models-scatter", t("md.sc_card"), t("md.sc_sub")):
+        models_scatter(paths)
     with card("models-metrics", t("md.metrics_card")):
         st.markdown(version_table([t("md.m.col.metric"), t("md.m.col.meaning"), t("md.m.col.range"), t("md.m.col.read")], [
             [("R²", "l nw"), (t("md.m.r2.meaning"), "l"), (t("md.m.r2.range"), "l nw"), (t("md.m.r2.read"), "l")],
@@ -2404,7 +2463,7 @@ def _esc(text):
     return html.escape(str(text))
 
 
-def loss_chart(values, steps=None, height=240):
+def loss_chart(values, steps=None, height=240, best=None):
     """The validation-loss curve as a fixed chart: no zoom or pan, both axes fixed to the data plus a margin on every side (so the line
     never touches the frame), whole steps on the x axis. A crosshair follows the mouse: lines through the nearest point and its step / loss."""
     steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
@@ -2430,8 +2489,116 @@ def loss_chart(values, steps=None, height=240):
     labels = [base.mark_text(align=align, dx=dx, dy=-12, color="#eef1f5", fontSize=12, fontWeight="bold").encode(text="tip:N", tooltip=no_tip)
               .transform_calculate(tip=text).transform_filter(nearest).transform_filter(cond)
               for align, dx, cond in (("left", 8, f"datum.s <= {mid}"), ("right", -8, f"datum.s > {mid}"))]
-    chart = alt.layer(line, hit, vrule, hrule, dot, *labels)
+    layers = [line, hit, vrule, hrule, dot, *labels]
+    if best is not None:
+        layers += best_marker(best, x, no_tip)
+    chart = alt.layer(*layers)
     return chart.properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10})
+
+
+def best_marker(best, x, no_tip):
+    """A dashed orange vertical line at the best step (LightGBM: the best round, MLP: the best epoch) with its label at the top."""
+    orange = "#e0a410"
+    frame = pd.DataFrame({"s": [best], "tip": [t("md.best_round", n=best)]})
+    rule = alt.Chart(frame).mark_rule(color=orange, strokeDash=[6, 3], strokeWidth=1.5).encode(x=x, tooltip=no_tip)
+    text = alt.Chart(frame).mark_text(align="right", baseline="top", dx=-5, dy=3, color=orange, fontSize=11).encode(x=x, y=alt.value(0), text="tip:N", tooltip=no_tip)
+    return [rule, text]
+
+
+def gain_series(values, steps=None, window=20):
+    """Loss improvement per step, averaged over the last `window` steps: [(step, improvement)] (positive = the loss went down)."""
+    steps = list(steps) if steps is not None else list(range(1, len(values) + 1))
+    w = max(1, min(window, len(values) // 5 or 1))
+    return w, [(steps[i], (values[i - w] - values[i]) / w) for i in range(w, len(values))]
+
+
+def gain_chart(values, best=None, height=190):
+    """How much each further round still improves the validation loss (the answer to 'would more trees help?'): a symlog axis shows the
+    early big steps and the late tiny ones in one picture; zero and below = no gain."""
+    w, rows = gain_series(values)
+    if len(rows) < 2:
+        return None, w
+    step, ylab = t("md.step"), t("md.gain_y")
+    df = pd.DataFrame(rows, columns=["s", "g"])
+    x = alt.X("s:Q", axis=alt.Axis(tickMinStep=1, format="d", title=step), scale=alt.Scale(domain=[float(df["s"].min()), float(df["s"].max())], nice=False))
+    y = alt.Y("g:Q", scale=alt.Scale(type="symlog", constant=1e-6), axis=alt.Axis(title=ylab, format=".0e", values=[0, 1e-5, 1e-4, 1e-3, 1e-2], labelOverlap=False))
+    line = alt.Chart(df).mark_line(color="#3fa83f", strokeWidth=2).encode(
+        x=x, y=y, tooltip=[alt.Tooltip("s:Q", title=step, format="d"), alt.Tooltip("g:Q", title=ylab, format=".2e")])
+    zero = alt.Chart(pd.DataFrame({"g": [0.0]})).mark_rule(color="#8892a2", strokeDash=[4, 3]).encode(y=alt.Y("g:Q", scale=alt.Scale(type="symlog", constant=1e-6)),
+                                                                                                    tooltip=alt.value(None))
+    layers = [line, zero]
+    if best is not None and best >= df["s"].min():
+        layers += best_marker(best, x, alt.value(None))
+    return alt.layer(*layers).properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10}), w
+
+
+def tail_gain_text(values, k=100):
+    """'The last k steps improved the validation loss by d (p%)' for the caption under the curve; None for a very short curve."""
+    if len(values) < 3:
+        return None
+    k = min(k, len(values) - 1)
+    d = values[-1 - k] - values[-1]
+    return t("md.tail_gain", k=k, d=f"{d:.5f}", pct=f"{d / values[-1 - k]:.2%}" if values[-1 - k] else "—")
+
+
+FEATURE_PREFIX = re.compile(r"^p\d_")
+
+
+def feature_family(name):
+    """The family of a feature: its name without the seat prefix (p0_) and the item suffix and digits: p0_tiles_Corn, p2_tiles_Sugar -> tiles,
+    ship1_load -> ship, governorRel2 -> governorRel."""
+    return re.sub(r"\d+$", "", FEATURE_PREFIX.sub("", name).split("_")[0])
+
+
+@st.cache_data(show_spinner=False)
+def _model_gains(path, stamp):
+    """(feature names, gains) of a LightGBM model file, read from the file (the metadata keeps only the top 30). `stamp` makes a new file miss the cache."""
+    import lightgbm as lgb
+    booster = lgb.Booster(model_file=path)
+    return booster.feature_name(), [float(g) for g in booster.feature_importance("gain")]
+
+
+def feature_gains(path, meta):
+    """[(feature, gain)] of every feature of a LightGBM model (from the model file), or None (MLP, or the file is gone)."""
+    if meta.get("kind") == "mlp" or not os.path.exists(path):
+        return None
+    try:
+        names, gains = _model_gains(path, os.path.getmtime(path))
+    except Exception:  # an unreadable file is the same as none
+        return None
+    return list(zip(names, gains))
+
+
+def feature_importance_view(gains, top=20, families=15):
+    """(summary text, top-features frame, family frame) of [(feature, gain)]: shares of the total gain, the count of unused (gain 0) features, the
+    top `top` features and the `families` biggest families (the rest as one 'other' row)."""
+    total = sum(g for _, g in gains) or 1.0
+    unused = sum(1 for _, g in gains if g <= 0)
+    summary = t("md.feat_summary", n=len(gains), used=len(gains) - unused, unused=unused)
+    best = sorted(gains, key=lambda x: -x[1])[:top]
+    top_df = pd.DataFrame({"name": [n for n, _ in best], "gain": [g for _, g in best], "share": [g / total for _, g in best]})
+    fam = {}
+    for n, g in gains:
+        f = feature_family(n)
+        fam[f] = fam.get(f, 0.0) + g
+    rows = sorted(fam.items(), key=lambda x: -x[1])
+    keep, rest = rows[:families], rows[families:]
+    if rest:
+        keep.append((t("md.fam_other"), sum(g for _, g in rest)))
+    fam_df = pd.DataFrame({"name": [n for n, _ in keep], "share": [g / total for _, g in keep]})
+    return summary, top_df, fam_df
+
+
+def share_bars(df, height, title=None):
+    """Horizontal bars of `share` (percent of the total gain) with the percentage written at the end of each bar; the order is the frame's."""
+    order = list(df["name"])
+    base = alt.Chart(df).encode(y=alt.Y("name:N", sort=order, title=None, axis=alt.Axis(labelLimit=260, labelOverlap=False, labelFontSize=11)))
+    bars = base.mark_bar(color="#4aa8ff").encode(
+        x=alt.X("share:Q", title=title or t("md.feat_share"), axis=alt.Axis(format=".0%")),
+        tooltip=[alt.Tooltip("name:N", title=t("md.pcol.param")), alt.Tooltip("share:Q", title=t("md.feat_share"), format=".2%")]
+        + ([alt.Tooltip("gain:Q", title="gain", format=",.0f")] if "gain" in df else []))
+    text = base.mark_text(align="left", dx=4, color="#eef1f5", fontSize=11).encode(x="share:Q", text=alt.Text("share:Q", format=".1%"), tooltip=alt.value(None))
+    return (bars + text).properties(height=height)
 
 
 def steps_tile(meta):
