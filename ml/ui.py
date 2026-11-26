@@ -2658,15 +2658,27 @@ def gain_chart(values, best=None, height=190):
         return None, w
     step, ylab = t("md.step"), t("md.gain_y")
     df = pd.DataFrame(rows, columns=["s", "g"])
-    x = alt.X("s:Q", axis=alt.Axis(tickMinStep=1, format="d", title=step), scale=alt.Scale(domain=[float(df["s"].min()), float(df["s"].max())], nice=False))
-    y = alt.Y("g:Q", scale=alt.Scale(type="symlog", constant=1e-6), axis=alt.Axis(title=ylab, format=".5~f", values=[0, 1e-5, 1e-4, 1e-3, 1e-2], labelOverlap=False))
-    line = alt.Chart(df).mark_line(color="#3fa83f", strokeWidth=2).encode(
-        x=x, y=y, tooltip=[alt.Tooltip("s:Q", title=step, format="d"), alt.Tooltip("g:Q", title=ylab, format=".6~f")])
-    zero = alt.Chart(pd.DataFrame({"g": [0.0]})).mark_rule(color="#8892a2", strokeDash=[4, 3]).encode(y=alt.Y("g:Q", scale=alt.Scale(type="symlog", constant=1e-6)),
-                                                                                                    tooltip=alt.value(None))
-    layers = [line, zero]
-    if best is not None and best >= df["s"].min():
-        layers += best_marker(best, x, alt.value(None))
+    first, last = float(df["s"].min()), float(df["s"].max())
+    yscale = alt.Scale(type="symlog", constant=1e-6)
+    x = alt.X("s:Q", axis=alt.Axis(tickMinStep=1, format="d", title=step), scale=alt.Scale(domain=[first, last], nice=False))
+    y = alt.Y("g:Q", scale=yscale, axis=alt.Axis(title=ylab, format=".5~f", values=[0, 1e-5, 1e-4, 1e-3, 1e-2], labelOverlap=False))
+    no_tip, grey = alt.value(None), "#8892a2"
+    nearest = alt.selection_point(nearest=True, on="mouseover", clear="mouseout", encodings=["x"], empty=False)   # the crosshair, as in the loss chart
+    base = alt.Chart(df).encode(x=x, y=y)
+    line = base.mark_line(color="#3fa83f", strokeWidth=2).encode(tooltip=no_tip)
+    zero = alt.Chart(pd.DataFrame({"g": [0.0]})).mark_rule(color=grey, strokeDash=[4, 3]).encode(y=alt.Y("g:Q", scale=yscale), tooltip=no_tip)
+    hit = alt.Chart(df).mark_point(opacity=0).encode(x=x, tooltip=no_tip).add_params(nearest)
+    vrule = alt.Chart(df).mark_rule(color=grey, strokeDash=[4, 3]).encode(x=x, tooltip=no_tip).transform_filter(nearest)
+    hrule = alt.Chart(df).mark_rule(color=grey, strokeDash=[4, 3]).encode(y=alt.Y("g:Q", scale=yscale), tooltip=no_tip).transform_filter(nearest)
+    dot = base.mark_point(color="#fff", fill="#fff", filled=True, size=60).encode(tooltip=no_tip).transform_filter(nearest)
+    text = f"{json.dumps(step, ensure_ascii=False)} + ' ' + datum.s + ' ・ ' + format(datum.g, '.6f')"
+    mid = (first + last) / 2
+    labels = [base.mark_text(align=align, dx=dx, dy=-12, color="#eef1f5", fontSize=12, fontWeight="bold").encode(text="tip:N", tooltip=no_tip)
+              .transform_calculate(tip=text).transform_filter(nearest).transform_filter(cond)
+              for align, dx, cond in (("left", 8, f"datum.s <= {mid}"), ("right", -8, f"datum.s > {mid}"))]
+    layers = [line, zero, hit, vrule, hrule, dot, *labels]
+    if best is not None and best >= first:
+        layers += best_marker(best, x, no_tip)
     return alt.layer(*layers).properties(height=height, padding={"left": 12, "right": 18, "top": 14, "bottom": 10}), w
 
 
