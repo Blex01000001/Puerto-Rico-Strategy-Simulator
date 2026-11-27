@@ -903,5 +903,9 @@
   "pl.det.memory": "Memory estimate",
   "pl.det.opponent": "Opponent",
   "pl.det.opp_sims": "Opponent simulations",
-  "pl.det.result": "Result file"
+  "pl.det.result": "Result file",
+  "folder.outside": "Only folders inside the project can be opened",
+  "folder.missing": "The folder does not exist yet",
+  "folder.no_manager": "Cannot open the folder (no file manager on this machine?): {error}",
+  "fp.versions_unreadable": "Cannot read docs/versions.json: {error}"
 }

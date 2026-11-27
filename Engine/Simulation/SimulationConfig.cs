@@ -53,6 +53,13 @@ public sealed class ParallelismConfig
 {
     /// <summary>0 = all cores.</summary>
     public int MaxDegree { get; set; } = 0;
+
+    /// <summary>The options of a parallel loop over games (BatchSimulator, PositionDump): <see cref="MaxDegree"/> threads, 0 or less = all cores.</summary>
+    public ParallelOptions ToOptions(CancellationToken cancel) => new()
+    {
+        MaxDegreeOfParallelism = MaxDegree > 0 ? MaxDegree : Environment.ProcessorCount,
+        CancellationToken = cancel,
+    };
 }
 
 /// <summary>Simulation settings shared by the Runner and the Dashboard (JSON, camelCase).</summary>

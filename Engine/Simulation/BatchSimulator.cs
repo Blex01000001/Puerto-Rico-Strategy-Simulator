@@ -47,11 +47,7 @@ public static class BatchSimulator
         int lastCheckpointDone = done;
         long lastProgressMs = -1000;
 
-        var po = new ParallelOptions
-        {
-            CancellationToken = ct,
-            MaxDegreeOfParallelism = cfg.Parallelism.MaxDegree <= 0 ? Environment.ProcessorCount : cfg.Parallelism.MaxDegree,
-        };
+        var po = cfg.Parallelism.ToOptions(ct);
 
         bool cancelled = false;
         try

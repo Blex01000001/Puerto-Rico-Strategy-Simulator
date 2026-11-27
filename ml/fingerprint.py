@@ -88,29 +88,21 @@ def model_digest(value_model):
     return "missing:" + name
 
 
-_constants = {}
+_engine_info = {}
 
 
-def _engine_constant(key, path, name):
-    """An integer constant of the C# engine, read from its source (the single place it is defined)."""
-    if key not in _constants:
-        try:
-            with open(os.path.join(ROOT, *path), encoding="utf-8") as f:
-                _constants[key] = int(re.search(name + r"\s*=\s*(\d+)", f.read()).group(1))
-        except (OSError, AttributeError, ValueError):
-            _constants[key] = 1
-    return _constants[key]
+def engine_info():
+    """ml/engine-info.json: the engine's version numbers and shared lists (strategies, seat orders, MCTS parameter order),
+    written from the C# code by PR_UPDATE_GOLDEN=1 dotnet test --filter Golden (Tests/VersionTests.cs keeps it equal to
+    the code). {} when the file is missing; the readers below fall back to safe values then."""
+    if not _engine_info:
+        _engine_info.update(_load_json(os.path.join(ML_DIR, "engine-info.json")))
+    return _engine_info
 
 
 def current_engine_version():
-    """EngineInfo.Version of this checkout (e.g. '0.2.0')."""
-    if "engine" not in _constants:
-        try:
-            with open(os.path.join(ROOT, "Engine", "Game", "EngineInfo.cs"), encoding="utf-8") as f:
-                _constants["engine"] = re.search(r'public const string Version\s*=\s*"([^"]+)"', f.read()).group(1)
-        except (OSError, AttributeError):
-            _constants["engine"] = "unknown"
-    return _constants["engine"]
+    """EngineInfo.Version of this checkout (e.g. '1.1.0')."""
+    return engine_info().get("engineVersion", "unknown")
 
 
 def rules_name(revision, ruleset=None):
@@ -118,7 +110,7 @@ def rules_name(revision, ruleset=None):
     return f"{ruleset or DEFAULT_RULESET}-v{revision}"
 
 
-def load_versions(strategies=False):
+def load_versions(strategies=False, lang="zh-TW"):
     """The version control list docs/versions.json: ({track id: track dict}, error text or None).
 
     strategies=True: ((strategy track info, [one track per strategy]), error) instead."""
@@ -131,18 +123,18 @@ def load_versions(strategies=False):
             return (doc.get("strategyTrack", {}), doc.get("strategies", [])), None
         return {t["id"]: t for t in doc["tracks"]}, None
     except (OSError, ValueError, KeyError) as e:
-        return ({}, []) if strategies else {}, f"讀不了 docs/versions.json：{e}"
+        return ({}, []) if strategies else {}, i18n.translate(lang, "fp.versions_unreadable", error=e)
 
 
 def current_rules_revision():
-    """RulesRevision of this checkout (Engine/Game/EngineInfo.cs)."""
-    return _engine_constant("rules", ("Engine", "Game", "EngineInfo.cs"), "RulesRevision")
+    """EngineInfo.RulesRevision of this checkout."""
+    return engine_info().get("rulesRevision", 1)
 
 
 def current_feature_version():
     """The newest feature set of this checkout: FeatureSets.LatestVersion (Engine/Strategies/Mcts/FeatureSets.cs). Older versions
     (1 .. this) stay readable: models and data of an older version keep working, so a data run may ask for any of them."""
-    return _engine_constant("features", ("Engine", "Strategies", "Mcts", "FeatureSets.cs"), r"public const int LatestVersion")
+    return engine_info().get("featureVersion", 1)
 
 
 def feature_versions():
@@ -151,8 +143,8 @@ def feature_versions():
 
 
 def current_format_version():
-    """PositionDump.FormatVersion of this checkout (Engine/Simulation/PositionDump.cs)."""
-    return _engine_constant("format", ("Engine", "Simulation", "PositionDump.cs"), r"public const int FormatVersion")
+    """PositionDump.FormatVersion of this checkout."""
+    return engine_info().get("formatVersion", 1)
 
 
 # ---------------------------------------------------------------- recipes
@@ -191,8 +183,8 @@ def current_strategy_revision(name):
     return entry["revision"] if entry else None
 
 
-# C# MctsStrategy.DefaultLeafRollout (a test checks they agree). Files without resolvedSeats (legacy) were made when the default was 0.
-DEFAULT_LEAF_ROLLOUT = 40
+# C# MctsStrategy.DefaultLeafRollout (from ml/engine-info.json). Files without resolvedSeats (legacy) were made when the default was 0.
+DEFAULT_LEAF_ROLLOUT = engine_info().get("defaultLeafRollout", 40)
 
 
 def resolve_seat(seat, players, legacy=False):

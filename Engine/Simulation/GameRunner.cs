@@ -61,6 +61,23 @@ public static class GameRunner
         return string.Join("+", parts);
     }
 
+    /// <summary>
+    /// The strategy of every table seat: config seat <c>seatToConfig[seat]</c>, seeded from (<paramref name="gameSeed"/>,
+    /// config seat index). Analysis tools that replay or continue games (tools/leafeval, tools/valuenoise) use this too, so
+    /// they create exactly the strategies a simulation does (pass another seed for a different continuation).
+    /// </summary>
+    public static IStrategy[] CreateStrategies(SimulationConfig cfg, int[] seatToConfig, ulong gameSeed)
+    {
+        var strategies = new IStrategy[seatToConfig.Length];
+        for (int seat = 0; seat < strategies.Length; seat++)
+        {
+            int ci = seatToConfig[seat];
+            var sc = cfg.Seats[ci];
+            strategies[seat] = StrategyRegistry.Create(sc.Strategy, sc.Params, SeedDeriver.StrategySeed(gameSeed, ci), seat);
+        }
+        return strategies;
+    }
+
     /// <summary>Plays one complete game. Deterministic in (config, gameIndex).</summary>
     public static GameRecord Play(SimulationConfig cfg, int gameIndex, IGameEventSink? sink = null) =>
         Play(cfg, gameIndex, sink, out _);
@@ -71,13 +88,7 @@ public static class GameRunner
         ulong gameSeed = SeedDeriver.GameSeed(cfg.Seed, gameIndex);
         int[] seatToConfig = SeatAssignment(cfg, gameIndex, gameSeed);
 
-        var strategies = new IStrategy[cfg.Players];
-        for (int seat = 0; seat < strategies.Length; seat++)
-        {
-            int ci = seatToConfig[seat];
-            var sc = cfg.Seats[ci];
-            strategies[seat] = StrategyRegistry.Create(sc.Strategy, sc.Params, SeedDeriver.StrategySeed(gameSeed, ci), seat);
-        }
+        var strategies = CreateStrategies(cfg, seatToConfig, gameSeed);
 
         // a replay sink also gets the action scores of the score-based strategies (never during mass simulations)
         if (sink.Enabled)

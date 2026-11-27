@@ -187,6 +187,38 @@ public class GoldenTests
         return string.Join("; ", parts);
     }
 
+    internal static string EngineInfoPath => Path.Combine(RepoRoot(), "ml", "engine-info.json");
+
+    /// <summary>What the ML tools need to know about this engine (ml/engine-info.json; fingerprint.engine_info reads it).</summary>
+    internal static string CurrentEngineInfo() => JsonSerializer.Serialize(new
+    {
+        note = "The engine's version numbers and the lists the ML UI shares with the Dashboard, written by PR_UPDATE_GOLDEN=1 dotnet test --filter Golden (checked by Tests/VersionTests.cs). ml/fingerprint.py and the ML UI read it instead of the C# source. Do not edit by hand.",
+        engineVersion = EngineInfo.Version,
+        rulesVersion = EngineInfo.RulesVersion,
+        rulesRevision = EngineInfo.RulesRevision,
+        featureVersion = FeatureSets.LatestVersion,
+        formatVersion = PositionDump.FormatVersion,
+        defaultLeafRollout = MctsStrategy.DefaultLeafRollout,
+        strategies = StrategyRegistry.Names.ToArray(),
+        handWritten = StrategyRegistry.HandWrittenNames.ToArray(),
+        seatOrders = SeatParams.SeatOrders,
+        mctsParamOrder = SeatParams.MctsFirst,
+    }, Pretty) + "\n";
+
+    [Fact]
+    public void Engine_Info_File_Matches_The_Code()
+    {
+        string now = CurrentEngineInfo();
+        if (Environment.GetEnvironmentVariable("PR_UPDATE_GOLDEN") == "1")
+        {
+            File.WriteAllText(EngineInfoPath, now);
+            return;
+        }
+        string was = File.Exists(EngineInfoPath) ? File.ReadAllText(EngineInfoPath).Replace("\r\n", "\n") : "";
+        Assert.True(was == now, "ml/engine-info.json differs from the engine (a version number, a strategy or a shared list changed): " +
+                                "refresh it with PR_UPDATE_GOLDEN=1 dotnet test --filter Golden.");
+    }
+
     [Fact]
     public void Every_Strategy_Has_A_Revision()
     {

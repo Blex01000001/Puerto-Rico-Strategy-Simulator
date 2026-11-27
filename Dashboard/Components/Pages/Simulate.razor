@@ -44,10 +44,10 @@
         <label>@(sweep ? L.T("sim.games_per_point") : L.T("sim.games")) <input type="text" inputmode="numeric" style="width:8rem" @bind="gamesText" @bind:event="onchange" disabled="@Sim.Running" /></label>
         <label>@L.T("sim.seat_order")
             <select @bind="seatOrder" disabled="@Sim.Running">
-                <option value="random">@L.T("sim.so.random")</option>
-                <option value="balanced">@L.T("sim.so.balanced")</option>
-                <option value="rotate">@L.T("sim.so.rotate")</option>
-                <option value="fixed">@L.T("sim.so.fixed")</option>
+                @foreach (var so in SeatParams.SeatOrders)
+                {
+                    <option value="@so">@L.T("sim.so." + so)</option>
+                }
             </select>
         </label>
         <label>@L.T("sim.seed") <input type="number" min="0" @bind="seed" disabled="@Sim.Running" /></label>
@@ -351,13 +351,8 @@
         templateNote = L.T("sim.applied", source, c.Players, games.ToString("N0"), c.Seed, Palette.SeatOrderLabel(c.SeatOrder, L)) + (c.Sweep != null ? L.T("sim.applied_sweep") : "") + L.T("sim.applied_end") + (notes.Count > 0 ? " " + string.Join(L.T("common.sep"), notes) : "");
     }
 
-    /// <summary>A parameter value as the text of its input box (numbers in invariant format).</summary>
-    private static string ParamText(JsonElement v) => v.ValueKind switch
-    {
-        JsonValueKind.Number => v.GetDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-        JsonValueKind.String => v.GetString() ?? "",
-        _ => v.ToString(),
-    };
+    /// <summary>A parameter value as the text of its input box (Engine: SeatParams.Text).</summary>
+    private static string ParamText(JsonElement v) => SeatParams.Text(v);
 
     // Measured: 4 players, 300 simulations, 8 rollout rounds: 400 games in about 92 s on 4 cores (docs/TODO.md).
     private const double MctsSecondsPerGame = 92.0 / 400 * 4; // per core, at 300 simulations
@@ -430,25 +425,16 @@
     {
         error = null;
         var seats = new List<SeatConfig>();
-        var used = new Dictionary<string, int>();
         for (int i = 0; i < players; i++)
         {
-            string name = strategies[i];
-            var seat = new SeatConfig { Strategy = name };
+            var seat = new SeatConfig { Strategy = strategies[i] };
             seat.Params = BuildParams(i, out var paramProblem);
             if (paramProblem != null) { error = L.T("sim.err.seat_params", i + 1, paramProblem); return; }
-            // the seat id is the name shown in the results: an MCTS seat with a value model carries the model's name,
-            // so two MCTS seats with different models can be told apart (mcts(4p-v2) vs mcts(4p-v3))
-            string label = name;
-            if (seat.Params.TryGetValue("valueModel", out var vm) && vm.ValueKind == System.Text.Json.JsonValueKind.String && !string.IsNullOrWhiteSpace(vm.GetString()))
-                label = $"{name}({Path.GetFileNameWithoutExtension(vm.GetString())})";
-            used[label] = used.GetValueOrDefault(label) + 1;
-            seat.Id = used[label] == 1 ? label : $"{label}#{used[label]}";
             seats.Add(seat);
         }
-        // A seat used twice gets "#2" on the second seat but the first keeps the plain name; make that explicit.
-        foreach (var g in seats.GroupBy(s => s.Id.Split('#')[0]).Where(g => g.Count() > 1))
-            g.First().Id = $"{g.Key}#1";
+        // the seat id is the name shown in the results (mcts(4p-v2) vs mcts(4p-v3); a repeated name gets #1, #2…)
+        var ids = SeatParams.Ids(seats);
+        for (int i = 0; i < seats.Count; i++) seats[i].Id = ids[i];
 
         var cfg = new SimulationConfig
         {
@@ -505,27 +491,15 @@
 
     private static readonly Dictionary<(string, int, string), Dictionary<string, JsonElement>> DefaultCache = new();
 
-    /// <summary>The strategy's parameters with the values it uses by default for the current player count (what the engine resolves).
-    /// For MCTS the chosen value model counts: some defaults (leafRollout) depend on whether there is one.</summary>
+    /// <summary>The strategy's default parameters for the current player count (Engine: SeatParams.Defaults), cached.</summary>
     private Dictionary<string, JsonElement> Defaults(string strategy, string valueModel = "")
     {
         if (!strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)) valueModel = "";
         lock (DefaultCache)
         {
-            if (DefaultCache.TryGetValue((strategy, players, valueModel), out var d)) return d;
-            try
-            {
-                var seat = new SeatConfig { Strategy = strategy };
-                if (valueModel.Length > 0) seat.Params["valueModel"] = JsonSerializer.SerializeToElement(valueModel);
-                d = StrategyRegistry.Resolve(seat, players).Params;
-                d.Remove("valueModel"); // it is the choice itself, the default is "no model"
-                d["valueModel"] = JsonSerializer.SerializeToElement("");
-            }
-            catch (Exception e) when (e is ArgumentException or InvalidOperationException or KeyNotFoundException or IOException)
-            {
-                d = valueModel.Length > 0 ? Defaults(strategy) : new();
-            }
-            return DefaultCache[(strategy, players, valueModel)] = d;
+            if (!DefaultCache.TryGetValue((strategy, players, valueModel), out var d))
+                DefaultCache[(strategy, players, valueModel)] = d = SeatParams.Defaults(strategy, players, valueModel);
+            return d;
         }
     }
 
@@ -534,10 +508,8 @@
     private List<string> ShownParams(string strategy, Dictionary<string, JsonElement> defs, Dictionary<string, string> typed)
     {
         var documented = StrategyInfo.Doc(L, strategy).Params.Select(p => p.Name).ToHashSet();
-        var keys = defs.Keys.Where(documented.Contains).Concat(typed.Keys.Where(k => !documented.Contains(k))).ToList();
-        if (!strategy.Equals("mcts", StringComparison.OrdinalIgnoreCase)) return keys;
-        string[] first = ["valueModel", "simulations", "leafRollout", "rolloutRounds", "rolloutStrategy"];   // MCTS: the ones you change most come first
-        return first.Where(keys.Contains).Concat(keys.Where(k => !first.Contains(k))).ToList();
+        var keys = defs.Keys.Where(documented.Contains).Concat(typed.Keys.Where(k => !documented.Contains(k)));
+        return SeatParams.Order(strategy, keys);   // MCTS: the ones you change most come first
     }
 
     /// <summary>Meaning and range of a parameter from the strategy guide (tooltip of its name); "" when not documented.</summary>
@@ -553,13 +525,7 @@
     /// depends on the other settings, like leafRollout with a model, keeps following them).</summary>
     private void SetParam(int seat, string key, string value, JsonElement? def = null)
     {
-        value = (value ?? "").Trim();
-        bool isDefault = value.Length == 0;
-        if (!isDefault && def is { } d)
-            isDefault = d.ValueKind == JsonValueKind.Number
-                ? double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && v == d.GetDouble()
-                : string.Equals(value, ParamText(d), StringComparison.Ordinal);
-        if (isDefault) pv[seat].Remove(key); else pv[seat][key] = value;
+        if (SeatParams.IsDefault(value, def)) pv[seat].Remove(key); else pv[seat][key] = value.Trim();
     }
 
     /// <summary>Another strategy for a seat: the typed values of parameters it does not have are dropped.</summary>
@@ -573,19 +539,8 @@
     /// <summary>The typed values of a seat as engine parameters: a parameter whose default is a number must be a number; unknown names keep what was typed (a number if it parses).</summary>
     private Dictionary<string, JsonElement> BuildParams(int seat, out string? problem)
     {
-        problem = null;
-        var defs = Defaults(strategies[seat]);
-        var result = new Dictionary<string, JsonElement>();
-        foreach (var (key, text) in pv[seat])
-        {
-            bool isNumber = double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v);
-            if (defs.TryGetValue(key, out var def) && def.ValueKind == JsonValueKind.Number)
-            {
-                if (!isNumber) { problem = L.T("sim.err.param_nan", key, text); return result; }
-                result[key] = JsonSerializer.SerializeToElement(v);
-            }
-            else result[key] = isNumber && !defs.ContainsKey(key) ? JsonSerializer.SerializeToElement(v) : JsonSerializer.SerializeToElement(text);
-        }
+        var result = SeatParams.Build(pv[seat], Defaults(strategies[seat]), out var badKey);
+        problem = badKey == null ? null : L.T("sim.err.param_nan", badKey, pv[seat][badKey]);
         return result;
     }
 }

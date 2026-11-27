@@ -23,31 +23,9 @@ import numpy as np
 import modelmeta
 import positions
 
-DEFAULTS = {"hidden": "256,128", "epochs": 12, "batch": 1024, "lr": 1e-3, "l2": 1e-5, "patience": 3,
-            "valid": 0.1, "seed": 1, "backend": "auto", "device": "auto"}
+from train_options import MLP_DEFAULTS as DEFAULTS, torch_available  # noqa: E402  (tests patch torch_available here)
+
 LR_HALVING_EPOCHS = 4
-
-
-def resolve_backend(o):
-    """(backend, device) a run with these options really uses ('auto' resolved the way train() does)."""
-    backend = o["backend"]
-    if backend == "auto":
-        backend = "torch" if torch_available() else "numpy"
-    if backend != "torch":
-        return backend, "cpu"
-    device = o["device"]
-    if device == "auto":
-        import torch
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    return backend, device
-
-
-def torch_available():
-    try:
-        import torch  # noqa: F401
-        return True
-    except Exception:  # noqa: BLE001 - a broken install (e.g. missing CUDA libraries) counts as unavailable
-        return False
 
 
 def sigmoid(z):

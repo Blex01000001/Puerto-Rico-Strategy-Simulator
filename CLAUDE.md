@@ -21,18 +21,19 @@
 | `docs/TODO.md` | 待辦、已知問題、想法（目前狀態） |
 | `docs/strategy-analysis.md` | 策略分析與結論（第 0 節座位偏差、1～2 對戰、3～4 調參、5 MCTS、7 Wharf／壟斷、8 同分、9 陪練、10 學習型價值函數，10.4 資料局數與模型大小） |
 | `docs/versions.json` | 版本控管清單：規則版本、引擎版本、特徵版本、資料格式版本與每個策略的策略版本，各自的版本號、commit 與每個版本的修改內容（兩個 UI 的「版本控管」頁讀它；規則見下面「版本與 hash」） |
-| `docs/rules-interpretations.md` | 規則詮釋確認清單（TODO 8(a)）：六條引擎自行採用的詮釋，附規則原文、做法與例子；2026-11-19 使用者已逐條確認（結果在檔案開頭，三條改成規則版本 2） |
+| `docs/rules-interpretations.md` | 規則詮釋確認清單：六條引擎自行採用的詮釋，附規則原文、做法與例子；2026-11-19 使用者已逐條確認（結果在檔案開頭，三條改成規則版本 2） |
 | `i18n/` | UI 文字表：`ml.<語言>.json`（ML UI，`ml/i18n.py` 讀）、`dash.<語言>.json`（Dashboard，`Dashboard/Services/Loc.cs` 讀）；語言 `en`（預設）、`zh-TW`；`ml/tests/test_i18n.py` 檢查 |
 | `docs/models.md` | 局面估值模型的研發紀錄與目前狀況（每個模型的資料、勝率、狀態；新增正式模型時補一列） |
+| `docs/release-notes-1.0.0.md` | 1.0.0 的發佈說明（相容承諾的內容；之後的版本改了什麼看 `docs/versions.json`） |
 | `docs/runpod.md` | RunPod：開哪種 pod、第一次設定、SSH 通道、長時間工作、把模型帶回本機、費用、重現性 |
 | `docs/experiments.md` | 實驗設定索引：`tournaments/`、`sweeps/round*`、`mcts/` 各是什麼、怎麼重跑 |
 | `rules.md` | 遊戲規則（第 1～6 節 3 人局，第 7 節 4 人局差異） |
 | `Engine/` | 規則引擎 `Game/`、策略 `Strategies/`、模擬與統計 `Simulation/`、事件 `Events/`；細節見 `Engine/CLAUDE.md` |
-| `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep --dump-positions --dump-rate` |
+| `Runner/Program.cs` | 命令列：`--config --games --seed --threads --out --resume --replay --sweep --dump-positions --dump-rate --feature-version --help` |
 | `Dashboard/` | Blazor Web App（九頁：HOME、模擬、結果、總覽、比較、回放、參數掃描、設定檔、版本控管）；細節見 `Dashboard/CLAUDE.md` |
-| `Tests/` | xUnit，只參考 Engine：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`SimulationTests`（fuzz／重現／續跑／取消）、`StrategyTests`、`ValueModelTests`（推論與 Python 一致、特徵視角、dump 可重現；固定資料在 `Tests/Data/`）、`VersionTests`（黃金樣本：規則或策略的行為變了卻沒進版就失敗；版本清單、`ml/strategy-params.json` 與程式一致；`StrategyRegistry.Resolve`）；情境用 `Tests/Sc.cs`（`Sc.Start` 指定總督與職業） |
+| `Tests/` | xUnit，只參考 Engine。規則：`SetupTests`、`SettlerMayorTests`、`BuilderCraftsmanTests`、`TraderCaptainTests`、`EndGameScoringTests`、`FourPlayerTests`、`BuildingRecordTests`；模擬：`SimulationTests`（fuzz／重現／續跑／取消）、`SweepTests`；策略：`StrategyTests`、`MctsTests`、`ValueModelTests`（推論與 Python 一致、特徵視角、dump 可重現；固定資料在 `Tests/Data/`）、`FeatureSetTests`；Dashboard 用的統計與表單邏輯：`ResultAnalysisTests`（含 `ResultSummary`，用 `i18n/dash.*.json` 的文字）、`GameFilterTests`、`ResultComparisonTests`、`TournamentOverviewTests`、`ResultFilesTests`、`SeatParamsTests`；版本：`VersionTests`（黃金樣本：規則或策略的行為變了卻沒進版就失敗；版本清單、`ml/strategy-params.json`、`ml/engine-info.json` 與程式一致；`StrategyRegistry.Resolve`）、`EngineInfoTests`；情境用 `Tests/Sc.cs`（`Sc.Start` 指定總督與職業） |
 | `deploy/runpod/` | RunPod（或任何 Linux）：`setup.sh`（.NET 8、Python 套件、建置、發佈 Runner，可重複執行）、`start.sh`（背景啟動／停止 ML UI 與 Dashboard，只綁 localhost）；說明在 `docs/runpod.md` |
-| `ml/` | MCTS 的學習型價值函數（Python 子專案）：ML UI（Streamlit，`ml/start-ui.sh`／`.cmd`，localhost:8501，另外啟動）、訓練（LightGBM、NumPy MLP，背景工作）、產生資料的設定、正式模型 `ml/models/`＋`.meta.json`（使用者的實驗放本機工作區 `ml/local/`，被 git 忽略）、pytest；流程見 `ml/README.md`，細節與契約見 `ml/CLAUDE.md`（資料檔放 `results/ml/`） |
+| `ml/` | MCTS 的學習型價值函數（Python 子專案）：ML UI（Streamlit，進入點 `ml/ui.py`、各頁在 `ml/mlui/`；`ml/start-ui.sh`／`.cmd`，localhost:8501，另外啟動）、訓練（LightGBM、NumPy MLP，背景工作）、產生資料的設定、正式模型 `ml/models/`＋`.meta.json`（使用者的實驗放本機工作區 `ml/local/`，被 git 忽略）、pytest；流程見 `ml/README.md`，細節與契約見 `ml/CLAUDE.md`，ML UI 畫面的細節與雷見 `ml/docs/ui-notes.md`（只在改畫面時 grep）（資料檔放 `results/ml/`） |
 | `tools/tiestats/`、`tools/sparring/`、`tools/mctsdepth/`、`tools/valuenoise/`、`tools/leafeval/` | 分析工具，不在 `PuertoRico.sln`（改 Engine 後要另外 `dotnet build -c Release tools/<名稱>`）；用法寫在各自 `Program.cs` 開頭 |
 | `config*.json` | 設定檔範例（Runner 與 Dashboard 共用格式） |
 | `PuertoRico.sln`、`Directory.Build.props` | net8.0、Nullable、TreatWarningsAsErrors（csproj 內不要重複設；新程式碼要零警告） |
@@ -52,7 +53,8 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 - 指令輸出很長時接 `| tail` 或 `grep`，只看需要的行。
 
 ## 全專案規則（不要改回去；要推翻先討論）
-- 相依方向：Runner、Dashboard、Tests 只參考 Engine；Engine 不得引用 Blazor、UI 或 Windows 專用 API（要能在 RunPod Linux 獨立執行）。
+- 相依方向：Runner、Dashboard、Tests 只參考 Engine；Engine 不得引用 Blazor、UI 或 Windows 專用 API（要能在 RunPod Linux 獨立執行）。Dashboard 頁面裡可以不靠畫面測的邏輯（統計、表單轉換）放 `Engine/Simulation/` 並加單元測試；UI 文字不寫死在 Engine，由呼叫端傳查表函式（例：`ResultSummary.ToMarkdown(r, a, L.T)`）。
+- Python（`ml/`）不解析 C# 原始碼：引擎的版本號與共用清單（策略名稱、座位順序、MCTS 參數順序）讀 `ml/engine-info.json`，策略的版本與預設參數讀 `ml/strategy-params.json`（兩份都由 `PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 從程式產生、測試檢查一致）。
 - 設定與結果都是 JSON，格式只定義在 `Engine/Simulation/`，Runner 與 Dashboard 共用，含 `schemaVersion`。不使用 EF Core。
 - 路徑一律 `Path.Combine`。
 - 重現性：同設定同種子結果必須完全相同；禁止共享／靜態 Random、`Random.Shared`、以時間當亂數或限制（MCTS 只用模擬次數）。
@@ -75,7 +77,7 @@ dotnet publish Runner -c Release -o publish/runner   # 發佈 Runner（publish/ 
 
 **hash**（`ml/fingerprint.py`，ML UI「hash 說明」頁）：資料、模型、對戰各有一個配方 hash，參數全部一樣才會一樣，用來判斷同名檔案差在哪、重複資料、舊版的資料與模型。配方含規則集與規則版本、預留的變體欄位、每個座位的策略版本與完整參數；計入／不計入的參數見該頁與 `ml/CLAUDE.md`。git commit（`EngineInfo.Commit`，結果檔與 dump 的 `engineCommit`）只用來追溯，不進 hash。預測新執行的 hash 用 `ml/strategy-params.json`（引擎產生、測試檢查與程式一致）；沒有 `resolvedSeats` 的舊檔用凍結的 `ml/strategy-params.legacy.json`（**永遠不要重產生它**）。
 
-**黃金樣本**（`Tests/VersionTests.cs`、`Tests/Data/golden.json`）：RULES 案例只有隨機玩家（規則、亂數與 random 策略），其他每個策略各一組案例（它加隨機玩家），只 hash 對局的核心欄位；不含 MCTS（浮點在不同平台可能差一位）。失敗訊息會分開說「規則變了」「X 的預設參數變了（不用進版本）」「X 的決策變了（建議 X 加 1）」。決定好版本後才用 `PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json` 與 `ml/strategy-params.json`。
+**黃金樣本**（`Tests/VersionTests.cs`、`Tests/Data/golden.json`）：RULES 案例只有隨機玩家（規則、亂數與 random 策略），其他每個策略各一組案例（它加隨機玩家），只 hash 對局的核心欄位；不含 MCTS（浮點在不同平台可能差一位）。失敗訊息會分開說「規則變了」「X 的預設參數變了（不用進版本）」「X 的決策變了（建議 X 加 1）」。決定好版本後才用 `PR_UPDATE_GOLDEN=1 dotnet test --filter Golden` 重產生 `golden.json`、`ml/strategy-params.json` 與 `ml/engine-info.json`（引擎版本、規則版本、特徵版本、資料格式版本改了，或新增策略時，`Engine_Info_File_Matches_The_Code` 會要求重產生）。
 
 **Claude Code 的責任：動到下面這些東西時，主動告訴使用者「這會影響 ○○ 版本／hash」並建議新版本號，經同意後一起改；不要默默改，也不要默默不改。**
 1. **改了引擎或策略的程式**：跑 `dotnet test`，照 `GoldenTests` 的訊息判斷：規則變了 → 建議規則版本 +1；某策略的決策變了 → 建議該策略版本 +1；只有預設值變了 → 不進版本，只更新黃金檔。進版時引擎版本至少次版本 +1、`docs/versions.json` 補對應的筆數，並告訴使用者哪些資料與模型變成「舊版」要重產生。只動 MCTS 或估值模型推論時黃金樣本不會失敗，要自己判斷 `mcts` 要不要加 1。

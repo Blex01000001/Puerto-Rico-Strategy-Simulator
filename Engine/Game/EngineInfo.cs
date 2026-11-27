@@ -7,7 +7,7 @@ public static class EngineInfo
     /// Product version (SemVer, shown to people, not part of any hash): MAJOR for breaking the compatibility promise (docs/release-notes-1.0.0.md), MINOR for new features, PATCH for fixes that do not
     /// change results; every <see cref="RulesRevision"/> bump is at least a MINOR bump. Change log: docs/versions.json.
     /// </summary>
-    public const string Version = "1.1.0";
+    public const string Version = "1.2.0";
     public const string RulesVersion = "base";
 
     /// <summary>

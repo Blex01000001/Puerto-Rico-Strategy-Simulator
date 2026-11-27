@@ -5,19 +5,21 @@ import os
 import subprocess
 import sys
 
+import i18n
 
-def open_folder(path, root):
+
+def open_folder(path, root, lang="zh-TW"):
     """Opens `path` (a folder, or a file: its folder) in Explorer / Finder / the desktop's file manager.
 
-    Returns (True, "") or (False, reason in Chinese for the user)."""
+    Returns (True, "") or (False, the reason for the user in `lang`: i18n keys folder.*)."""
     folder = os.path.abspath(path)
     if not os.path.isdir(folder):
         folder = os.path.dirname(folder)
     root = os.path.abspath(root)
     if os.path.commonpath([folder, root]) != root:
-        return False, "只能開啟專案裡的資料夾"
+        return False, i18n.translate(lang, "folder.outside")
     if not os.path.isdir(folder):
-        return False, "資料夾還不存在"
+        return False, i18n.translate(lang, "folder.missing")
     try:
         if sys.platform == "win32":
             os.startfile(folder)  # noqa: S606 - a folder inside the project, opened by Explorer
@@ -26,5 +28,5 @@ def open_folder(path, root):
         else:
             subprocess.Popen(["xdg-open", folder], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError as e:
-        return False, f"開不了資料夾（這台機器沒有檔案管理員？）：{e}"
+        return False, i18n.translate(lang, "folder.no_manager", error=e)
     return True, ""

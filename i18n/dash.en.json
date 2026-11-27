@@ -881,5 +881,21 @@
   "vs.err.cannot_read": "Cannot read {0}: {1}",
   "act.pass.craftsman": "Declines the Craftsman privilege (no extra good)",
   "act.pass.store_kinds": "Stops keeping whole kinds (next: the free barrel)",
-  "act.pass.store_barrel": "Keeps no free barrel"
+  "act.pass.store_barrel": "Keeps no free barrel",
+  "sum.title": "## Simulation result: {0}",
+  "sum.unnamed": "(unnamed)",
+  "sum.games": "- {0} players, {1} games ({2}, {3} planned), main seed {4}, seat order {5}",
+  "sum.duration": "- Duration: {0}",
+  "sum.speed": ", {0} games/s",
+  "sum.engine": "- Engine {0} (commit {1}), rules {2}",
+  "sum.revisions": "- Strategy versions: {0}",
+  "sum.header": "| Seat | Strategy | Settings | Win rate | ±95% | Average score | Std dev |",
+  "sum.seats": "Seat advantage (seat 1 = starting governor): {0}",
+  "sum.seat": "seat {0} {1}",
+  "sum.rounds": "Average rounds {0}, average decisions {1} / game",
+  "sum.sep": ", ",
+  "sum.param_sep": ", ",
+  "sum.dur_h": "{0} h {1} min",
+  "sum.dur_m": "{0} min {1} s",
+  "sum.dur_s": "{0} s"
 }

@@ -97,7 +97,7 @@ public class ResultAnalysisTests
         r.Status = "completed";
         r.StartedUtc = new DateTime(2026, 11, 17, 12, 0, 0, DateTimeKind.Utc);
         r.FinishedUtc = r.StartedUtc.AddSeconds(125);
-        var text = ResultSummary.ToMarkdown(r, ResultAnalysis.From(r));
+        var text = ResultSummary.ToMarkdown(r, ResultAnalysis.From(r), DashText.For("zh-TW"));
         Assert.Contains("## 模擬結果：t-summary", text);
         Assert.Contains("3 人局，4 局（completed，預定 4）", text);
         Assert.Contains("耗時：2 分 5 秒，0.03 局/秒", text);
@@ -107,12 +107,25 @@ public class ResultAnalysisTests
         Assert.Contains("| A | random | — | 62.5% |", text);          // 2.5 wins of 4 games (one tie for first)
 
         // the English text says the same things and contains no Chinese
-        var en = ResultSummary.ToMarkdown(r, ResultAnalysis.From(r), english: true);
+        var en = ResultSummary.ToMarkdown(r, ResultAnalysis.From(r), DashText.For("en"));
         Assert.Contains("## Simulation result: t-summary", en);
         Assert.Contains("3 players, 4 games (completed, 4 planned)", en);
         Assert.Contains("Duration: 2 min 5 s, 0.03 games/s", en);
         Assert.Contains("| B | random | valueModel x.txt |", en);
         Assert.Contains("| A | random | — | 62.5% |", en);
         Assert.DoesNotContain(en, c => c >= (char)0x4e00 && c <= (char)0x9fff);
+    }
+}
+
+/// <summary>The Dashboard's text tables (i18n/dash.&lt;language&gt;.json) as a <see cref="ResultSummary.Text"/>: a missing key fails the test.</summary>
+internal static class DashText
+{
+    public static ResultSummary.Text For(string lang)
+    {
+        string path = Path.Combine(GoldenTests.RepoRoot(), "i18n", $"dash.{lang}.json");
+        var table = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path))!;
+        return (key, args) => table.TryGetValue(key, out var t)
+            ? (args.Length == 0 ? t : string.Format(System.Globalization.CultureInfo.InvariantCulture, t, args))
+            : throw new KeyNotFoundException($"{key} is missing in {path}");
     }
 }

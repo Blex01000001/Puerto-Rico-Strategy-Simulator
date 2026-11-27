@@ -171,3 +171,11 @@ def test_planned_dump_recipe_follows_the_feature_version_asked_for():
     older = fp.planned_dump_recipe(cfg, 0.01, 1)
     assert older["featureVersion"] == 1 and fp.fingerprint(older) != fp.fingerprint(newest)
     assert fp.feature_versions() == list(range(1, fp.current_feature_version() + 1))
+
+
+def test_engine_info_agrees_with_the_strategy_table():
+    """ml/engine-info.json and ml/strategy-params.json are both written from the engine: the same strategies."""
+    info = fp.engine_info()
+    assert set(info["strategies"]) - {"rule-based"} == set(fp.strategy_table())
+    assert set(info["handWritten"]) < set(info["strategies"])
+    assert info["seatOrders"][0] == "random" and info["mctsParamOrder"][0] == "valueModel"
