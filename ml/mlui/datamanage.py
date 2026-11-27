@@ -12,6 +12,8 @@ from mlui.text import (  # noqa: F401
     t,
 )
 from mlui.common import (  # noqa: F401
+    open_in_pipeline,
+    train_item,
     absolute,
     busy_files,
     card,
@@ -137,9 +139,18 @@ def dump_list(good):
              for d in chosen]
     # the action bar: rename (exactly one ticked) | copy details | hint ........ delete
     with st.container(key="actionbar-dumps"):
-        c_rename, c_copy, c_hint, c_delete = st.columns([1.2, 1.9, 4.2, 1.7], vertical_alignment="center")
+        c_rename, c_train, c_copy, c_hint, c_delete = st.columns([1.2, 1.7, 1.9, 2.5, 1.7], vertical_alignment="center")
         if c_rename.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
             rename_dump_dialog(chosen[0])
+        # 用這些資料訓練: one training item on the ticked data in 建立排程 (one player count and one feature version, as training needs)
+        same = len({d["人數"] for d in chosen}) == 1 and len({d["特徵版本"] for d in chosen}) == 1
+        if chosen and same:
+            players = chosen[0]["人數"]
+            c_train.button(t("dm.to_train"), key="dm-to-train", width="stretch", help=t("dm.to_train_help", page=t("page.pipeline")),
+                           on_click=open_in_pipeline, args=("t", train_item([d["path"] for d in chosen], players), players,
+                                                            t("pl.prefill.train", n=len(chosen))))
+        else:
+            c_train.button(t("dm.to_train"), key="dm-to-train", width="stretch", disabled=True, help=t("dm.to_train_help", page=t("page.pipeline")))
         hint = digest_box(modelmeta.digest(items) if chosen else "", "dumps", len(chosen), c_copy)
         if hint:
             c_hint.markdown(hint, unsafe_allow_html=True)

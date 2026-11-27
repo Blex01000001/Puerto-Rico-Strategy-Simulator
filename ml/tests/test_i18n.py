@@ -39,10 +39,10 @@ def test_shell_is_english_by_default_and_switches(monkeypatch, tmp_path):
     assert not at.exception, at.exception
     shell = [b.label for b in at.button if (b.key or "").startswith(("nav", "lang", "side"))]
     assert not [x for x in shell if CJK.search(x) and x != "中文"], shell
-    assert at.title[0].value == "Data Sampling"
+    assert at.title[0].value == "Create Schedule"
     assert not CJK.search(at.caption[0].value)
     at.button(key="lang-toggle").click().run()
-    assert at.title[0].value == "模擬對局採樣"
+    assert at.title[0].value == "建立排程"
     assert any(b.label == "English" for b in at.button)
 
 

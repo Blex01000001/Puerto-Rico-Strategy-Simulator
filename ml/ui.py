@@ -26,7 +26,7 @@ if check_env.missing_modules():
     st.stop()
 
 from mlui.analysis import analysis_page  # noqa: E402
-from mlui.common import DASHBOARD_URL, TITLE, sidebar_status  # noqa: E402
+from mlui.common import DASHBOARD_URL, TITLE, go, sidebar_status  # noqa: E402
 from mlui.data import data_tab  # noqa: E402
 from mlui.datamanage import data_manage_page  # noqa: E402
 from mlui.helppages import hash_page, versions_page  # noqa: E402
@@ -39,16 +39,18 @@ from mlui.train import training_tab  # noqa: E402
 
 
 def pages():
-    return [("data", t("page.data"), "🎲", lambda: data_tab(), t("section.flow")),
-         ("train", t("page.train"), "🧠", lambda: training_tab(), None),
-         ("match", t("page.match"), "⚔️", lambda: match_tab(), None),
-         ("pipeline", t("page.pipeline"), "🔗", lambda: pipeline_page(), None),
-         ("datamanage", t("page.datamanage"), "🗃️", lambda: data_manage_page(), t("section.manage")),
-         ("models", t("page.models"), "📦", lambda: models_page(), None),
-         ("analysis", t("page.analysis"), "🤖", lambda: analysis_page(), None),
-         ("queue", t("page.queue"), "🗂️", lambda: queue_page(), None),
-         ("hash", t("page.hash"), "🔑", lambda: hash_page(), t("section.help")),
-         ("versions", t("page.versions"), "🏷️", lambda: versions_page(), None)]
+    """(id, title, icon, page function, section title above it or None). 建立排程 comes first: a pipeline of one item is a single job;
+    the three single-job pages stay for now in their own group at the end of the workflow pages."""
+    return [("pipeline", t("page.pipeline"), "🔗", lambda: pipeline_page(), t("section.flow")),
+            ("datamanage", t("page.datamanage"), "🗃️", lambda: data_manage_page(), t("section.manage")),
+            ("models", t("page.models"), "📦", lambda: models_page(), None),
+            ("analysis", t("page.analysis"), "🤖", lambda: analysis_page(), None),
+            ("queue", t("page.queue"), "🗂️", lambda: queue_page(), None),
+            ("data", t("page.data"), "🎲", lambda: data_tab(), t("section.single")),
+            ("train", t("page.train"), "🧠", lambda: training_tab(), None),
+            ("match", t("page.match"), "⚔️", lambda: match_tab(), None),
+            ("hash", t("page.hash"), "🔑", lambda: hash_page(), t("section.help")),
+            ("versions", t("page.versions"), "🏷️", lambda: versions_page(), None)]
 
 
 def current_page():
@@ -80,13 +82,6 @@ def scroll_to_top():
             components.html(SCROLL_TOP_PAGE, height=0)
 
 
-def go(page):
-    if page != st.session_state.get("page"):
-        st.session_state["scroll-top"] = True  # the next run draws the new page: start it at the top
-    st.session_state["page"] = page
-    st.query_params["page"] = page  # a reload stays on the same page
-
-
 def switch_language():
     other = "zh-TW" if lang() == "en" else "en"
     st.session_state["lang"] = other
@@ -114,7 +109,7 @@ def main():
         with st.container(key="side-status"):  # pinned to the bottom of the navigation (CSS)
             sidebar_status()
     st.title(t(f"page.{page}"))
-    st.caption(t("header.flow", data=t("page.data"), train=t("page.train"), match=t("page.match"), url=DASHBOARD_URL))
+    st.caption(t("header.flow", pipeline=t("page.pipeline"), data=t("pl.data.card"), train=t("pl.train.card"), match=t("pl.match.card"), url=DASHBOARD_URL))
     started = st.session_state.pop("job-started", None)
     if started:
         st.toast(started)

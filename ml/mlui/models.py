@@ -19,6 +19,8 @@ from mlui.text import (  # noqa: F401
     t,
 )
 from mlui.common import (  # noqa: F401
+    match_item,
+    open_in_pipeline,
     DASHBOARD_URL,
     LOCAL_CONFIGS,
     LOCAL_MATCHES,
@@ -566,8 +568,16 @@ def models_list():
              if os.path.exists(p)]  # the model and the match records kept beside it (official models' records are local)
     # the action bar: rename | make official / move to local | copy details | hint ........ delete (rename and move: exactly one ticked model)
     with st.container(key="actionbar-models"):
-        c_rename, c_move, c_copy, c_hint, c_delete = st.columns([1.2, 1.7, 1.9, 4, 1.7], vertical_alignment="center")
+        c_rename, c_move, c_match, c_copy, c_hint, c_delete = st.columns([1.2, 1.7, 1.7, 1.9, 2.3, 1.7], vertical_alignment="center")
         note = move_buttons(chosen[0] if len(chosen) == 1 else None, c_rename, c_move)
+        # 對戰這個模型: one match item (this model against plain MCTS) in 建立排程
+        one = model_meta(chosen[0]) if len(chosen) == 1 else None
+        if one and one.get("players") in (3, 4):
+            name = os.path.basename(chosen[0])
+            c_match.button(t("md.to_match"), key="md-to-match", width="stretch", help=t("md.to_match_help", page=t("page.pipeline")),
+                           on_click=open_in_pipeline, args=("m", match_item(name, one["players"]), one["players"], t("pl.prefill.match", name=name)))
+        else:
+            c_match.button(t("md.to_match"), key="md-to-match", width="stretch", disabled=True, help=t("md.to_match_help", page=t("page.pipeline")))
         hint = digest_box(modelmeta.digest(items) if chosen else "", "models", len(chosen), c_copy)
         if hint:
             c_hint.markdown(hint, unsafe_allow_html=True)

@@ -1,6 +1,7 @@
 """Shared by the ML UI pages: paths, files on disk, jobs, widgets (cards, tables, buttons, filters), charts and helpers.
 A name lives here when two or more pages (or the navigation) use it; a page's own helpers are in its module."""
 
+import datetime
 import html
 import glob
 import json
@@ -802,3 +803,32 @@ def version_table(head, rows, css=""):
         return f'<td class="{kind}">{_esc(value)}</td>'
     return (f'<table class="vtable {css}"><thead><tr>' + "".join(f"<th>{_esc(h)}</th>" for h in head) + "</tr></thead><tbody>"
             + "".join("<tr>" + "".join(cell(v, k) for v, k in r) + "</tr>" for r in rows) + "</tbody></table>")
+
+
+def go(page):
+    """Opens another page of the navigation (on the next run)."""
+    if page != st.session_state.get("page"):
+        st.session_state["scroll-top"] = True  # the next run draws the new page: start it at the top
+    st.session_state["page"] = page
+    st.query_params["page"] = page  # a reload stays on the same page
+
+
+def open_in_pipeline(kind, item, players, note):
+    """A shortcut of another page (對戰這個模型, 用這些資料訓練): hands one ready item to the 建立排程 page and opens it.
+    The page takes it at its next run (pipeline.pl_take_prefill): another player count starts a new form, otherwise the item is added."""
+    st.session_state["pl-prefill"] = {"kind": kind, "item": item, "players": players, "note": note}
+    go("pipeline")
+
+
+def train_item(paths, players, kind="train_lgbm"):
+    """A pipeline training item on existing data files (relative paths), with the default options and a time-stamped name."""
+    import train_options
+    stamp = datetime.datetime.now().strftime("%m%d-%H%M")
+    return {"data": list(paths), "kind": kind, "name": f"{players}p-{'lgbm' if kind == 'train_lgbm' else 'mlp'}-{stamp}",
+            "options": train_options.defaults(kind)}
+
+
+def match_item(model_name, players):
+    """A pipeline match item: the model against plain MCTS (the 對戰驗證 defaults: 300 simulations, 240 games, seed 9191)."""
+    return {"model": model_name, "table": "default", "rival": None, "sims": 300, "leaf": 40 if players == 4 else 0, "bsims": 300,
+            "games": 240, "seed": 9191, "threads": 0}
