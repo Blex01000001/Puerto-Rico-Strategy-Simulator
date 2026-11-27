@@ -142,6 +142,19 @@ def pl_items_clear(kind):
     _pl_set_lists(*pipeline_form.clear_items(pl_items("d"), pl_items("t"), pl_items("m"), kind))
 
 
+def pl_take_prefill():
+    """An item handed over by another page (common.open_in_pipeline): another player count starts a new form, then the item is added.
+    Runs before the player radio is drawn, so it may set the player count."""
+    pre = st.session_state.pop("pl-prefill", None)
+    if not pre:
+        return
+    if st.session_state.get("pl-players") != pre["players"]:
+        st.session_state["pl-players"] = pre["players"]
+        _pl_set_lists([], [], [])
+    pl_item_add(pre["kind"], pre["item"])
+    st.toast(pre["note"])
+
+
 def pl_new_players():
     """Items are made for one player count: another count starts a new form."""
     _pl_set_lists([], [], [])
@@ -704,14 +717,17 @@ def pl_write_configs(players, datas, matches):
 def pl_run_card(players, datas, trains, matches):
     with card("pl-run", t("pl.run.card")):
         default_name = (trains[0]["name"] if trains else "") or (datas[0].get("name") if datas else "") or (matches[0].get("model_name") if matches else "") or "pipeline"
-        pipe_name = pl_text(t("pl.run.name"), "pl-run-name", default_name, default_name)
+        # the name may stay empty (one click less for a single item): the default is used then
+        # (a fixed label: a label that changes with the items would make Streamlit forget what was typed)
+        typed = pl_text(t("pl.run.name"), "pl-run-name", "", "auto")
+        if not typed:
+            st.caption(t("pl.run.name_auto", name=default_name))
+        pipe_name = typed or default_name
         problems = []
         for plan in [*datas, *trains, *matches]:
             for p_ in plan["problems"]:
                 if p_ not in problems:
                     problems.append(p_)
-        if not pipe_name:
-            problems.append(t("pl.run.p.name"))
         complete = all("out_rel" in p_ for p_ in [*datas, *trains, *matches])
         steps = pl_steps(players, datas, trains, matches) if complete else []
         if not problems and not steps:
@@ -726,7 +742,7 @@ def pl_run_card(players, datas, trains, matches):
             hours = sum(d["games"] for d in datas if d["mode"] == "selfplay") / 3600
             st.caption(t("pl.run.summary", n=len(steps), lo=f"{games * 0.6 / 60:.0f}", hi=f"{games * 1.2 / 60:.0f}")
                        + (t("pl.run.summary_sp", hours=f"{hours:.1f}") if hours else ""))
-        if action_row(t("pl.run.start"), "pl-btn-start", problems):
+        if action_row(t("pl.run.start_one") if len(steps) == 1 else t("pl.run.start"), "pl-btn-start", problems):
             try:
                 pl_write_configs(players, datas, matches)
                 ids = jobs.start_pipeline(pipe_name, steps)
@@ -744,6 +760,7 @@ def pl_run_card(players, datas, trains, matches):
 
 def pipeline_page():
     pl_restore()
+    pl_take_prefill()
     st.caption(t("pl.intro"))
     players = st.radio(t("match.players"), [4, 3], horizontal=True, format_func=lambda n: t("match.players_n", n=n), key="pl-players", on_change=pl_new_players)
     pl_template_card()

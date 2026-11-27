@@ -37,8 +37,8 @@ def nav_labels(at):
 
 def test_ui_renders_without_data(results):
     at = run_app()
-    assert nav_labels(at) == ["模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "流程排定", "訓練資料", "估值模型", "AI 分析", "排程佇列", "hash 說明", "版本控管"]
-    assert at.button(key="navon-data")  # the first page is the current one
+    assert nav_labels(at) == ["建立排程", "訓練資料", "估值模型", "AI 分析", "排程佇列", "模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "hash 說明", "版本控管"]
+    assert at.button(key="navon-pipeline")  # the first page is the current one
     goto(at, "train")
     assert at.button(key="navon-train")
     assert any("還沒有訓練資料" in i.value for i in at.info)
@@ -81,7 +81,7 @@ def test_typed_model_name_survives_a_rerun_in_a_later_minute(results, monkeypatc
 def test_each_page_has_its_own_english_title(results, monkeypatch):
     monkeypatch.setenv("PR_LANG", "en")
     at = run_app()
-    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Pipeline", "datamanage": "Training Data", "models": "Value Models", "analysis": "AI Analysis",
+    titles = {"data": "Data Sampling", "train": "Model Training", "match": "Match Validation", "pipeline": "Create Schedule", "datamanage": "Training Data", "models": "Value Models", "analysis": "AI Analysis",
               "queue": "Job Queue", "hash": "Hash Guide", "versions": "Version Control"}
     for pid, title in titles.items():
         goto(at, pid)
@@ -191,8 +191,7 @@ def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypat
     started = {}
     monkeypatch.setattr(jobs, "start", lambda kind, title, spec, *key: started.update(kind=kind, title=title, spec=spec, key=key) or "job-1")
     written = {}
-    at = AppTest.from_file(UI, default_timeout=60)
-    at.run()
+    at = goto(run_app(), "data")
     mode = next(r for r in at.radio if r.label == "採樣來源模型")
     mode.set_value("custom").run()
     assert not at.exception, at.exception
@@ -239,7 +238,7 @@ def test_save_config_only_writes_the_config(results, monkeypatch):
     import os
     import jobs
     monkeypatch.setattr(jobs, "start", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no job may start")))
-    at = run_app()
+    at = goto(run_app(), "data")
     next(r for r in at.radio if r.label == "採樣來源模型").set_value("custom").run()
     next(t for t in at.text_input if t.label.startswith("輸出名稱")).set_value("pytest-saved-only").run()
     cfg_path = os.path.join(os.path.dirname(UI), "local", "data-configs", "pytest-saved-only.json")
@@ -456,7 +455,7 @@ def test_pipeline_page_with_data_training_and_a_match(results, no_spawn, inline)
         assert cfg["seats"][0]["params"]["leafRollout"] == 40 and cfg["seed"] == 424242
         assert jobs.read_job(dump_job["id"])["state"] == "queued" and jobs.read_job(match_job["id"])["state"] == "waiting"
         assert not at.session_state["pl-data"] and not at.session_state["pl-train"] and not at.session_state["pl-match"]  # the form starts empty
-        assert at.session_state["pl-run-name"] == "pipeline"                                  # back to the default name
+        assert at.session_state["pl-run-name"] == ""                                          # back to empty (= the default name)
     finally:
         _cleanup(created)
 
@@ -784,3 +783,47 @@ def test_ai_analysis_page_only_says_whether_each_key_was_found(results, monkeypa
     text = " ".join(m.value for m in at.markdown)
     assert "已讀到 API 金鑰" in text and "環境變數 GEMINI_API_KEY" in text and "ENVKEY-SECRET" not in text   # found, and never shown
     assert text.count("沒有讀到 API 金鑰") == 1                                                            # Claude still has none
+
+
+def test_create_schedule_is_the_first_page_and_the_single_jobs_are_grouped_last(results):
+    at = run_app()
+    assert at.title[0].value == "建立排程"          # the default page
+    labels = nav_labels(at)
+    assert labels[0] == "建立排程"
+    assert labels.index("模擬對局採樣") > labels.index("排程佇列")   # the single-job pages come after the managing pages
+    assert any("單項工作（舊版）" in m.value for m in at.sidebar.markdown)
+
+
+def test_training_data_shortcut_opens_the_schedule_with_a_training_item(results):
+    from conftest import write_dump
+    write_dump(str(results / "ml" / "4p-short.bin"), games=10)
+    at = goto(run_app(), "datamanage")
+    assert at.button(key="dm-to-train").disabled           # nothing ticked
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
+    at.session_state[key] = {"selection": {"rows": [0], "columns": []}}
+    at.run()
+    at.button(key="dm-to-train").click().run()
+    assert not at.exception, at.exception
+    assert at.title[0].value == "建立排程"
+    items = at.session_state["pl-train"]
+    assert len(items) == 1 and len(items[0]["data"]) == 1 and items[0]["data"][0].endswith("4p-short.bin")
+    assert items[0]["kind"] == "train_lgbm"
+    assert not at.button(key="pl-btn-start").disabled, [m.value for m in at.markdown if "act-err" in m.value and "<style>" not in m.value]
+    assert at.session_state["pl-players"] == 4
+    assert at.button(key="pl-btn-start").label == "開始"     # one item: the start button just says Start
+
+
+def test_model_shortcut_opens_the_schedule_with_a_match_item(results):
+    at = goto(run_app(), "models")
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
+    rows = at.dataframe(key=key).value
+    first = rows.iloc[0, 0]
+    at.session_state[key] = {"selection": {"rows": [0], "columns": []}}
+    at.run()
+    assert not at.button(key="md-to-match").disabled
+    at.button(key="md-to-match").click().run()
+    assert not at.exception, at.exception
+    assert at.title[0].value == "建立排程"
+    items = at.session_state["pl-match"]
+    assert len(items) == 1 and items[0]["table"] == "default" and items[0]["model"].startswith(str(first))
+    assert not at.button(key="pl-btn-start").disabled, _blocked(at)
