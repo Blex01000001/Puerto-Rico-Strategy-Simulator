@@ -1,6 +1,6 @@
 {
   "note": "The engine's version numbers and the lists the ML UI shares with the Dashboard, written by PR_UPDATE_GOLDEN=1 dotnet test --filter Golden (checked by Tests/VersionTests.cs). ml/fingerprint.py and the ML UI read it instead of the C# source. Do not edit by hand.",
-  "engineVersion": "1.1.0",
+  "engineVersion": "1.2.0",
   "rulesVersion": "base",
   "rulesRevision": 2,
   "featureVersion": 2,
