@@ -50,7 +50,8 @@
             "新增 ml/engine-info.json（引擎版本、規則版本、特徵版本、資料格式版本、策略清單、座位順序、MCTS 參數順序；由 PR_UPDATE_GOLDEN=1 dotnet test --filter Golden 從程式產生、測試檢查一致），ML 工具改讀它，不再解析 C# 原始碼。",
             "新增公開 API：Engine/Simulation/SeatParams（Dashboard 策略模擬頁座位參數的轉換、預設值、顯示順序、座位 id，有單元測試）、GameRunner.CreateStrategies（分析工具共用）、StrategyRegistry.HandWrittenNames、ParallelismConfig.ToOptions；ResultSummary.ToMarkdown 改成接收查表函式（文字在 i18n/dash.*.json 的 sum.*）。",
             "手寫策略在 StrategyRegistry.HandWritten 只登錄一次，自動成為 rule-based 的 profile。ML UI 拆成 ml/ui.py（進入點）＋ ml/mlui/ 各頁模組。對局結果不變（黃金樣本相同），規則、策略、特徵、資料格式版本都不變，沒有資料或模型變舊。"
-          ]
+          ],
+          "commit": "8b129c61a4e6f09a6fee01481e97944419e90f1a"
         },
         {
           "version": "1.1.0",
