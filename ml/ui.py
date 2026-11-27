@@ -422,6 +422,19 @@ def confirm_delete(key, paths, extra_suffixes, busy):
         st.rerun()
 
 
+@st.dialog(t("queue.cancel_pipeline"))
+def confirm_cancel_pipeline(pid, name, done, total):
+    """Asks before cancelling a whole pipeline (the running job is stopped, the waiting ones are dropped); tells afterwards with a toast."""
+    st.markdown(t("queue.cancel_pl_ask", name=name, done=done, total=total))
+    c1, c2 = st.columns(2)
+    if c1.button(t("queue.cancel_pl_keep"), key=f"keep-pl-{pid}", width="stretch"):
+        st.rerun()
+    if c2.button(t("queue.cancel_pl_ok"), key=f"del-plcancel-{pid}-confirm", width="stretch"):   # del-…-confirm: the solid red button
+        jobs.cancel_pipeline(pid)
+        st.session_state["job-started"] = t("queue.cancel_pl_done", name=name)
+        st.rerun(scope="app")
+
+
 def training_tab():
     dumps = list_dumps()
     bad = [d for d in dumps if "error" in d]
@@ -613,6 +626,8 @@ button[kind="primary"] { background: #1f6feb !important; border: 1px solid rgba(
   font-size: 13px; font-weight: 500 !important; min-height: 0; padding: 6px 14px; }
 button[kind="primary"]:hover:not(:disabled) { filter: brightness(1.12); }
 button[kind="primary"]:disabled { opacity: .4; cursor: not-allowed !important; }
+/* the button that starts a whole pipeline is green (the other start buttons are blue) */
+.st-key-pl-btn-start button[kind="primary"] { background: #238636 !important; }
 div[class*="st-key-del-"] { align-items: flex-end !important; }
 div[class*="st-key-del-"] [data-testid="stPopover"] { width: auto !important; }
 div[class*="st-key-del-"]:not([class*="-confirm"]) button, div[class*="st-key-stop-"] button { color: #f85149 !important; }
@@ -963,8 +978,7 @@ def queue_page():
             c1, c2 = st.columns([5, 2], vertical_alignment="center")
             c1.markdown(t("queue.pipeline_line", name=p["name"], done=done_n, total=p["total"]))
             if c2.button(t("queue.cancel_pipeline"), key=f"stop-pl-{pid}", width="stretch"):
-                jobs.cancel_pipeline(pid)
-                st.rerun(scope="app")
+                confirm_cancel_pipeline(pid, p["name"], done_n, p["total"])
         widths = [3.4, 1.35, 1.25, 1.9, 2.25, 1.9]
         with st.container(key="qhead"):
             head = st.columns(widths)
