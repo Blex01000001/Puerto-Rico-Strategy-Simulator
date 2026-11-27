@@ -39,3 +39,10 @@ def test_a_machine_without_a_file_manager_gets_a_message(tmp_path, monkeypatch):
     monkeypatch.setattr(folders.subprocess, "Popen", boom)
     ok, why = folders.open_folder(str(tmp_path), str(tmp_path))
     assert not ok and "檔案管理員" in why
+
+
+def test_the_reason_is_in_the_asked_language(tmp_path, calls):
+    root = tmp_path / "proj"
+    root.mkdir()
+    ok, why = folders.open_folder(str(tmp_path), str(root), lang="en")
+    assert not ok and why == "Only folders inside the project can be opened"

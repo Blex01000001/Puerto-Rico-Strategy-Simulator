@@ -56,7 +56,7 @@ public static class PositionDump
         long rows = 0, positions = 0;
         int done = 0;
         bool cancelled = false;
-        var po = new ParallelOptions { MaxDegreeOfParallelism = cfg.Parallelism.MaxDegree > 0 ? cfg.Parallelism.MaxDegree : Environment.ProcessorCount, CancellationToken = cancel };
+        var po = cfg.Parallelism.ToOptions(cancel);
         using (var fs = new FileStream(outPath, FileMode.Create, FileAccess.Write))
         using (var w = new BinaryWriter(fs))
         {

@@ -238,3 +238,25 @@ def test_dashboard_code_only_uses_keys_that_exist():
         table = _dash_table(lang)  # a key ending in "." is a prefix the code completes ("good." + index): some key must start with it
         missing = sorted(k for k in keys if not (any(x.startswith(k) for x in table) if k.endswith(".") else k in table))
         assert not missing, (lang, missing)
+
+
+def test_every_strategy_has_its_texts_and_a_colour():
+    """A new strategy (ml/engine-info.json, from the engine's registry) must be added to the Dashboard's strategy guide and
+    palette and to both UIs' text files; without this test a missing one only shows as a bare name or a grey line."""
+    import fingerprint
+    names = [n for n in fingerprint.engine_info()["strategies"] if n != "rule-based"]
+    assert names
+    services = os.path.join(DASH_DIR, "Services")
+    with open(os.path.join(services, "StrategyInfo.cs"), encoding="utf-8") as f:
+        guide = f.read()
+    with open(os.path.join(services, "Palette.cs"), encoding="utf-8") as f:
+        palette = f.read()
+    for lang in i18n.LANGS:
+        dash, ml = _dash_table(lang), i18n.table(lang)
+        for n in names:
+            assert f"strat.{n}.title" in dash, (lang, n, "i18n/dash.*.json strat.<id>.*")
+            assert f"strategy.{n}" in ml, (lang, n, "i18n/ml.*.json strategy.<id>")
+    no_own_colour = {"guided-random"}  # app.css has 12 series colours; guided-random is mostly a rollout strategy (fallback colour)
+    for n in names:
+        assert f'"{n}"' in guide, (n, "Dashboard/Services/StrategyInfo.cs Ids / GroupIds")
+        assert n in no_own_colour or f'["{n}"]' in palette, (n, "Dashboard/Services/Palette.cs colour")

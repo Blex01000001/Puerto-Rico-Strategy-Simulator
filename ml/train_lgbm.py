@@ -21,8 +21,7 @@ import numpy as np
 import modelmeta
 import positions
 
-DEFAULTS = {"rounds": 400, "leaves": 63, "lr": 0.05, "min_leaf": 200, "feature_fraction": 0.8,
-            "bagging_fraction": 0.8, "valid": 0.1, "seed": 1, "threads": 0, "early_stopping": 30}
+from train_options import LGBM_DEFAULTS as DEFAULTS  # noqa: E402
 
 
 def train(data, out, progress=None, log=print, **options):

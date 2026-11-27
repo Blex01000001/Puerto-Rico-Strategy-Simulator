@@ -8,41 +8,48 @@ public static class StrategyRegistry
 {
     public delegate IStrategy Factory(IReadOnlyDictionary<string, JsonElement> parameters, ulong seed, int seat);
 
-    private static readonly Dictionary<string, Factory> Factories = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Hand-written strategies (<see cref="RuleBased.HeuristicStrategy"/> subclasses): each is registered under its name and
+    /// is also a profile of "rule-based". A new hand-written strategy only goes here (plus its revision below).
+    /// </summary>
+    private static readonly Dictionary<string, Func<IReadOnlyDictionary<string, JsonElement>, RuleBased.HeuristicStrategy>> HandWritten =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["corn-shipper"] = p => new RuleBased.CornShipperStrategy(p),
+            ["corn-to-premium"] = p => new RuleBased.CornToPremiumStrategy(p),
+            ["harbor-rush"] = p => new RuleBased.HarborRushStrategy(p),
+            ["build-first"] = p => new RuleBased.BuildFirstStrategy(p),
+            ["cheap-engine"] = p => new RuleBased.CheapEngineStrategy(p),
+            ["wharf-rush"] = p => new RuleBased.WharfRushStrategy(p),
+            ["wharf-premium"] = p => new RuleBased.WharfPremiumStrategy(p),
+            ["corn-monopoly"] = p => new RuleBased.CornMonopolyStrategy(p),
+            ["corn-monopoly-tiles"] = p => new RuleBased.CornMonopolyStrategy(p, grab: true, hoard: false),
+            ["corn-monopoly-hoard"] = p => new RuleBased.CornMonopolyStrategy(p, grab: false, hoard: true),
+        };
+
+    /// <summary>Every registered name (in this order: random, the hand-written ones, rule-based, guided-random, mcts).</summary>
+    private static readonly Dictionary<string, Factory> Factories = BuildFactories();
+
+    private static Dictionary<string, Factory> BuildFactories()
     {
-        ["random"] = (_, seed, _) => new RandomStrategy(seed),
-        ["corn-shipper"] = (p, seed, _) => Seeded(new RuleBased.CornShipperStrategy(p), seed),
-        ["corn-to-premium"] = (p, seed, _) => Seeded(new RuleBased.CornToPremiumStrategy(p), seed),
-        ["harbor-rush"] = (p, seed, _) => Seeded(new RuleBased.HarborRushStrategy(p), seed),
-        ["build-first"] = (p, seed, _) => Seeded(new RuleBased.BuildFirstStrategy(p), seed),
-        ["cheap-engine"] = (p, seed, _) => Seeded(new RuleBased.CheapEngineStrategy(p), seed),
-        ["wharf-rush"] = (p, seed, _) => Seeded(new RuleBased.WharfRushStrategy(p), seed),
-        ["wharf-premium"] = (p, seed, _) => Seeded(new RuleBased.WharfPremiumStrategy(p), seed),
-        ["corn-monopoly"] = (p, seed, _) => Seeded(new RuleBased.CornMonopolyStrategy(p), seed),
-        ["corn-monopoly-tiles"] = (p, seed, _) => Seeded(new RuleBased.CornMonopolyStrategy(p, grab: true, hoard: false), seed),
-        ["corn-monopoly-hoard"] = (p, seed, _) => Seeded(new RuleBased.CornMonopolyStrategy(p, grab: false, hoard: true), seed),
+        var factories = new Dictionary<string, Factory>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["random"] = (_, seed, _) => new RandomStrategy(seed),
+        };
+        foreach (var (name, make) in HandWritten)
+            factories[name] = (p, seed, _) => Seeded(make(p), seed);
         // "rule-based" selects a hand-written profile by params.profile (default corn-shipper).
-        ["rule-based"] = (p, seed, seat) =>
+        factories["rule-based"] = (p, seed, _) =>
         {
             string profile = GetString(p, "profile", "corn-shipper");
-            return profile.ToLowerInvariant() switch
-            {
-                "corn-shipper" => Seeded(new RuleBased.CornShipperStrategy(p), seed),
-                "corn-to-premium" => Seeded(new RuleBased.CornToPremiumStrategy(p), seed),
-                "harbor-rush" => Seeded(new RuleBased.HarborRushStrategy(p), seed),
-                "build-first" => Seeded(new RuleBased.BuildFirstStrategy(p), seed),
-                "cheap-engine" => Seeded(new RuleBased.CheapEngineStrategy(p), seed),
-                "wharf-rush" => Seeded(new RuleBased.WharfRushStrategy(p), seed),
-                "wharf-premium" => Seeded(new RuleBased.WharfPremiumStrategy(p), seed),
-                "corn-monopoly" => Seeded(new RuleBased.CornMonopolyStrategy(p), seed),
-                "corn-monopoly-tiles" => Seeded(new RuleBased.CornMonopolyStrategy(p, grab: true, hoard: false), seed),
-                "corn-monopoly-hoard" => Seeded(new RuleBased.CornMonopolyStrategy(p, grab: false, hoard: true), seed),
-                _ => throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: corn-shipper, corn-to-premium, harbor-rush, build-first, cheap-engine, wharf-rush, wharf-premium, corn-monopoly, corn-monopoly-tiles, corn-monopoly-hoard"),
-            };
-        },
-        ["guided-random"] = (_, seed, _) => new GuidedRandomStrategy(seed),
-        ["mcts"] = (p, seed, _) => new Mcts.MctsStrategy(p, seed),
-    };
+            if (!HandWritten.TryGetValue(profile, out var make))
+                throw new ArgumentException($"Unknown rule-based profile '{profile}'. Known: {string.Join(", ", HandWritten.Keys)}");
+            return Seeded(make(p), seed);
+        };
+        factories["guided-random"] = (_, seed, _) => new GuidedRandomStrategy(seed);
+        factories["mcts"] = (p, seed, _) => new Mcts.MctsStrategy(p, seed);
+        return factories;
+    }
 
     /// <summary>
     /// Logic revision of every strategy (shown as <c>harbor-rush-v1</c>). Bumped BY HAND when the strategy decides
@@ -122,6 +129,9 @@ public static class StrategyRegistry
     }
 
     public static IEnumerable<string> Names => Factories.Keys;
+
+    /// <summary>The hand-written strategies (also the profiles "rule-based" accepts), in registration order.</summary>
+    public static IEnumerable<string> HandWrittenNames => HandWritten.Keys;
 
     public static bool IsKnown(string name) => Factories.ContainsKey(name);
 

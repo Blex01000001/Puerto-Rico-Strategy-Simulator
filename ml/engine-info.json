@@ -1,0 +1,50 @@
+{
+  "note": "The engine's version numbers and the lists the ML UI shares with the Dashboard, written by PR_UPDATE_GOLDEN=1 dotnet test --filter Golden (checked by Tests/VersionTests.cs). ml/fingerprint.py and the ML UI read it instead of the C# source. Do not edit by hand.",
+  "engineVersion": "1.1.0",
+  "rulesVersion": "base",
+  "rulesRevision": 2,
+  "featureVersion": 2,
+  "formatVersion": 1,
+  "defaultLeafRollout": 40,
+  "strategies": [
+    "random",
+    "corn-shipper",
+    "corn-to-premium",
+    "harbor-rush",
+    "build-first",
+    "cheap-engine",
+    "wharf-rush",
+    "wharf-premium",
+    "corn-monopoly",
+    "corn-monopoly-tiles",
+    "corn-monopoly-hoard",
+    "rule-based",
+    "guided-random",
+    "mcts"
+  ],
+  "handWritten": [
+    "corn-shipper",
+    "corn-to-premium",
+    "harbor-rush",
+    "build-first",
+    "cheap-engine",
+    "wharf-rush",
+    "wharf-premium",
+    "corn-monopoly",
+    "corn-monopoly-tiles",
+    "corn-monopoly-hoard"
+  ],
+  "seatOrders": [
+    "random",
+    "balanced",
+    "rotate",
+    "fixed"
+  ],
+  "mctsParamOrder": [
+    "valueModel",
+    "simulations",
+    "leafRollout",
+    "rolloutRounds",
+    "rolloutStrategy"
+  ]
+}

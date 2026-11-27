@@ -35,7 +35,7 @@ Parallel.For(0, gamesNeeded, g =>
 {
     ulong gameSeed = SeedDeriver.GameSeed(seed, g);
     int[] seatToConfig = GameRunner.SeatAssignment(cfg, g, gameSeed);
-    var strategies = Make(cfg, seatToConfig, gameSeed);
+    var strategies = GameRunner.CreateStrategies(cfg, seatToConfig, gameSeed);
     var state = Setup.NewGame(gameSeed, cfg.Limits.MaxRounds, P);
     var legal = new List<GameAction>(32);
     var buf = new List<GameAction>(32);
@@ -69,7 +69,7 @@ Parallel.For(0, gamesNeeded, g =>
                     var s = sa.Clone();
                     ulong cs = Rng.Mix(gameSeed ^ (0x9E3779B97F4A7C15UL * (ulong)(k + 1)) ^ (ulong)(decisions * 31 + ai));
                     s.ReseedRng(cs);
-                    PlayOut(s, Make(cfg, seatToConfig, cs), cfg.Limits.MaxDecisionsPerGame);
+                    PlayOut(s, GameRunner.CreateStrategies(cfg, seatToConfig, cs), cfg.Limits.MaxDecisionsPerGame);
                     MctsStrategy.TerminalReward(s, reward, wins);
                     sum += reward[me];
                 }
@@ -133,18 +133,6 @@ foreach (var key in groups.Keys.OrderBy(k => k == "all" ? "" : k))
 Console.WriteLine();
 Console.WriteLine("truth = hand-written continuation of the table (a proxy for competent play, not the real optimum); regret in reward units (0.6 win + 0.4 rank score).");
 return 0;
-
-static IStrategy[] Make(SimulationConfig cfg, int[] seatToConfig, ulong seed)
-{
-    var list = new IStrategy[seatToConfig.Length];
-    for (int seat = 0; seat < list.Length; seat++)
-    {
-        int ci = seatToConfig[seat];
-        var sc = cfg.Seats[ci];
-        list[seat] = StrategyRegistry.Create(sc.Strategy, sc.Params, SeedDeriver.StrategySeed(seed, ci), seat);
-    }
-    return list;
-}
 
 static void PlayOut(GameState s, IStrategy[] strategies, int maxDecisions)
 {

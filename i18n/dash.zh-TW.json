@@ -881,5 +881,21 @@
   "vs.err.cannot_read": "讀不了 {0}：{1}",
   "act.pass.craftsman": "放棄工匠特權（不額外拿貨）",
   "act.pass.store_kinds": "不再整種保留（接著決定要不要留 1 桶）",
-  "act.pass.store_barrel": "不保留那 1 桶"
+  "act.pass.store_barrel": "不保留那 1 桶",
+  "sum.title": "## 模擬結果：{0}",
+  "sum.unnamed": "（未命名）",
+  "sum.games": "- {0} 人局，{1} 局（{2}，預定 {3}），主種子 {4}，座位順序 {5}",
+  "sum.duration": "- 耗時：{0}",
+  "sum.speed": "，{0} 局/秒",
+  "sum.engine": "- 引擎 {0}（commit {1}），規則 {2}",
+  "sum.revisions": "- 策略版本：{0}",
+  "sum.header": "| 座位 | 策略 | 設定 | 勝率 | ±95% | 平均分 | 標準差 |",
+  "sum.seats": "座位優勢（座位 1 = 起始總督）：{0}",
+  "sum.seat": "座位 {0} {1}",
+  "sum.rounds": "平均回合數 {0}，平均決策數 {1}／局",
+  "sum.sep": "、",
+  "sum.param_sep": "，",
+  "sum.dur_h": "{0} 小時 {1} 分",
+  "sum.dur_m": "{0} 分 {1} 秒",
+  "sum.dur_s": "{0} 秒"
 }

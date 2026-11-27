@@ -226,21 +226,12 @@ def test_custom_combination_writes_a_config_and_queues_a_dump(results, monkeypat
 
 
 def test_parse_params():
-    import importlib
-    import sys
     import pytest as _pt
-    sys.modules.pop("ui", None)
-    # parse_params is a plain function: import it without running the Streamlit page
-    import ast
-    src = open(UI, encoding="utf-8").read()
-    tree = ast.parse(src)
-    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "parse_params")
-    ns = {"re": importlib.import_module("re"), "t": lambda key, **kw: key}  # the function only needs the translator to word its error
-    exec(compile(ast.Module(body=[fn], type_ignores=[]), UI, "exec"), ns)
-    assert ns["parse_params"]("a=3, b=2.5; c=text") == {"a": 3, "b": 2.5, "c": "text"}
-    assert ns["parse_params"]("") == {}
+    from mlui.data import parse_params  # the page modules import without running the Streamlit page
+    assert parse_params("a=3, b=2.5; c=text") == {"a": 3, "b": 2.5, "c": "text"}
+    assert parse_params("") == {}
     with _pt.raises(ValueError):
-        ns["parse_params"]("nonsense")
+        parse_params("nonsense")
 
 
 def test_save_config_only_writes_the_config(results, monkeypatch):

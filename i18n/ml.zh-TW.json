@@ -903,5 +903,9 @@
   "pl.det.memory": "記憶體預估",
   "pl.det.opponent": "對手",
   "pl.det.opp_sims": "對手模擬次數",
-  "pl.det.result": "結果檔"
+  "pl.det.result": "結果檔",
+  "folder.outside": "只能開啟專案裡的資料夾",
+  "folder.missing": "資料夾還不存在",
+  "folder.no_manager": "開不了資料夾（這台機器沒有檔案管理員？）：{error}",
+  "fp.versions_unreadable": "讀不了 docs/versions.json：{error}"
 }

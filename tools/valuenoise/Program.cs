@@ -31,7 +31,7 @@ Parallel.For(0, games, g =>
 {
     ulong gameSeed = SeedDeriver.GameSeed(seed, g);
     int[] seatToConfig = GameRunner.SeatAssignment(cfg, g, gameSeed);
-    var strategies = Make(cfg, seatToConfig, gameSeed);
+    var strategies = GameRunner.CreateStrategies(cfg, seatToConfig, gameSeed);
     var state = Setup.NewGame(gameSeed, cfg.Limits.MaxRounds, P);
     var legal = new List<GameAction>(32);
     var done = new HashSet<int>();
@@ -54,7 +54,7 @@ Parallel.For(0, games, g =>
                 var s = snap.Clone();
                 ulong contSeed = Rng.Mix(gameSeed ^ (0x9E3779B97F4A7C15UL * (ulong)(k + 1)) ^ (ulong)snap.Round);
                 s.ReseedRng(contSeed);
-                var strat = Make(cfg, seatToConfig, contSeed);
+                var strat = GameRunner.CreateStrategies(cfg, seatToConfig, contSeed);
                 PlayOut(s, strat, cfg.Limits.MaxDecisionsPerGame);
                 MctsStrategy.TerminalReward(s, reward, wins);
                 for (int seat = 0; seat < P; seat++) { sum[seat] += reward[seat]; sumSq[seat] += reward[seat] * reward[seat]; }
@@ -92,18 +92,6 @@ foreach (var r in rounds)
 Console.WriteLine();
 Console.WriteLine("noise = floor of the MSE for these hand-written strategies; bias^2 = what a better model could still gain (negative values are estimation noise and count as 0).");
 return 0;
-
-static IStrategy[] Make(SimulationConfig cfg, int[] seatToConfig, ulong seed)
-{
-    var list = new IStrategy[seatToConfig.Length];
-    for (int seat = 0; seat < list.Length; seat++)
-    {
-        int ci = seatToConfig[seat];
-        var sc = cfg.Seats[ci];
-        list[seat] = StrategyRegistry.Create(sc.Strategy, sc.Params, SeedDeriver.StrategySeed(seed, ci), seat);
-    }
-    return list;
-}
 
 static void PlayOut(GameState s, IStrategy[] strategies, int maxDecisions)
 {
