@@ -65,6 +65,7 @@ ml/start-ui.sh          # Windows：雙擊 ml\start-ui.cmd
 | 檔案 | 用途 |
 |---|---|
 | `positions.py` | 讀 dump（檢查格式、版本、檔案大小；展開萬用字元與資料夾）、依局切驗證集 |
+| `favorites.py` | 我的最愛（訓練資料、模型的星號；存在 `ml/local/favorites.json`） |
 | `update.cmd`、`update_check.py` | Windows 更新：先關掉 ML UI，再執行 `ml\update.cmd`（檢查有沒有工作在跑、有沒有改過被追蹤的檔案，`git pull --ff-only`，列出改了什麼，必要時裝套件，再啟動 ML UI；`ml/local`、`results`、`publish` 不會動） |
 | `ui.py`、`mlui/`、`start-ui.sh`／`start-ui.cmd` | ML UI（Streamlit）：`ui.py` 是進入點，每頁一個 `mlui/<頁>.py`，共用的在 `mlui/common.py`；啟動檔 |
 | `jobs.py`、`job_runner.py` | 背景工作（獨立程序、心跳、取消、紀錄） |

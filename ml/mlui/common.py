@@ -12,6 +12,7 @@ import streamlit as st
 import altair as alt
 import pandas as pd
 
+import favorites
 import fingerprint
 import folders
 import jobs
@@ -339,6 +340,37 @@ def filter_bar(key, dims):
                                         format_func=lambda o, fmt=fmt: t("filter.all") if o == FILTER_ALL else (fmt(o) if fmt else str(o)))
             out.append([] if value in (None, FILTER_ALL) else [value])
     return out
+
+
+FAV_COLUMN = "★"
+
+
+def fav_dim(wkey):
+    """A filter_bar dimension: All | ★ favorites (the starred files; stars are set on the management pages, favorites.py)."""
+    return (t("fav.label"), ["fav"], wkey, lambda o: t("fav.only"))
+
+
+def fav_mark(kind, names):
+    """The ★ column of a table: "★" for a starred file name (or path), "" otherwise."""
+    starred = favorites.names(kind)
+    return ["★" if os.path.basename(str(n)) in starred else "" for n in names]
+
+
+def fav_column_config():
+    return {FAV_COLUMN: st.column_config.TextColumn(FAV_COLUMN, width="small", alignment="center", help=t("fav.label"))}
+
+
+def _set_favorites(kind, files, flag):
+    favorites.set_favorite(kind, files, flag)
+    st.session_state["del-gen"] = delete_gen() + 1   # the rows may move (a favorites filter): drop the row selection
+
+
+def fav_button(kind, files, key, container):
+    """The star button of an action bar: when every ticked file is starred it removes the stars, otherwise it adds them."""
+    names = [os.path.basename(str(f)) for f in files]
+    all_starred = bool(names) and all(n in favorites.names(kind) for n in names)
+    container.button(t("fav.remove") if all_starred else t("fav.add"), key=key, width="stretch", disabled=not names,
+                     help=t("fav.help"), on_click=_set_favorites, args=(kind, names, not all_starred))
 
 
 def delete_button(key, label, paths, extra_suffixes=(), busy=()):

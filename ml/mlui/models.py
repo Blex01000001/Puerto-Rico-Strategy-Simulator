@@ -10,6 +10,7 @@ import streamlit as st
 import altair as alt
 import pandas as pd
 
+import favorites
 import fingerprint
 import jobs
 import modelmeta
@@ -35,7 +36,12 @@ from mlui.common import (  # noqa: F401
     delete_gen,
     describe_match,
     digest_box,
+    FAV_COLUMN,
     dump_column_config,
+    fav_button,
+    fav_column_config,
+    fav_dim,
+    fav_mark,
     filter_bar,
     folder_line,
     grid,
@@ -539,13 +545,17 @@ def models_list():
     table = models_table(paths)
     col = lambda key: t(f"mlist.col.{key}")  # noqa: E731
     rules_opts = sorted({r for r in table[col("rules")] if r}) if col("rules") in table else []
-    places, kinds, players, rules = filter_bar("mf", [(t("mlist.place"), ["git", "local"], "mf-place", None), (t("mlist.kind"), ["LightGBM", "MLP"], "mf-kind", None),
-                                                      (t("mlist.players"), ["3", "4"], "mf-players", lambda n: t("match.players_n", n=n)),
-                                                      (t("mlist.rules"), rules_opts, "mf-rules", None)])
+    favorites.prune("models", paths)   # a deleted model must not hand its star to a new one of the same name
+    places, kinds, players, rules, fav = filter_bar("mf", [(t("mlist.place"), ["git", "local"], "mf-place", None), (t("mlist.kind"), ["LightGBM", "MLP"], "mf-kind", None),
+                                                           (t("mlist.players"), ["3", "4"], "mf-players", lambda n: t("match.players_n", n=n)),
+                                                           (t("mlist.rules"), rules_opts, "mf-rules", None), fav_dim("mf-fav")])
+    table.insert(0, FAV_COLUMN, fav_mark("models", paths))
     keep = (table[col("place")].isin(places or ["git", "local"]) & table[col("kind")].isin(kinds or ["LightGBM", "MLP"])
             & table[col("players")].isin(players or ["3", "4"]))
     if rules:  # models without metadata have no rules version: they only show while no rules filter is selected
         keep &= table[col("rules")].isin(rules)
+    if fav:
+        keep &= table[FAV_COLUMN] == "★"
     shown = table[keep]
     shown_paths = [p for p, k in zip(paths, keep) if k]
     if shown.empty:
@@ -553,9 +563,10 @@ def models_list():
         return []
     centred = {c: st.column_config.TextColumn(c, alignment="center") for c in (col("players"), col("feature"), col("rules"), col("r2"), col("ce"), col("matches"), col("best"))
                if c in shown}
+    centred.update(fav_column_config())
     # a selection is by row number: the filters and the deletion counter are part of the key
     picked = grid(shown, hide_index=True, width="stretch", column_config=centred, on_select="rerun", selection_mode="multi-row",
-                  key=f"models-list-{delete_gen()}-{'.'.join(places or [])}-{'.'.join(kinds or [])}-{'.'.join(players or [])}-{'.'.join(rules or [])}")
+                  key=f"models-list-{delete_gen()}-{'.'.join(places or [])}-{'.'.join(kinds or [])}-{'.'.join(players or [])}-{'.'.join(rules or [])}-{'.'.join(fav or [])}")
     chosen = [shown_paths[i] for i in picked.selection.rows]
     st.caption(t("mlist.footer", shown=len(shown), total=len(table)))
     items = []
@@ -568,7 +579,8 @@ def models_list():
              if os.path.exists(p)]  # the model and the match records kept beside it (official models' records are local)
     # the action bar: rename | make official / move to local | copy details | hint ........ delete (rename and move: exactly one ticked model)
     with st.container(key="actionbar-models"):
-        c_rename, c_move, c_match, c_copy, c_hint, c_delete = st.columns([1.2, 1.7, 1.7, 1.9, 2.3, 1.7], vertical_alignment="center")
+        c_rename, c_move, c_match, c_fav, c_copy, c_hint, c_delete = st.columns([1.1, 1.5, 1.5, 1.4, 1.7, 1.7, 1.5], vertical_alignment="center")
+        fav_button("models", chosen, "md-fav-btn", c_fav)
         note = move_buttons(chosen[0] if len(chosen) == 1 else None, c_rename, c_move)
         # 對戰這個模型: one match item (this model against plain MCTS) in 建立排程
         one = model_meta(chosen[0]) if len(chosen) == 1 else None

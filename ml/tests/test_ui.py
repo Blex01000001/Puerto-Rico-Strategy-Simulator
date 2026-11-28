@@ -114,9 +114,9 @@ def test_model_and_data_pages_have_one_filter_box_per_category(results):
     write_dump(str(results / "ml" / "4p-a.bin"), games=10)
     at = goto(run_app(), "models")  # the list and the details are one page
     # the list's four boxes, then the switch between the details and the compare charts
-    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules", "mv-view"]
+    assert [g.key for g in at.get("button_group")] == ["mf-place", "mf-kind", "mf-players", "mf-rules", "mf-fav", "mv-view"]
     goto(at, "datamanage")
-    assert [g.key for g in at.get("button_group")] == ["dm-players", "dm-feature", "dm-rules"]
+    assert [g.key for g in at.get("button_group")] == ["dm-players", "dm-feature", "dm-rules", "dm-fav"]
     goto(at, "data")
     assert not at.get("button_group")
 
@@ -674,7 +674,7 @@ def test_pipeline_training_data_is_chosen_from_a_filterable_table(results, no_sp
     assert at.session_state["pld-data"] == ["new:0"]                              # the pipeline's own data starts chosen
     assert any(p.key == "pld-tf-kind" for p in at.get("button_group"))                   # quick filters like the training page
     # the same columns, in the same order, as the training page's data table (after the kind of data)
-    assert list(at.dataframe[0].value.columns) == ["資料", "檔案", "人數", "局數", "列數", "抽樣率", "特徵版本", "大小 MB", "策略", "規則版本", "引擎 commit", "hash"]
+    assert list(at.dataframe[0].value.columns) == ["★", "資料", "檔案", "人數", "局數", "列數", "抽樣率", "特徵版本", "大小 MB", "策略", "規則版本", "引擎 commit", "hash"]
     key = next(k for k in at.session_state.to_dict() if str(k).startswith("pld-dtable-"))
     at.session_state[key] = {"selection": {"rows": [], "columns": []}}             # unticking the row (the user's click)
     at.run()
@@ -834,3 +834,70 @@ def test_model_shortcut_opens_the_schedule_with_a_match_item(results):
     items = at.session_state["pl-match"]
     assert len(items) == 1 and items[0]["table"] == "default" and items[0]["model"].startswith(str(first))
     assert not at.button(key="pl-btn-start").disabled, _blocked(at)
+
+
+@pytest.fixture
+def favorites_ws(tmp_path, monkeypatch):
+    import modelmeta
+    monkeypatch.setattr(modelmeta, "LOCAL_DIR", str(tmp_path / "local"))      # the star file of the test, not the user's
+    return tmp_path
+
+
+def test_star_button_and_filter_on_the_training_data_page(results, favorites_ws):
+    import favorites
+    from conftest import write_dump
+    write_dump(str(results / "ml" / "4p-a.bin"), games=10)
+    write_dump(str(results / "ml" / "4p-b.bin"), games=10, seed=1)
+    at = goto(run_app(), "datamanage")
+    assert at.button(key="dm-fav-btn").disabled                                  # nothing ticked
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
+    assert list(at.dataframe(key=key).value.columns)[0] == "★" and set(at.dataframe(key=key).value["★"]) == {""}
+    at.session_state[key] = {"selection": {"rows": [0], "columns": []}}
+    at.run()
+    assert at.button(key="dm-fav-btn").label == "★ 加入最愛"
+    at.button(key="dm-fav-btn").click().run()
+    assert not at.exception, at.exception
+    assert len(favorites.names("dumps")) == 1
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
+    assert list(at.dataframe(key=key).value["★"]).count("★") == 1                # the star shows in the table
+    at.get("button_group")[-1].set_value("fav").run()                            # the ★ filter
+    assert not at.exception, at.exception
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("dumps-manage-"))
+    assert len(at.dataframe(key=key).value) == 1                                 # only the starred file is listed
+    at.session_state[key] = {"selection": {"rows": [0], "columns": []}}
+    at.run()
+    assert at.button(key="dm-fav-btn").label == "☆ 移出最愛"                      # all ticked are starred: the button removes
+
+
+def test_star_filter_on_the_model_list(results, favorites_ws):
+    import favorites
+    at = goto(run_app(), "models")
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
+    table = at.dataframe(key=key).value
+    assert list(table.columns)[0] == "★" and len(table) > 3
+    name = table.iloc[2, 1]
+    favorites.set_favorite("models", [name], True)
+    at.run()
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
+    assert list(at.dataframe(key=key).value["★"]).count("★") == 1
+    next(g for g in at.get("button_group") if g.key == "mf-fav").set_value("fav").run()
+    key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
+    assert list(at.dataframe(key=key).value.iloc[:, 1]) == [name]
+
+
+def test_pipeline_training_data_table_has_the_star_filter(results, no_spawn, inline, favorites_ws):
+    import favorites
+    from conftest import write_dump
+    write_dump(str(results / "ml" / "4p-a.bin"), games=10)
+    write_dump(str(results / "ml" / "4p-b.bin"), games=10, seed=1)
+    favorites.set_favorite("dumps", ["4p-b.bin"], True)
+    at = goto(run_app(), "pipeline")
+    at.button(key="pl-btn-add-t").click().run()
+    assert not at.exception, at.exception
+    assert any(p.key == "pld-tf-fav" for p in at.get("button_group"))
+    table = at.dataframe[0].value
+    assert list(table["★"]) .count("★") == 1 and len(table) == 2
+    next(p for p in at.get("button_group") if p.key == "pld-tf-fav").set_value("fav").run()
+    assert not at.exception, at.exception
+    table = at.dataframe[0].value
+    assert len(table) == 1 and table["檔案"].iloc[0] == "4p-b.bin"

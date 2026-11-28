@@ -11,6 +11,7 @@ import re
 import streamlit as st
 import pandas as pd
 
+import favorites
 import pipeline_form
 import fingerprint
 import jobs
@@ -27,7 +28,11 @@ from mlui.common import (  # noqa: F401
     absolute,
     action_row,
     all_strategies,
+    FAV_COLUMN,
     best_vs_default,
+    fav_column_config,
+    fav_dim,
+    fav_mark,
     card,
     config_rows,
     delete_button,
@@ -298,7 +303,7 @@ def pl_custom_seats(players):
     with the defaults and only the strategy's own parameters are offered. Returns the seats (only changed parameters)."""
     names = strategy_choices()
     model_names = [t("custom.model_none")] + [os.path.basename(p_) for p_ in models_for(players)]
-    widths = [1, 3.4, 8]
+    widths = [1, 2.2, 9.5]   # seat | strategy (the names are short) | parameters (a value model needs room: it spans two slots below)
     heads = st.columns(widths)
     for c_, key in zip(heads, ("pl.data.col.seat", "pl.data.col.strategy", "pl.data.col.params")):
         c_.markdown(f'<span class="pl-seathead">{t(key)}</span>', unsafe_allow_html=True)
@@ -325,9 +330,23 @@ def pl_custom_seats(players):
             with c3:
                 if not keys:
                     st.caption(t("pl.data.no_params"))
-                for row in range(0, len(keys), 5):
-                    cols = st.columns(5)
-                    for col, k in zip(cols, keys[row:row + 5]):
+                # six slots per row; the value model's name is long, so its box spans two of them (the others take one)
+                spans = {"valueModel": 2}
+                rows_, cur, used = [], [], 0
+                for k in keys:
+                    w = spans.get(k, 1)
+                    if used + w > 6:
+                        rows_.append(cur)
+                        cur, used = [], 0
+                    cur.append(k)
+                    used += w
+                if cur:
+                    rows_.append(cur)
+                for row_keys in rows_:
+                    row_w = [spans.get(k, 1) for k in row_keys]
+                    left = 6 - sum(row_w)
+                    cols = st.columns(row_w + ([left] if left else []))
+                    for col, k in zip(cols, row_keys):
                         with col:
                             if k == "valueModel":
                                 st.selectbox(t("custom.model"), model_names, key=f"pld-cm{i}")
@@ -477,15 +496,17 @@ def pl_train_dialog(players):
         kind_opts = [t("pl.train.kind_new_short"), t("pl.train.kind_existing")]
         feature_opts = sorted({r["feature"] for r in all_rows.values()})
         rules_opts = sorted({r["rules"] for r in all_rows.values() if r["rules"]})
-        fk, fv, rv = filter_bar("pl-train", [(t("pl.train.col.kind"), kind_opts, "pld-tf-kind", None),
-                                              (t("dump.col.feature"), feature_opts, "pld-tf-feature", lambda n: f"v{n}"),
-                                              (t("dump.col.rules"), rules_opts, "pld-tf-rules", None)])  # same look as the training page's
+        fk, fv, rv, ffav = filter_bar("pl-train", [(t("pl.train.col.kind"), kind_opts, "pld-tf-kind", None),
+                                                   (t("dump.col.feature"), feature_opts, "pld-tf-feature", lambda n: f"v{n}"),
+                                                   (t("dump.col.rules"), rules_opts, "pld-tf-rules", None), fav_dim("pld-tf-fav")])  # same look as the training page's
+        starred = favorites.names("dumps")
 
         def shown(tok):
             r = all_rows[tok]
             is_new = pipeline_form.token_index(tok) is not None
             return ((not fk or kind_opts[0 if is_new else 1] in fk) and r["feature"] in (fv or feature_opts)
-                    and (r["rules"] in (rv or rules_opts) or not r["rules"]))
+                    and (r["rules"] in (rv or rules_opts) or not r["rules"])
+                    and (not ffav or (not is_new and os.path.basename(tok) in starred)))   # a new data set of this pipeline has no star
 
         visible = [tok for tok in options if shown(tok)]
         if not visible:
@@ -494,16 +515,17 @@ def pl_train_dialog(players):
             col = lambda key: t(f"dump.col.{key}")  # noqa: E731
             pick = lambda key, fn=lambda v: v: [fn(all_rows[x][key]) for x in visible]  # noqa: E731
             # the same columns, in the same order, as the training page's data table (plus what kind of data it is)
-            frame = pd.DataFrame({t("pl.train.col.kind"): pick("kind"), col("file"): pick("file"), col("players"): pick("players", str),
+            frame = pd.DataFrame({FAV_COLUMN: ["" if pipeline_form.token_index(x) is not None else v for x, v in zip(visible, fav_mark("dumps", visible))],
+                                  t("pl.train.col.kind"): pick("kind"), col("file"): pick("file"), col("players"): pick("players", str),
                                   col("games"): pick("games"), col("rows"): pick("rows"), col("rate"): pick("rate"), col("feature"): pick("feature", str),
                                   col("size"): pick("size", str), col("strategies"): pick("strategies"),
                                   col("rules"): pick("rules", lambda v: v or "—"), col("commit"): pick("commit"), "hash": pick("hash")})
             # a selection is by row number: the filters are part of the key (another filter = another table), and a new table starts with what was chosen
-            tkey = f"pld-dtable-{'.'.join(map(str, fk or []))}-{'.'.join(map(str, fv or []))}-{'.'.join(map(str, rv or []))}"
+            tkey = f"pld-dtable-{'.'.join(map(str, fk or []))}-{'.'.join(map(str, fv or []))}-{'.'.join(map(str, rv or []))}-{'.'.join(ffav or [])}"
             if tkey not in st.session_state:
                 st.session_state[tkey] = {"selection": {"rows": [n for n, x in enumerate(visible) if x in chosen_before], "columns": []}}
             event = grid(frame, hide_index=True, on_select="rerun", selection_mode="multi-row", width="stretch", key=tkey,
-                         column_config=dump_column_config())
+                         column_config={**dump_column_config(), **fav_column_config()})
             selected = {visible[n] for n in event.selection.rows if n < len(visible)}
             hidden_kept = {x for x in chosen_before if x not in visible}    # chosen earlier, hidden by a filter now: still chosen
             st.session_state["pld-data"] = [x for x in options if x in selected or x in hidden_kept]

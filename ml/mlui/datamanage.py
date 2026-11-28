@@ -5,6 +5,8 @@ import os
 import streamlit as st
 import pandas as pd
 
+import favorites
+
 import jobs
 import modelmeta
 
@@ -20,7 +22,12 @@ from mlui.common import (  # noqa: F401
     delete_button,
     delete_gen,
     digest_box,
+    FAV_COLUMN,
     dump_column_config,
+    fav_button,
+    fav_column_config,
+    fav_dim,
+    fav_mark,
     filter_bar,
     folder_line,
     grid,
@@ -122,24 +129,29 @@ def dump_list(good):
     players_opts = sorted({str(d["人數"]) for d in good})
     feature_opts = sorted({d["特徵版本"] for d in good})
     rules_opts = sorted({d["規則版本"] for d in good if "規則版本" in d})
-    pl, fv, rv = filter_bar("dm", [(t("dump.col.players"), players_opts, "dm-players", lambda n: t("match.players_n", n=n)),
-                                   (t("dump.col.feature"), feature_opts, "dm-feature", lambda n: f"v{n}"),
-                                   (t("dump.col.rules"), rules_opts, "dm-rules", None)])
-    rows = [d for d in good if str(d["人數"]) in (pl or players_opts) and d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)]
+    favorites.prune("dumps", [d["path"] for d in good])   # a deleted file must not hand its star to a new one of the same name
+    pl, fv, rv, fav = filter_bar("dm", [(t("dump.col.players"), players_opts, "dm-players", lambda n: t("match.players_n", n=n)),
+                                        (t("dump.col.feature"), feature_opts, "dm-feature", lambda n: f"v{n}"),
+                                        (t("dump.col.rules"), rules_opts, "dm-rules", None), fav_dim("dm-fav")])
+    starred = favorites.names("dumps")
+    rows = [d for d in good if str(d["人數"]) in (pl or players_opts) and d["特徵版本"] in (fv or feature_opts) and d.get("規則版本") in (rv or rules_opts)
+            and (not fav or os.path.basename(d["path"]) in starred)]
     if not rows:
         st.caption(t("mlist.none"))
         return []
     df = table_view(rows).set_index(pd.Index([os.path.basename(r["path"]) for r in rows], name=t("dump.col.file")))
+    df.insert(0, FAV_COLUMN, fav_mark("dumps", [r["path"] for r in rows]))
     # a selection is by row number: the filters and the deletion counter are part of the key
-    picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", column_config=dump_column_config(),
-                  key=f"dumps-manage-{delete_gen()}-{'.'.join(pl or [])}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}")
+    picked = grid(df, on_select="rerun", selection_mode="multi-row", width="stretch", column_config={**dump_column_config(), **fav_column_config()},
+                  key=f"dumps-manage-{delete_gen()}-{'.'.join(pl or [])}-{'.'.join(map(str, fv or []))}-{'.'.join(rv or [])}-{'.'.join(fav or [])}")
     chosen = [rows[i] for i in picked.selection.rows]
     st.caption(t("dm.footer", shown=len(rows), total=len(good)))
     items = [modelmeta.dump_digest(os.path.basename(d["path"]), d["_meta"], d["hash"], d["規則版本"], models_using(d["path"]), d["大小 MB"], d["_stale"])
              for d in chosen]
     # the action bar: rename (exactly one ticked) | copy details | hint ........ delete
     with st.container(key="actionbar-dumps"):
-        c_rename, c_train, c_copy, c_hint, c_delete = st.columns([1.2, 1.7, 1.9, 2.5, 1.7], vertical_alignment="center")
+        c_rename, c_train, c_fav, c_copy, c_hint, c_delete = st.columns([1.1, 1.6, 1.5, 1.8, 1.9, 1.6], vertical_alignment="center")
+        fav_button("dumps", [d["path"] for d in chosen], "dm-fav-btn", c_fav)
         if c_rename.button(t("md.rename"), key="dm-rename", width="stretch", disabled=len(chosen) != 1):
             rename_dump_dialog(chosen[0])
         # 用這些資料訓練: one training item on the ticked data in 建立排程 (one player count and one feature version, as training needs)

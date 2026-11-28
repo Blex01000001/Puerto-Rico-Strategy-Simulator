@@ -915,5 +915,10 @@
   "md.to_match": "Match this model",
   "md.to_match_help": "Opens “{page}” with a match of this model against plain MCTS (exactly one model ticked)",
   "dm.to_train": "Train on these",
-  "dm.to_train_help": "Opens “{page}” with a training item on the ticked data (same player count and feature version)"
+  "dm.to_train_help": "Opens “{page}” with a training item on the ticked data (same player count and feature version)",
+  "fav.label": "Favorites",
+  "fav.only": "★ Favorites",
+  "fav.add": "★ Add favorite",
+  "fav.remove": "☆ Remove favorite",
+  "fav.help": "Stars the ticked rows (or removes the stars when they are all starred). The ★ filter above shows only the starred ones. Kept on this computer."
 }

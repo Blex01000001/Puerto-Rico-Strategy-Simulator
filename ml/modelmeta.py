@@ -523,6 +523,8 @@ def rename_model(model_path, new_name, configs=()):
             json.dump(data, f, indent=2, ensure_ascii=False)
     for c in configs:
         _config_names(c, old_name, new_file)
+    import favorites   # (favorites imports this module: not at the top)
+    favorites.rename("models", old_name, new_file)
     return target
 
 
@@ -595,6 +597,8 @@ def rename_dump(dump_path, new_name):
         _rename_dump_in_meta(data, old_file, new_file)
         with open(p, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+    import favorites   # (favorites imports this module: not at the top)
+    favorites.rename("dumps", old_file, new_file)
     return target
 
 
