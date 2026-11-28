@@ -334,3 +334,18 @@ def test_eta_uses_recent_speed_and_waits_for_enough_progress():
     assert jobs.eta_seconds(slow_then_fast) == pytest.approx(100 * 100 / 300)  # latest window: 300 games per 100 s
     assert jobs.eta_seconds(slow_then_fast + [g(430, 1000)]) is None  # finished
     assert jobs.eta_seconds([g(0, 0), g(100, 100)], now_epoch=140) == pytest.approx(900 - 40)
+
+
+def test_update_check_reports_running_and_waiting_jobs(tmp_path, monkeypatch, capsys):
+    """ml/update_check.py (used by update.cmd): exit code 2 and the job titles when a job is running or waiting, 0 otherwise."""
+    import json
+    import update_check
+    monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
+    assert update_check.main() == 0
+    d = tmp_path / "ml" / "jobs" / "j1"
+    d.mkdir(parents=True)
+    (d / "job.json").write_text(json.dumps({"id": "j1", "status": "waiting", "title": "Test job", "kind": "match", "createdEpoch": 1}), encoding="utf-8")
+    assert update_check.main() == 2
+    assert "Test job" in capsys.readouterr().out
+    (d / "job.json").write_text(json.dumps({"id": "j1", "status": "done", "title": "Test job", "kind": "match", "createdEpoch": 1}), encoding="utf-8")
+    assert update_check.main() == 0
