@@ -102,7 +102,7 @@ def _english_app(monkeypatch, tmp_path, page):
     monkeypatch.delenv("PR_LANG", raising=False)
     monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
     at = AppTest.from_file(UI, default_timeout=60).run()
-    if not any(b.key == f"navon-{page}" for b in at.button):  # the first page is already the current one
+    if f'data-page="{page}"' not in "".join(m.value for m in at.sidebar.markdown):  # the first page is already the current one
         at.button(key=f"nav-{page}").click().run()
     assert not at.exception, at.exception
     return at
@@ -183,7 +183,7 @@ def test_every_page_is_english_and_switches_back(monkeypatch, tmp_path):
     monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
     at = AppTest.from_file(UI, default_timeout=60).run()
     for page in ("data", "train", "match", "datamanage", "models", "analysis", "queue", "hash", "versions"):
-        if not any(b.key == f"navon-{page}" for b in at.button):
+        if f'data-page="{page}"' not in "".join(m.value for m in at.sidebar.markdown):
             at.button(key=f"nav-{page}").click().run()
         assert not at.exception, (page, at.exception)
         texts = [x for x in _page_text(at) + [m.value for m in at.sidebar.markdown] if not x.lstrip().startswith("<style>")]

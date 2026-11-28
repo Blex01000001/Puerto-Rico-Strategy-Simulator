@@ -174,11 +174,12 @@ section[data-testid="stSidebar"]:not([aria-expanded="false"]) { width: 14rem !im
   padding: .2rem 0 .7rem; border-bottom: 1px solid #333a4b; margin-bottom: .2rem; }
 .nav-brand .nav-icon { font-size: 1.5rem; }
 .navsec { font-size: .68rem; font-weight: 700; letter-spacing: .14em; color: #8892a2; padding: .6rem .2rem .15rem; line-height: 1.2; }
-div[class*="st-key-nav-"] button, div[class*="st-key-navon-"] button { justify-content: flex-start !important; background: transparent !important;
+div[class*="st-key-nav-"] button { justify-content: flex-start !important; background: transparent !important;
   border: 0 !important; color: #b4bcc9 !important; font-weight: 500 !important; padding: .45rem .7rem !important; min-height: 0 !important; }
 div[class*="st-key-nav-"] button:hover { color: #eef1f5 !important; background: #1f2430 !important; }
-div[class*="st-key-navon-"] button { color: #fff !important; background: #1d3a5c !important; box-shadow: inset 3px 0 0 #4aa8ff; }
-div[class*="st-key-nav-"] button > div, div[class*="st-key-navon-"] button > div { justify-content: flex-start !important; }
+div[class*="st-key-navitem-"]:has(.nav-on) button { color: #fff !important; background: #1d3a5c !important; box-shadow: inset 3px 0 0 #4aa8ff; }
+div[class*="st-key-navitem-"] .stElementContainer:has(.nav-on) { display: none; }
+div[class*="st-key-nav-"] button > div { justify-content: flex-start !important; }
 section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: .3rem; }
 section[data-testid="stSidebar"] [data-testid="stMarkdown"], section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
 /* the current job sits at the bottom of the navigation */
