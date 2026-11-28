@@ -33,7 +33,7 @@ def best(matches, kind):
     rows = [m for m in matches if classify(m) == kind]
     if not rows:
         return "—"
-    m = max(rows, key=lambda r: r["winShare"])
+    m = max(enumerate(rows), key=lambda ir: (ir[1].get("games", 0), ir[0]))[1]   # the most games (later when equal), not the luckiest
     leaf = f"，leafRollout {m['leafRollout']}" if m.get("leafRollout") else ""
     return f"{m['winShare']:.1%} ± {m['winShareCi95']:.1%}（{m['simulations']} 次{leaf}，{m['games']} 局）"
 

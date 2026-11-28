@@ -179,3 +179,15 @@ def test_engine_info_agrees_with_the_strategy_table():
     assert set(info["strategies"]) - {"rule-based"} == set(fp.strategy_table())
     assert set(info["handWritten"]) < set(info["strategies"])
     assert info["seatOrders"][0] == "random" and info["mctsParamOrder"][0] == "valueModel"
+
+
+def test_best_vs_default_is_the_match_with_the_most_games_not_the_luckiest():
+    from mlui.common import best_vs_default
+
+    def match(games, win, model=None):
+        return {"games": games, "winShare": win, "others": [{"strategy": "mcts", "valueModel": model, "winShare": 1 - win}]}
+    meta = {"matches": [match(240, 0.78), match(960, 0.71), match(960, 0.69), match(2000, 0.9, "ml/models/x.txt")]}
+    best = best_vs_default(meta)
+    assert best["games"] == 960 and best["winShare"] == 0.69       # most games; the later one when equal; a model rival does not count
+    assert best_vs_default({"matches": [match(100, 0.5, "ml/models/x.txt")]}) is None
+    assert best_vs_default({}) is None

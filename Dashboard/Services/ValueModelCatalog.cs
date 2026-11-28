@@ -13,7 +13,7 @@ public static class ValueModelCatalog
     /// <param name="Path">Path as written into the config, relative to the project root with forward slashes (e.g. <c>ml/models/4p-v2.txt</c>).</param>
     /// <param name="Players">From the metadata; null when unknown (no <c>.meta.json</c>).</param>
     /// <param name="Local">True for the local workspace (ml/local/models, not in git), false for official models (ml/models).</param>
-    public sealed record Entry(string Path, string Name, string Kind, int? Players, double? BestWinVsDefault, bool Local = false)
+    public sealed record Entry(string Path, string Name, string Kind, int? Players, double? BestWinVsDefault, bool Local = false, int BestGames = 0)
     {
         /// <summary>Dropdown text: name and (official / local, kind, player count, best win share against the original MCTS).</summary>
         public string Label(Loc l)
@@ -63,8 +63,9 @@ public static class ValueModelCatalog
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(recordsPath));
-            double? best = BestVsDefault(doc.RootElement);
-            return best is { } b && (entry.BestWinVsDefault is null || b > entry.BestWinVsDefault) ? entry with { BestWinVsDefault = b } : entry;
+            var (win, games) = BestVsDefault(doc.RootElement);
+            // the records of this machine and the tracked .meta.json together: the match with the most games wins
+            return win is { } w && (entry.BestWinVsDefault is null || games >= entry.BestGames) ? entry with { BestWinVsDefault = w, BestGames = games } : entry;
         }
         catch (Exception e) when (e is JsonException or IOException or InvalidOperationException)
         {
@@ -80,8 +81,8 @@ public static class ValueModelCatalog
             using var doc = JsonDocument.Parse(File.ReadAllText(metaPath));
             var root = doc.RootElement;
             int? players = root.TryGetProperty("players", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : null;
-            double? best = root.TryGetProperty("matches", out var matches) ? BestVsDefault(matches) : null;
-            return entry with { Players = players, BestWinVsDefault = best };
+            var (win, games) = root.TryGetProperty("matches", out var matches) ? BestVsDefault(matches) : (null, 0);
+            return entry with { Players = players, BestWinVsDefault = win, BestGames = games };
         }
         catch (Exception e) when (e is JsonException or IOException or InvalidOperationException)
         {
@@ -89,19 +90,26 @@ public static class ValueModelCatalog
         }
     }
 
-    /// <summary>Highest win share among matches that had the original MCTS (no value model) at the table.</summary>
-    private static double? BestVsDefault(JsonElement matches)
+    /// <summary>
+    /// The match against the original MCTS (no value model at the table) with the most games, later one when equal: win share and games.
+    /// Not the highest win share: a short lucky match must not beat a long one (the ML UI uses the same rule: ml/mlui/common.py best_vs_default).
+    /// </summary>
+    private static (double? Win, int Games) BestVsDefault(JsonElement matches)
     {
-        if (matches.ValueKind != JsonValueKind.Array) return null;
+        if (matches.ValueKind != JsonValueKind.Array) return (null, 0);
         double? best = null;
+        int bestGames = -1;
         foreach (var m in matches.EnumerateArray())
         {
             bool vsDefault = m.TryGetProperty("others", out var others) && others.EnumerateArray().Any(o =>
                 o.TryGetProperty("strategy", out var s) && s.GetString() == "mcts" &&
                 (!o.TryGetProperty("valueModel", out var vm) || vm.ValueKind == JsonValueKind.Null));
             if (vsDefault && m.TryGetProperty("winShare", out var w) && w.ValueKind == JsonValueKind.Number)
-                best = Math.Max(best ?? 0, w.GetDouble());
+            {
+                int games = m.TryGetProperty("games", out var g) && g.ValueKind == JsonValueKind.Number ? g.GetInt32() : 0;
+                if (games >= bestGames) { best = w.GetDouble(); bestGames = games; }
+            }
         }
-        return best;
+        return (best, Math.Max(bestGames, 0));
     }
 }
