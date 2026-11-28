@@ -20,6 +20,7 @@ Python 子專案：產生資料用 Runner（C#），訓練在這裡，推論在 
 - `models/`：正式模型＋`.meta.json`＋`.check.txt`（進 git）；總表與狀態在 `docs/models.md`。早期模型的 `.meta.json` 是補寫的（`params.note`、`training.note` 會註明）。
 - `tests/`：pytest（`conftest.py` 產生假 dump）：`python3 -m pytest ml/tests`。`test_runner_jobs.py` 需要 .NET SDK（沒有就略過），會把 Runner 發佈到暫存資料夾。
 - `requirements.txt`：`python -m pip install -r ml/requirements.txt`。
+- `update.cmd`（Windows 一鍵更新：連接埠 8501 還在聽就拒絕、`update_check.py` 列出執行中／排隊的工作（退出碼 2 時問要不要繼續）、被追蹤的檔案有本機修改就拒絕、`git pull --ff-only`、列出 commit 與 Engine／Runner 是否有改、`pip install -q -r requirements.txt`、再 `call start-ui.cmd`）：只有 ASCII 訊息、CRLF 換行（cp950 主控台）；括號與 `&` 在 cmd 裡要用 `^` 跳脫。**只在 Linux 檢查過 `update_check.py`（有測試），cmd 本身沒在 Windows 跑過**。
 - `check_env.py`：這個 Python 有沒有 ML UI 的套件；沒有就印出該 Python 的完整路徑與 `"<python>" -m pip install -r …`（退出碼 1）。`start-ui.cmd`／`.sh`、`ui.py`（缺套件時只顯示修正指令）、Dashboard 的啟動按鈕都用它；必要套件清單在 `REQUIRED`（加套件時同步 `requirements.txt`）。
 - `make_test_fixture.py`：重產 C# 測試用的小模型 `Tests/Data/tiny-lgbm.*`（改特徵後要跑）。
 
