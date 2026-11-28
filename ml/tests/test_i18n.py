@@ -102,7 +102,7 @@ def _english_app(monkeypatch, tmp_path, page):
     monkeypatch.delenv("PR_LANG", raising=False)
     monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
     at = AppTest.from_file(UI, default_timeout=60).run()
-    if not any(b.key == f"navon-{page}" for b in at.button):  # the first page is already the current one
+    if f'data-page="{page}"' not in "".join(m.value for m in at.sidebar.markdown):  # the first page is already the current one
         at.button(key=f"nav-{page}").click().run()
     assert not at.exception, at.exception
     return at
@@ -141,7 +141,7 @@ def test_models_page_is_english(monkeypatch, tmp_path):
     at = _english_app(monkeypatch, tmp_path, "models")
     assert any("Value model list" in x for x in [c.value for c in at.main.caption] + [m.value for m in at.main.markdown])
     cols = [c for d in at.dataframe for c in d.value.columns]
-    for name in ("Model", "Location", "Type", "Players", "Best win rate vs original MCTS", "Rules version"):
+    for name in ("Model", "Location", "Type", "Players", "Win rate vs original MCTS (longest match)", "Rules version"):
         assert name in cols, (name, cols)
     assert not [c for c in cols if CJK.search(str(c))], cols
     key = next(d.key for d in at.dataframe if (d.key or "").startswith("models-list-"))
@@ -183,7 +183,7 @@ def test_every_page_is_english_and_switches_back(monkeypatch, tmp_path):
     monkeypatch.setenv("PR_RESULTS_DIR", str(tmp_path))
     at = AppTest.from_file(UI, default_timeout=60).run()
     for page in ("data", "train", "match", "datamanage", "models", "analysis", "queue", "hash", "versions"):
-        if not any(b.key == f"navon-{page}" for b in at.button):
+        if f'data-page="{page}"' not in "".join(m.value for m in at.sidebar.markdown):
             at.button(key=f"nav-{page}").click().run()
         assert not at.exception, (page, at.exception)
         texts = [x for x in _page_text(at) + [m.value for m in at.sidebar.markdown] if not x.lstrip().startswith("<style>")]

@@ -94,9 +94,12 @@ def sidebar_nav(page):
     for pid, title, icon, _, section in pages():
         if section:
             st.markdown(f'<div class="navsec">{section}</div>', unsafe_allow_html=True)
-        # the active entry gets another key prefix (navon-) so the CSS can highlight it
-        st.button(f"{icon} {title}", key=f"{'navon' if pid == page else 'nav'}-{pid}", width="stretch",
-                  on_click=go, args=(pid,))
+        # Every key stays the same whichever page is open: a key that changed (nav- -> navon-) made Streamlit show the old and the new
+        # button side by side for a moment (the list jumped). The active entry only gets a hidden marker the CSS finds with :has().
+        with st.container(key=f"navitem-{pid}"):
+            if pid == page:
+                st.markdown(f'<span class="nav-on" data-page="{pid}"></span>', unsafe_allow_html=True)
+            st.button(f"{icon} {title}", key=f"nav-{pid}", width="stretch", on_click=go, args=(pid,))
     st.button(t("lang.switch"), key="lang-toggle", on_click=switch_language)
 
 

@@ -268,9 +268,10 @@ def describe_match(m):
 
 
 def best_vs_default(meta):
-    """Highest win share in a match against the original MCTS (the headline number of section 10)."""
+    """The match against the original MCTS with the most games (the later one when equal): the headline number of section 10.
+    Not the highest win share: a short lucky match would beat a long one that is the better measurement."""
     rows = [m for m in meta.get("matches", []) if any(o["strategy"] == "mcts" and not o.get("valueModel") for o in m["others"])]
-    return max(rows, key=lambda m: m["winShare"]) if rows else None
+    return max(enumerate(rows), key=lambda ir: (ir[1].get("games", 0), ir[0]))[1] if rows else None
 
 
 PARAM_DEFAULTS = {"rounds": "400", "leaves": "63", "lr": "0.05", "min_leaf": "200", "feature_fraction": "0.8", "bagging_fraction": "0.8", "early_stopping": "30", "threads": "0", "hidden": "256,128", "epochs": "12", "batch": "1024", "l2": "1e-5", "patience": "3", "backend": "auto", "device": "auto", "valid": "0.1", "seed": "1"}  # the default shown in the help text (labels: param.<name>)

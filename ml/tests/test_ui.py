@@ -23,24 +23,31 @@ def run_app():
     return at
 
 
+def active_page(at):
+    """The highlighted navigation entry: its hidden marker <span class="nav-on" data-page="…"> (the button keys never change)."""
+    import re
+    found = [m for x in at.sidebar.markdown for m in re.findall(r'class="nav-on" data-page="([a-z]+)"', x.value)]
+    return found[0] if found else None
+
+
 def goto(at, page):
-    """Click a left-navigation entry (keys nav-<page>; the current page's entry is navon-<page>)."""
-    if not any(b.key == f"navon-{page}" for b in at.button):  # already there otherwise
+    """Click a left-navigation entry (keys nav-<page>)."""
+    if active_page(at) != page:  # already there otherwise
         at.button(key=f"nav-{page}").click().run()
     assert not at.exception, at.exception
     return at
 
 
 def nav_labels(at):
-    return [b.label.split("\u2003", 1)[1] for b in at.button if (b.key or "").startswith(("nav-", "navon-"))]
+    return [b.label.split("\u2003", 1)[1] for b in at.button if (b.key or "").startswith("nav-")]
 
 
 def test_ui_renders_without_data(results):
     at = run_app()
     assert nav_labels(at) == ["建立排程", "訓練資料", "估值模型", "AI 分析", "排程佇列", "模擬對局採樣", "模型訓練/蒸餾", "對戰驗證", "hash 說明", "版本控管"]
-    assert at.button(key="navon-pipeline")  # the first page is the current one
+    assert active_page(at) == "pipeline"  # the first page is the current one
     goto(at, "train")
-    assert at.button(key="navon-train")
+    assert active_page(at) == "train"
     assert any("還沒有訓練資料" in i.value for i in at.info)
 
 
